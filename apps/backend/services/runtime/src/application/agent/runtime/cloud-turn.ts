@@ -1,13 +1,14 @@
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
-import type { TurnScope } from "@repo/agent-runtime";
-import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
-import { newMessagesForStoredResponse } from "@repo/agent-runtime/context/response-continuation";
-import { attachExecutionEnvironment } from "@repo/agent-runtime/execution/environment";
-import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
-import type { RuntimeTurnSettings } from "@repo/agent-runtime/session/types";
-import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
-import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
+import {
+  type TurnScope,
+  appendWorkspaceChangeEvent,
+  attachExecutionEnvironment,
+  assembleInstructions,
+  type RuntimeTurnSettings,
+  transformToolPreservingCaller,
+  isToolOutcome,
+} from "@repo/agent-runtime";
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
 
@@ -97,6 +98,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   let previousResponseId = input.previousResponseId ?? null;
   let responseId: string | null = null;
   let parentResponseId = previousResponseId;
+  let statelessReplay = false;
   const loadSkillBody = input.loadSkillBody;
   const loadSkillFile = input.loadSkillFile;
   const skillSource = {
@@ -137,7 +139,6 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     tenantId: input.tenantId,
     workspaceId: input.workspaceId,
     sessionId: input.sessionId,
-    attachedImageDocumentIds: input.attachedImageDocumentIds,
   };
   const toolsContext = Object.fromEntries(
     Object.entries(tools)
@@ -152,7 +153,13 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
 
   // Stable workspace restore/persistence is host-owned; model-selected permissions
   // apply only to model-visible commands and file tools.
-  const sandbox = new RunSandbox(toolContext, undefined, input.signal);
+  const sandbox = new RunSandbox(
+    toolContext,
+    undefined,
+    input.signal,
+    resolvedTools.permissionProfile,
+    resolvedTools.processManager,
+  );
   scope.defer(() => sandbox.dispose());
   await sandbox.observeWorkspaceBaseline();
   const runtimeContext: AgentRuntimeContext = {
@@ -170,6 +177,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   );
   const providerModel = createInferenceModel(provider, input.reasoningEffort);
   const { toolSources } = resolvedTools;
+  let deltaRoles: Array<"user" | "tool"> | null = null;
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
     transformParams: async ({ params }) => {
@@ -188,6 +196,36 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
           contextEstimate,
         }),
       );
+      statelessReplay = params.prompt.some(
+        (message) =>
+          message.role === "assistant" &&
+          message.content.some((part) => part.type === "custom" && part.kind === "openai.compaction"),
+      );
+      if (statelessReplay) {
+        previousResponseId = null;
+        return {
+          ...params,
+          providerOptions: { ...params.providerOptions, openai: { ...params.providerOptions?.openai, store: false } },
+        };
+      }
+      if (previousResponseId && deltaRoles) {
+        // The retained SDK messages stay complete, even when the wire request is incremental.
+        const suffix = params.prompt.slice(-deltaRoles.length);
+        if (
+          suffix.length === deltaRoles.length &&
+          suffix.every((message, index) => message.role === deltaRoles![index])
+        ) {
+          return {
+            ...params,
+            prompt: [...params.prompt.filter((message) => message.role === "system"), ...suffix],
+            providerOptions: {
+              ...params.providerOptions,
+              openai: { ...params.providerOptions?.openai, previousResponseId },
+            },
+          };
+        }
+        previousResponseId = null;
+      }
       return params;
     },
   };
@@ -221,23 +259,27 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
       return null;
     },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
-    prepareStep: async ({ steps, messages }) => {
-      const lastStep = steps.at(-1);
-      const toolResultMessages = lastStep?.response.messages.filter((message) => message.role === "tool") ?? [];
-      const continuation =
-        previousResponseId && (steps.length === 0 || toolResultMessages.length > 0)
-          ? {
-              providerOptions: { openai: { previousResponseId } },
-              messages: steps.length > 0 ? toolResultMessages : newMessagesForStoredResponse(messages),
-            }
-          : {};
+    contextLimits: provider,
+    remoteCompactionBinding:
+      new URL(provider.baseUrl).origin === "https://api.openai.com"
+        ? JSON.stringify([provider.id, provider.model])
+        : undefined,
+    onCompactionUsage: input.onCompactionUsage,
+    onHistoryReplacement: () => {
+      previousResponseId = null;
+      deltaRoles = null;
+    },
+    prepareStep: async ({ messages, steps, experimental_steeringMessages }) => {
       const changes = (await sandbox.consumeExternalFileChanges()).map((change) => change.path);
-      return changes.length > 0
-        ? {
-            ...continuation,
-            messages: appendWorkspaceChangeEvent(continuation.messages ?? messages, changes),
-          }
-        : continuation;
+      const full = appendWorkspaceChangeEvent(messages, changes);
+      let first = full.length;
+      while (first > 0 && (full[first - 1]?.role === "tool" || full[first - 1]?.role === "user")) first--;
+      // For a new user turn, preceding consecutive user messages already belong to the stored response.
+      if (!steps.length && messages.at(-1)?.role === "user")
+        first = Math.max(first, messages.length - 1 - (experimental_steeringMessages?.length ?? 0));
+      deltaRoles = first < full.length ? full.slice(first).map((message) => message.role as "tool" | "user") : null;
+      if (!deltaRoles) previousResponseId = null;
+      return { messages: full };
     },
     // Generic ToolSet context requirements are conditional; the catalog still builds the inferred context map above.
     // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
@@ -286,13 +328,14 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
       }
       parentResponseId = previousResponseId;
       const providerResponseId = event.providerMetadata?.openai?.responseId;
-      responseId =
-        typeof providerResponseId === "string"
+      responseId = statelessReplay
+        ? null
+        : typeof providerResponseId === "string"
           ? providerResponseId
           : typeof event.response.id === "string"
             ? event.response.id
             : null;
-      previousResponseId = responseId;
+      previousResponseId = !statelessReplay && typeof providerResponseId === "string" ? providerResponseId : null;
       return observe(
         "finish model step",
         finishModelStep({

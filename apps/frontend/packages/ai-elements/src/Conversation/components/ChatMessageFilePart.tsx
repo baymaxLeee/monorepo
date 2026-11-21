@@ -41,9 +41,9 @@ export function ChatMessageFilePart({
   const inView = useInView(thumbRef);
   const { blobUrl, loading } = useDocumentBlobUrl(
     conversationId,
-    documentId,
-    isImage && Boolean(documentId) && inView,
-    { maxDim: IMAGE_THUMB_MAX_DIM },
+    documentId ?? fileId,
+    isImage && Boolean(documentId || (variant === "user" && fileId)) && inView,
+    { maxDim: IMAGE_THUMB_MAX_DIM, kind: fileId ? "file" : "document" },
   );
 
   if (!documentId && !fileId) {

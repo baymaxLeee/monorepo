@@ -508,6 +508,12 @@
           "approval_policy": {
             "$ref": "#/components/schemas/ApprovalPolicy"
           },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationFile"
+            },
+            "type": "array"
+          },
           "branches": {
             "items": {
               "$ref": "#/components/schemas/MessageBranchGroup"
@@ -517,12 +523,6 @@
           "created_at": {
             "format": "date-time",
             "type": "string"
-          },
-          "documents": {
-            "items": {
-              "$ref": "#/components/schemas/ConversationDocument"
-            },
-            "type": "array"
           },
           "id": {
             "type": "string"
@@ -596,7 +596,7 @@
           "selected_message_id",
           "messages",
           "branches",
-          "documents",
+          "attachments",
           "active_run_id",
           "latest_run_id",
           "title",
@@ -2446,6 +2446,149 @@
         }
       }
     },
+    "/conversations/{conversation_id}/attachments/complete": {
+      "post": {
+        "operationId": "completeConversationAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "client_ref": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "upload_id": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "client_ref",
+                  "upload_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationFile"
+                }
+              }
+            },
+            "description": "immutable session attachment"
+          },
+          "404": {
+            "description": "upload not found in session"
+          },
+          "409": {
+            "description": "upload incomplete"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/attachments/prepare": {
+      "post": {
+        "operationId": "prepareConversationAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "client_ref": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "filename": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "media_type": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "size_bytes": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "client_ref",
+                  "filename",
+                  "media_type",
+                  "size_bytes"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "completed": {
+                      "type": "boolean"
+                    },
+                    "upload_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "upload_url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "upload_id",
+                    "upload_url",
+                    "completed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Storage upload capability for this attachment"
+          }
+        }
+      }
+    },
     "/conversations/{conversation_id}/context": {
       "get": {
         "operationId": "getConversationContext",
@@ -2833,6 +2976,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_dim",
+            "schema": {
+              "maximum": 4096,
+              "minimum": 1,
+              "type": "integer"
             }
           },
           {
@@ -4217,56 +4369,130 @@
                       },
                       "tools": {
                         "items": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "description": {
-                              "type": "string"
-                            },
-                            "inputExamples": {
-                              "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "input": {
-                                    "additionalProperties": {
-                                      "$ref": "#/components/schemas/LocalInference__schema3"
-                                    },
-                                    "type": "object"
-                                  }
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "description": {
+                                  "type": "string"
                                 },
-                                "required": [
-                                  "input"
-                                ],
-                                "type": "object"
+                                "inputExamples": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "input": {
+                                        "additionalProperties": {
+                                          "$ref": "#/components/schemas/LocalInference__schema3"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "input"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "inputSchema": {
+                                  "additionalProperties": {
+                                    "$ref": "#/components/schemas/LocalInference__schema2"
+                                  },
+                                  "type": "object"
+                                },
+                                "name": {
+                                  "maxLength": 128,
+                                  "pattern": "^[a-zA-Z0-9_-]+$",
+                                  "type": "string"
+                                },
+                                "strict": {
+                                  "type": "boolean"
+                                },
+                                "type": {
+                                  "enum": [
+                                    "function"
+                                  ],
+                                  "type": "string"
+                                }
                               },
-                              "type": "array"
-                            },
-                            "inputSchema": {
-                              "additionalProperties": {
-                                "$ref": "#/components/schemas/LocalInference__schema2"
-                              },
+                              "required": [
+                                "type",
+                                "name",
+                                "inputSchema"
+                              ],
                               "type": "object"
                             },
-                            "name": {
-                              "maxLength": 128,
-                              "pattern": "^[a-zA-Z0-9_-]+$",
-                              "type": "string"
-                            },
-                            "strict": {
-                              "type": "boolean"
-                            },
-                            "type": {
-                              "enum": [
-                                "function"
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "args": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "format": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "definition": {
+                                          "maxLength": 4096,
+                                          "type": "string"
+                                        },
+                                        "syntax": {
+                                          "enum": [
+                                            "lark"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "type": {
+                                          "enum": [
+                                            "grammar"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "syntax",
+                                        "definition"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "description",
+                                    "format"
+                                  ],
+                                  "type": "object"
+                                },
+                                "id": {
+                                  "enum": [
+                                    "openai.custom"
+                                  ],
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "enum": [
+                                    "apply_patch"
+                                  ],
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "enum": [
+                                    "provider"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "id",
+                                "name",
+                                "args"
                               ],
-                              "type": "string"
+                              "type": "object"
                             }
-                          },
-                          "required": [
-                            "type",
-                            "name",
-                            "inputSchema"
-                          ],
-                          "type": "object"
+                          ]
                         },
                         "maxItems": 128,
                         "type": "array"

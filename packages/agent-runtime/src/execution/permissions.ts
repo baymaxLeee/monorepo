@@ -29,8 +29,8 @@ export type PermissionProfile =
   | { type: "external"; network: NetworkSandboxPolicy };
 
 export interface AdditionalPermissionProfile {
-  fileSystem?: FileSystemPermissionEntry[];
-  network?: { allowedHosts: string[] };
+  file_system?: { read?: string[]; write?: string[] };
+  network?: { enabled?: boolean };
 }
 
 export interface ActivePermissionProfile {
@@ -168,14 +168,17 @@ export function applyAdditionalPermissions(
   const result = clonePermissionProfile(base);
   if (!additional) return result;
 
-  if (additional.fileSystem?.length) {
+  const grants: FileSystemPermissionEntry[] = [
+    ...(additional.file_system?.read ?? []).map((path) => ({ path, access: "read" as const })),
+    ...(additional.file_system?.write ?? []).map((path) => ({ path, access: "write" as const })),
+  ];
+  if (grants.length) {
     if (result.type !== "managed") {
       throw new Error("additional filesystem permissions require managed enforcement");
     }
     if (result.fileSystem.type === "restricted") {
       const denied = result.fileSystem.entries.filter((entry) => entry.access === "deny");
-      for (const candidate of additional.fileSystem) {
-        if (candidate.access === "deny") throw new Error("additional permissions cannot introduce policy denials");
+      for (const candidate of grants) {
         const entry = { ...candidate, path: normalizedAbsolutePath(candidate.path) };
         if (denied.some((item) => pathContains(item.path, entry.path))) continue;
         const existing = result.fileSystem.entries.find((item) => item.path === entry.path);
@@ -187,14 +190,7 @@ export function applyAdditionalPermissions(
     }
   }
 
-  if (additional.network) {
-    if (result.type === "disabled") return result;
-    if (result.network.type === "restricted") {
-      result.network.allowedHosts = [
-        ...new Set([...result.network.allowedHosts, ...additional.network.allowedHosts.map(normalizedHost)]),
-      ].sort();
-    }
-  }
+  if (additional.network?.enabled && result.type !== "disabled") result.network = { type: "enabled" };
   return clonePermissionProfile(result);
 }
 

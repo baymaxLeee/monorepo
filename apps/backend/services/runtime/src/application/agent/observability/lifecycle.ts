@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
+import { isToolOutcome } from "@repo/agent-runtime";
 
 import { finalizeSessionContext, type ContextEstimate } from "../context/context-snapshot.js";
 import {

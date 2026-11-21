@@ -66,9 +66,7 @@ Asset/revision，生成新的 document owner 与 durable Claim intent。返回�
 - `editable_source`：可编辑文档；每次编辑先写新 Storage revision，再以版本校验切换引用。
 - `ingest_status` / `index_status`：耐久转换与索引意图。
 
-用户上传的 source 文档和 Runtime Session 中引用的 document 在授权后由 sandbox role 以只读
-`sources/documents/*` 快照导入。普通 Agent 文件的创建、发现和发布由 Runtime
-与 Storage 完成。
+显式导入的 Knowledge 文档可通过 Runtime 的来源刷新操作导入只读 `sources/documents/*`。Web Chat 普通附件由 Runtime 登记为会话文件，原件由 Storage 提供。
 
 ## Storage 生命周期协作
 

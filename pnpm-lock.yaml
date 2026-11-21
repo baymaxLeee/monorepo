@@ -1469,6 +1469,9 @@ importers:
       '@ai-sdk/mcp':
         specifier: 'catalog:'
         version: 2.0.99(zod@4.6.5)
+      '@ai-sdk/openai':
+        specifier: 'catalog:'
+        version: 4.0.117(zod@4.6.5)
       '@ai-sdk/provider':
         specifier: ^4.0.38
         version: 4.0.38

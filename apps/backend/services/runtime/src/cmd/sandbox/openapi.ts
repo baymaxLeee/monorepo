@@ -21,8 +21,13 @@ const scope = {
   schema: { type: "string" },
   description: "JSON-encoded SandboxScope",
 };
+const missingGuest = {
+  description: "The scoped sandbox no longer exists",
+  content: { "application/json": { schema: ref("SandboxNotFound") } },
+};
 const fileParams = [id, scope, { name: "path", in: "query", required: true, schema: { type: "string" } }];
 const schemas = {
+  SandboxNotFound: z.strictObject({ code: z.literal("sandbox_not_found"), message: z.string() }),
   SandboxScope: scopeSchema,
   SandboxStart: startSchema,
   SandboxContinue: continueSchema,
@@ -50,24 +55,25 @@ process.stdout.write(
           post: {
             parameters: [id],
             requestBody: body("SandboxStart"),
-            responses: { "200": json(ref("SandboxProcess")) },
+            responses: { "404": missingGuest, "200": json(ref("SandboxProcess")) },
           },
         },
         "/sessions/{id}/processes/{processId}": {
           post: {
             parameters: [id, { ...id, name: "processId" }],
             requestBody: body("SandboxContinue"),
-            responses: { "200": json(ref("SandboxProcess")) },
+            responses: { "404": missingGuest, "200": json(ref("SandboxProcess")) },
           },
           delete: {
             parameters: [id, { ...id, name: "processId" }, scope],
-            responses: { "200": json(ref("SandboxProcess")) },
+            responses: { "404": missingGuest, "200": json(ref("SandboxProcess")) },
           },
         },
         "/sessions/{id}": {
           delete: {
             parameters: [id, scope],
             responses: {
+              "404": missingGuest,
               "200": json({ type: "object", properties: { destroyed: { type: "boolean" } }, required: ["destroyed"] }),
             },
           },
@@ -90,12 +96,14 @@ process.stdout.write(
               content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
             },
             responses: {
+              "404": missingGuest,
               "200": json({ type: "object", properties: { saved: { type: "boolean" } }, required: ["saved"] }),
             },
           },
           get: {
             parameters: fileParams,
             responses: {
+              "404": missingGuest,
               "200": {
                 description: "original file bytes",
                 content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
@@ -113,6 +121,7 @@ process.stdout.write(
               },
             ],
             responses: {
+              "404": missingGuest,
               "200": json({ type: "object", properties: { deleted: { type: "boolean" } }, required: ["deleted"] }),
             },
           },
@@ -120,7 +129,7 @@ process.stdout.write(
         "/sessions/{id}/snapshot": {
           post: {
             parameters: [id, scope],
-            responses: { "200": json(ref("SandboxWorkspaceSnapshot")) },
+            responses: { "404": missingGuest, "200": json(ref("SandboxWorkspaceSnapshot")) },
           },
         },
         "/sessions/{id}/workspace-edits": {
@@ -130,12 +139,13 @@ process.stdout.write(
               scope,
               { name: "X-Sandbox-Workspace-Edit", in: "header", required: false, schema: { type: "string" } },
             ],
-            responses: { "201": json(ref("SandboxWorkspaceEdit")) },
+            responses: { "404": missingGuest, "201": json(ref("SandboxWorkspaceEdit")) },
           },
           delete: {
             parameters: [id, scope],
             requestBody: body("SandboxWorkspaceEdit"),
             responses: {
+              "404": missingGuest,
               "200": json({ type: "object", properties: { released: { type: "boolean" } }, required: ["released"] }),
             },
           },

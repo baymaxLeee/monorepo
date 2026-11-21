@@ -92,6 +92,10 @@ export class LocalWorkspaces {
     workspace.queue = result.catch(() => undefined);
     return result;
   }
+  async drain(root: string) {
+    const workspace = await this.workspaces.get(root)?.catch(() => null);
+    await workspace?.queue;
+  }
   private async release(id: string) {
     const pending = this.workspaces.get(id);
     this.workspaces.delete(id);

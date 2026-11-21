@@ -1,12 +1,12 @@
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
 import { listProviders, type ModelProvider } from "@repo/api/admin";
-import { type ConversationDocument } from "@repo/api/chat";
+import { type ConversationFile } from "@repo/api/chat";
 import { Badge, toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { XIcon } from "lucide-react";
 import { memo, type RefObject, useEffect, useState } from "react";
 
-import { uploadConversationFiles } from "../lib/upload-conversation-files";
+import { uploadConversationFile } from "../lib/upload-conversation-file";
 import { ChatComposerControls, type ReasoningEffort } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatPrompt } from "./ChatPrompt";
@@ -15,7 +15,7 @@ import { ExecutionPolicy, type ApprovalPolicyValue, type PermissionProfileValue 
 type ChatComposerProps = {
   id: string;
   promptRef: RefObject<PromptInputRef | null>;
-  documents: ConversationDocument[];
+  attachments: ConversationFile[];
   initialModelId: string | null;
   initialReasoningEffort: ReasoningEffort;
   onUpdateModelBinding: (id: string, effort: ReasoningEffort) => Promise<void>;
@@ -38,7 +38,7 @@ type ChatComposerProps = {
 export const ChatComposer = memo(function ChatComposer({
   id,
   promptRef,
-  documents,
+  attachments,
   initialModelId,
   initialReasoningEffort,
   onUpdateModelBinding,
@@ -92,50 +92,22 @@ export const ChatComposer = memo(function ChatComposer({
         if (!id) {
           return;
         }
-        void uploadConversationFiles({
-          conversationId: id,
-          providerId: selectedModelId ?? undefined,
-          items,
-        })
-          .then((result) => {
-            for (const { client_ref: clientRef, document } of result.documents) {
-              promptRef.current?.updateToken(clientRef, {
-                status: document.ingest_status === "failed" ? "failed" : "ready",
-                meta: {
-                  artifactId: document.id,
-                  assetId: document.asset_id,
-                  revisionId: document.source_revision_id,
-                  ingestStatus: document.ingest_status ?? "received",
-                },
-              });
-            }
-            for (const failure of result.failed ?? []) {
-              promptRef.current?.updateToken(failure.client_ref, {
-                status: "failed",
-                error: failure.error,
-                meta: {
-                  artifactId: failure.artifact_id ?? undefined,
-                  ingestStatus: "failed",
-                  ingestError: failure.error,
-                },
-              });
-              toast.add({ type: "error", title: `上传失败：${failure.error}` });
-            }
-          })
-          .catch((error) => {
-            const message = getErrorMessage(error);
-            for (const { token } of items) {
+        for (const { token, file } of items) {
+          void uploadConversationFile(id, token.id, file)
+            .then((attachment) => {
               promptRef.current?.updateToken(token.id, {
-                status: "failed",
-                error: message,
-                meta: {
-                  ingestStatus: "failed",
-                  ingestError: message,
-                },
+                status: "ready",
+                label: attachment.filename,
+                mime: attachment.mime_type,
+                meta: { fileId: attachment.id },
               });
-            }
-            toast.add({ type: "error", title: message });
-          });
+            })
+            .catch((cause) => {
+              const error = getErrorMessage(cause);
+              promptRef.current?.updateToken(token.id, { status: "failed", error });
+              toast.add({ type: "error", title: error });
+            });
+        }
       }}
       onSubmit={(value) =>
         void onSubmit(value).catch((error: unknown) => {
@@ -144,20 +116,15 @@ export const ChatComposer = memo(function ChatComposer({
       }
       mentionSource={(query) => {
         const q = query.trim().toLowerCase();
-        return documents
-          .filter((document) => document.ingest_status !== "failed")
-          .filter((document) => !q || (document.filename || document.title).toLowerCase().includes(q))
+        return attachments
+          .filter((file) => !q || file.filename.toLowerCase().includes(q))
           .slice(0, 8)
-          .map((document) => ({
-            id: document.id,
-            label: document.filename || document.title,
-            kind: (document.mime_type ?? "").startsWith("image/") ? "image" : "file",
-            mime: document.mime_type,
-            meta: {
-              artifactId: document.id,
-              assetId: document.asset_id,
-              revisionId: document.source_revision_id,
-            },
+          .map((file) => ({
+            id: file.id,
+            label: file.filename,
+            kind: file.mime_type.startsWith("image/") ? "image" : "file",
+            mime: file.mime_type,
+            meta: { fileId: file.id },
           }));
       }}
       onSkillsLoad={loadSkills}

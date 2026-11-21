@@ -1,13 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
-import { toPersistedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
-import type {
-  PersistedTurnPluginSnapshot,
-  PluginActivation,
-  ResolvedTurnPluginSnapshot,
-} from "@repo/agent-runtime/plugins/types";
-import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
+import {
+  toPersistedTurnPluginSnapshot,
+  type PersistedTurnPluginSnapshot,
+  type PluginActivation,
+  type ResolvedTurnPluginSnapshot,
+  isToolOutcome,
+} from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 
@@ -26,7 +26,7 @@ import {
 import type { PersistedThreadItemContent } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, RequestError } from "../../errors.js";
 import { parseSessionContextSnapshot, type SessionContextSnapshot } from "../context/context-snapshot.js";
-import { cancelTodoOutput, finalizeCancelledParts } from "./cancellation.js";
+import { cancelPlanOutput, finalizeCancelledParts } from "./cancellation.js";
 import { mergeClientContinuation } from "./continuation.js";
 
 export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
@@ -48,7 +48,7 @@ export interface RunLeaseToken {
   attemptEpoch: bigint;
 }
 
-type RuntimeTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+export type RuntimeTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 async function requireOwnedRun(
   tx: RuntimeTransaction,
@@ -281,7 +281,11 @@ export async function claimAgentRunOperation(input: {
       .from(threadItems)
       .where(eq(threadItems.threadId, input.sessionId));
     const now = new Date();
-    const [activeLease] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, input.sessionId));
+    const [activeLease] = await tx
+      .select()
+      .from(turnLeases)
+      .where(eq(turnLeases.threadId, input.sessionId))
+      .for("update");
     if (activeLease && activeLease.expiresAt > now) {
       throw new ConflictError("this session already has an active run", "active_run_exists", {
         run_id: activeLease.turnId,
@@ -526,6 +530,69 @@ export async function finishAgentRun(input: {
   });
 }
 
+type JournalMessage = { id: string; content: PersistedThreadItemContent; status: "ok" | "failed" };
+
+async function writeAssistantItem(
+  tx: RuntimeTransaction,
+  run: typeof turns.$inferSelect,
+  sequence: bigint,
+  message: JournalMessage,
+) {
+  const existing = run.outputItemId ?? (run.operation === "tool-continuation" ? run.targetItemId : null);
+  const now = new Date();
+  if (existing) {
+    if (message.id !== existing) throw new Error("assistant output message id does not match its journal binding");
+    const updated = await tx
+      .update(threadItems)
+      .set({
+        content: message.content,
+        status: message.status,
+        revision: sql`${threadItems.revision} + 1`,
+        updatedAt: now,
+      })
+      .where(and(eq(threadItems.id, existing), eq(threadItems.threadId, run.threadId)))
+      .returning({ id: threadItems.id });
+    if (!updated.length) throw new Error("assistant journal item is missing");
+  } else {
+    if (!run.historyItemId) throw new Error("run has no journal parent");
+    const siblings = await tx
+      .select({ index: threadItems.branchIndex })
+      .from(threadItems)
+      .where(and(eq(threadItems.threadId, run.threadId), eq(threadItems.parentItemId, run.historyItemId)));
+    await tx.insert(threadItems).values({
+      ...message,
+      threadId: run.threadId,
+      turnId: run.id,
+      ordinal: sequence + 1n,
+      role: "assistant",
+      parentItemId: run.historyItemId,
+      branchIndex: siblings.reduce((next, row) => Math.max(next, row.index + 1), 0),
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+  await tx
+    .update(threads)
+    .set({ selectedItemId: message.id, ...(!existing ? { itemSequence: sequence + 1n } : {}), updatedAt: now })
+    .where(eq(threads.id, run.threadId));
+  return message.id;
+}
+
+/** Persist the SDK's completed step before terminal cleanup. Reuse one assistant item for the entire turn. */
+export async function persistCompletedStep(owner: RunLeaseToken, id: string, content: PersistedThreadItemContent) {
+  await getDb().transaction(async (tx) => {
+    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, owner.runId));
+    if (!binding) throw new Error("missing run");
+    const [thread] = await tx.select().from(threads).where(eq(threads.id, binding.threadId)).for("update");
+    const [run] = await tx.select().from(turns).where(eq(turns.id, owner.runId)).for("update");
+    await requireOwnedRun(tx, owner);
+    if (!thread || !run || run.historyRevision !== thread.historyRevision)
+      throw new ConflictError("run history binding is no longer current", "run_history_conflict");
+    await writeAssistantItem(tx, run, thread.itemSequence, { id, content, status: "ok" });
+    await tx.update(turns).set({ outputItemId: id }).where(eq(turns.id, run.id));
+  });
+}
+
 export async function finalizeAgentRunJournal(input: {
   runId: string;
   attemptEpoch: bigint;
@@ -575,7 +642,7 @@ export async function finalizeAgentRunJournal(input: {
     const aborted = input.aborted || run.status === "cancel_requested" || input.status === "cancelled";
     const status = aborted ? "cancelled" : input.status;
     const error = input.error;
-    const message = input.message
+    const message: JournalMessage | null = input.message
       ? {
           ...input.message,
           status: status === "completed" ? "ok" : "failed",
@@ -609,10 +676,10 @@ export async function finalizeAgentRunJournal(input: {
               itemId: message?.id ?? null,
             })
             .where(eq(toolExecutions.id, toolCall.id));
-        } else if (toolCall.toolName === "update_todos" && toolCall.status === "completed") {
+        } else if (toolCall.toolName === "update_plan" && toolCall.status === "completed") {
           await tx
             .update(toolExecutions)
-            .set({ outputJson: cancelTodoOutput(toolCall.outputJson), itemId: message?.id ?? null })
+            .set({ outputJson: cancelPlanOutput(toolCall.outputJson), itemId: message?.id ?? null })
             .where(eq(toolExecutions.id, toolCall.id));
         }
       }
@@ -640,47 +707,11 @@ export async function finalizeAgentRunJournal(input: {
       }
     }
 
-    let outputMessageId: string | null = null;
-    if (message) {
-      if (run.operation === "tool-continuation") {
-        if (message.id !== run.targetItemId) {
-          throw new Error("continuation output message id does not match its target");
-        }
-        const updated = await tx
-          .update(threadItems)
-          .set({
-            content: message.content,
-            status: message.status,
-            revision: sql`${threadItems.revision} + 1`,
-            updatedAt: now,
-          })
-          .where(and(eq(threadItems.id, message.id), eq(threadItems.threadId, run.threadId)))
-          .returning({ id: threadItems.id });
-        if (!updated[0]) throw new Error(`continuation message ${message.id} is missing`);
-        outputMessageId = message.id;
-      } else {
-        const siblings = await tx
-          .select({ branchIndex: threadItems.branchIndex })
-          .from(threadItems)
-          .where(and(eq(threadItems.threadId, run.threadId), eq(threadItems.parentItemId, run.historyItemId)));
-        const branchIndex = siblings.reduce((maximum, row) => Math.max(maximum, row.branchIndex + 1), 0);
-        await tx.insert(threadItems).values({
-          id: message.id,
-          threadId: run.threadId,
-          turnId: run.id,
-          ordinal: session.itemSequence + 1n,
-          role: "assistant",
-          content: message.content,
-          status: message.status,
-          parentItemId: run.historyItemId,
-          branchIndex,
-          createdAt: now,
-          updatedAt: now,
-        });
-        outputMessageId = message.id;
-      }
+    const outputMessageId = message
+      ? await writeAssistantItem(tx, run, session.itemSequence, message)
+      : run.outputItemId;
+    if (message)
       await tx.update(toolExecutions).set({ itemId: message.id }).where(eq(toolExecutions.turnId, input.runId));
-    }
 
     // Trace gaps must not rewrite the authoritative SDK outcome.
     await tx
@@ -710,16 +741,6 @@ export async function finalizeAgentRunJournal(input: {
         completedAt: now,
       })
       .where(eq(turns.id, input.runId));
-    await tx
-      .update(threads)
-      .set({
-        ...(outputMessageId ? { selectedItemId: outputMessageId } : {}),
-        ...(outputMessageId && run.operation !== "tool-continuation"
-          ? { itemSequence: session.itemSequence + 1n }
-          : {}),
-        updatedAt: now,
-      })
-      .where(eq(threads.id, run.threadId));
     await tx
       .delete(turnLeases)
       .where(and(eq(turnLeases.turnId, input.runId), eq(turnLeases.attemptEpoch, input.attemptEpoch)));
@@ -757,6 +778,22 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
     return [];
   }
   return getDb().transaction(async (tx) => {
+    // Each lock wait can cross an ownership handoff. PostgreSQL READ COMMITTED
+    // takes a fresh snapshot for the eligibility check after acquiring the locks.
+    await tx
+      .select({ id: threads.id })
+      .from(threads)
+      .innerJoin(turns, eq(turns.threadId, threads.id))
+      .where(inArray(turns.id, runIds))
+      .orderBy(threads.id)
+      .for("update", { of: threads });
+    await tx.select({ id: turns.id }).from(turns).where(inArray(turns.id, runIds)).orderBy(turns.id).for("update");
+    await tx
+      .select({ id: turnLeases.turnId })
+      .from(turnLeases)
+      .where(inArray(turnLeases.turnId, runIds))
+      .orderBy(turnLeases.turnId)
+      .for("update");
     const now = new Date();
     const interrupted = await tx
       .update(turns)
@@ -784,6 +821,7 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
       .update(turnInputs)
       .set({ state: "unconfirmed", reason: "run ownership was lost before delivery was confirmed", updatedAt: now })
       .where(and(inArray(turnInputs.turnId, interruptedIds), eq(turnInputs.state, "dispatching")));
+    await tx.delete(turnLeases).where(inArray(turnLeases.turnId, interruptedIds));
     return interrupted;
   });
 }

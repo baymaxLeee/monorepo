@@ -15,15 +15,16 @@ import {
   ProviderKind,
   ProviderServiceClient,
 } from "@backend/inner-api/gen/admin/v1/admin";
-import type {
-  AgentPluginManifest,
-  McpToolContribution,
-  PluginActivation,
-  PluginSourceKind,
-  PluginTrustLevel,
-  ResolvedTurnPluginSnapshot,
-} from "@repo/agent-runtime/plugins/types";
-import type { AgentToolPlanning, AgentToolPolicy } from "@repo/agent-runtime/tools/types";
+import {
+  type AgentPluginManifest,
+  type McpToolContribution,
+  type PluginActivation,
+  type PluginSourceKind,
+  type PluginTrustLevel,
+  type ResolvedTurnPluginSnapshot,
+  type AgentToolPlanning,
+  type AgentToolPolicy,
+} from "@repo/agent-runtime";
 
 import { propagationHeaders } from "#runtime/foundation";
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
@@ -109,7 +110,7 @@ export function attachPlatformMcpCredential(
     }
     const servers = resolved.manifest.mcpServers.filter((server) => server.name === resource.serverName);
     const expectedUrl = new URL("/mcp", settings[resource.serviceUrl]).toString();
-    if (servers.length !== 1 || new URL(servers[0]!.url).toString() !== expectedUrl) {
+    if (servers.length !== 1 || new URL(servers[0].url).toString() !== expectedUrl) {
       throw new AdminUnavailableError(`${resolved.manifest.id} does not target its configured platform MCP endpoint`);
     }
     platformGrantKeys.add(`${resolved.manifest.id}\u0000${resource.serverName}`);
@@ -270,8 +271,8 @@ function pluginManifest(value: WireAgentPluginManifest): AgentPluginManifest {
         return {
           name: tool.name,
           description: tool.description,
-          inputSchema: tool.inputSchema as JSONSchema7,
-          ...(tool.outputSchema ? { outputSchema: tool.outputSchema as JSONSchema7 } : {}),
+          inputSchema: tool.inputSchema,
+          ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
           policy: {
             capability: tool.policy.capability,
             ...(tool.policy.callableByCodeMode ? { callableByCodeMode: true } : {}),
@@ -326,7 +327,7 @@ export async function resolveAgentPlugins(
             workspaceRole,
             activations: activations.map((activation) => ({
               pluginId: activation.pluginId,
-              bindings: { ...(activation.bindings ?? {}) },
+              bindings: { ...activation.bindings },
             })),
           },
           metadata,
@@ -462,7 +463,7 @@ export async function getProvider(
   if (provider.providerKind !== "chat") {
     throw new ProviderNotConfiguredError(`provider ${provider.id} is not a configured language provider`);
   }
-  return provider as ProviderSnapshot & LanguageProviderSnapshot;
+  return provider;
 }
 
 export async function getProviderLimits(

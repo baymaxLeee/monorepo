@@ -35,8 +35,8 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@repo/api/chat", () => ({ createConversation: mocks.create }));
 vi.mock("@repo/api/admin", () => ({ listAgentPluginOptions: mocks.plugins, listProviders: mocks.providers }));
-vi.mock("@repo/ai-elements/conversation/lib/upload-conversation-files", () => ({
-  uploadConversationFiles: mocks.upload,
+vi.mock("@repo/ai-elements/conversation/lib/upload-conversation-file", () => ({
+  uploadConversationFile: mocks.upload,
 }));
 vi.mock("@repo/runtime/desktop", () => {
   const bridge = {
@@ -142,15 +142,7 @@ beforeEach(() => {
   mocks.selectWorkspace.mockResolvedValue("/projects/new-project");
   mocks.send.mockResolvedValue(undefined);
   mocks.remove.mockResolvedValue(undefined);
-  mocks.upload.mockResolvedValue({
-    documents: [
-      {
-        client_ref: "file-token",
-        document: { id: "document", asset_id: "asset", source_revision_id: "revision" },
-      },
-    ],
-    failed: [],
-  });
+  mocks.upload.mockResolvedValue({ id: "upload", filename: "brief.md", mime_type: "text/markdown" });
   mocks.providers.mockResolvedValue([
     {
       id: "cloud-model",
@@ -294,7 +286,12 @@ test("new conversation uploads attachments before handing the first message to t
         state: expect.objectContaining({
           externalRequest: expect.objectContaining({
             parts: expect.arrayContaining([
-              expect.objectContaining({ type: "file", filename: "brief.md" }),
+              {
+                type: "file",
+                filename: "brief.md",
+                mediaType: "text/markdown",
+                url: "/api/chat-server/conversations/cloud/files/upload/content",
+              },
               { type: "text", text: "请阅读并处理我附加的文件。" },
             ]),
           }),
@@ -302,6 +299,23 @@ test("new conversation uploads attachments before handing the first message to t
       }),
     ),
   );
+});
+
+test("retry after an attachment upload fails reuses the same cloud conversation", async () => {
+  mocks.upload.mockRejectedValueOnce(new Error("upload interrupted"));
+  render(
+    <MemoryRouter>
+      <ConversationListPage />
+    </MemoryRouter>,
+  );
+  await screen.findByText("Cloud Model");
+  fireEvent.click(screen.getByText("发送附件测试"));
+  await screen.findByText("upload interrupted");
+  expect(mocks.navigate).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("发送附件测试"));
+  await waitFor(() => expect(mocks.navigate).toHaveBeenCalledOnce());
+  expect(mocks.create).toHaveBeenCalledTimes(2);
+  expect(mocks.create.mock.calls[0]).toEqual(mocks.create.mock.calls[1]);
 });
 
 test("new conversation keeps the editor enabled while creation is pending", async () => {

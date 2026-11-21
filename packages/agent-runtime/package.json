@@ -4,20 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/session/turn.ts",
-    "./context/*": "./src/context/*.ts",
-    "./instructions/*": "./src/instructions/*.ts",
-    "./plugins/*": "./src/plugins/*.ts",
-    "./protocol/*": "./src/protocol/*.ts",
-    "./execution/environment": "./src/execution/environment.ts",
-    "./execution/exec-policy": "./src/execution/exec-policy.ts",
-    "./execution/execution-host": "./src/execution/execution-host.ts",
-    "./session/input-queue": "./src/session/input-queue.ts",
-    "./execution/permissions": "./src/execution/permissions.ts",
-    "./execution/process-manager": "./src/execution/process-manager.ts",
-    "./execution/tool-orchestrator": "./src/execution/tool-orchestrator.ts",
-    "./session/types": "./src/session/types.ts",
-    "./tools/*": "./src/tools/*.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "test": "node --import tsx --test",
@@ -26,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/code-mode": "catalog:",
     "@ai-sdk/mcp": "catalog:",
+    "@ai-sdk/openai": "catalog:",
     "@ai-sdk/provider": "^4.0.38",
     "@ai-sdk/provider-utils": "^5.0.81",
     "@ai-sdk/tool-web-fetch": "catalog:",

@@ -7,7 +7,6 @@ import {
 import type { ToolSet } from "ai";
 import { z } from "zod";
 
-import { ToolExecutionScheduler } from "./execution-scheduler.js";
 import {
   isToolEmission,
   normalizeToolIssue,
@@ -19,6 +18,7 @@ import {
   ToolBlockedError,
   type ToolOutcome,
 } from "./outcome.js";
+import { ToolExecutionScheduler } from "./scheduler.js";
 import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy, ToolAvailability } from "./types.js";
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {

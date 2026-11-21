@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
-import { webSearchOutputSchema } from "@repo/agent-runtime/tools/web";
+import { type ResolvedTurnPluginSnapshot, webSearchOutputSchema } from "@repo/agent-runtime";
 import { z } from "zod";
 
 import { inferenceConfigSchema } from "../contracts/inference.generated";
 import { parseLocalUserMessageParts } from "./local-user-message";
+import { importAttachmentRequest, workspaceFileRequest } from "./runtime/attachments";
 import { DesktopSessionManager } from "./runtime/session-manager";
 
 const port = process.parentPort;
@@ -142,6 +142,14 @@ async function dispatch(method: string, payload: unknown) {
         p.pluginActivations,
       );
     }
+    case "workspaceFilePath": {
+      const { id, path } = workspaceFileRequest.parse(payload);
+      return runtime.workspaceFilePath(id, path);
+    }
+    case "importAttachment": {
+      const { id, filename, bytes } = importAttachmentRequest.parse(payload);
+      return runtime.importAttachment(id, filename, bytes);
+    }
     case "openStream":
       return runtime.openStream(idSchema.parse(payload));
     case "get":
@@ -176,7 +184,7 @@ async function dispatch(method: string, payload: unknown) {
           permissionProfile: z.enum([":read-only", ":workspace", ":danger-full-access"]),
         })
         .parse(payload);
-      runtime.setExecutionPolicy(p.id, p.approvalPolicy, p.permissionProfile);
+      await runtime.setExecutionPolicy(p.id, p.approvalPolicy, p.permissionProfile);
       return null;
     }
     case "setModelBinding": {

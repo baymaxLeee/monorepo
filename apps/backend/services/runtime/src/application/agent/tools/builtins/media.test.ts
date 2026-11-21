@@ -14,7 +14,7 @@ function result(toolCallId: string, toolName: string, data: JSONValue): ModelMes
         type: "tool-result",
         toolCallId,
         toolName,
-        output: { type: "json", value: { ok: true, status: "completed", data } },
+        output: toolName === "ask_user" ? { type: "text", value: JSON.stringify(data) } : { type: "json", value: data },
       },
     ],
   };
@@ -43,7 +43,7 @@ function confirmedHistory(confirmationId: string): ModelMessage[] {
       ],
     },
     result("select", "ask_user", {
-      answers: [{ id: "media_model_selection", values: ["image-provider"] }],
+      answers: { media_model_selection: { answers: ["image-provider"] } },
     }),
     {
       role: "assistant",
@@ -69,7 +69,7 @@ function confirmedHistory(confirmationId: string): ModelMessage[] {
       ],
     },
     result("confirm", "ask_user", {
-      answers: [{ id: "media_generation_configuration", values: [confirmationId] }],
+      answers: { media_generation_configuration: { answers: [confirmationId] } },
     }),
   ];
 }

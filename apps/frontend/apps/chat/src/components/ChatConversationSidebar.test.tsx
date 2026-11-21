@@ -32,7 +32,7 @@ test("desktop groups local conversations by project above recent history", async
     workspace: i < 6 ? "/projects/monorepo" : "/projects/magico",
   }));
   vi.stubGlobal("desktop", {
-    version: 7,
+    version: 8,
     info: async () => ({ localAvailable: true }),
     listThreads: async () => threads,
     subscribe: () => () => {},
@@ -79,7 +79,7 @@ test.each([false, true])(
     });
     const listThreads = vi.fn(async () => threads);
     vi.stubGlobal("desktop", {
-      version: 7,
+      version: 8,
       info: async () => ({ localAvailable: true }),
       listThreads,
       removeThread,

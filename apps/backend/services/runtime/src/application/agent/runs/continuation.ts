@@ -1,8 +1,12 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { askUserInputSchema, askUserOutcomeSchema } from "@repo/agent-runtime/tools/interaction";
-import { toolOutcomeData } from "@repo/agent-runtime/tools/outcome";
-import { continuedSkillName } from "@repo/agent-runtime/tools/skills";
+import {
+  continuedSkillName,
+  toolOutcomeData,
+  toolOutcomeSchema,
+  askUserInputSchema,
+  askUserResponseSchema,
+} from "@repo/agent-runtime";
 import { getToolName, isToolUIPart, type UIMessage, type UIMessagePart } from "ai";
 
 import { RequestError } from "../../errors.js";
@@ -22,7 +26,7 @@ function toolState(part: AnyUIMessage["parts"][number]): string {
 function isToolPart(
   part: AnyUIMessage["parts"][number],
 ): part is Extract<UIMessagePart<any, any>, { toolCallId: string }> {
-  return isToolUIPart(part as UIMessagePart<any, any>);
+  return isToolUIPart(part);
 }
 
 function clientExecution(part: ReturnType<typeof asToolPart>): boolean {
@@ -153,8 +157,8 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
     throw new RequestError("client continuation cannot add or remove message parts");
   }
   for (let index = 0; index < client.parts.length; index += 1) {
-    const clientPart = client.parts[index]!;
-    const persistedPart = persisted.parts[index]!;
+    const clientPart = client.parts[index];
+    const persistedPart = persisted.parts[index];
     if (!isToolPart(clientPart) && !isDeepStrictEqual(clientPart, persistedPart)) {
       throw new RequestError("client continuation cannot overwrite assistant content");
     }
@@ -168,34 +172,20 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
     if (getToolName(part) !== "ask_user") throw new RequestError("client tool has no registered result validator");
     if (part.state === "output-error") continue;
     const output = "output" in part ? part.output : undefined;
-    const parsed = askUserOutcomeSchema.safeParse(output);
+    const parsed = toolOutcomeSchema(askUserResponseSchema).safeParse(output);
     if (!parsed.success || parsed.data.status !== "completed") {
-      throw new RequestError("ask_user continuation has an invalid ToolOutcome");
+      throw new RequestError("ask_user continuation has an invalid answer");
     }
     const input = askUserInputSchema.safeParse(part.input);
     if (!input.success) throw new RequestError("persisted client question is invalid");
     const answers = parsed.data.data.answers;
-    const byId = new Map(input.data.questions.map((question) => [question.id, question]));
-    const seen = new Set<string>();
-    for (const answer of answers) {
-      const question = byId.get(answer.id);
-      if (!question || seen.has(answer.id))
-        throw new RequestError("answer contains an unknown or duplicate question id");
-      seen.add(answer.id);
-      if (
-        new Set(answer.values).size !== answer.values.length ||
-        (question.mode === "single" && answer.values.length !== 1)
-      ) {
-        throw new RequestError("answer does not match the question selection mode");
-      }
-      if (
-        !question.allow_freeform &&
-        answer.values.some((value) => !question.choices.some((choice) => choice.value === value))
-      ) {
-        throw new RequestError("answer contains an unknown choice");
-      }
+    const ids = new Set(input.data.questions.map((question) => question.id));
+    if (Object.keys(answers).length !== ids.size || Object.keys(answers).some((id) => !ids.has(id))) {
+      throw new RequestError("answer must include exactly the requested question IDs");
     }
-    if (seen.size !== byId.size) throw new RequestError("answer must include every requested question");
+    for (const answer of Object.values(answers)) {
+      if (answer.answers.length !== 1) throw new RequestError("each question accepts one selected or free-form answer");
+    }
   }
 
   const responseById = new Map(clientResponses.map((part) => [part.toolCallId, part] as const));

@@ -90,7 +90,7 @@ test("only the latest todo snapshot is rendered within a message", async () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-update_todos",
+            type: "tool-update_plan",
             toolCallId: "older-todo",
             state: "output-available",
             input: {},
@@ -98,11 +98,11 @@ test("only the latest todo snapshot is rendered within a message", async () => {
             output: {
               ok: true,
               status: "completed",
-              data: { todos: [{ id: "task", content: "旧计划", status: "completed" }] },
+              data: { plan: [{ step: "旧计划", status: "completed" }] },
             },
           },
           {
-            type: "tool-update_todos",
+            type: "tool-update_plan",
             toolCallId: "newer-todo",
             state: "output-available",
             input: {},
@@ -110,11 +110,11 @@ test("only the latest todo snapshot is rendered within a message", async () => {
             output: {
               ok: true,
               status: "completed",
-              data: { todos: [{ id: "task", content: "新计划", status: "completed" }] },
+              data: { plan: [{ step: "新计划", status: "completed" }] },
             },
           },
           {
-            type: "tool-update_todos",
+            type: "tool-update_plan",
             toolCallId: "awaiting-approval",
             state: "approval-requested",
             input: {},
@@ -125,7 +125,7 @@ test("only the latest todo snapshot is rendered within a message", async () => {
       }}
     />,
   );
-  const trigger = await screen.findByRole("button", { name: /update_todos\s*已完成/ });
+  const trigger = await screen.findByRole("button", { name: /update_plan\s*已完成/ });
   fireEvent.click(trigger);
   expect(screen.getByText("新计划")).toBeTruthy();
   expect(screen.queryByText("旧计划")).toBeNull();

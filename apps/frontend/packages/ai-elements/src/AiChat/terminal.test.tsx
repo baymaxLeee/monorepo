@@ -36,7 +36,7 @@ test("a failed bash call exposes its failure status while details remain collaps
 });
 
 test("tool failure shows the reason and only reports an exit code supplied by the process", async () => {
-  const props = { input: { command: "test" }, running: false };
+  const props = { input: { cmd: "test" }, running: false };
   const view = render(<ChatTerminalTool {...props} output={undefined} errorText="审批恢复失败" />);
   const trigger = await screen.findByRole("button", { name: /test.*失败/ });
   expect(trigger.textContent).not.toContain("退出码");
@@ -49,7 +49,7 @@ test("tool failure shows the reason and only reports an exit code supplied by th
         ok: false,
         status: "partial",
         error: { code: "bash_exit", message: "command failed", retryable: false },
-        data: { termination: { type: "exit", exitCode: 17 } },
+        data: { exit_code: 17, output: "" },
       }}
     />,
   );

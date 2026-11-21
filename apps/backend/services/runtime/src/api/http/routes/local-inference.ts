@@ -1,4 +1,4 @@
-import { webSearchInputSchema } from "@repo/agent-runtime/tools/web";
+import { webSearchInputSchema } from "@repo/agent-runtime";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";

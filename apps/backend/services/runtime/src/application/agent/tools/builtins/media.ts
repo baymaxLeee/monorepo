@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
-import { toolCompleted, type ToolEmission } from "@repo/agent-runtime/tools/outcome";
+import { defineAgentTool, toolCompleted, type ToolEmission, askUserResponseSchema } from "@repo/agent-runtime";
 import { tool, type ModelMessage, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
@@ -361,14 +360,16 @@ export function mediaConfirmationId(kind: "image" | "video", configuration: unkn
     .slice(0, 32)}`;
 }
 
-function toolOutputData(output: unknown): unknown {
+function toolOutputData(output: unknown, name: string): unknown {
   if (!output || typeof output !== "object" || !("type" in output) || !("value" in output)) return undefined;
-  const envelope = output.value;
-  if (!envelope || typeof envelope !== "object") return undefined;
-  if (!("ok" in envelope) || envelope.ok !== true || !("status" in envelope) || envelope.status !== "completed") {
-    return undefined;
+  if (name === "ask_user" && output.type === "text" && typeof output.value === "string") {
+    try {
+      return askUserResponseSchema.parse(JSON.parse(output.value));
+    } catch {
+      return undefined;
+    }
   }
-  return "data" in envelope ? envelope.data : undefined;
+  return output.type === "json" ? output.value : undefined;
 }
 
 function confirmationHistory(messages: ModelMessage[]) {
@@ -387,7 +388,12 @@ function confirmationHistory(messages: ModelMessage[]) {
       } else if (part.type === "tool-result") {
         const call = calls.get(part.toolCallId);
         if (!call || call.toolName !== part.toolName) continue;
-        results.push({ toolName: part.toolName, input: call.input, data: toolOutputData(part.output), position });
+        results.push({
+          toolName: part.toolName,
+          input: call.input,
+          data: toolOutputData(part.output, call.toolName),
+          position,
+        });
       }
     }
   }
@@ -395,19 +401,7 @@ function confirmationHistory(messages: ModelMessage[]) {
 }
 
 function answerValues(data: unknown, id: string): string[] {
-  if (!data || typeof data !== "object" || !("answers" in data) || !Array.isArray(data.answers)) return [];
-  const answer = data.answers.find((candidate): candidate is { id: string; values: string[] } =>
-    Boolean(
-      candidate &&
-      typeof candidate === "object" &&
-      "id" in candidate &&
-      candidate.id === id &&
-      "values" in candidate &&
-      Array.isArray(candidate.values) &&
-      candidate.values.every((value: unknown) => typeof value === "string"),
-    ),
-  );
-  return answer?.values ?? [];
+  return askUserResponseSchema.safeParse(data).data?.answers[id]?.answers ?? [];
 }
 
 function findLastMatching<T>(values: readonly T[], predicate: (value: T) => boolean): T | undefined {
@@ -447,7 +441,12 @@ export function assertMediaGenerationConfirmed(
     history,
     (entry) =>
       entry.toolName === "ask_user" &&
-      providerIds.every((providerId) => answerValues(entry.data, "media_model_selection").includes(providerId)),
+      providerIds.every((providerId) =>
+        [
+          ...answerValues(entry.data, "media_model_selection"),
+          ...answerValues(entry.data, "media_image_model_selection"),
+        ].includes(providerId),
+      ),
   );
   if (!selection) throw new Error("media model selection was not confirmed by the user");
   const preparation = findLastMatching(
@@ -497,7 +496,7 @@ export function createMediaToolManifests() {
   const imagePlanning = {
     summary: "Start one durable background image-generation task for the complete gallery batch.",
     prerequisites: [
-      "Call list_media_models for image models, ask the user to choose one using ask_user question id media_model_selection, call prepare_media_generation with the complete prompts/configuration, then ask the user to confirm it using a separate ask_user question id media_generation_configuration whose fixed choice value is the returned confirmation_id.",
+      "Call list_media_models for image models, ask the user to choose one using ask_user question id media_model_selection with provider IDs as option labels, call prepare_media_generation with the complete prompts/configuration, then ask the user to confirm it using a separate ask_user question id media_generation_configuration whose approval option label is the returned confirmation_id.",
     ],
     parallelizable: false,
   };
@@ -511,7 +510,7 @@ export function createMediaToolManifests() {
       "Every adjacent generation shot must advance a distinct information or action beat and vary the framing, subject action, or on-screen content. Never pad, loop, or restage the same moment to fill time.",
     ],
     prerequisites: [
-      "Call list_media_models for video models (and image models when needed), ask the user to choose using ask_user question id media_model_selection, call prepare_media_generation with the complete creative brief/duration/shots/configuration, then ask the user to confirm it using a separate ask_user question id media_generation_configuration whose fixed choice value is the returned confirmation_id.",
+      "Call list_media_models for video models (when an image provider is also needed, include a second question with id media_image_model_selection in the same call), ask the user to choose using ask_user question id media_model_selection with provider IDs as option labels, call prepare_media_generation with the complete creative brief/duration/shots/configuration, then ask the user to confirm it using a separate ask_user question id media_generation_configuration whose approval option label is the returned confirmation_id.",
     ],
     parallelizable: false,
   };
@@ -540,7 +539,7 @@ export function createMediaToolManifests() {
     "prepare_media_generation",
     tool({
       description:
-        "Freeze the complete image or video generation configuration and return its confirmation id. Call only after the user selected provider ids in ask_user. Then present the complete configuration in a separate ask_user question with id media_generation_configuration and a fixed choice whose value is exactly confirmation_id.",
+        "Freeze the complete image or video generation configuration and return its confirmation id. Call only after the user selected provider ids in ask_user. Then present the complete configuration in a separate ask_user question with id media_generation_configuration and an option whose label is exactly confirmation_id.",
       inputSchema: prepareMediaGenerationInputSchema,
       outputSchema: prepareMediaGenerationOutputSchema,
       contextSchema: mediaToolContextSchema,

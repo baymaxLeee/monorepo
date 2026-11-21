@@ -13,9 +13,12 @@ the directory picker as a side effect of sending.
 
 The native plugin picker installs a user-selected package into the authenticated scope. Listing and import return only a plugin ID and display name. Local thread creation marks personal activations with `origin: "local"`. Only platform activations cross the inference relay's plugin resolver.
 
-Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. Bridge v7
-accepts bounded native `text` and inline `file` user parts; main and utility-process
-admission both reject remote file URLs, malformed data URLs and oversized payloads.
+Messages and chunks use official AI SDK `UIMessage` / `UIMessageChunk`. Bridge v8
+accepts bounded text and inline image parts. For ordinary attachments the renderer passes
+a selected `File` to `referenceFile`. The host returns a workspace-relative path for a
+project file, or stores the selected bytes under a thread-private directory and returns
+its read-only path. The journal records the path. Removing the thread deletes its copies.
+Main and utility-process admission validate incoming payloads.
 The native transport does not use cloud conversation APIs or add custom `data-*` parts. A stream segment starts from its original
 messages. Attachment subscribes before an atomic snapshot, replays native chunks,
 and deduplicates subsequent segment/index envelopes. A null chunk ends only the

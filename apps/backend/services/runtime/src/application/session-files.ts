@@ -9,10 +9,12 @@ import {
   threadFiles as sessionFiles,
   threadFileSaveOperations as sessionFileSaveOperations,
   threads as sessions,
+  turns,
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "./errors.js";
 import { assertEditableFileSize, editableFileByteLimit } from "./file-edit-limits.js";
-import { isValidWorkspacePath } from "./workspace-paths.js";
+import { recordWorkspaceCheckout, type WorkspaceAttempt } from "./workspace-checkout.js";
+import { ATTACHMENT_ROOT, isValidWorkspacePath } from "./workspace-paths.js";
 
 export interface SessionFile {
   id: string;
@@ -40,6 +42,7 @@ type FileScope = {
   tenantId: string;
   workspaceId: string;
   sessionId: string;
+  sandboxAttempt?: WorkspaceAttempt;
 };
 
 type ChatTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -58,7 +61,10 @@ function toSessionFile(row: typeof sessionFiles.$inferSelect): SessionFile {
     asset_id: row.assetId,
     revision_id: row.revisionId,
     sha256: row.sha256,
-    editable: isEditableSessionFile(row.filename, row.mediaType) && row.sizeBytes <= editableFileByteLimit(),
+    editable:
+      !row.workspacePath.startsWith(ATTACHMENT_ROOT) &&
+      isEditableSessionFile(row.filename, row.mediaType) &&
+      row.sizeBytes <= editableFileByteLimit(),
     edit_max_bytes: editableFileByteLimit(),
     etag: formatContentEtag(row.contentEtag),
     last_writer: {
@@ -119,6 +125,29 @@ function scopeCondition(scope: FileScope) {
   );
 }
 
+async function lockFileWriter(tx: ChatTransaction, scope: FileScope) {
+  const [thread] = await tx
+    .select({ ordinal: sessions.turnSequence })
+    .from(sessions)
+    .where(scopeCondition(scope))
+    .for("update");
+  if (!thread) throw new NotFoundError(`session ${scope.sessionId} not found`);
+  if (!scope.sandboxAttempt) return;
+  const [owner] = await tx
+    .select({ id: turns.id })
+    .from(turns)
+    .where(
+      and(
+        eq(turns.threadId, scope.sessionId),
+        eq(turns.ordinal, thread.ordinal),
+        eq(turns.id, scope.sandboxAttempt.runId),
+        eq(turns.attemptEpoch, BigInt(scope.sandboxAttempt.attemptEpoch)),
+      ),
+    )
+    .for("share");
+  if (!owner) throw new ConflictError("sandbox workspace writer has been superseded", "workspace_writer_superseded");
+}
+
 export async function listSessionFiles(scope: FileScope): Promise<SessionFile[]> {
   const rows = await getDb()
     .select({ file: sessionFiles })
@@ -151,6 +180,17 @@ export async function getSessionFile(
   return toSessionFile(row.file);
 }
 
+export async function getSessionAttachment(
+  auth: Pick<AuthContext, "userId" | "tenantId" | "workspaceId">,
+  sessionId: string,
+  fileId: string,
+) {
+  const file = await getSessionFile(auth, sessionId, fileId);
+  if (!file.workspace_path.startsWith(ATTACHMENT_ROOT) || file.workspace_state !== "live")
+    throw new NotFoundError("session attachment not found");
+  return file;
+}
+
 export async function publishSessionFile(
   input: FileScope & {
     assetId: string;
@@ -162,15 +202,21 @@ export async function publishSessionFile(
     sha256: string;
     idempotencyKey: string;
     workspacePath: string;
+    checkedOut?: boolean;
     writerType?: "user" | "agent";
     writerId?: string;
   },
 ): Promise<SessionFile> {
   const db = getDb();
+  if (
+    input.workspacePath.startsWith("/workspace/sources/") &&
+    !(input.writerType === "user" && input.workspacePath.startsWith(ATTACHMENT_ROOT))
+  ) {
+    throw new RequestError("reserved attachment path");
+  }
   if (!isValidWorkspacePath(input.workspacePath)) throw new RequestError("invalid session workspace path");
   return db.transaction(async (tx) => {
-    const [session] = await tx.select({ id: sessions.id }).from(sessions).where(scopeCondition(input)).for("update");
-    if (!session) throw new NotFoundError(`session ${input.sessionId} not found`);
+    await lockFileWriter(tx, input);
     const [existing] = await tx
       .select()
       .from(sessionFiles)
@@ -196,7 +242,10 @@ export async function publishSessionFile(
       ) {
         throw new ConflictError("file idempotency key was already used for different content");
       }
-      return toSessionFile(existing);
+      const file = toSessionFile(existing);
+      if (input.sandboxAttempt && input.checkedOut !== false)
+        await recordWorkspaceCheckout(input.sandboxAttempt, file, tx);
+      return file;
     }
 
     const now = new Date();
@@ -247,7 +296,10 @@ export async function publishSessionFile(
         updatedAt: now,
       })
       .where(eq(sessions.id, input.sessionId));
-    return toSessionFile(row);
+    const file = toSessionFile(row);
+    if (input.sandboxAttempt && input.checkedOut !== false)
+      await recordWorkspaceCheckout(input.sandboxAttempt, file, tx);
+    return file;
   });
 }
 
@@ -330,8 +382,7 @@ async function prepareSessionFileSave(input: SessionFileSaveInput): Promise<Save
   const now = new Date();
   const leaseUntil = new Date(now.getTime() + 2 * 60_000);
   return getDb().transaction(async (tx) => {
-    const [session] = await tx.select({ id: sessions.id }).from(sessions).where(scopeCondition(input)).for("update");
-    if (!session) throw new NotFoundError(`session ${input.sessionId} not found`);
+    await lockFileWriter(tx, input);
     const [row] = await tx
       .select()
       .from(sessionFiles)
@@ -346,6 +397,7 @@ async function prepareSessionFileSave(input: SessionFileSaveInput): Promise<Save
       )
       .for("update");
     if (!row) throw new NotFoundError(`file ${input.fileId} not found in session ${input.sessionId}`);
+    if (row.workspacePath.startsWith(ATTACHMENT_ROOT)) throw new RequestError("attachments are read-only");
     const workspacePersistence = input.workspacePath !== undefined && input.expectedPathGeneration !== undefined;
     if (!workspacePersistence && !isEditableSessionFile(row.filename, row.mediaType)) {
       throw new RequestError("session file is not editable text");
@@ -486,8 +538,7 @@ export async function saveSessionFile(
   if (input.workspacePath === undefined) assertEditableFileSize(candidate.sizeBytes);
 
   const outcome = await getDb().transaction(async (tx) => {
-    const [session] = await tx.select({ id: sessions.id }).from(sessions).where(scopeCondition(input)).for("update");
-    if (!session) throw new NotFoundError(`session ${input.sessionId} not found`);
+    await lockFileWriter(tx, input);
     const [row] = await tx
       .select()
       .from(sessionFiles)
@@ -576,6 +627,7 @@ export async function saveSessionFile(
       .update(sessionFileSaveOperations)
       .set({ status: "succeeded", leaseUntil: null, resultJson: { ...file }, updatedAt: now })
       .where(operationCondition(input));
+    if (input.sandboxAttempt) await recordWorkspaceCheckout(input.sandboxAttempt, file, tx);
     return { kind: "done" as const, file };
   });
   if (outcome.kind === "conflict") throwPreparationFailure(outcome);
@@ -591,12 +643,12 @@ export async function deleteWorkspaceSessionFile(
     writerId: string;
   },
 ): Promise<void> {
+  if (input.workspacePath.startsWith(ATTACHMENT_ROOT)) throw new RequestError("attachments are read-only");
   if (!isValidWorkspacePath(input.workspacePath) || !Number.isSafeInteger(input.expectedPathGeneration)) {
     throw new RequestError("invalid workspace deletion input");
   }
   await getDb().transaction(async (tx) => {
-    const [session] = await tx.select({ id: sessions.id }).from(sessions).where(scopeCondition(input)).for("update");
-    if (!session) throw new NotFoundError(`session ${input.sessionId} not found`);
+    await lockFileWriter(tx, input);
     const [row] = await tx
       .select()
       .from(sessionFiles)

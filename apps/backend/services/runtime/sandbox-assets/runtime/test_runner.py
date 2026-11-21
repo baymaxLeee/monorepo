@@ -1,5 +1,6 @@
 # The Node service runs these standard-library tests without a Python package install.
 # ruff: noqa: PT009, PT027
+import base64
 import os
 import pathlib
 import socket
@@ -188,6 +189,44 @@ class RuntimeTests(unittest.TestCase):
         )
         self.assertEqual(replay["stdout"], "")
 
+    def test_binary_pipe_preserves_bytes_and_eof_with_idempotent_input(self):
+        child = self.start("cat", binary_io=True, pipe_stdin=True, yield_time_ms=0)
+        write = {
+            "op": "write",
+            "session_id": child["session_id"],
+            "request_id": "binary",
+            "stdin_base64": base64.b64encode(b"\x03\xff\x00").decode(),
+        }
+        self.runtime.request(write)
+        self.runtime.request(write)
+        eof = {
+            "op": "write",
+            "session_id": child["session_id"],
+            "request_id": "eof",
+            "close_stdin": True,
+            "yield_time_ms": 1000,
+        }
+        result = self.runtime.request(eof)
+        self.assertEqual(result["termination"], {"type": "exit", "exit_code": 0})
+        self.assertEqual(base64.b64decode(result["stdout"]), b"\x03\xff\x00")
+        self.assertEqual(self.runtime.request(eof)["stdout"], result["stdout"])
+
+    def test_failed_stdin_write_cannot_replay_as_success(self):
+        child = self.start("cat", pipe_stdin=True, binary_io=True, yield_time_ms=0)
+        request = {
+            "op": "write",
+            "session_id": child["session_id"],
+            "request_id": "partial",
+            "stdin_base64": base64.b64encode(b"abc").decode(),
+        }
+        process = self.runtime.processes[child["session_id"]]
+        with mock.patch("os.write", side_effect=[1, BrokenPipeError("pipe closed")]) as write:
+            with self.assertRaises(BrokenPipeError):
+                process.write(request)
+            with self.assertRaisesRegex(ValueError, "previous stdin write failed"):
+                process.write(request)
+            self.assertEqual(write.call_count, 2)
+
     def test_timeout_keeps_partial_output_and_kills_background(self):
         result = self.start("printf before; sleep 10 & wait", timeout_ms=100)
         self.assertEqual(result["termination"]["type"], "timeout")
@@ -199,6 +238,18 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(result["truncated"])
         self.assertTrue(result["stdout_truncated"])
         self.assertFalse(result["stderr_truncated"])
+
+    def test_exited_sessions_make_room_and_evicted_start_never_reexecutes(self):
+        self.runtime.max_processes = 2
+        first = self.start("echo first >> calls", request_id="first")
+        active = self.start("sleep 10", yield_time_ms=0)
+        last = self.start("printf next")
+        self.assertEqual(last["stdout"], "next")
+        with self.assertRaisesRegex(ValueError, "expired"):
+            self.start("echo first >> calls", request_id="first")
+        self.assertEqual((self.root / "calls").read_text(), "first\n")
+        self.assertNotIn(first["session_id"], self.runtime.processes)
+        self.assertIn(active["session_id"], self.runtime.processes)
 
     def test_command_deduplication_and_conflict(self):
         request = {

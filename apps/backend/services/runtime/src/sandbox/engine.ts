@@ -59,6 +59,8 @@ export async function command(
   });
 }
 
+export class SandboxNotFoundError extends Error {}
+
 export class Engine {
   constructor(
     readonly config: SandboxSettings,
@@ -112,10 +114,21 @@ export class Engine {
     }
   }
   async inspect(name: string): Promise<Record<string, string>> {
-    const value =
-      this.config.backend === "docker"
-        ? await this.call(["inspect", "--format", "{{json .Config.Labels}}", name])
-        : await this.call(["get", "pod", name, "-o", "jsonpath={.metadata.labels}"]);
+    let value: string;
+    if (this.config.backend === "docker") {
+      try {
+        value = await this.call(["inspect", "--format", "{{json .Config.Labels}}", name]);
+      } catch (error) {
+        const missing =
+          error instanceof Error && /no such (?:container|object): ([^\s]+)$/iu.exec(error.message.trim());
+        if (missing && missing[1] === name)
+          throw new SandboxNotFoundError(`sandbox ${name} no longer exists`, { cause: error });
+        throw error;
+      }
+    } else {
+      value = await this.call(["get", "pod", name, "--ignore-not-found", "-o", "jsonpath={.metadata.labels}"]);
+      if (!value.trim()) throw new SandboxNotFoundError(`sandbox ${name} no longer exists`);
+    }
     return JSON.parse(value) as Record<string, string>;
   }
   async assertOwner(id: string, scope: Scope): Promise<void> {
@@ -294,9 +307,6 @@ export class Engine {
   }
   async process(id: string, scope: Scope, input: object) {
     await this.assertOwner(id, scope);
-    // The runner closes the command environment and kills every guest process
-    // on timeout. Keep the stopped container until finalization so the host can
-    // snapshot partial workspace output before destroying the resource.
     return processSchema.parse(await this.control(id, input));
   }
   async snapshot(id: string, scope: Scope) {
@@ -340,7 +350,7 @@ export class Engine {
           try {
             return { name, labels: await this.inspect(name) };
           } catch (error) {
-            if (error instanceof Error && /No such (container|object)/i.test(error.message)) return null;
+            if (error instanceof SandboxNotFoundError) return null;
             throw error;
           }
         }),

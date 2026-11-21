@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { COMPACTION_STATE_VERSION } from "@repo/agent-runtime/context/compaction";
-import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import { COMPACTION_STATE_VERSION, type ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 import { afterEach, expect, it } from "vitest";
 
 import type { LocalThread } from "../contracts/bridge.generated";
@@ -111,7 +110,26 @@ it("installs context checkpoints with revision fencing", async () => {
       estimatedTokens: 1,
     }),
   ).toThrow("revision conflict");
+  const step = {
+    version: "step-compaction-v1" as const,
+    assistantId: "assistant",
+    toolCallIds: ["read-1"],
+    retainUser: true,
+    compacted: { version: COMPACTION_STATE_VERSION, summary: "step evidence" },
+  };
+  journal.saveCheckpoint(id, {
+    expectedRevision: 1,
+    coveredThroughMessageId: `${id}-message`,
+    state: step,
+    estimatedTokens: 4,
+  });
   journal.close();
+  const reopened = new LocalJournal(directory);
+  try {
+    expect(reopened.getCheckpoint(id)).toMatchObject({ revision: 2, state: step });
+  } finally {
+    reopened.close();
+  }
 });
 
 it("persists context usage and treats missing legacy usage as unknown", async () => {

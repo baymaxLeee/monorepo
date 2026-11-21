@@ -1,5 +1,4 @@
-import type { PortableToolModel } from "@repo/agent-runtime/tools/registry";
-import type { SubagentObserver } from "@repo/agent-runtime/tools/subagents";
+import { type SubagentObserver, type PortableToolModel } from "@repo/agent-runtime";
 
 import { finishSpan, startSpan } from "#runtime/foundation";
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";

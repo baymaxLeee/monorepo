@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 
 import { AdminUnavailableError } from "../../application/errors.js";
 import { assertLocalPluginExecutionAllowed, attachPlatformMcpCredential, bindTurnPluginGrants } from "./admin.js";
@@ -73,8 +73,8 @@ test("admin cannot supply or override the Runtime workload credential", () => {
     ...value,
     connectionGrants: [
       {
-        ...value.connectionGrants[0]!,
-        headers: { ...value.connectionGrants[0]!.headers, "x-internal-token": "attacker" },
+        ...value.connectionGrants[0],
+        headers: { ...value.connectionGrants[0].headers, "x-internal-token": "attacker" },
       },
     ],
   };
@@ -89,7 +89,7 @@ test("Desktop cannot receive system plugin grants from the service trust domain"
     plugins: [
       {
         manifest: {
-          ...value.plugins[0]!.manifest,
+          ...value.plugins[0].manifest,
           id: "docs@external",
           source: "external-mcp",
           trust: "unverified",
@@ -99,7 +99,7 @@ test("Desktop cannot receive system plugin grants from the service trust domain"
     ],
     connectionGrants: [
       {
-        ...value.connectionGrants[0]!,
+        ...value.connectionGrants[0],
         pluginId: "docs@external",
       },
     ],

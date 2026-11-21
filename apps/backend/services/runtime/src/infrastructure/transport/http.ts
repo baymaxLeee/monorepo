@@ -190,15 +190,7 @@ function anySignal(signals: Array<AbortSignal | undefined>): AbortSignal {
     return liveSignals[0];
   }
 
-  const controller = new AbortController();
-  for (const signal of liveSignals) {
-    if (signal.aborted) {
-      controller.abort();
-      return controller.signal;
-    }
-    signal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
-  return controller.signal;
+  return AbortSignal.any(liveSignals);
 }
 
 async function readJson(response: Response): Promise<unknown> {

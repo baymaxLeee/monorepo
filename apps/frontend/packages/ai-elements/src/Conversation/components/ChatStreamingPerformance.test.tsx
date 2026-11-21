@@ -87,8 +87,8 @@ test("completed terminal work is isolated from subsequent text chunks", async ()
     type: "tool-bash",
     toolCallId: "bash",
     state: "output-available",
-    input: { command: "test" },
-    output: { stdout: "TAP version 13\nok 1 - valid\n1..1", exitCode: 0 },
+    input: { cmd: "test" },
+    output: { output: "TAP version 13\nok 1 - valid\n1..1", exit_code: 0 },
     toolMetadata: { agent: { uiKind: "terminal" } },
   };
   const view = render(<ChatMessageView {...props} message={message("输出", [tool])} />);
@@ -101,23 +101,23 @@ test("completed terminal work is isolated from subsequent text chunks", async ()
   expect(work.terminal).toHaveBeenCalledTimes(rendered);
 });
 
-test("terminal parsing follows stdout and completion, while stderr and command still update", async () => {
+test("terminal parsing follows merged output and completion while failure details update independently", async () => {
   const stdout = "TAP version 13\nok 1 - valid\n1..1";
-  const view = render(<ChatTerminalTool input={{ command: "test" }} output={{ stdout }} running />);
+  const view = render(<ChatTerminalTool input={{ cmd: "test" }} output={{ output: stdout }} running />);
   await screen.findByText(/TAP version 13/);
   expect(work.parseTap).not.toHaveBeenCalled();
-  view.rerender(<ChatTerminalTool input={{ command: "test" }} output={{ stdout }} running={false} />);
+  view.rerender(<ChatTerminalTool input={{ cmd: "test" }} output={{ output: stdout }} running={false} />);
   const parsed = work.parseTap.mock.calls.length;
   for (let i = 0; i < 10; i++)
     view.rerender(
-      <ChatTerminalTool input={{ command: "test" }} output={{ stdout, stderr: `error ${i}` }} running={false} />,
+      <ChatTerminalTool input={{ cmd: "test" }} output={{ output: stdout }} errorText={`error ${i}`} running={false} />,
     );
   expect(work.parseTap).toHaveBeenCalledTimes(parsed);
   expect(screen.getByText(/error 9/)).toBeTruthy();
   view.rerender(
     <ChatTerminalTool
-      input={{ command: "test" }}
-      output={{ stdout: stdout.replace("ok 1", "not ok 1") }}
+      input={{ cmd: "test" }}
+      output={{ output: stdout.replace("ok 1", "not ok 1") }}
       running={false}
     />,
   );

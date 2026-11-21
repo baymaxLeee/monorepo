@@ -7,6 +7,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <libproc.h>
+#include <util.h>
+#include <sys/ioctl.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -53,13 +55,18 @@ int main(int argc, char **argv) {
   if (!check_policy || !apply || !no_report) { fprintf(stderr, "sandbox API unavailable: %d %d %d\n", !!check_policy, !!apply, !!no_report); return 70; }
   filter = 2 | *no_report; // SANDBOX_FILTER_GLOBAL_NAME
   signal(SIGPIPE, SIG_IGN);
+  int tty = strcmp(argv[3], "--pty") == 0;
+  int program = tty ? 4 : 3;
+  if (argc <= program) return 64;
   int queue = kqueue(), gate[2], ready[2], input[2];
-  if (queue < 0 || pipe(gate) || pipe(ready) || pipe(input)) return 70;
+  if (queue < 0 || pipe(gate) || pipe(ready) || (tty ? openpty(&input[1], &input[0], NULL, NULL, NULL) : pipe(input))) return 70;
   fcntl(queue, F_SETFD, FD_CLOEXEC);
   pid_t parent = getppid(), child = fork();
   if (child < 0) return 70;
   if (!child) {
     close(gate[1]); close(ready[0]); close(input[1]); close(queue);
+    if (tty && (setsid() < 0 || ioctl(input[0], TIOCSCTTY, 0) < 0 ||
+        dup2(input[0], STDOUT_FILENO) < 0 || dup2(input[0], STDERR_FILENO) < 0)) _exit(70);
     char *error = NULL;
     if (apply(argv[2], 0, NULL, &error)) { if (error) fputs(error, stderr); _exit(70); }
     if (write(ready[1], "x", 1) != 1) _exit(70);
@@ -69,7 +76,7 @@ int main(int argc, char **argv) {
     close(gate[0]);
     if (dup2(input[0], STDIN_FILENO) < 0) _exit(70);
     close(input[0]);
-    execv(argv[3], &argv[3]);
+    execv(argv[program], &argv[program]);
     _exit(127);
   }
   close(gate[0]); close(ready[1]); close(input[0]);
@@ -78,11 +85,12 @@ int main(int argc, char **argv) {
     fprintf(stderr, "policy identity probe failed: %d %d\n", check_policy(child, "mach-lookup", filter, marker), check_policy(child, "mach-lookup", filter, "com.monorepo.desktop.forbidden")); kill(child, SIGKILL); close(gate[1]); waitpid(child, NULL, 0); return 70;
   }
   close(ready[0]);
-  struct kevent changes[3];
+  struct kevent changes[4];
   EV_SET(&changes[0], child, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, NULL);
   EV_SET(&changes[1], parent, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, NULL);
   EV_SET(&changes[2], STDIN_FILENO, EVFILT_READ, EV_ADD, 0, 0, NULL);
-  if (kevent(queue, changes, 3, NULL, 0, NULL) < 0) { perror("kevent"); kill(child, SIGKILL); return 70; }
+  if (tty) EV_SET(&changes[3], input[1], EVFILT_READ, EV_ADD, 0, 0, NULL);
+  if (kevent(queue, changes, tty ? 4 : 3, NULL, 0, NULL) < 0) { perror("kevent"); kill(child, SIGKILL); return 70; }
   if (write(gate[1], "x", 1) != 1) { kill(child, SIGKILL); return 70; }
   close(gate[1]);
   int stopping = 0, leader_done = 0, status = 0, empty_scans = 0;
@@ -95,7 +103,16 @@ int main(int argc, char **argv) {
     for (int i = 0; i < n; i++) {
       struct kevent e = events[i];
       if (e.flags & EV_ERROR) stopping = 1;
-      if (e.filter == EVFILT_READ) {
+      if (tty && e.filter == EVFILT_READ && (int)e.ident == input[1]) {
+        char buffer[16384];
+        ssize_t size = read(input[1], buffer, sizeof(buffer));
+        for (ssize_t offset = 0; offset < size;) {
+          ssize_t written = write(STDOUT_FILENO, buffer + offset, (size_t)(size - offset));
+          if (written < 0 && errno == EINTR) continue;
+          if (written <= 0) { stopping = 1; break; }
+          offset += written;
+        }
+      } else if (e.filter == EVFILT_READ) {
         char buffer[16384];
         ssize_t size = read(STDIN_FILENO, buffer, sizeof(buffer));
         if (size <= 0) {

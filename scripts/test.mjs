@@ -9,7 +9,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const patterns = {
   go: ["**/*_test.go"],
   python: ["src/**/test_*.py", "src/**/*_test.py", "tests/**/test_*.py", "tests/**/*_test.py"],
-  node: ["src/**/*.test.ts", "test/**/*.test.ts"],
+  node: ["src/**/*.test.ts", "*/src/**/*.test.ts", "test/**/*.test.ts"],
   frontend: ["src/**/*.{test,spec}.{ts,tsx,js,jsx,mjs}", "test/**/*.{test,spec}.{ts,tsx,js,jsx,mjs}"],
 };
 

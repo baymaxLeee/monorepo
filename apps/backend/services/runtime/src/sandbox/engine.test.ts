@@ -46,6 +46,35 @@ test("scope binding rejects tenant/user/conversation/run substitution before run
   assert.equal(touched, false);
 });
 
+test("only disappearance of the requested guest is a terminal 404", async () => {
+  const name = resourceName(scope);
+  for (const backend of ["docker", "kubernetes"] as const) {
+    const settings = { ...config, backend };
+    let unavailable = false;
+    const engine = new Engine(settings, async (_exe, args) => {
+      if (unavailable) throw new Error("could not contact the container runtime");
+      if (backend === "docker") throw new Error(`runtime command failed (1): Error: No such object: ${name}`);
+      assert.ok(args.includes("--ignore-not-found"));
+      return "";
+    });
+    const app = createApp(settings, engine);
+    const snapshot = () =>
+      app.request(`/sessions/${name}/snapshot`, {
+        method: "POST",
+        headers: {
+          "X-Caller-Service": "runtime",
+          "X-Internal-Token": config.runtimeToken,
+          "X-Sandbox-Scope": JSON.stringify(scope),
+        },
+      });
+    const absent = await snapshot();
+    assert.equal(absent.status, 404);
+    assert.deepEqual(await absent.json(), { code: "sandbox_not_found", message: `sandbox ${name} no longer exists` });
+    unavailable = true;
+    assert.equal((await snapshot()).status, 422);
+  }
+});
+
 test("API refuses missing or foreign caller credentials, including session creation", async () => {
   const app = createApp(config);
   for (const headers of [{}, { "X-Caller-Service": "chat", "X-Internal-Token": config.runtimeToken }] as Record<

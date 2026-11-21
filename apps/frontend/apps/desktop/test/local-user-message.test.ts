@@ -11,9 +11,9 @@ describe("local user message admission", () => {
       { type: "text", text: "检查附件" },
       {
         type: "file",
-        mediaType: "text/plain",
-        filename: "brief.txt",
-        url: `data:text/plain;base64,${Buffer.from("hello").toString("base64")}`,
+        mediaType: "image/png",
+        filename: "photo.png",
+        url: `data:image/png;base64,${Buffer.from("hello").toString("base64")}`,
       },
     ];
     expect(parseLocalUserMessageParts(parts)).toEqual(parts);
@@ -25,29 +25,35 @@ describe("local user message admission", () => {
     for (let index = 0; index < 8; index++) {
       parts.push({
         type: "file",
-        mediaType: "text/plain",
-        filename: `${index}.txt`,
-        url: "data:text/plain;base64,aA==",
+        mediaType: "image/png",
+        filename: `${index}.png`,
+        url: "data:image/png;base64,aA==",
       });
       parts.push({ type: "text", text: `继续 ${index}` });
     }
     expect(parseLocalUserMessageParts(parts)).toEqual(parts);
   });
 
+  test("ordinary file bytes cannot enter the local journal through send", () => {
+    expect(() =>
+      parseLocalUserMessageParts([{ type: "file", mediaType: "text/plain", url: "data:text/plain;base64,aA==" }]),
+    ).toThrow("文件路径");
+  });
+
   test("rejects remote, mismatched and malformed file data", () => {
     expect(() =>
       parseLocalUserMessageParts([
-        { type: "file", mediaType: "text/plain", filename: "brief.txt", url: "https://example.com/brief.txt" },
+        { type: "file", mediaType: "image/png", filename: "photo.png", url: "https://example.com/brief.txt" },
       ]),
     ).toThrow("data URL");
     expect(() =>
       parseLocalUserMessageParts([
-        { type: "file", mediaType: "image/png", filename: "brief.txt", url: "data:text/plain;base64,aGVsbG8=" },
+        { type: "file", mediaType: "image/png", filename: "photo.png", url: "data:text/plain;base64,aGVsbG8=" },
       ]),
     ).toThrow("媒体类型");
     expect(() =>
       parseLocalUserMessageParts([
-        { type: "file", mediaType: "text/plain", filename: "brief.txt", url: "data:text/plain;base64,%%%%" },
+        { type: "file", mediaType: "image/png", filename: "photo.png", url: "data:image/png;base64,%%%%" },
       ]),
     ).toThrow("data URL");
   });

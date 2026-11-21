@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
@@ -8,7 +8,6 @@ import {
   getDocument,
   getWorkspaceDocument,
   knowledgeDocumentSessionId,
-  listDocuments,
   updateArtifact,
   type KnowledgeDocument,
 } from "../infrastructure/clients/knowledge.js";
@@ -25,7 +24,14 @@ import {
 import type { ReasoningEffort } from "../infrastructure/provider/provider-model.js";
 import { coordinateCloudWorkspaceUserEdit } from "./cloud-workspace-edit.js";
 import { ConflictError, NotFoundError } from "./errors.js";
-import { getSessionFile, releaseSessionFileClaims, saveSessionFile } from "./session-files.js";
+import {
+  getSessionFile,
+  listSessionFiles,
+  releaseSessionFileClaims,
+  saveSessionFile,
+  type SessionFile,
+} from "./session-files.js";
+import { ATTACHMENT_ROOT } from "./workspace-paths.js";
 
 export { getSessionFile } from "./session-files.js";
 import { assertEditableFileSize } from "./file-edit-limits.js";
@@ -49,13 +55,14 @@ export async function updateSessionFileContent(
       content: bytes,
       signal: input.signal,
     },
-    () =>
+    (sandboxAttempt) =>
       saveSessionFile(
         {
           ...auth,
           sessionId,
           fileId,
           expectedEtag: input.expectedEtag,
+          sandboxAttempt,
           contentSha256,
           operationId: input.operationId,
           writerType: "user",
@@ -183,7 +190,7 @@ export interface SessionDocumentDetail extends SessionDocument {
 export interface SessionDetail extends Session {
   messages: Message[];
   branches: MessageBranchGroup[];
-  documents: SessionDocument[];
+  attachments: SessionFile[];
   active_run_id: string | null;
   latest_run_id: string | null;
 }
@@ -325,19 +332,14 @@ export async function getSession(auth: AuthContext, sessionId: string): Promise<
     .where(eq(turns.threadId, sessionId))
     .orderBy(desc(turns.ordinal))
     .limit(1);
-  let documentRows: KnowledgeDocument[] = [];
-  try {
-    documentRows = await listDocuments(auth.userId, sessionId);
-  } catch {
-    documentRows = [];
-  }
+  const files = await listSessionFiles({ ...auth, sessionId });
   const allMessages = messageRows.map(toMessage);
   const selectedMessages = selectMessagePath(allMessages, row.selectedItemId);
   return {
     ...toSession(row),
     messages: selectedMessages,
     branches: buildMessageBranches(allMessages, selectedMessages),
-    documents: documentRows.map((d) => mapKnowledgeDocument(d, sessionId)),
+    attachments: files.filter((file) => file.workspace_path.startsWith(ATTACHMENT_ROOT)),
     active_run_id: null,
     latest_run_id: latestRun?.id ?? null,
   };
@@ -749,6 +751,7 @@ export async function authorizeFileDelivery(
   sessionId: string,
   fileId: string,
   expectedRevision?: string,
+  maxDim?: number,
 ) {
   const file = await getSessionFile(auth, sessionId, fileId);
   if (expectedRevision !== undefined && expectedRevision !== file.revision_id) {
@@ -759,5 +762,6 @@ export async function authorizeFileDelivery(
     workspaceId: auth.workspaceId,
     assetId: file.asset_id,
     revisionId: file.revision_id,
+    maxDim,
   });
 }

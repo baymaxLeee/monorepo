@@ -25,12 +25,17 @@ async function safePath(root: string, path: string, create = false): Promise<str
 }
 async function run(input: {
   root: string;
+  attachmentRoot?: string;
   operation: string;
   path: string;
   content?: string;
   expectedHash?: string | null;
 }) {
-  const path = await safePath(input.root, input.path, input.operation === "write");
+  const readOnly = input.operation === "read" || input.operation === "readOptional";
+  const absolute = resolve(input.root, input.path);
+  const root =
+    readOnly && input.attachmentRoot && within(input.attachmentRoot, absolute) ? input.attachmentRoot : input.root;
+  const path = await safePath(root, absolute, input.operation === "write");
   if (input.operation === "list") {
     const items = await readdir(path, { withFileTypes: true });
     return items

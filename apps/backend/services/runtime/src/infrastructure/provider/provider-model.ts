@@ -298,7 +298,7 @@ export function createProviderModel(
       const openaiOptions = {
         ...configured,
         ...params.providerOptions?.openai,
-        store: true,
+        store: params.providerOptions?.openai?.store === false ? false : true,
       };
       openaiOptions.contextManagement = undefined;
       const arkPrompt = prepareArkPrompt(params.prompt, openaiOptions.instructions);

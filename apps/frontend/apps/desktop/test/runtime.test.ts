@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import type { AgentPluginManifest, ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
-import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
+import { type AgentPluginManifest, type ResolvedTurnPluginSnapshot, defineAgentTool } from "@repo/agent-runtime";
 import { isToolUIPart, tool } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import type { LocalPluginActivation } from "../contracts/bridge.generated";
 import type { InferenceRequest } from "../contracts/inference.generated";
+import { LocalJournal } from "../electron/runtime/journal";
 import { importLocalPlugin, listLocalPlugins } from "../electron/runtime/local-plugins";
 import { DesktopSessionManager, type DesktopSessionOptions } from "../electron/runtime/session-manager";
 
@@ -47,7 +47,7 @@ afterEach(async () => {
 });
 async function fixture(
   call: DesktopSessionOptions["call"],
-  overrides: Partial<Pick<DesktopSessionOptions, "pluginLoader" | "resolvePlugins">> = {},
+  overrides: Partial<Pick<DesktopSessionOptions, "config" | "pluginLoader" | "resolvePlugins">> = {},
   pluginActivations: LocalPluginActivation[] = [],
 ) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "local-agent-")));
@@ -164,6 +164,59 @@ function docsSnapshot(): ResolvedTurnPluginSnapshot {
 }
 
 describe.skipIf(process.platform !== "darwin")("local assistant owns execution and recovery", () => {
+  it("reopens a completed tool step and its compaction while the next sample is still running", async () => {
+    let resume: () => void = () => {};
+    const resumed = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    let samples = 0;
+    const f = await fixture(
+      async (request) => {
+        if (JSON.stringify(request.options.prompt).includes("Compress the older transcript prefix")) {
+          return reply([
+            { type: "text-start", id: "s" },
+            { type: "text-delta", id: "s", delta: JSON.stringify({ summary: "saved evidence" }) },
+            { type: "text-end", id: "s" },
+          ]);
+        }
+        if (++samples === 1)
+          return reply([
+            {
+              type: "tool-call",
+              toolName: "read_file",
+              toolCallId: "durable-read",
+              input: JSON.stringify({ path: "evidence.txt" }),
+            },
+          ]);
+        await resumed;
+        return reply(text());
+      },
+      {
+        config: async () => ({
+          providerId: "provider",
+          providerName: "test",
+          reasoningEffort: "medium",
+          model: "test",
+          contextWindow: 10_000,
+          maxOutputTokens: 1_000,
+          instructions: "",
+        }),
+      },
+    );
+    await writeFile(join(f.thread.workspace, "evidence.txt"), "evidence ".repeat(1500));
+    f.runtime.send(f.thread.id, user("read evidence"), randomUUID());
+    const reader = new LocalJournal(f.options.directory);
+    try {
+      await expect.poll(() => reader.getCheckpoint(f.thread.id)?.state.version).toBe("step-compaction-v1");
+      await expect.poll(() => JSON.stringify(reader.get(f.thread.id).messages)).toContain('"state":"output-available"');
+      expect(reader.get(f.thread.id).status).toBe("running");
+    } finally {
+      resume();
+      reader.close();
+    }
+    expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
+  });
+
   it("persists model binding updates and freezes them for the active turn", async () => {
     const f = await fixture(async () => reply(text()));
 
@@ -197,7 +250,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
         );
       },
       { resolvePlugins: resolvePlatform },
-      [{ pluginId: platform.plugins[0]!.manifest.id }, { origin: "local", pluginId: "writing@local" }],
+      [{ pluginId: platform.plugins[0].manifest.id }, { origin: "local", pluginId: "writing@local" }],
     );
     const root = join(f.thread.workspace, "writing-source");
     await mkdir(join(root, ".codex-plugin"), { recursive: true });
@@ -215,7 +268,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(thread.status).toBe("idle");
     const snapshot = f.runtime.journal.getPluginSnapshot(thread.turnId!);
     expect(snapshot?.plugins.map(({ manifest }) => manifest.id)).toEqual([
-      platform.plugins[0]!.manifest.id,
+      platform.plugins[0].manifest.id,
       "writing@local",
     ]);
     expect(JSON.stringify(requests[0]?.options.prompt)).toContain("writing@local:proofread");
@@ -227,7 +280,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     const requests: InferenceRequest[] = [];
     const dispose = vi.fn(async () => {});
     const snapshot = docsSnapshot();
-    const manifest = snapshot.plugins[0]!.manifest;
+    const manifest = snapshot.plugins[0].manifest;
     const f = await fixture(
       async (request) => {
         requests.push(request);
@@ -281,8 +334,8 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     f.runtime.send(f.thread.id, user("search"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(2);
-    expect(requests[0]!.options.tools?.map((candidate) => candidate.name)).not.toContain("mcp__docs__search");
-    expect(requests[1]!.options.tools?.map((candidate) => candidate.name)).toContain("mcp__docs__search");
+    expect(requests[0].options.tools?.map((candidate) => candidate.name)).not.toContain("mcp__docs__search");
+    expect(requests[1].options.tools?.map((candidate) => candidate.name)).toContain("mcp__docs__search");
     const persisted = f.runtime.journal.getPluginSnapshot(f.runtime.get(f.thread.id).turnId!);
     expect(persisted?.plugins[0]?.manifest.id).toBe(manifest.id);
     expect(JSON.stringify(persisted)).not.toContain("desktop-secret");
@@ -298,13 +351,13 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     f.runtime.send(f.thread.id, user("你能帮我干啥？"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(1);
-    const initialTools = requests[0]!.options.tools?.map((candidate) => candidate.name) ?? [];
+    const initialTools = requests[0].options.tools?.map((candidate) => candidate.name) ?? [];
     expect(initialTools).toEqual(
       expect.arrayContaining(["bash", "read_file", "apply_patch", "write_file", "tool_search"]),
     );
     expect(initialTools).not.toContain("subagents");
     expect(initialTools).not.toContain("code_mode");
-    expect(JSON.stringify(requests[0]!.options.prompt)).not.toContain("工作区内容已变化");
+    expect(JSON.stringify(requests[0].options.prompt)).not.toContain("工作区内容已变化");
   });
 
   it("delivers a real workspace change once across read-only model steps", async () => {
@@ -333,9 +386,50 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     f.runtime.send(f.thread.id, user("查看文件"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(3);
-    expect(JSON.stringify(requests[0]!.options.prompt)).toContain("external.txt");
+    expect(JSON.stringify(requests[0].options.prompt)).toContain("external.txt");
     for (const request of requests.slice(1))
       expect(JSON.stringify(request.options.prompt)).not.toContain("工作区内容已变化");
+  });
+
+  it("retains a real PTY between turns and isolates its handle from another thread sharing the workspace", async () => {
+    let nextCall: LanguageModelV4StreamPart | undefined = {
+      type: "tool-call",
+      toolCallId: "open",
+      toolName: "bash",
+      input: JSON.stringify({ command: "cat", tty: true, yield_time_ms: 250 }),
+    };
+    const f = await fixture(async () => {
+      const call = nextCall;
+      nextCall = undefined;
+      return reply(call ? [call] : text());
+    });
+    f.runtime.send(f.thread.id, user("打开终端"), randomUUID());
+    const first = await done(f.runtime, f.thread.id);
+    const opened = first.messages
+      .flatMap((message) => message.parts)
+      .find((part) => isToolUIPart(part) && part.toolCallId === "open");
+    if (!opened || !isToolUIPart(opened) || opened.state !== "output-available") throw new Error("missing exec result");
+    const { data } = opened.output as { data: { session_id: number } };
+    expect(data.session_id).toEqual(expect.any(Number));
+    const other = await f.runtime.create(f.thread.workspace, "provider", "medium", "on-request", ":workspace", []);
+    const write = (id: string, stdin: string): LanguageModelV4StreamPart => ({
+      type: "tool-call",
+      toolCallId: id,
+      toolName: "bash",
+      input: JSON.stringify({ session_id: data.session_id, stdin, yield_time_ms: 250 }),
+    });
+    nextCall = write("other", "foreign\n");
+    f.runtime.send(other.id, user("尝试另一个会话的终端"), randomUUID());
+    expect(JSON.stringify((await done(f.runtime, other.id)).messages)).toContain("Unknown process session");
+    nextCall = write("resume", "same-thread\n\u0004");
+    f.runtime.send(f.thread.id, user("继续终端"), randomUUID());
+    const resumed = (await done(f.runtime, f.thread.id)).messages
+      .flatMap((message) => message.parts)
+      .find((part) => isToolUIPart(part) && part.toolCallId === "resume");
+    expect(resumed).toMatchObject({
+      state: "output-available",
+      output: { data: { exit_code: 0, output: expect.stringContaining("same-thread") } },
+    });
   });
 
   it("executes shared sandbox tools, persists history and supplies external changes to the next turn", async () => {
@@ -438,9 +532,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
               type: "tool-call",
               toolCallId: "patch-gamma",
               toolName: "apply_patch",
-              input: JSON.stringify({
-                patch: "*** Begin Patch\n*** Update File: notes.txt\n@@\n-beta\n+gamma\n*** End Patch",
-              }),
+              input: JSON.stringify("*** Begin Patch\n*** Update File: notes.txt\n@@\n-beta\n+gamma\n*** End Patch"),
             },
           ]);
         default:
@@ -453,8 +545,8 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
 
     expect(completed.status).toBe("idle");
     expect(requests).toHaveLength(6);
-    expect(JSON.stringify(requests[2]!.options.prompt)).toContain(alphaHash);
-    expect(JSON.stringify(requests[2]!.options.prompt)).toContain("alpha");
+    expect(JSON.stringify(requests[2].options.prompt)).toContain(alphaHash);
+    expect(JSON.stringify(requests[2].options.prompt)).toContain("alpha");
     expect(await readFile(join(f.thread.workspace, "notes.txt"), "utf8")).toBe("gamma\n");
     expect(JSON.stringify(completed.messages)).toContain('"type":"tool-read_file"');
     expect(JSON.stringify(completed.messages)).toContain('"type":"tool-write_file"');
@@ -488,7 +580,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     const original = docsSnapshot();
     const refreshed = structuredClone(original);
     refreshed.snapshotId = randomUUID();
-    refreshed.connectionGrants = [{ ...original.connectionGrants[0]!, headers: { Authorization: "fresh grant" } }];
+    refreshed.connectionGrants = [{ ...original.connectionGrants[0], headers: { Authorization: "fresh grant" } }];
     if (changed) refreshed.workspaceId = "another-workspace";
     const resolver = vi
       .fn<DesktopSessionOptions["resolvePlugins"]>()
@@ -555,10 +647,57 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
       output: {
         ok: true,
         status: "completed",
-        data: { termination: { type: "exit", exitCode: 0 }, stdout: "", stderr: "" },
+        data: { exit_code: 0, output: "" },
       },
     });
     expect(calls).toBe(2);
+  });
+
+  it("reads selected files in Seatbelt, preserves the reference across restart and isolates other sessions", async () => {
+    let source = "";
+    const token = randomUUID();
+    const requests: InferenceRequest[] = [];
+    const f = await fixture(async (request) => {
+      requests.push(request);
+      const toolName = requests.length === 1 ? "read_file" : "bash";
+      const input = toolName === "read_file" ? { path: source } : { command: `/bin/cat "${source}"` };
+      return requests.length <= 2
+        ? reply([{ type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(input) }])
+        : reply(text());
+    });
+    const { id, workspace } = f.thread;
+    const workspacePath = join(workspace, "notes.txt");
+    await writeFile(workspacePath, "original");
+    expect(await f.runtime.workspaceFilePath(id, workspacePath)).toBe("notes.txt");
+    const outside = join(f.options.directory, "..", "outside.txt");
+    await writeFile(outside, "selected outside the project");
+    expect(await f.runtime.workspaceFilePath(id, outside)).toBeNull();
+    const bytes = Buffer.from(token);
+    source = await f.runtime.importAttachment(id, "notes.txt", bytes);
+    expect(await f.runtime.importAttachment(id, "notes.txt", bytes)).toBe(source);
+    const second = await f.runtime.importAttachment(id, "notes.txt", Buffer.from("different"));
+    expect(second).not.toBe(source);
+    await f.runtime.setExecutionPolicy(id, "on-request", ":read-only");
+    f.runtime.send(id, user(JSON.stringify(source)), randomUUID());
+    expect((await done(f.runtime, id)).status).toBe("idle");
+    expect(JSON.stringify(requests[0].options.prompt)).not.toContain(token);
+    expect(JSON.stringify(requests[1].options.prompt)).toContain(token);
+    const steps = f.runtime.get(id).messages.flatMap((m) => m.parts);
+    const command = steps.find((p) => p.type === "tool-bash");
+    expect(JSON.stringify(command)).toContain(token);
+    expect(f.runtime.journal.get(id).messages[0]?.parts).toEqual(user(JSON.stringify(source)));
+    await f.runtime.close();
+    runtimes.splice(runtimes.indexOf(f.runtime), 1);
+    const reopened = new DesktopSessionManager(f.options);
+    runtimes.push(reopened);
+    expect(reopened.get(id).messages[0]?.parts).toEqual(user(JSON.stringify(source)));
+    expect(await reopened.file(id, { operation: "read", path: source })).toMatchObject({ content: token });
+    const other = await reopened.create(workspace, "provider", "medium", "on-request", ":workspace", []);
+    await expect(reopened.file(other.id, { operation: "read", path: source })).rejects.toThrow();
+    const pending = reopened.importAttachment(id, "last.txt", Buffer.from("pending"));
+    await Promise.allSettled([pending, reopened.remove(id)]);
+    await expect(readFile(source)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(workspacePath, "utf8")).toBe("original");
   });
 
   it("publishes a local workspace file as the shared inline artifact part", async () => {

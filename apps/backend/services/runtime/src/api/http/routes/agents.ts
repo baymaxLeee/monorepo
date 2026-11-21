@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import type { PluginActivation } from "@repo/agent-runtime/plugins/types";
+import type { PluginActivation } from "@repo/agent-runtime";
 import { Hono } from "hono";
 import { z } from "zod";
 

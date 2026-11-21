@@ -32,12 +32,11 @@ function awaiting(overrides: Record<string, unknown> = {}): AnyUIMessage {
         {
           id: "choice",
           question: "Choose",
-          choices: [
-            { label: "A", value: "A" },
-            { label: "B", value: "B" },
+          header: "Choice",
+          options: [
+            { label: "A", description: "First option" },
+            { label: "B", description: "Second option" },
           ],
-          mode: "single",
-          allow_freeform: false,
         },
       ],
     },
@@ -53,7 +52,7 @@ function answer(overrides: Record<string, unknown> = {}): AnyUIMessage {
     output: {
       ok: true,
       status: "completed",
-      data: { answers: [{ id: "choice", values: ["A"] }] },
+      data: { answers: { choice: { answers: ["A"] } } },
     },
     ...overrides,
   });
@@ -120,16 +119,10 @@ test("preliminary client output is not a final answer", () => {
 });
 
 for (const [name, answers] of [
-  ["unknown question", [{ id: "invented", values: ["A"] }]],
-  ["unknown choice", [{ id: "choice", values: ["C"] }]],
-  ["multiple single choices", [{ id: "choice", values: ["A", "B"] }]],
-  [
-    "duplicate question",
-    [
-      { id: "choice", values: ["A"] },
-      { id: "choice", values: ["B"] },
-    ],
-  ],
+  ["unknown question", { invented: { answers: ["A"] } }],
+  ["missing question", {}],
+  ["multiple single choices", { choice: { answers: ["A", "B"] } }],
+  ["empty answer", { choice: { answers: [" "] } }],
 ] as const) {
   test(`client answers reject ${name}`, () => {
     assert.throws(
@@ -149,5 +142,16 @@ test("the browser cannot answer an automatic approval check", () => {
         awaiting({ state: "approval-responded", approval: { ...approval, approved: true } }),
       ),
     /automatic/i,
+  );
+});
+
+test("free-form answers are part of the ask_user protocol", () => {
+  assert.doesNotThrow(() =>
+    mergeClientContinuation(
+      awaiting(),
+      answer({
+        output: { ok: true, status: "completed", data: { answers: { choice: { answers: ["another option"] } } } },
+      }),
+    ),
   );
 });

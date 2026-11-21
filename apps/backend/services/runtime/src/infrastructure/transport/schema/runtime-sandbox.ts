@@ -100,6 +100,15 @@ export interface paths {
             "application/json": components["schemas"]["SandboxProcess"];
           };
         };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
       };
     };
     delete?: never;
@@ -142,6 +151,15 @@ export interface paths {
             "application/json": components["schemas"]["SandboxProcess"];
           };
         };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
       };
     };
     delete: {
@@ -166,6 +184,15 @@ export interface paths {
           };
           content: {
             "application/json": components["schemas"]["SandboxProcess"];
+          };
+        };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
           };
         };
       };
@@ -210,6 +237,15 @@ export interface paths {
             };
           };
         };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
       };
     };
     options?: never;
@@ -249,6 +285,15 @@ export interface paths {
             "application/octet-stream": string;
           };
         };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
       };
     };
     put: {
@@ -285,6 +330,15 @@ export interface paths {
             };
           };
         };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
       };
     };
     post?: never;
@@ -314,6 +368,15 @@ export interface paths {
             "application/json": {
               deleted: boolean;
             };
+          };
+        };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
           };
         };
       };
@@ -353,6 +416,15 @@ export interface paths {
           };
           content: {
             "application/json": components["schemas"]["SandboxWorkspaceSnapshot"];
+          };
+        };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
           };
         };
       };
@@ -396,6 +468,15 @@ export interface paths {
             "application/json": components["schemas"]["SandboxWorkspaceEdit"];
           };
         };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
       };
     };
     delete: {
@@ -427,6 +508,15 @@ export interface paths {
             };
           };
         };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
       };
     };
     options?: never;
@@ -438,6 +528,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    SandboxNotFound: {
+      /** @constant */
+      code: "sandbox_not_found";
+      message: string;
+    };
     SandboxScope: {
       tenant_id: string;
       workspace_id: string;
@@ -535,6 +630,8 @@ export interface components {
       };
       /** @default false */
       tty: boolean;
+      binary_io?: boolean;
+      pipe_stdin?: boolean;
       /** @default 1000 */
       yield_time_ms: number;
       /** @default 120000 */
@@ -552,6 +649,9 @@ export interface components {
       request_id: string;
       /** @default  */
       chars: string;
+      /** Format: base64 */
+      stdin_base64?: string;
+      close_stdin?: boolean;
       /** @default 0 */
       stdout_offset: number;
       /** @default 0 */

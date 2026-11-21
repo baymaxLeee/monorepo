@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { prepareAttachmentSchema, completeAttachmentSchema } from "../../api/http/attachment-schemas.js";
 import { inferenceConfigSchema, inferenceRequestSchema } from "../../application/inference/generated/inference.js";
 
 const inferenceJson = JSON.parse(
@@ -308,6 +309,46 @@ const openapi = {
         },
       },
     },
+    "/sessions/{session_id}/attachments/prepare": {
+      post: {
+        operationId: "prepareSessionAttachment",
+        parameters: [pathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: z.toJSONSchema(prepareAttachmentSchema, { target: "openapi-3.0" }) },
+          },
+        },
+        responses: {
+          "200": jsonResponse("Storage upload capability for this attachment", {
+            type: "object",
+            required: ["upload_id", "upload_url", "completed"],
+            properties: {
+              upload_id: { type: "string", format: "uuid" },
+              upload_url: { type: "string" },
+              completed: { type: "boolean" },
+            },
+          }),
+        },
+      },
+    },
+    "/sessions/{session_id}/attachments/complete": {
+      post: {
+        operationId: "completeSessionAttachment",
+        parameters: [pathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: z.toJSONSchema(completeAttachmentSchema, { target: "openapi-3.0" }) },
+          },
+        },
+        responses: {
+          "200": jsonResponse("immutable session attachment", ref("SessionFile")),
+          "404": { description: "upload not found in session" },
+          "409": { description: "upload incomplete" },
+        },
+      },
+    },
     "/sessions/{session_id}/documents/{document_id}": {
       get: {
         operationId: "getSessionDocument",
@@ -353,6 +394,7 @@ const openapi = {
         parameters: [
           pathParam,
           fileIdPathParam,
+          { name: "max_dim", in: "query", schema: { type: "integer", minimum: 1, maximum: 4096 } },
           { name: "revision_id", in: "query", required: false, schema: { type: "string", format: "uuid" } },
         ],
         responses: {
@@ -840,7 +882,7 @@ const openapi = {
           "selected_message_id",
           "messages",
           "branches",
-          "documents",
+          "attachments",
           "active_run_id",
           "latest_run_id",
         ],
@@ -860,7 +902,7 @@ const openapi = {
           selected_message_id: { type: "string", nullable: true },
           messages: { type: "array", items: ref("SessionMessage") },
           branches: { type: "array", items: ref("MessageBranchGroup") },
-          documents: { type: "array", items: ref("SessionDocument") },
+          attachments: { type: "array", items: ref("SessionFile") },
           active_run_id: { type: "string", nullable: true },
           latest_run_id: { type: "string", nullable: true },
         },

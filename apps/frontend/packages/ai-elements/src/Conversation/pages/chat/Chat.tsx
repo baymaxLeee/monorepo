@@ -2,7 +2,7 @@ import { type ConversationScrollHandle } from "@repo/ai-elements";
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
 import { listSkills } from "@repo/api/admin";
 import {
-  type ConversationDocument,
+  type ConversationFile,
   type ReasoningEffort,
   updateConversationExecutionPolicy,
   updateConversationModel,
@@ -26,7 +26,7 @@ import type { ChatUIMessage } from "../../lib/chat-message";
 import { buildUserFilePart } from "../../lib/file-parts";
 import { useChatStore } from "../../store/useChatStore";
 
-const EMPTY_DOCUMENTS: ConversationDocument[] = [];
+const EMPTY_ATTACHMENTS: ConversationFile[] = [];
 
 export type ExternalChatRequest =
   | {
@@ -200,7 +200,7 @@ export function ChatSession({
       if (!id) {
         return;
       }
-      const hasReadyFile = value.tokens.some((token) => typeof token.meta?.artifactId === "string");
+      const hasReadyFile = value.tokens.some((token) => typeof token.meta?.fileId === "string");
       // `value.text` embeds `[[tokenId]]` placeholders for tokens; derive the real
       // typed text from text segments so an attachment-only send falls back to the
       // friendly prompt instead of shipping a raw `[[id]]` placeholder as content.
@@ -232,18 +232,12 @@ export function ChatSession({
         if (segment.type === "text") {
           return segment.text ? [{ type: "text" as const, text: segment.text }] : [];
         }
-        const documentId = segment.token.meta?.artifactId;
-        const assetId = segment.token.meta?.assetId;
-        const revisionId = segment.token.meta?.revisionId;
-        if (typeof documentId !== "string" || typeof assetId !== "string" || typeof revisionId !== "string" || !id) {
-          return [];
-        }
+        const fileId = segment.token.meta?.fileId;
+        if (typeof fileId !== "string") throw new Error("请等待附件上传完成后再发送");
         return [
           buildUserFilePart({
             conversationId: id,
-            documentId,
-            assetId,
-            revisionId,
+            fileId,
             filename: segment.token.label,
             mimeType: segment.token.mime ?? "application/octet-stream",
           }),
@@ -372,7 +366,7 @@ export function ChatSession({
         <ChatComposer
           id={id}
           promptRef={promptRef}
-          documents={detail?.documents ?? EMPTY_DOCUMENTS}
+          attachments={detail?.attachments ?? EMPTY_ATTACHMENTS}
           initialModelId={detail?.provider_id || null}
           initialReasoningEffort={(detail?.reasoning_effort as ComposerReasoningEffort | undefined) ?? "medium"}
           onUpdateModelBinding={updateModelBinding}

@@ -1,6 +1,13 @@
-import { InnerApiCaller, insecureChannelCredentials } from "@backend/inner-api/client";
+import { InnerApiCaller, InnerApiError, insecureChannelCredentials } from "@backend/inner-api/client";
 import {
   AssetServiceClient,
+  UploadSessionServiceClient,
+  type CreateUploadSessionRequest,
+  type CreateUploadSessionResponse,
+  type DescribeUploadSessionRequest,
+  type DescribeUploadSessionResponse,
+  type DescribeRevisionRequest,
+  type DescribeRevisionResponse,
   ClaimKind,
   ClaimServiceClient,
   DeliveryServiceClient,
@@ -35,13 +42,42 @@ export type StorageUploadBody = Blob | Uint8Array | ReadableStream<Uint8Array>;
 export class StorageClient {
   private readonly caller = new InnerApiCaller("runtime", 180_000);
   private readonly assets: AssetServiceClient;
+  private readonly uploads: UploadSessionServiceClient;
   private readonly claims: ClaimServiceClient;
   private readonly delivery: DeliveryServiceClient;
 
   constructor(target: string) {
     this.assets = new AssetServiceClient(target, insecureChannelCredentials);
+    this.uploads = new UploadSessionServiceClient(target, insecureChannelCredentials);
     this.claims = new ClaimServiceClient(target, insecureChannelCredentials);
     this.delivery = new DeliveryServiceClient(target, insecureChannelCredentials);
+  }
+
+  async createUploadSession(request: CreateUploadSessionRequest) {
+    const { session } = await this.caller.unary<CreateUploadSessionResponse>(
+      (m, o, cb) => this.uploads.createUploadSession(request, m, o, cb),
+      { headers: propagationHeaders() },
+    );
+    if (!session) throw new Error("Storage returned no upload session");
+    return session;
+  }
+
+  async describeUploadSession(request: DescribeUploadSessionRequest) {
+    const { session } = await this.caller.unary<DescribeUploadSessionResponse>(
+      (m, o, cb) => this.uploads.describeUploadSession(request, m, o, cb),
+      { headers: propagationHeaders() },
+    );
+    if (!session) throw new Error("Storage returned no upload session");
+    return session;
+  }
+
+  async describeRevision(request: DescribeRevisionRequest) {
+    const { revision } = await this.caller.unary<DescribeRevisionResponse>(
+      (m, o, cb) => this.assets.describeRevision(request, m, o, cb),
+      { headers: propagationHeaders() },
+    );
+    if (!revision) throw new Error("Storage returned no revision metadata");
+    return revision;
   }
 
   content(input: {
@@ -66,18 +102,36 @@ export class StorageClient {
           metadata,
           options,
         );
-    input.signal?.addEventListener("abort", () => stream.cancel(), { once: true });
+    const cancel = () => stream.cancel();
+    let finished = false;
+    const finish = () => {
+      finished = true;
+      input.signal?.removeEventListener("abort", cancel);
+    };
     return Promise.resolve(
       new ReadableStream<Uint8Array>({
         start(controller) {
           stream.on("data", (message) => {
             const chunk = message.value?.value?.$case === "chunk" ? message.value.value.chunk : undefined;
-            if (chunk) controller.enqueue(chunk);
+            if (!finished && chunk) controller.enqueue(chunk);
           });
-          stream.on("end", () => controller.close());
-          stream.on("error", (error) => controller.error(error));
+          stream.on("end", () => {
+            if (finished) return;
+            finish();
+            controller.close();
+          });
+          stream.on("error", (error) => {
+            if (finished) return;
+            finish();
+            controller.error(
+              "code" in error && typeof error.code === "number" ? new InnerApiError(error.code, error.message) : error,
+            );
+          });
+          if (input.signal?.aborted) cancel();
+          else input.signal?.addEventListener("abort", cancel, { once: true });
         },
         cancel() {
+          finish();
           stream.cancel();
         },
       }),

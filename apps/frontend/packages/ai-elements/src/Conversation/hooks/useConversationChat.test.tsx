@@ -69,7 +69,7 @@ beforeEach(() => {
     id: "one",
     title: "Conversation",
     messages: [],
-    documents: [],
+    attachments: [],
     active_run_id: null,
     revision: 0,
   });
@@ -142,7 +142,7 @@ test("client-tool pauses keep the live tool part instead of reloading stored mes
 });
 
 test("loading resumes a persisted run once; unmount disconnects without server cancellation", async () => {
-  mocks.fetch.mockResolvedValue({ id: "one", revision: 1, messages: [], documents: [], active_run_id: "run" });
+  mocks.fetch.mockResolvedValue({ id: "one", revision: 1, messages: [], attachments: [], active_run_id: "run" });
   const view = renderHook(() => {
     const owner = useConversationChat("one");
     useChat({
@@ -184,7 +184,7 @@ test("history mutations stay gated until the authoritative history validates", a
   expect(view.result.current.historyReady).toBe(false);
   expect(view.result.current.canStartHistoryMutation()).toBe(false);
   await act(async () => {
-    resolveHistory({ id: "one", revision: 0, messages: [], documents: [], active_run_id: null });
+    resolveHistory({ id: "one", revision: 0, messages: [], attachments: [], active_run_id: null });
   });
   await waitFor(() => expect(view.result.current.historyReady).toBe(true));
   expect(view.result.current.canStartHistoryMutation()).toBe(true);
@@ -195,7 +195,7 @@ test("invalid initial history keeps all history mutations gated", async () => {
     id: "one",
     revision: 0,
     messages: [{ id: "bad", role: "user", content: { parts: [{ type: "text", text: 42 }] } }],
-    documents: [],
+    attachments: [],
     active_run_id: null,
   });
   const view = renderHook(() => useConversationChat("one"));
@@ -229,7 +229,7 @@ test("history hydration preserves message metadata", async () => {
         },
       },
     ],
-    documents: [],
+    attachments: [],
     active_run_id: null,
     revision: 3,
   });
@@ -254,8 +254,8 @@ test("stop discovers and cancels a run claimed before response headers arrived",
   mocks.traceRunId = null;
   const view = await mount();
   mocks.fetch
-    .mockResolvedValueOnce({ id: "one", revision: 1, messages: [], documents: [], active_run_id: "server-run" })
-    .mockResolvedValueOnce({ id: "one", revision: 1, messages: [], documents: [], active_run_id: null });
+    .mockResolvedValueOnce({ id: "one", revision: 1, messages: [], attachments: [], active_run_id: "server-run" })
+    .mockResolvedValueOnce({ id: "one", revision: 1, messages: [], attachments: [], active_run_id: null });
   await act(async () => {
     await view.result.current.stopRun();
   });
@@ -283,7 +283,7 @@ test("network disconnect preserves the partial reply and authoritative active ru
   await chunk({ type: "start", messageId: "assistant" });
   await chunk({ type: "text-start", id: "text" });
   await chunk({ type: "text-delta", id: "text", delta: "partial answer" });
-  mocks.fetch.mockResolvedValue({ id: "one", revision: 1, messages: [], documents: [], active_run_id: "run" });
+  mocks.fetch.mockResolvedValue({ id: "one", revision: 1, messages: [], attachments: [], active_run_id: "run" });
   await act(async () => {
     mocks.controller!.error(new TypeError("fetch failed"));
     await sent!;
@@ -316,7 +316,7 @@ test("a delayed persistence refresh cannot replace a disconnected Chat's message
   });
   view.unmount();
   await act(async () => {
-    resolve({ id: "one", messages: [], documents: [] });
+    resolve({ id: "one", messages: [], attachments: [] });
   });
   expect(chat.messages.at(-1)?.parts).toContainEqual(expect.objectContaining({ text: "live" }));
 });
@@ -354,7 +354,7 @@ test("a delayed finish refresh cannot overwrite a newer local operation", async 
     resolveRefresh({
       id: "one",
       revision: 1,
-      documents: [],
+      attachments: [],
       active_run_id: null,
       messages: [
         {
@@ -379,7 +379,7 @@ test("history selection replaces the SDK snapshot without executing a run", asyn
     revision: 3,
     messages: [],
     branches: [],
-    documents: [],
+    attachments: [],
     active_run_id: null,
   });
   mocks.select.mockResolvedValue({
@@ -396,7 +396,7 @@ test("history selection replaces the SDK snapshot without executing a run", asyn
       },
     ],
     branches: [],
-    documents: [],
+    attachments: [],
     active_run_id: null,
   });
   const view = await mount();
@@ -415,7 +415,7 @@ test("a delayed history selection cannot overwrite a newer local run", async () 
     revision: 3,
     messages: [],
     branches: [],
-    documents: [],
+    attachments: [],
     active_run_id: null,
   });
   let resolveSelection!: (value: unknown) => void;
@@ -436,7 +436,7 @@ test("a delayed history selection cannot overwrite a newer local run", async () 
       revision: 4,
       messages: [],
       branches: [],
-      documents: [],
+      attachments: [],
       active_run_id: null,
     });
     await selection!;
@@ -456,7 +456,7 @@ test("a pending history selection gates mutations and cannot replace a changed l
     revision: 3,
     messages: [],
     branches: [],
-    documents: [],
+    attachments: [],
     active_run_id: null,
   });
   let resolveSelection!: (value: unknown) => void;
@@ -479,7 +479,7 @@ test("a pending history selection gates mutations and cannot replace a changed l
       revision: 4,
       messages: [],
       branches: [],
-      documents: [],
+      attachments: [],
       active_run_id: null,
     });
     await selection;
@@ -506,7 +506,7 @@ test("a malformed history refresh preserves the valid SDK message snapshot", asy
     id: "one",
     revision: 0,
     messages: [{ id: "user", role: "user", content: { parts: [{ type: "text", text: 42 }] } }],
-    documents: [],
+    attachments: [],
     active_run_id: null,
   });
   await act(async () => view.result.current.recover());
@@ -522,7 +522,7 @@ test("retry recovers an already claimed operation without sending another POST",
     revision: 1,
     active_run_id: null,
     messages: [{ id: "saved", role: "assistant", content: { parts: [{ type: "text", text: "saved answer" }] } }],
-    documents: [],
+    attachments: [],
   });
   await act(async () => view.result.current.retryRequest());
   expect(mocks.retry).not.toHaveBeenCalled();
@@ -547,7 +547,7 @@ test("concurrent retry clicks consume one authoritative replay path", async () =
   });
   expect(view.result.current.canRetry).toBe(false);
   await act(async () => {
-    resolveProbe({ id: "one", revision: 1, active_run_id: "run", messages: [], documents: [] });
+    resolveProbe({ id: "one", revision: 1, active_run_id: "run", messages: [], attachments: [] });
     await Promise.all([first, second]);
   });
   expect(mocks.reconnect).toHaveBeenCalledOnce();

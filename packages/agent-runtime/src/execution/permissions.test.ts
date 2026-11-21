@@ -42,8 +42,8 @@ test("additional permissions never weaken an existing denied read", () => {
 
   assert.equal(permissionProfileHasDeniedReads(profile), true);
   const expanded = applyAdditionalPermissions(profile, {
-    fileSystem: [{ path: "/workspace/secrets", access: "write" }],
-    network: { allowedHosts: ["api.example.com"] },
+    file_system: { write: ["/workspace/secrets"] },
+    network: { enabled: true },
   });
   assert.equal(permissionProfileHasDeniedReads(expanded), true);
   assert.deepEqual(expanded, {
@@ -56,7 +56,7 @@ test("additional permissions never weaken an existing denied read", () => {
         { path: "/workspace/secrets", access: "deny" },
       ],
     },
-    network: { type: "restricted", allowedHosts: ["api.example.com"] },
+    network: { type: "enabled" },
   });
 });
 
@@ -68,15 +68,15 @@ test("network additions survive an already-unrestricted filesystem", () => {
       network: { type: "restricted", allowedHosts: [] },
     },
     {
-      fileSystem: [{ path: "/workspace", access: "write" }],
-      network: { allowedHosts: ["api.example.com"] },
+      file_system: { write: ["/workspace"] },
+      network: { enabled: true },
     },
   );
 
   assert.deepEqual(expanded, {
     type: "managed",
     fileSystem: { type: "unrestricted" },
-    network: { type: "restricted", allowedHosts: ["api.example.com"] },
+    network: { type: "enabled" },
   });
 });
 

@@ -1,5 +1,6 @@
 import type { PersistedThreadItemContent } from "../infrastructure/persistence/schema.js";
-import { cancelTodoOutput, hasNonTerminalOutput } from "./agent/runs/cancellation.js";
+import { sessionFileIdFromUrl, sessionFileUrl } from "./agent/context/file-parts.js";
+import { cancelPlanOutput, hasNonTerminalOutput } from "./agent/runs/cancellation.js";
 import { ConflictError } from "./errors.js";
 
 type RecordValue = Record<string, unknown>;
@@ -30,7 +31,7 @@ export function forkMessageContent(
       const documentPrefix = `/sessions/${sourceId}/documents/`;
       const filePrefix = `/sessions/${sourceId}/files/`;
       const documentId = url.searchParams.get("document_id");
-      const fileId = url.searchParams.get("file_id");
+      const fileId = sessionFileIdFromUrl(value, sourceId);
       if (value.includes(documentPrefix)) {
         if (!documentId || !documentIds[documentId]) throw new ConflictError("历史附件已不可用，无法创建完整分支");
         url.pathname = url.pathname.replace(
@@ -40,11 +41,7 @@ export function forkMessageContent(
         url.searchParams.set("document_id", documentIds[documentId]);
       } else if (value.includes(filePrefix)) {
         if (!fileId || !fileIds[fileId]) throw new ConflictError("历史文件已不可用，无法创建完整分支");
-        url.pathname = url.pathname.replace(
-          `${filePrefix}${fileId}`,
-          `/sessions/${sessionId}/files/${fileIds[fileId]}`,
-        );
-        url.searchParams.set("file_id", fileIds[fileId]);
+        return sessionFileUrl(sessionId, fileIds[fileId]!);
       } else {
         return value;
       }
@@ -64,7 +61,7 @@ export function forkMessageContent(
         ...metadata,
         agent: { ...(record(metadata.agent) ? metadata.agent : {}), historical: true },
       };
-      if (part.type === "tool-update_todos") copy.output = cancelTodoOutput(copy.output);
+      if (part.type === "tool-update_plan") copy.output = cancelPlanOutput(copy.output);
       if (
         part.preliminary === true ||
         hasNonTerminalOutput(part.output) ||

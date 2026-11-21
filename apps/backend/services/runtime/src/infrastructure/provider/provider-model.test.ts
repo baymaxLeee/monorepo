@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { LanguageModelV4CallOptions } from "@ai-sdk/provider";
+import { projectRuntimeContext, type RuntimeContextCheckpointWrite } from "@repo/agent-runtime";
+import { streamText } from "ai";
 
 import { createProviderModel } from "./provider-model.js";
 import { assertPublicProviderUrl } from "./provider-url.js";
@@ -367,4 +369,65 @@ test("normalizes Ark function_call added events that omit arguments", async () =
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("Responses compaction checkpoints round-trip through the installed SDK and expire on model change", async (t) => {
+  const requests: Record<string, unknown>[] = [];
+  const compactItem = { type: "compaction", id: "cmp_1", encrypted_content: "sealed" };
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+    requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    const events = [
+      { type: "response.created", response: { id: "resp_1", created_at: 1700000000, model: "gpt-test" } },
+      { type: "response.output_item.done", output_index: 0, item: compactItem },
+      {
+        type: "response.completed",
+        response: { incomplete_details: null, usage: null, reasoning: null, service_tier: null },
+      },
+    ];
+    return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), {
+      headers: { "content-type": "text/event-stream" },
+    });
+  });
+  const model = createProviderModel(provider);
+  const messages = ["a".repeat(2000), "continue here"].map((text, i) => ({
+    id: String(i),
+    role: "user" as const,
+    parts: [{ type: "text" as const, text }],
+  }));
+  let saved: RuntimeContextCheckpointWrite | undefined;
+  const projection = {
+    messages,
+    model,
+    limits: { contextWindow: 10000, maxOutputTokens: 1000 },
+    remoteBinding: "provider/model",
+    saveCheckpoint: async (next: RuntimeContextCheckpointWrite) => {
+      saved = next;
+    },
+  };
+  const first = await projectRuntimeContext({ ...projection, checkpoint: null });
+  assert.equal(first.checkpointAdvanced, true);
+  assert.ok(saved);
+  assert.deepEqual(saved.state, {
+    version: "responses-compaction-v2",
+    binding: "provider/model",
+    itemId: "cmp_1",
+    encryptedContent: "sealed",
+  });
+  assert.equal(requests[0]?.store, false);
+  assert.deepEqual((requests[0].input as unknown[]).at(-1), { type: "compaction_trigger" });
+  const checkpoint = { ...saved, revision: 1 };
+  const next = await projectRuntimeContext({ ...projection, checkpoint });
+  assert.deepEqual(next.messages, first.messages);
+  assert.equal(requests.length, 1);
+  await streamText({ model, messages: next.messages, providerOptions: { openai: { store: false } } }).consumeStream();
+  assert.deepEqual((requests[1].input as unknown[])[0], compactItem);
+  assert.doesNotMatch(JSON.stringify(requests[1]), /compaction_trigger|previous_response_id/);
+  const switched = await projectRuntimeContext({
+    ...projection,
+    remoteBinding: "another/model",
+    checkpoint,
+    limits: { contextWindow: 128000, maxOutputTokens: 1000 },
+  });
+  assert.match(JSON.stringify(switched.messages), /a{2000}/);
+  assert.doesNotMatch(JSON.stringify(switched.messages), /sealed|cmp_1/);
 });

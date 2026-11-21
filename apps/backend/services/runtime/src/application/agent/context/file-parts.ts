@@ -1,4 +1,4 @@
-import { isFileUIPart, type FileUIPart, type ReasoningFileUIPart, type UIMessage } from "ai";
+import { type FileUIPart, type ReasoningFileUIPart, type UIMessage } from "ai";
 
 type ChatPart = UIMessage<unknown, any, any>["parts"][number];
 
@@ -11,27 +11,13 @@ export function documentIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): 
   }
 }
 
-export function sessionFileIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): string | null {
-  try {
-    const url = new URL(part.url, "http://internal");
-    return url.searchParams.get("file_id");
-  } catch {
-    return null;
-  }
+export function sessionFileIdFromUrl(url: string, sessionId: string): string | null {
+  const match = /^\/api\/chat-server\/sessions\/([^/]+)\/files\/([a-zA-Z0-9_-]{1,32})\/content$/.exec(url);
+  return match?.[1] === sessionId ? match[2]! : null;
 }
 
-export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {
-  return parts.flatMap((part) => {
-    if (isFileUIPart(part)) {
-      const id = documentIdFromFilePart(part);
-      return id ? [id] : [];
-    }
-    return [];
-  });
-}
-
-export function hasUntrustedFilePart(parts: ChatPart[]): boolean {
-  return parts.some((part) => isFileUIPart(part) && (part.providerReference != null || !documentIdFromFilePart(part)));
+export function sessionFileUrl(sessionId: string, fileId: string) {
+  return `/api/chat-server/sessions/${encodeURIComponent(sessionId)}/files/${encodeURIComponent(fileId)}/content`;
 }
 
 /** Skill the user explicitly invoked via `/`, carried as a persisted message
@@ -53,17 +39,4 @@ export function activatedSkillNameFromParts(parts: ChatPart[]): string | null {
 
 export function isImageMediaType(mediaType: string): boolean {
   return mediaType.startsWith("image/");
-}
-
-export function attachedImageDocumentIdsFromParts(parts: ChatPart[]): string[] {
-  return parts.flatMap((part) => {
-    if (!isFileUIPart(part)) {
-      return [];
-    }
-    const id = documentIdFromFilePart(part);
-    if (!id || !isImageMediaType(String(part.mediaType ?? ""))) {
-      return [];
-    }
-    return [id];
-  });
 }

@@ -4,6 +4,7 @@ import test from "node:test";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 import type { SandboxScope } from "../../../infrastructure/clients/sandbox.js";
+import { ConflictError } from "../../errors.js";
 import { reconcileSandboxExecutions, sandboxExecutionReconciliationState } from "./sandbox-executions.js";
 
 const first: SandboxScope = {
@@ -108,8 +109,8 @@ test("orphan cleanup releases a sandbox resource that is already gone", async ()
       calls.push("finalize");
       throw Object.assign(new Error("snapshot failed"), {
         service: "runtime-sandbox",
-        status: 422,
-        body: { message: "error: no such object: sandbox-first" },
+        status: 404,
+        body: { code: "sandbox_not_found", message: "sandbox-first no longer exists" },
       });
     },
     releasing: async (_scope, error) => {
@@ -120,8 +121,8 @@ test("orphan cleanup releases a sandbox resource that is already gone", async ()
       calls.push("destroy");
       throw Object.assign(new Error("destroy failed"), {
         service: "runtime-sandbox",
-        status: 422,
-        body: { message: "error: no such object: sandbox-first" },
+        status: 404,
+        body: { code: "sandbox_not_found", message: "sandbox-first no longer exists" },
       });
     },
     released: async () => {
@@ -132,4 +133,29 @@ test("orphan cleanup releases a sandbox resource that is already gone", async ()
     },
   });
   assert.deepEqual(calls, ["finalize", "releasing", "destroy", "released"]);
+});
+
+test("orphan cleanup releases an obsolete writer without retrying its snapshot", async () => {
+  const conflict = new ConflictError("superseded", "workspace_writer_superseded");
+  const calls: string[] = [];
+  await reconcileSandboxExecutions({
+    list: async () => [{ scope: first, sandboxId: "sandbox", state: "finalizing" }],
+    finalize: async () => {
+      throw conflict;
+    },
+    releasing: async (_scope, reason) => {
+      assert.equal(reason, conflict);
+      calls.push("releasing");
+    },
+    destroy: async () => {
+      calls.push("destroy");
+    },
+    released: async () => {
+      calls.push("released");
+    },
+    failed: async () => {
+      calls.push("failed");
+    },
+  });
+  assert.deepEqual(calls, ["releasing", "destroy", "released"]);
 });

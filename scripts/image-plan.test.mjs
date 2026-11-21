@@ -58,7 +58,7 @@ test("builds only the directly changed backend service", () => {
 });
 
 test("expands root shared packages across backend and web consumers", () => {
-  assert.deepEqual(imagePlan(["packages/agent-runtime/src/agent/harness.ts"]).build, ["runtime", "web"]);
+  assert.deepEqual(imagePlan(["packages/agent-runtime/core/src/session/turn.ts"]).build, ["runtime", "web"]);
 });
 
 test("builds the web image for any frontend workspace change", () => {

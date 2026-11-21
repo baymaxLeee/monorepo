@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
-import type { AgentPluginContext, ResolvedPluginSkillContribution } from "@repo/agent-runtime/plugins/types";
+import type { AgentPluginContext, ResolvedPluginSkillContribution } from "@repo/agent-runtime";
 
 import { RuntimePluginSkillAssetLoader, type PluginSkillContentSource } from "./plugin-skills.js";
 

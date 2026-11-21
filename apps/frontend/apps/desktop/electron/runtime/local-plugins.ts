@@ -3,17 +3,17 @@ import { createReadStream } from "node:fs";
 import { cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import { assertPluginId } from "@repo/agent-runtime/plugins/identity";
-import { discoverInstalledMcpServer } from "@repo/agent-runtime/plugins/mcp";
-import { resolveTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
-import type {
-  AgentPluginManifest,
-  McpConnectionGrant,
-  PersistedTurnPluginSnapshot,
-  PluginActivation,
-  ResolvedTurnPluginSnapshot,
-} from "@repo/agent-runtime/plugins/types";
-import type { SkillSourceEntry } from "@repo/agent-runtime/tools/skills";
+import {
+  assertPluginId,
+  discoverInstalledMcpServer,
+  resolveTurnPluginSnapshot,
+  type AgentPluginManifest,
+  type McpConnectionGrant,
+  type PersistedTurnPluginSnapshot,
+  type PluginActivation,
+  type ResolvedTurnPluginSnapshot,
+  type SkillSourceEntry,
+} from "@repo/agent-runtime";
 import { parse } from "yaml";
 import { z } from "zod";
 
@@ -175,7 +175,7 @@ async function loadSkills(root: string, paths: string[], defaultPath: boolean, p
       const body = await readFile(file, "utf8");
       const header = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(body);
       if (!header) throw new Error("插件 SKILL.md 缺少 frontmatter");
-      const { name, description } = skillMetadata.parse(parse(header[1]!));
+      const { name, description } = skillMetadata.parse(parse(header[1]));
       const hash = digest(body);
       const qualified = `${pluginId}:${name}`;
       if (bodies.has(qualified)) throw new Error(`重复的插件 Skill ${qualified}`);

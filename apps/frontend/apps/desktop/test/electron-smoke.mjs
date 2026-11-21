@@ -179,6 +179,31 @@ async function run() {
       `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "on-request", ":workspace", [{pluginId: "style@local", origin: "local"}])`,
     );
     assert.equal(thread.mode, "local");
+    const projectFile = join(thread.workspace, "原件.txt");
+    await writeFile(projectFile, "workspace original");
+    const externalFile = join(directory, "原件.txt");
+    await writeFile(externalFile, "external original");
+    // Supply disk-backed File objects through Chromium's actual file input.
+    await execute(
+      "document.body.appendChild(Object.assign(document.createElement('input'), {type:'file', id:'attachment'}))",
+    );
+    const debuggerAPI = window.webContents.debugger;
+    debuggerAPI.attach();
+    const { root } = await debuggerAPI.sendCommand("DOM.getDocument");
+    const { nodeId } = await debuggerAPI.sendCommand("DOM.querySelector", {
+      nodeId: root.nodeId,
+      selector: "#attachment",
+    });
+    const reference = async (path) => {
+      await debuggerAPI.sendCommand("DOM.setFileInputFiles", { nodeId, files: [path] });
+      return execute(
+        `desktop.referenceFile(${JSON.stringify(thread.id)}, document.querySelector('#attachment').files[0])`,
+      );
+    };
+    assert.equal(await reference(projectFile), "原件.txt");
+    const imported = await reference(externalFile);
+    assert.equal(await readFile(imported, "utf8"), "external original");
+    debuggerAPI.detach();
     await execute(
       `desktop.send(${JSON.stringify(thread.id)}, [{ type: "text", text: "create file" }], ${JSON.stringify(randomUUID())})`,
     );

@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { defineAgentTool } from "./manifest.js";
 import { normalizeToolIssue, shouldRethrowToolError, toolCompleted, toolIssueSchema, toolRunning } from "./outcome.js";
-import { createSubagent } from "./subagent-agent.js";
+import { createSubagent } from "./subagent-loop.js";
 
 const MAX_SUBAGENTS = 3;
 const MAX_PROGRESS_UPDATES_PER_SUBAGENT = 64;

@@ -7,6 +7,7 @@ import { getSessionContext } from "../../../application/agent/index.js";
 import { activeAgentStreamRunId } from "../../../application/agent/streams/service.js";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../../application/errors.js";
 import { editableFileByteLimit } from "../../../application/file-edit-limits.js";
+import { completeSessionAttachment, prepareSessionAttachment } from "../../../application/session-attachments.js";
 import { forkSession } from "../../../application/session-fork.js";
 import {
   authorizeDocumentDelivery,
@@ -31,6 +32,7 @@ import {
   getVideoProduction,
   type ProductionDecision,
 } from "../../../infrastructure/clients/worker.js";
+import { prepareAttachmentSchema, completeAttachmentSchema } from "../attachment-schemas.js";
 import { getAuth } from "../middleware/auth.js";
 
 export const sessionsRoutes = new Hono();
@@ -264,6 +266,13 @@ sessionsRoutes.get("/:sessionId/context", async (c) => {
   return c.json(await getSessionContext(getAuth(c), c.req.param("sessionId")));
 });
 
+sessionsRoutes.post("/:sessionId/attachments/prepare", zValidator("json", prepareAttachmentSchema), async (c) =>
+  c.json(await prepareSessionAttachment(getAuth(c), c.req.param("sessionId"), c.req.valid("json"))),
+);
+sessionsRoutes.post("/:sessionId/attachments/complete", zValidator("json", completeAttachmentSchema), async (c) =>
+  c.json(await completeSessionAttachment(getAuth(c), c.req.param("sessionId"), c.req.valid("json"))),
+);
+
 sessionsRoutes.get("/:sessionId/documents/:documentId", async (c) => {
   const auth = getAuth(c);
   return c.json(
@@ -391,23 +400,24 @@ sessionsRoutes.delete("/:sessionId", async (c) => {
   return c.body(null, 204);
 });
 
-sessionsRoutes.post("/:sessionId/documents/:documentId/delivery", async (c) => {
-  const raw = c.req.query("max_dim");
-  const maxDim = raw === undefined ? undefined : Number(raw);
-  if (maxDim !== undefined && (!Number.isInteger(maxDim) || maxDim < 1 || maxDim > 4096)) {
-    return c.json({ title: "invalid max_dim", status: 400 }, 400);
-  }
+const deliveryQuery = z.object({
+  max_dim: z.coerce.number().int().min(1).max(4096).optional(),
+  revision_id: z.string().optional(),
+});
+sessionsRoutes.post("/:sessionId/documents/:documentId/delivery", zValidator("query", deliveryQuery), async (c) => {
+  const maxDim = c.req.valid("query").max_dim;
   return c.json(
     await authorizeDocumentDelivery(getAuth(c), c.req.param("sessionId"), c.req.param("documentId"), maxDim),
   );
 });
-sessionsRoutes.post("/:sessionId/files/:fileId/delivery", async (c) => {
+sessionsRoutes.post("/:sessionId/files/:fileId/delivery", zValidator("query", deliveryQuery), async (c) => {
   return c.json(
     await authorizeFileDelivery(
       getAuth(c),
       c.req.param("sessionId"),
       c.req.param("fileId"),
-      c.req.query("revision_id"),
+      c.req.valid("query").revision_id,
+      c.req.valid("query").max_dim,
     ),
   );
 });

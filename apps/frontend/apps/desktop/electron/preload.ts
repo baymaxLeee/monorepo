@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 import type { DesktopBridge, DesktopEvent } from "../contracts/bridge.generated";
 
@@ -8,7 +8,7 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
   const call = <T>(method: string, payload?: unknown): Promise<T> =>
     ipcRenderer.invoke("desktop:invoke", method, payload);
   const bridge: DesktopBridge = {
-    version: 7,
+    version: 8,
     info: () => call("info"),
     bindSession: (accessToken, expiresAt) => call("bindSession", { accessToken, expiresAt }),
     clearSession: () => call("clearSession"),
@@ -26,6 +26,19 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
         permissionProfile,
         pluginActivations,
       }),
+    referenceFile: async (id, file) => {
+      const path = webUtils.getPathForFile(file);
+      if (path) {
+        const relativePath = await call<string | null>("workspaceFilePath", { id, path });
+        if (relativePath !== null) return relativePath;
+      }
+      if (file.size > 10 * 1024 * 1024) throw new Error("本地附件不能超过 10 MiB");
+      return call<string>("importAttachment", {
+        id,
+        filename: file.name,
+        bytes: new Uint8Array(await file.arrayBuffer()),
+      });
+    },
     getThread: (id) => call("get", id),
     openStream: (id) => call("openStream", id),
     send: (id, parts, messageId) => call("send", { id, parts, messageId }),

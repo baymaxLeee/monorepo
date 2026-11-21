@@ -1,7 +1,8 @@
-import type { PersistedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import type { PersistedTurnPluginSnapshot } from "@repo/agent-runtime";
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -254,6 +255,27 @@ export const turnSandboxExecutions = pgTable(
   (t) => [
     primaryKey({ columns: [t.turnId, t.attemptEpoch] }),
     index("ix_turn_sandbox_executions_releasing").on(t.state, t.updatedAt),
+  ],
+);
+
+export const sandboxWorkspaceCheckout = pgTable(
+  "sandbox_workspace_checkout",
+  {
+    turnId: varchar("turn_id", { length: 32 }).notNull(),
+    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
+    workspacePath: text("workspace_path").notNull(),
+    fileId: varchar("file_id", { length: 32 }).notNull(),
+    pathGeneration: bigint("path_generation", { mode: "number" }).notNull(),
+    etag: text("etag").notNull(),
+    sha256: text("sha256").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.turnId, t.attemptEpoch, t.workspacePath] }),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnSandboxExecutions.turnId, turnSandboxExecutions.attemptEpoch],
+    }).onDelete("cascade"),
   ],
 );
 

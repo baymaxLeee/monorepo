@@ -1,3 +1,5 @@
+import type { PromptInputValue } from "@repo/ai-elements/prompt-input";
+import type * as Api from "@repo/api";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { UIMessage } from "ai";
 import { Suspense, type ReactNode } from "react";
@@ -33,7 +35,7 @@ const state = vi.hoisted(() => ({
   action: vi.fn(),
   updateModel: vi.fn(),
   updatePolicy: vi.fn(),
-  documents: [] as unknown[],
+  attachments: [] as unknown[],
   suspendedText: null as string | null,
   pendingRender: new Promise<void>(() => {}),
   serverActiveRunId: "run" as string | null,
@@ -66,7 +68,8 @@ vi.mock("../../hooks/useConversationChat", async (importOriginal) => {
     },
   };
 });
-vi.mock("@repo/api", () => ({
+vi.mock("@repo/api", async (original) => ({
+  ...(await original<typeof Api>()),
   authFetch: vi.fn(),
 }));
 vi.mock("@repo/api/chat", () => ({
@@ -85,7 +88,7 @@ vi.mock("@repo/api/chat", () => ({
     reasoning_effort: "medium",
     approval_policy: "on-request",
     permission_profile: ":workspace",
-    documents: state.documents,
+    attachments: state.attachments,
     messages: state.messages.map((message) => ({
       id: message.id,
       role: message.role,
@@ -101,7 +104,6 @@ vi.mock("@repo/api/admin", () => ({
   ]),
   listSkills: vi.fn(async () => []),
 }));
-vi.mock("@repo/api/knowledge", () => ({ ingestDocuments: vi.fn(), prepareIngest: vi.fn() }));
 vi.mock("../../lib/transport", () => ({ createConversationTransport: vi.fn(() => ({})) }));
 vi.mock("../../store/useChatStore", () => {
   const store = {
@@ -182,12 +184,7 @@ vi.mock("@repo/ai-elements/prompt-input", () => ({
   }: {
     ref?: { current: unknown };
     onStop: () => void;
-    onSubmit: (value: {
-      text: string;
-      segments: Array<{ type: "text"; text: string }>;
-      tokens: [];
-      files: Record<string, File>;
-    }) => void;
+    onSubmit: (value: PromptInputValue) => void;
     loading: boolean;
     submitWhileLoading?: boolean;
     footerStartRender: () => ReactNode;
@@ -214,6 +211,20 @@ vi.mock("@repo/ai-elements/prompt-input", () => ({
           }
         >
           发送补充
+        </button>
+        <button
+          onClick={() => {
+            const token = {
+              id: "token",
+              kind: "file",
+              label: "brief.md",
+              mime: "text/markdown",
+              meta: { fileId: "upload" },
+            };
+            onSubmit({ text: "[[token]]", segments: [{ type: "token", token }], tokens: [token], files: {} });
+          }}
+        >
+          发送已有会话附件
         </button>
         <button onClick={onStop}>停止</button>
         {footerStartRender()}
@@ -259,6 +270,29 @@ async function mount() {
   state.sessionRenders = 0;
   return view;
 }
+
+test("an attachment-only follow-up sends the uploaded document from the current conversation", async () => {
+  state.status = "ready";
+  state.serverActiveRunId = null;
+  await mount();
+  fireEvent.click(screen.getByRole("button", { name: "发送已有会话附件" }));
+  await waitFor(() =>
+    expect(state.sendMessage).toHaveBeenCalledWith(
+      {
+        parts: [
+          {
+            type: "file",
+            mediaType: "text/markdown",
+            filename: "brief.md",
+            url: "/api/chat-server/conversations/conversation/files/upload/content",
+          },
+          { type: "text", text: "请阅读并处理我附加的文件。" },
+        ],
+      },
+      { body: {} },
+    ),
+  );
+});
 
 test("first request preserves composer parts after conversation creation", async () => {
   state.status = "ready";

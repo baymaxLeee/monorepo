@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 
-import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
+import { workspaceMediaType } from "@repo/agent-runtime";
 
 import { sandboxClient } from "../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter } from "../infrastructure/clients/sandbox.js";
 import type { StorageClient } from "../infrastructure/clients/storage.js";
 import { storageClient } from "../infrastructure/clients/storage.js";
+import { ConflictError } from "./errors.js";
 import { deleteWorkspaceSessionFile, listSessionFiles, publishSessionFile, saveSessionFile } from "./session-files.js";
+import { readWorkspaceCheckout } from "./workspace-checkout.js";
 import { isValidWorkspacePath } from "./workspace-paths.js";
 
 export interface CloudWorkspaceScope {
@@ -21,6 +23,7 @@ export interface CloudWorkspaceScope {
 export interface CloudWorkspaceDependencies {
   sandbox: () => Pick<RuntimeSandboxAdapter, "snapshot" | "download">;
   asset: () => Pick<StorageClient, "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
+  checkout: typeof readWorkspaceCheckout;
   files: typeof listSessionFiles;
   publish: typeof publishSessionFile;
   update: typeof saveSessionFile;
@@ -30,6 +33,7 @@ export interface CloudWorkspaceDependencies {
 const defaults: CloudWorkspaceDependencies = {
   sandbox: sandboxClient,
   asset: storageClient,
+  checkout: readWorkspaceCheckout,
   files: listSessionFiles,
   publish: publishSessionFile,
   update: saveSessionFile,
@@ -39,8 +43,25 @@ const defaults: CloudWorkspaceDependencies = {
 export function isMissingSandboxResourceError(error: unknown): boolean {
   if (!(error instanceof Error) || !("service" in error) || error.service !== "runtime-sandbox") return false;
   const body = "body" in error && error.body && typeof error.body === "object" ? error.body : null;
-  const message = body && "message" in body && typeof body.message === "string" ? body.message : error.message;
-  return /no such (?:object|container):?\s+sandbox-/iu.test(message);
+  return (
+    "status" in error && error.status === 404 && body != null && "code" in body && body.code === "sandbox_not_found"
+  );
+}
+
+export function workspaceFinalizationIsObsolete(error: unknown): boolean {
+  return (
+    (error instanceof ConflictError && error.code === "workspace_writer_superseded") ||
+    isMissingSandboxResourceError(error)
+  );
+}
+
+function verifySnapshot(
+  entry: { path: string; size: number; sha256: string },
+  asset: { sizeBytes: number; sha256: string },
+) {
+  if (asset.sizeBytes !== entry.size || asset.sha256 !== entry.sha256) {
+    throw new Error(`Storage content differs from the frozen workspace snapshot for ${entry.path}`);
+  }
 }
 
 export async function persistCloudWorkspace(
@@ -56,17 +77,10 @@ export async function persistCloudWorkspace(
     run_id: context.runId,
     attempt_epoch: context.attemptEpoch,
   };
-  const [snapshot, files] = await Promise.all([
-    deps.sandbox().snapshot(sandboxId, scope),
-    deps.files({
-      userId: context.userId,
-      tenantId: context.tenantId,
-      workspaceId: context.workspaceId,
-      sessionId: context.sessionId,
-    }),
-  ]);
+  const [snapshot, files] = await Promise.all([deps.sandbox().snapshot(sandboxId, scope), deps.checkout(context)]);
   const baseline = new Map(files.map((file) => [file.workspace_path, file]));
   const livePaths = new Set<string>();
+  let published: Map<string, Awaited<ReturnType<typeof listSessionFiles>>[number]> | undefined;
 
   for (const entry of snapshot.files) {
     const workspacePath = `/workspace/${entry.path}`;
@@ -92,6 +106,7 @@ export async function persistCloudWorkspace(
             .digest("hex"),
           writerType: "agent",
           writerId: context.runId,
+          sandboxAttempt: context,
           workspacePath,
           expectedPathGeneration: current.path_generation,
         },
@@ -107,7 +122,7 @@ export async function persistCloudWorkspace(
           await storage.activateClaim(claimInput);
           const body = await deps.sandbox().download(sandboxId, scope, entry.path);
           try {
-            return await storage.appendRevision({
+            const asset = await storage.appendRevision({
               ...context,
               assetId: file.asset_id,
               baseRevisionId: file.revision_id,
@@ -117,12 +132,26 @@ export async function persistCloudWorkspace(
               body,
               idempotencyKey,
             });
+            verifySnapshot(entry, asset);
+            return asset;
           } finally {
             if (!body.locked) await body.cancel().catch(() => {});
           }
         },
       );
       continue;
+    }
+
+    // A worker can die between staging a durable provider file and recording its checkout.
+    // Only a path present in this frozen snapshot is eligible for recovery.
+    published ??= new Map((await deps.files(context)).map((file) => [file.workspace_path, file]));
+    const existing = published.get(workspacePath);
+    if (existing) {
+      if (existing.sha256 === entry.sha256 && existing.size === entry.size) continue;
+      throw new ConflictError(
+        `Workspace path already contains a different published file: ${workspacePath}`,
+        "workspace_path_conflict",
+      );
     }
 
     const body = await deps.sandbox().download(sandboxId, scope, entry.path);
@@ -139,6 +168,7 @@ export async function persistCloudWorkspace(
         body,
         idempotencyKey,
       });
+      verifySnapshot(entry, asset);
       await deps.publish({
         userId: context.userId,
         tenantId: context.tenantId,
@@ -155,6 +185,7 @@ export async function persistCloudWorkspace(
         workspacePath,
         writerType: "agent",
         writerId: context.runId,
+        sandboxAttempt: context,
       });
     } finally {
       if (!body.locked) await body.cancel().catch(() => {});
@@ -173,6 +204,7 @@ export async function persistCloudWorkspace(
       expectedPathGeneration: file.path_generation,
       expectedEtag: file.etag,
       writerId: context.runId,
+      sandboxAttempt: context,
     });
   }
 }

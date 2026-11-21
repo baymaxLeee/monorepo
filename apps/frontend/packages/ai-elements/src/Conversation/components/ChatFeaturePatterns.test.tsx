@@ -221,12 +221,12 @@ test.each(["completed", "running", "failed"] as const)(
   "sandbox publication %s settles the associated artifact todo from real outcomes",
   (status) => {
     const todo = {
-      type: "tool-update_todos",
+      type: "tool-update_plan",
       toolCallId: "todo",
       toolMetadata: { agent: { uiKind: "todo-list" } },
       state: "output-available",
       input: {},
-      output: { ok: true, status: "completed", data: { todos: [] } },
+      output: { ok: true, status: "completed", data: { plan: [] } },
     } as const;
     const parts: ChatUIMessage["parts"] = [
       todo,

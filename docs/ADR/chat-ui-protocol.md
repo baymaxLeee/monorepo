@@ -203,7 +203,7 @@ Chat 的存储层保留消息父子关系和当前选中路径；客户端仍只
 
 无 server execute 的工具分为人工交互和浏览器执行两种。人工交互由 Questionnaire 回填，浏览器执行通过 `onToolCall` 访问明确注册的本地能力；不因为收到任意工具名称就执行 JS、访问资源或发起外部写入。浏览器工具按 toolCallId 去重执行和结果交付，失败通过 `addToolOutput({ state: 'output-error', errorText })` 回填。存在外部副作用时还必须由资源 owner 实现幂等；客户端内存中的去重集合不能保证跨刷新或进程故障的 exactly-once 执行。
 
-当前启用的客户端交互工具是 `ask_user`；尚未注册浏览器自动执行工具，不为展示能力而虚构权限或执行策略。新增浏览器工具时必须同时注册本地 `onToolCall` handler与服务端输出校验器；未知客户端工具结果默认拒绝。自动续跑只在本会话发生实际回答/审批动作后启用；用户在流结束前回填的结果也必须保留到 SDK 续跑判断完成。
+客户端工具 `ask_user` 接收 `questions[{id,header,question,options:[{label,description}]}]`，返回 `{answers:{[id]:{answers:[text]}}}`；尚未注册浏览器自动执行工具，不为展示能力而虚构权限或执行策略。新增浏览器工具时必须同时注册本地 `onToolCall` handler与服务端输出校验器；未知客户端工具结果默认拒绝。自动续跑只在本会话发生实际回答/审批动作后启用；用户在流结束前回填的结果也必须保留到 SDK 续跑判断完成。
 
 自动续跑使用 SDK 的 `lastAssistantMessageIsCompleteWithToolCalls` 和 `lastAssistantMessageIsCompleteWithApprovalResponses`，外侧只加本项目“本轮确有客户端响应”的必要条件，防止纯 server-tool 完成后再次 POST。provider-executed 工具不进入客户端执行队列。不要 await 一个依赖当前 `onToolCall` 返回才能完成的整轮请求，避免形成等待环。
 
@@ -218,7 +218,7 @@ Chat 的存储层保留消息父子关系和当前选中路径；客户端仍只
 3. 输入、工具类型/名称、tool metadata、providerExecuted、非响应 parts 均来自服务端；客户端修改这些字段应被拒绝。
 4. 只有服务端登记为 client execution 的调用可接受 output/output-error；server/provider 工具结果不可由浏览器伪造。preliminary 不能作为客户端终态提交。
 5. 审批只接受匹配的 approval id、approved 和可选 reason；不能以提交 output 绕过审批，也不能通过浏览器伪造自动审批结论。
-6. 按调用的输出 schema 验证结果。`ask_user` 还需验证问题 ID、选项及单/多选规则。
+6. 按调用的输出 schema 验证结果。`ask_user` 按问题 ID 接收一个选项标签或自填答案。
 7. 原子认领这些响应并更新消息；重复点击、并发响应和请求重试不会执行两次。
 
 拒绝响应保留原权威消息并返回可识别错误；不能为了“继续聊”接受任意 assistant消息或忽略无效 toolCallId。审批决定只授予这一次工具调用，不永久改变工具权限。
@@ -352,7 +352,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | [agents route](../../apps/backend/services/runtime/src/api/http/routes/agents.ts) | 识别官方操作、scope/归属校验、恢复与取消响应 |
 | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts) | 权威历史、composition、单一 finalizer、请求/run 对应关系 |
 | [continuation](../../apps/backend/services/runtime/src/application/agent/runs/continuation.ts) | 不可变调用身份、输出/审批 schema、响应去重和状态转换 |
-| [model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared context manager](../../packages/agent-runtime/src/context/manager.ts) | journal 与模型表示分离、数据引用、多模态输入 |
+| [model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared context projection](../../packages/agent-runtime/src/context/history.ts) | journal 与模型表示分离、数据引用、多模态输入 |
 | [stream service](../../apps/backend/services/runtime/src/application/agent/streams/service.ts) | 原生 SSE 重放、取消 subscriber、active pointer 一致性 |
 | [tool manifest](../../packages/agent-runtime/src/tools/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
 | [frontend transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) | 精简但完整的操作语义、认证、原生 replay 配置 |
@@ -382,7 +382,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | 请求并发 | 双提交、模糊网络失败、同请求单 replay、旧 revision、迟到 history/detail 响应、pointer/graph 一致快照、陈旧 lease 回收；只认领一次执行 | [repository integration](../../apps/backend/services/runtime/src/application/agent/runs/repository.integration.test.ts)、[transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts)、[late response tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 恢复与停止 | 初始加载、空闲不探针、部分流断开、完整重放不重复、204、后台恢复、切换会话、响应头前 Stop；旧取消不影响新 run | [Redis stream integration](../../apps/backend/services/runtime/src/application/agent/streams/service.integration.test.ts)、[useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 异常收口 | provider 失败、critical persistence 失败、取消、进程丢失的权威 run 状态；部分内容保持可见 | [stream outcome tests](../../apps/backend/services/runtime/src/application/agent/runs/stream-outcome.test.ts)、[run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts)、[repository integration](../../apps/backend/services/runtime/src/application/agent/runs/repository.integration.test.ts) |
-| 模型投影 | 仅当前分支进入模型；data part 是否入模按定义；多模态工具确实发送受权内容而不只是文件 ID | [run history tests](../../apps/backend/services/runtime/src/application/agent/runs/run-history.test.ts)、[message branch tests](../../apps/backend/services/runtime/src/application/message-branches.test.ts)、[model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared manager tests](../../packages/agent-runtime/src/context/manager.test.ts) |
+| 模型投影 | 仅当前分支进入模型；data part 是否入模按定义；多模态工具确实发送受权内容而不只是文件 ID | [run history tests](../../apps/backend/services/runtime/src/application/agent/runs/run-history.test.ts)、[message branch tests](../../apps/backend/services/runtime/src/application/message-branches.test.ts)、[model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared context tests](../../packages/agent-runtime/src/context/history.test.ts) |
 | UI | 错误与待交互状态可访问，键盘操作、滚动稳定、窄屏、媒体按需加载、完成消息不随无关 delta 重渲染 | [ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx)、[stream performance tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatStreamingPerformance.test.tsx)、UI contracts 和真实浏览器验收 |
 
 从仓库根目录执行相关验证：

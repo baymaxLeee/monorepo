@@ -17,12 +17,16 @@ function readDataUrl(file: File): Promise<string> {
   });
 }
 
-export async function localPromptMessageParts(value: PromptInputValue): Promise<LocalUserMessagePart[]> {
+export async function localPromptMessageParts(
+  value: PromptInputValue,
+  referenceFile: (file: File) => Promise<string>,
+): Promise<LocalUserMessagePart[]> {
   const parts = await Promise.all(
     value.segments.map(async (segment): Promise<LocalUserMessagePart | null> => {
       if (segment.type === "text") return segment.text ? { type: "text", text: segment.text } : null;
       const file = value.files[segment.token.id];
       if (!file) throw new Error(`附件不存在：${segment.token.label}`);
+      if (!file.type.startsWith("image/")) return { type: "text", text: JSON.stringify(await referenceFile(file)) };
       return {
         type: "file",
         mediaType: file.type || "application/octet-stream",
@@ -32,7 +36,7 @@ export async function localPromptMessageParts(value: PromptInputValue): Promise<
     }),
   );
   const messageParts = parts.filter((part): part is LocalUserMessagePart => part !== null);
-  if (!messageParts.some((part) => part.type === "text")) {
+  if (!value.segments.some((segment) => segment.type === "text" && segment.text.trim())) {
     messageParts.push({ type: "text", text: "请阅读并处理我附加的文件。" });
   }
   return messageParts;

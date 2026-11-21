@@ -12,6 +12,7 @@ import { parseLocalUserMessageParts } from "./local-user-message";
 import { selectPlatform } from "./platform-selector";
 import { type PackagedPlatform, platformLaunch, platformUrl } from "./platform-url";
 import { resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
+import { importAttachmentRequest, workspaceFileRequest } from "./runtime/attachments";
 import { listLocalPlugins, importLocalPlugin } from "./runtime/local-plugins";
 import { WorkspaceGrants } from "./workspace-grants";
 
@@ -216,6 +217,10 @@ async function start() {
         }
         return scopedCall("create", p);
       }
+      case "workspaceFilePath":
+        return scopedCall(method, workspaceFileRequest.parse(payload));
+      case "importAttachment":
+        return scopedCall(method, importAttachmentRequest.parse(payload));
       case "openStream":
       case "get":
       case "stop":

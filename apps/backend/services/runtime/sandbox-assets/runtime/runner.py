@@ -21,6 +21,7 @@ import sys
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from contextlib import suppress
 from urllib.parse import urlsplit
 
@@ -453,19 +454,31 @@ class Output:
             del self.data[:excess]
             self.base += excess
 
-    def read(self, offset):
+    def read(self, offset, binary):
         end = self.base + len(self.data)
         if offset < 0 or offset > end:
             raise ValueError("invalid output cursor")
         data = bytes(self.data[max(0, offset - self.base) :])
-        return data.decode("utf-8", errors="replace"), end, offset < self.base
+        payload = base64.b64encode(data).decode("ascii") if binary else data.decode("utf-8", errors="replace")
+        return payload, end, offset < self.base
 
 
 class Process:
     def __init__(self, request, root, uid, gid, output_limit, max_timeout, expire, pids):
         self.id = uuid.uuid4().hex
         self.request = {
-            k: request.get(k) for k in ("command", "workdir", "env", "tty", "timeout_ms", "sandbox", "violation_hint")
+            k: request.get(k)
+            for k in (
+                "command",
+                "workdir",
+                "env",
+                "tty",
+                "binary_io",
+                "pipe_stdin",
+                "timeout_ms",
+                "sandbox",
+                "violation_hint",
+            )
         }
         self.condition = threading.Condition()
         self.stdin_lock = threading.Lock()
@@ -556,8 +569,13 @@ class Process:
             readers = [(master, self.stdout)]
         else:
             try:
+                pipe = not request.get("binary_io") or request.get("pipe_stdin")
                 self.process = subprocess.Popen(
-                    argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **options
+                    argv,
+                    stdin=subprocess.PIPE if pipe else subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    **options,
                 )
             except BaseException as error:
                 if self.proxy:
@@ -602,7 +620,10 @@ class Process:
             code = self.process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             self.kill()
-            self.expire()
+            # A managed command has a private PID namespace with a parent-death signal.
+            # Bypassed commands share the guest namespace and require guest-wide cleanup.
+            if not self.request["sandbox"]["sandboxed"]:
+                self.expire()
             code = self.process.wait()
             termination = {"type": "timeout", "timeout_ms": int(timeout * 1000)}
         finally:
@@ -669,8 +690,9 @@ class Process:
             self.condition.wait_for(
                 lambda: self.termination is not None, timeout=min(10000, request.get("yield_time_ms", 0)) / 1000
             )
-            out, out_cursor, out_truncated = self.stdout.read(request.get("stdout_offset", 0))
-            err, err_cursor, err_truncated = self.stderr.read(request.get("stderr_offset", 0))
+            binary = self.request["binary_io"]
+            out, out_cursor, out_truncated = self.stdout.read(request.get("stdout_offset", 0), binary)
+            err, err_cursor, err_truncated = self.stderr.read(request.get("stderr_offset", 0), binary)
             return {
                 "session_id": self.id,
                 "stdout": out,
@@ -685,30 +707,45 @@ class Process:
 
     def write(self, request):
         chars = request.get("chars", "")
-        if not chars:
+        binary = request.get("stdin_base64")
+        eof = request.get("close_stdin", False)
+        if not chars and binary is None and not eof:
             return
+        if (binary is not None or eof) and (
+            not self.request["pipe_stdin"] or self.pty_fd is not None or chars or (eof and binary is not None)
+        ):
+            raise ValueError("invalid binary stdin operation")
+        data = base64.b64decode(binary, validate=True) if binary is not None else chars.encode()
         key = request["request_id"]
+        identity = (eof, binary is not None, hashlib.sha256(data).digest())
         with self.stdin_lock:
             if key in self.writes:
-                if self.writes[key] != chars:
+                previous, complete = self.writes[key]
+                if previous != identity:
                     raise ValueError("stdin request ID was reused with different input")
+                if not complete:
+                    raise ValueError("previous stdin write failed; input may have been partially delivered")
                 return
             if self.termination is not None:
                 raise ValueError("process already exited")
             # Mark before writing: an ambiguous/partial write must never be replayed.
-            self.writes[key] = chars
-            fd = self.pty_fd if self.pty_fd is not None else self.process.stdin.fileno()
-            if chars == "\x03":
+            self.writes[key] = (identity, False)
+            if eof:
+                self.process.stdin.close()
+            elif chars == "\x03":
                 os.killpg(self.process.pid, signal.SIGINT)
-                return
-            data = chars.encode()
-            deadline = time.monotonic() + 5
-            while data:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError("stdin did not drain; input was not retried")
-                _, ready, _ = select.select([], [fd], [], 0.1)
-                if ready:
-                    data = data[os.write(fd, data[:1024]) :]
+            else:
+                if self.pty_fd is None and self.process.stdin is None:
+                    raise ValueError("process stdin is closed")
+                fd = self.pty_fd if self.pty_fd is not None else self.process.stdin.fileno()
+                deadline = time.monotonic() + 5
+                while data:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("stdin did not drain; input was not retried")
+                    _, ready, _ = select.select([], [fd], [], 0.1)
+                    if ready:
+                        data = data[os.write(fd, data[:1024]) :]
+            self.writes[key] = (identity, True)
 
 
 class Runtime:
@@ -727,7 +764,7 @@ class Runtime:
         self.root = pathlib.Path(root)
         self.uid, self.gid = uid, gid
         self.output_limit, self.max_timeout, self.max_processes = output_limit, max_timeout, max_processes
-        self.processes, self.requests = {}, {}
+        self.processes, self.requests = OrderedDict(), {}
         self.lock = threading.Lock()
         self.closed = False
         self.workspace_edit = None
@@ -773,7 +810,10 @@ class Runtime:
             with self.lock:
                 key = request["request_id"]
                 if key in self.requests:
-                    process = self.processes[self.requests[key]]
+                    process = self.processes.get(self.requests[key])
+                    if process is None:
+                        raise ValueError("command result has expired")
+                    self.processes.move_to_end(process.id)
                     if process.request != {k: request.get(k) for k in process.request}:
                         raise ValueError("command request ID was reused with different input")
                 else:
@@ -782,7 +822,12 @@ class Runtime:
                     if self.workspace_edit is not None:
                         raise ValueError("workspace edit in progress")
                     if len(self.processes) >= self.max_processes:
-                        raise ValueError("sandbox command capacity exceeded")
+                        expired = next((p.id for p in self.processes.values() if p.termination is not None), None)
+                        if expired is None:
+                            raise ValueError("sandbox command capacity exceeded")
+                        # Keep the start request identity until guest teardown. Losing output must
+                        # never cause a retried command to run twice.
+                        del self.processes[expired]
                     process = Process(
                         request,
                         self.root,
@@ -796,9 +841,11 @@ class Runtime:
                     self.processes[process.id] = process
                     self.requests[key] = process.id
         else:
-            process = self.processes.get(request.get("session_id"))
-            if process is None:
-                raise ValueError("unknown process session")
+            with self.lock:
+                process = self.processes.get(request.get("session_id"))
+                if process is None:
+                    raise ValueError("unknown process session")
+                self.processes.move_to_end(process.id)
             if op == "write":
                 process.write(request)
             elif op == "cancel":

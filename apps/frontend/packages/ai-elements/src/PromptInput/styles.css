@@ -247,8 +247,18 @@
 }
 
 @media (pointer: coarse) {
-  .prompt-input-prosemirror { font-size: 1rem; }
-  .prompt-input button { min-width: 2.75rem; min-height: 2.75rem; }
-  .prompt-input-suggestion-item { min-height: 2.75rem; }
+  .prompt-input-prosemirror {
+    font-size: 1rem;
+  }
+  .prompt-input button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .prompt-input-suggestion-item {
+    min-height: 2.75rem;
+  }
 }
-.prompt-input-token-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.prompt-input-token-remove:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

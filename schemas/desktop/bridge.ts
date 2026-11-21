@@ -82,7 +82,7 @@ export type DesktopEvent =
 // Only these capabilities cross preload. No arbitrary channel, path grant,
 // process spawn, fetch URL or provider credential is exposed to page code.
 export interface DesktopBridge {
-  readonly version: 7;
+  readonly version: 8;
   info(): Promise<{ platform: string; localAvailable: boolean; origin: string }>;
   bindSession(accessToken: string, expiresAt: string): Promise<void>;
   clearSession(): Promise<void>;
@@ -99,6 +99,7 @@ export interface DesktopBridge {
     permissionProfile: LocalPermissionProfileId,
     pluginActivations: LocalPluginActivation[],
   ): Promise<LocalThread>;
+  referenceFile(id: string, file: File): Promise<string>;
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
   send(id: string, parts: LocalUserMessagePart[], messageId: string): Promise<void>;

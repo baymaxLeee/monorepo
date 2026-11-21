@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { after, test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 
-import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 import { eq } from "drizzle-orm";
 
 import { getDb, getSql } from "../../../infrastructure/persistence/index.js";
 import {
+  assetClaimIntents,
   threadItems,
   threads,
   toolExecutions,
@@ -17,22 +19,26 @@ import {
   turnSteps,
 } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
+import { publishSessionFile, deleteWorkspaceSessionFile } from "../../session-files.js";
 import {
   createSession as createRuntimeSession,
   deleteSession,
   listMessages,
   selectSessionHistory,
 } from "../../sessions.js";
-import { acquireRunLease, releaseRun } from "./lease.js";
+import { readWorkspaceCheckout } from "../../workspace-checkout.js";
+import { acquireRunLease, cancelRun, registerRunController, releaseRun } from "./lease.js";
 import {
   claimAgentRunOperation,
   finalizeAgentRunJournal,
+  persistCompletedStep,
   finishAgentRun,
   interruptRuns,
   persistAgentRunPluginSnapshot,
   readAgentRunPluginSnapshot,
   requestAgentRunCancellation,
 } from "./repository.js";
+import { sandboxExecutionLifecycle } from "./sandbox-executions.js";
 import { acceptAgentRunInput, listAgentRunInputs } from "./steering.js";
 
 const enabled = process.env.RUNTIME_POSTGRES_INTEGRATION === "1";
@@ -228,6 +234,42 @@ test("lease takeover increments the epoch and fences the old Turn owner", { skip
 });
 
 test(
+  "replacement controllers retain cancellation ownership until their own attempt releases",
+  { skip: !enabled },
+  async () => {
+    const { sessionId, userId } = await createSession();
+    const old = lease(await claimSubmit(sessionId, userId));
+    const first = registerRunController(old);
+    let latest = old;
+    try {
+      await getDb()
+        .update(turnLeases)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(turnLeases.turnId, old.runId));
+      latest = await acquireRunLease(sessionId, old.runId);
+      const current = registerRunController(latest);
+      assert.equal(first.aborted, true);
+      assert.equal(registerRunController(old).aborted, true);
+      assert.equal(registerRunController(latest), current);
+      const cancelled = new Promise<void>((done) => {
+        current.addEventListener("abort", () => done(), { once: true });
+      });
+      const completed = cancelRun(sessionId, old.runId);
+      await cancelled;
+      await releaseRun(old);
+      const waiting = Symbol();
+      assert.equal(await Promise.race([completed, delay(30, waiting)]), waiting);
+      await finishAgentRun({ ...latest, status: "cancelled" });
+      await releaseRun(latest);
+      assert.equal(await completed, true);
+    } finally {
+      await releaseRun(latest);
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test(
   "session creation retries reuse the same Runtime session and reject changed input",
   { skip: !enabled },
   async () => {
@@ -343,7 +385,7 @@ test("message listing reads the selected pointer and graph from one ordered snap
       const deadline = Date.now() + 5_000;
       while (true) {
         const blocked = await getSql()`
-          select pid from pg_stat_activity where ${blocker!.pid} = any(pg_blocking_pids(pid))
+          select pid from pg_stat_activity where ${blocker.pid} = any(pg_blocking_pids(pid))
         `;
         if (blocked.length > 0) break;
         assert.ok(Date.now() < deadline, "message listing did not reach the session lock");
@@ -474,7 +516,7 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
       ok: true,
       status: "completed",
       data: {
-        todos: [
+        plan: [
           { id: "done", status: "completed" },
           { id: "open", status: "pending" },
         ],
@@ -494,7 +536,7 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
         {
           id: todoToolId,
           turnId: claim.runId,
-          toolName: "update_todos",
+          toolName: "update_plan",
           status: "completed",
           inputJson: {},
           outputJson: todoOutput,
@@ -536,7 +578,7 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
     assert.deepEqual(todo?.outputJson, {
       ...todoOutput,
       data: {
-        todos: [
+        plan: [
           { id: "done", status: "completed" },
           { id: "open", status: "cancelled" },
         ],
@@ -576,7 +618,7 @@ test("client continuation validation and journal merge share the claim transacti
       state: "input-available" as const,
       input: {
         questions: [
-          { id: "q", question: "Choose", mode: "single", choices: [{ label: "A", value: "a" }], allow_freeform: false },
+          { id: "q", header: "Choice", question: "Choose", options: [{ label: "A", description: "First option" }] },
         ],
       },
       toolMetadata: { agent: { execution: "client" } },
@@ -598,20 +640,20 @@ test("client continuation validation and journal merge share the claim transacti
       operation: "tool-continuation" as const,
       targetMessageId: assistantId,
     };
-    const response = (value: string) => ({
+    const response = (value: string, id = "q") => ({
       id: assistantId,
       role: "assistant" as const,
       parts: [
         {
           ...awaiting,
           state: "output-available" as const,
-          output: { ok: true, status: "completed", data: { answers: [{ id: "q", values: [value] }] } },
+          output: { ok: true, status: "completed", data: { answers: { [id]: { answers: [value] } } } },
         },
       ],
     });
     await assert.rejects(
-      claimAgentRunOperation({ ...operation, continuationMessage: response("forged") }),
-      /unknown choice/,
+      claimAgentRunOperation({ ...operation, continuationMessage: response("forged", "unrequested") }),
+      /requested question IDs/,
     );
     const [unchanged] = await getDb().select().from(threads).where(eq(threads.id, sessionId));
     const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, assistantId));
@@ -654,7 +696,7 @@ test(
         const deadline = Date.now() + 5_000;
         while (true) {
           const blocked = await getSql()`
-          select pid from pg_stat_activity where ${blocker!.pid} = any(pg_blocking_pids(pid))
+          select pid from pg_stat_activity where ${blocker.pid} = any(pg_blocking_pids(pid))
         `;
           if (blocked.length > 0) break;
           assert.ok(Date.now() < deadline, "finalizer did not reach the session lock");
@@ -683,7 +725,7 @@ test("terminal cleanup locks session before run and lease", { skip: !enabled }, 
       const deadline = Date.now() + 5_000;
       while (true) {
         const blocked = await getSql()`
-          select pid from pg_stat_activity where ${blocker!.pid} = any(pg_blocking_pids(pid))
+          select pid from pg_stat_activity where ${blocker.pid} = any(pg_blocking_pids(pid))
         `;
         if (blocked.length > 0) break;
         assert.ok(Date.now() < deadline, "terminal cleanup did not reach the session lock");
@@ -807,6 +849,39 @@ test(
   },
 );
 
+test("a reaper waiting behind a takeover cannot interrupt the new owner", { skip: !enabled }, async () => {
+  const { sessionId, userId } = await createSession();
+  let pending: ReturnType<typeof interruptRuns> | undefined;
+  try {
+    const claim = await claimSubmit(sessionId, userId);
+    await getDb()
+      .update(turnLeases)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(turnLeases.turnId, claim.runId));
+    await getSql().begin(async (tx) => {
+      const [owner] = await tx`select pg_backend_pid() as pid`;
+      await tx`select id from turns where id = ${claim.runId} for update`;
+      pending = interruptRuns([claim.runId]);
+      const deadline = Date.now() + 5_000;
+      while (true) {
+        const blocked =
+          await getSql()`select pid from pg_stat_activity where ${owner.pid} = any(pg_blocking_pids(pid))`;
+        if (blocked.length) break;
+        assert.ok(Date.now() < deadline, "reaper did not wait on the owner");
+        await delay(10);
+      }
+      await tx`update turns set attempt_epoch = attempt_epoch + 1 where id = ${claim.runId}`;
+      await tx`update turn_leases set attempt_epoch = attempt_epoch + 1, expires_at = now() + interval '10 minutes' where turn_id = ${claim.runId}`;
+    });
+    assert.deepEqual(await pending, []);
+    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    assert.equal(run?.status, "running");
+  } finally {
+    await pending;
+    await cleanup(sessionId);
+  }
+});
+
 test("orphan reconciliation rechecks a renewed lease before interrupting", { skip: !enabled }, async () => {
   const { sessionId, userId } = await createSession();
   try {
@@ -858,6 +933,157 @@ test(
       const retried = await acceptAgentRunInput(input);
       assert.equal(retried.state, "not_delivered");
       assert.equal(retried.reason, "finished");
+    } finally {
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test(
+  "workspace checkout is atomic with publication and fences superseded attempts and turns",
+  { skip: !enabled },
+  async () => {
+    const {
+      sessionId,
+      userId,
+      auth: { tenantId, workspaceId },
+    } = await createSession();
+    try {
+      const first = await claimSubmit(sessionId, userId);
+      const scope = { sessionId, userId, tenantId, workspaceId };
+      const sandboxAttempt = { runId: first.runId, attemptEpoch: first.attemptEpoch.toString() };
+      await sandboxExecutionLifecycle.restoring({
+        run_id: first.runId,
+        attempt_epoch: sandboxAttempt.attemptEpoch,
+        session_id: sessionId,
+        user_id: userId,
+        tenant_id: tenantId,
+        workspace_id: workspaceId,
+      });
+      const input = {
+        ...scope,
+        sandboxAttempt,
+        title: "demo",
+        filename: "demo.txt",
+        workspacePath: "/workspace/demo.txt",
+        assetId: randomUUID(),
+        revisionId: randomUUID(),
+        idempotencyKey: identifier("file"),
+        mediaType: "text/plain",
+        sizeBytes: 3,
+        sha256: "a".repeat(64),
+      };
+      const file = await publishSessionFile(input);
+      assert.deepEqual(await readWorkspaceCheckout(sandboxAttempt), [
+        {
+          id: file.id,
+          workspace_path: file.workspace_path,
+          path_generation: file.path_generation,
+          etag: file.etag,
+          sha256: file.sha256,
+          size: file.size,
+        },
+      ]);
+      const deletion = {
+        ...scope,
+        sandboxAttempt,
+        fileId: file.id,
+        workspacePath: file.workspace_path,
+        writerId: first.runId,
+        expectedPathGeneration: file.path_generation,
+        expectedEtag: file.etag,
+      };
+      const stale = (e: unknown) => e instanceof ConflictError && e.code === "workspace_writer_superseded";
+      await getDb()
+        .update(turnLeases)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(turnLeases.turnId, first.runId));
+      const owner = await acquireRunLease(sessionId, first.runId);
+      await assert.rejects(publishSessionFile(input), stale);
+      await assert.rejects(deleteWorkspaceSessionFile(deletion), stale);
+      await finishAgentRun({ ...owner, status: "completed" });
+      await releaseRun(owner);
+      const [thread] = await getDb().select().from(threads).where(eq(threads.id, sessionId));
+      await claimAgentRunOperation({
+        sessionId,
+        userId,
+        providerId: "test-provider",
+        model: "test-model",
+        requestId: identifier("req"),
+        expectedRevision: Number(thread.historyRevision),
+        operation: "submit-message",
+        inputMessage: {
+          id: identifier("msg"),
+          role: "user",
+          content: { version: 2, parts: [{ type: "text", text: "next" }] },
+        },
+      });
+      await assert.rejects(
+        deleteWorkspaceSessionFile({
+          ...deletion,
+          sandboxAttempt: { runId: first.runId, attemptEpoch: owner.attemptEpoch.toString() },
+        }),
+        stale,
+      );
+    } finally {
+      await getDb().delete(assetClaimIntents).where(eq(assetClaimIntents.tenantId, tenantId));
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test(
+  "completed steps survive owner loss and finalization updates the same assistant item",
+  { skip: !enabled },
+  async () => {
+    const { sessionId, userId } = await createSession();
+    try {
+      const claim = await claimSubmit(sessionId, userId);
+      const id = identifier("assistant");
+      const content = {
+        version: 2 as const,
+        parts: [
+          {
+            type: "tool-bash",
+            toolCallId: "call-1",
+            state: "output-available",
+            input: { command: "pwd" },
+            output: "/workspace",
+          },
+        ],
+      };
+      await persistCompletedStep(lease(claim), id, content);
+      const [item] = await getDb().select().from(threadItems).where(eq(threadItems.id, id));
+      assert.deepEqual(item?.content.parts, content.parts);
+      const [thread] = await getDb().select().from(threads).where(eq(threads.id, sessionId));
+      assert.equal(thread?.selectedItemId, id);
+      await getDb()
+        .update(turnLeases)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(turnLeases.turnId, claim.runId));
+      const replacement = await acquireRunLease(sessionId, claim.runId);
+      await assert.rejects(
+        persistCompletedStep(lease(claim), id, { version: 2, parts: [] }),
+        (error) => error instanceof ConflictError,
+      );
+      const history = await listMessages(sessionId);
+      assert.deepEqual(history.find((message) => message.id === id)?.content.parts, content.parts);
+      await finalizeAgentRunJournal({
+        ...replacement,
+        parts: [],
+        aborted: false,
+        status: "completed",
+        message: {
+          id,
+          status: "ok",
+          content: { version: 2, parts: [...content.parts, { type: "text", text: "final" }] },
+        },
+      });
+      const [done] = await getDb().select().from(threads).where(eq(threads.id, sessionId));
+      assert.equal(done?.itemSequence, thread?.itemSequence);
+      assert.equal(done?.selectedItemId, id);
+      const [saved] = await getDb().select().from(threadItems).where(eq(threadItems.id, id));
+      assert.equal(saved?.content.parts.length, 2);
     } finally {
       await cleanup(sessionId);
     }

@@ -2,14 +2,10 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { extractJsonMiddleware, Output, streamText, wrapLanguageModel, type UIMessage } from "ai";
 import { z } from "zod";
 
+import { HeadTailBuffer } from "../output-buffer.js";
 import type { ModelContextLimits } from "./budget.js";
 import { estimateTextTokens } from "./token-estimate.js";
-import {
-  addRuntimeTokenUsage,
-  EMPTY_RUNTIME_TOKEN_USAGE,
-  runtimeTokenUsage,
-  type RuntimeTokenUsage,
-} from "./token-usage.js";
+import { addRuntimeTokenUsage, EMPTY_RUNTIME_TOKEN_USAGE, runtimeTokenUsage, type RuntimeTokenUsage } from "./usage.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -46,14 +42,15 @@ const COMPACTION_INSTRUCTIONS = [
   "Return only a JSON object matching the requested schema.",
 ].join("\n");
 
-function truncateWithMarker(value: string, maxChars: number): string {
-  if (value.length <= maxChars) return value;
-  const omitted = value.length - maxChars;
-  return `${value.slice(0, maxChars)}\n[... ${omitted} characters omitted from this tool payload]`;
+function truncateWithMarker(value: string, maxBytes: number): string {
+  if (Buffer.byteLength(value) <= maxBytes) return value;
+  const buffer = new HeadTailBuffer(maxBytes);
+  buffer.push(value);
+  return buffer.drain(Math.ceil(maxBytes / 4)).output;
 }
 
-function jsonPayload(value: unknown, maxChars: number): string {
-  return truncateWithMarker(JSON.stringify(value ?? null), maxChars);
+function jsonPayload(value: unknown, maxBytes: number): string {
+  return truncateWithMarker(JSON.stringify(value ?? null), maxBytes);
 }
 
 function compactPart(part: AnyUIMessage["parts"][number]): unknown | null {
@@ -68,6 +65,7 @@ function compactPart(part: AnyUIMessage["parts"][number]): unknown | null {
     return {
       type: part.type,
       toolName: record.toolName,
+      toolCallId: record.toolCallId,
       state: record.state,
       input: jsonPayload(record.input, 2_000),
       output: jsonPayload(record.output, 6_000),
@@ -164,6 +162,17 @@ export async function compactRuntimeHistory(input: {
   signal?: AbortSignal;
   onUsage?: (usage: RuntimeTokenUsage) => void;
 }): Promise<{ state: RuntimeCompactionState; usage: RuntimeTokenUsage }> {
+  return compactTranscript({ ...input, transcript: input.messages.map(serializeMessage) });
+}
+
+export async function compactTranscript(input: {
+  model: LanguageModelV4;
+  limits: ModelContextLimits;
+  transcript: string[];
+  previous?: RuntimeCompactionState | null;
+  signal?: AbortSignal;
+  onUsage?: (usage: RuntimeTokenUsage) => void;
+}): Promise<{ state: RuntimeCompactionState; usage: RuntimeTokenUsage }> {
   const model = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
   const maxOutputTokens = Math.max(
     1,
@@ -172,7 +181,7 @@ export async function compactRuntimeHistory(input: {
   const inputBudget = Math.max(512, input.limits.contextWindow - maxOutputTokens - COMPACTION_PROMPT_OVERHEAD_TOKENS);
   let state = input.previous;
   let usage = EMPTY_RUNTIME_TOKEN_USAGE;
-  const messages = input.messages.map((message) => escapePromptData(serializeMessage(message)));
+  const messages = input.transcript.map(escapePromptData);
   let cursor: CompactionCursor = { messageIndex: 0, offset: 0 };
   while (cursor.messageIndex < messages.length) {
     const rawPrevious = state ? escapePromptData(state.summary) : "(none)";

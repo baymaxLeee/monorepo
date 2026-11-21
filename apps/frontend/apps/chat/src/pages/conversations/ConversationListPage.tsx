@@ -28,6 +28,7 @@ export function ConversationListPage() {
   const [permissionProfile, setPermissionProfile] = useState<PermissionProfileValue>(":workspace");
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const cloudDraft = useRef<{ settings: string; requestId: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
   const [pluginOptions, setPluginOptions] = useState<AgentPluginSelectionOption[] | null>(null);
@@ -140,7 +141,6 @@ export function ConversationListPage() {
         if (!bridge) throw new Error("本地会话需要桌面应用");
         if (localAvailable !== true) throw new Error("本地执行环境不可用");
         if (!project) throw new Error("请先选择项目");
-        const parts = await localPromptMessageParts(value);
         const thread = await bridge.createThread(
           project,
           selectedModelId,
@@ -153,6 +153,7 @@ export function ConversationListPage() {
           ],
         );
         try {
+          const parts = await localPromptMessageParts(value, (file) => bridge.referenceFile(thread.id, file));
           await bridge.send(thread.id, parts, randomId());
         } catch (cause) {
           await bridge.removeThread(thread.id).catch(() => {});
@@ -161,8 +162,16 @@ export function ConversationListPage() {
         void navigate(`/platform/chat/local/${thread.id}`);
         return;
       }
+      const settings = JSON.stringify([
+        selectedModelId,
+        reasoningEffort,
+        approvalPolicy,
+        permissionProfile,
+        selectedPluginIds,
+      ]);
+      if (cloudDraft.current?.settings !== settings) cloudDraft.current = { settings, requestId: randomId() };
       const conversation = await createConversation({
-        request_id: randomId(),
+        request_id: cloudDraft.current.requestId,
         provider_id: selectedModelId,
         reasoning_effort: reasoningEffort,
         approval_policy: approvalPolicy,
@@ -171,9 +180,9 @@ export function ConversationListPage() {
       });
       const parts = await prepareCloudConversationRequest({
         conversationId: conversation.id,
-        providerId: selectedModelId,
         value,
       });
+      cloudDraft.current = null;
       void navigate(`/platform/chat/conversations/${conversation.id}`, {
         state: { refreshConversationHistory: true, externalRequest: { id: randomId(), parts } },
       });

@@ -169,7 +169,9 @@ export function LocalSession({
       pendingPrompt.current = value;
       promptRef.current?.clear();
       try {
-        await chat.sendMessage({ parts: await localPromptMessageParts(value) });
+        await chat.sendMessage({
+          parts: await localPromptMessageParts(value, (file) => bridge.referenceFile(initial.id, file)),
+        });
         pendingPrompt.current = null;
       } catch (cause) {
         const pending = pendingPrompt.current;

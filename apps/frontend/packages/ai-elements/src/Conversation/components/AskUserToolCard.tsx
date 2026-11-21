@@ -3,6 +3,7 @@ import {
   QuestionnaireActions,
   QuestionnaireChoice,
   QuestionnaireChoices,
+  QuestionnaireChoiceDescription,
   QuestionnaireError,
   QuestionnaireInput,
   QuestionnaireItem,
@@ -26,7 +27,7 @@ export function AskUserToolCard({
   const items = input.questions.map((question) => ({
     name: question.id,
     required: true,
-    choices: question.choices.map((choice) => ({ value: choice.value })),
+    choices: question.options.map((choice) => ({ value: choice.label })),
   }));
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -34,14 +35,18 @@ export function AskUserToolCard({
     const formData = new FormData(event.currentTarget);
 
     onSubmit({
-      answers: input.questions.map((question) => ({
-        id: question.id,
-        values: formData
-          .getAll(question.id)
-          .filter((value): value is string => typeof value === "string")
-          .map((value) => value.trim())
-          .filter(Boolean),
-      })),
+      answers: Object.fromEntries(
+        input.questions.map((question) => [
+          question.id,
+          {
+            answers: formData
+              .getAll(question.id)
+              .filter((value): value is string => typeof value === "string")
+              .map((value) => value.trim())
+              .filter(Boolean),
+          },
+        ]),
+      ),
     });
   }
 
@@ -49,24 +54,18 @@ export function AskUserToolCard({
     <Questionnaire className="rounded-lg border bg-muted/30 p-4" items={items} shortcuts="numbers" onSubmit={submit}>
       {input.questions.length > 1 ? <QuestionnaireProgress aria-label="答题进度" /> : null}
       {input.questions.map((question) => (
-        <QuestionnaireItem key={question.id} name={question.id} multiple={question.mode === "multiple"} required>
+        <QuestionnaireItem key={question.id} name={question.id} required>
+          <div className="text-xs text-muted-foreground">{question.header}</div>
           <QuestionnaireTitle>{question.question}</QuestionnaireTitle>
-          {question.choices.length > 0 ? (
-            <QuestionnaireChoices>
-              {question.choices.map((choice) => (
-                <QuestionnaireChoice key={choice.value} value={choice.value}>
-                  {choice.label}
-                </QuestionnaireChoice>
-              ))}
-            </QuestionnaireChoices>
-          ) : null}
-          {question.allowFreeform ? (
-            <QuestionnaireInput
-              aria-label={question.freeformLabel}
-              maxLength={160}
-              placeholder={question.freeformLabel}
-            />
-          ) : null}
+          <QuestionnaireChoices>
+            {question.options.map((option) => (
+              <QuestionnaireChoice key={option.label} value={option.label}>
+                {option.label}
+                <QuestionnaireChoiceDescription>{option.description}</QuestionnaireChoiceDescription>
+              </QuestionnaireChoice>
+            ))}
+          </QuestionnaireChoices>
+          <QuestionnaireInput aria-label="其他" placeholder="其他" />
           <QuestionnaireError>请选择或输入一个答案后继续。</QuestionnaireError>
         </QuestionnaireItem>
       ))}

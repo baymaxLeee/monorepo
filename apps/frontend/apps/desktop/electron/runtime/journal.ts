@@ -2,10 +2,14 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { parseRuntimeCompactionState } from "@repo/agent-runtime/context/compaction";
-import type { RuntimeContextCheckpoint, RuntimeContextCheckpointWrite } from "@repo/agent-runtime/context/manager";
-import { toPersistedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
-import type { PersistedTurnPluginSnapshot, ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import {
+  parseCheckpointState,
+  type RuntimeContextCheckpoint,
+  type RuntimeContextCheckpointWrite,
+  toPersistedTurnPluginSnapshot,
+  type PersistedTurnPluginSnapshot,
+  type ResolvedTurnPluginSnapshot,
+} from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 
 import type { LocalThread } from "../../contracts/bridge.generated";
@@ -199,7 +203,7 @@ export class LocalJournal {
       .prepare("SELECT revision, covered_item_id, state FROM context_checkpoints WHERE thread_id=?")
       .get(threadId);
     if (!row) return null;
-    const state = parseRuntimeCompactionState(JSON.parse(String(row.state)));
+    const state = parseCheckpointState(JSON.parse(String(row.state)));
     if (!state) return null;
     return {
       revision: Number(row.revision),

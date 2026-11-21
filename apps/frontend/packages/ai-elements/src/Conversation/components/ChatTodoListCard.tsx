@@ -36,15 +36,15 @@ export function parseTodoListOutput(output: unknown): { todos: TodoItem[] } | nu
     return null;
   }
   const raw = payload as Record<string, unknown>;
-  if (!Array.isArray(raw.todos)) {
+  if (!Array.isArray(raw.plan)) {
     return null;
   }
-  const todos = raw.todos.flatMap((item): TodoItem[] => {
+  const todos = raw.plan.flatMap((item, index): TodoItem[] => {
     if (!item || typeof item !== "object") {
       return [];
     }
     const row = item as Record<string, unknown>;
-    if (typeof row.id !== "string" || typeof row.content !== "string") {
+    if (typeof row.step !== "string") {
       return [];
     }
     if (
@@ -61,8 +61,8 @@ export function parseTodoListOutput(output: unknown): { todos: TodoItem[] } | nu
         : undefined;
     return [
       {
-        id: row.id,
-        content: row.content,
+        id: String(index),
+        content: row.step,
         status: row.status as TodoStatus,
         ...(deliverable ? { deliverable } : {}),
       },

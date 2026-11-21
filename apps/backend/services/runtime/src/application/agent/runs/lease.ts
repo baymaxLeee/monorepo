@@ -1,8 +1,10 @@
-import { and, eq, gt, inArray, lte } from "drizzle-orm";
+import { setTimeout as delay } from "node:timers/promises";
+
+import { and, eq, gt, lte } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
+import { threads, turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
 import { deactivateAgentStream } from "../streams/service.js";
 import {
@@ -23,20 +25,25 @@ const controllers = new Map<
     controller: AbortController;
     heartbeat: ReturnType<typeof setInterval>;
     cancellationPoll: ReturnType<typeof setInterval>;
+    completion: { promise: Promise<void>; resolve: () => void };
   }
 >();
-const completions = new Map<string, { promise: Promise<void>; resolve: () => void }>();
 const CANCELLATION_POLL_MS = 1_000;
 const CANCELLATION_WAIT_MS = 30_000;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
 
 export async function acquireRunLease(sessionId: string, runId: string): Promise<RunLeaseToken> {
   const db = getDb();
-  const now = new Date();
   // Reap expired leases, verify no active lease, and claim in one transaction so
   // the read-then-write is atomic (Drizzle rolls back on any throw). A lost race
   // rolls back the reap too; the next acquire re-reaps — expired rows are inert.
   const claimed = await db.transaction(async (tx) => {
+    await tx.select({ id: threads.id }).from(threads).where(eq(threads.id, sessionId)).for("update");
+    const [run] = await tx.select().from(turns).where(eq(turns.id, runId)).for("update");
+    if (!run || run.threadId !== sessionId || !["running", "cancel_requested"].includes(run.status)) {
+      throw new ConflictError("agent run cannot acquire a lease", "run_lease_unavailable");
+    }
+    const now = new Date();
     const expiredLeases = await tx
       .select()
       .from(turnLeases)
@@ -47,10 +54,6 @@ export async function acquireRunLease(sessionId: string, runId: string): Promise
       throw new ConflictError("this session already has an active run", "active_run_exists", {
         run_id: active.turnId,
       });
-    }
-    const [run] = await tx.select().from(turns).where(eq(turns.id, runId)).for("update");
-    if (!run || run.threadId !== sessionId || !["running", "cancel_requested"].includes(run.status)) {
-      throw new ConflictError("agent run cannot acquire a lease", "run_lease_unavailable");
     }
     const reclaimedSameRun = expiredLeases.some((lease) => lease.turnId === runId);
     const attemptEpoch = reclaimedSameRun ? run.attemptEpoch + 1n : run.attemptEpoch;
@@ -81,17 +84,17 @@ export async function acquireRunLease(sessionId: string, runId: string): Promise
 export function registerRunController(token: RunLeaseToken): AbortSignal {
   const runId = token.runId;
   const previous = controllers.get(runId);
+  if (previous?.token.attemptEpoch === token.attemptEpoch) return previous.controller.signal;
+  if (previous && previous.token.attemptEpoch > token.attemptEpoch) {
+    return AbortSignal.abort(new DOMException("agent run ownership was replaced", "AbortError"));
+  }
   if (previous) {
+    previous.completion.resolve();
     previous.controller.abort(new DOMException("agent run ownership was replaced", "AbortError"));
     clearInterval(previous.heartbeat);
     clearInterval(previous.cancellationPoll);
   }
   const controller = new AbortController();
-  let resolve: () => void = () => {};
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-  completions.set(runId, { promise, resolve });
   const loseOwnership = (error?: unknown) => {
     if (error) logger.error({ err: error, runId, attemptEpoch: token.attemptEpoch.toString() }, "run lease lost");
     if (!controller.signal.aborted) {
@@ -128,7 +131,11 @@ export function registerRunController(token: RunLeaseToken): AbortSignal {
       })
       .catch(loseOwnership);
   }, CANCELLATION_POLL_MS);
-  controllers.set(runId, { token, controller, heartbeat, cancellationPoll });
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  controllers.set(runId, { token, controller, heartbeat, cancellationPoll, completion: { promise, resolve } });
   return controller.signal;
 }
 
@@ -142,16 +149,18 @@ export function abortRun(runId: string, reason: unknown): boolean {
 export async function releaseRun(token: RunLeaseToken): Promise<void> {
   const runId = token.runId;
   const active = controllers.get(runId);
-  if (active?.token.attemptEpoch === token.attemptEpoch) {
-    clearInterval(active.heartbeat);
-    clearInterval(active.cancellationPoll);
-    controllers.delete(runId);
+  try {
+    await getDb()
+      .delete(turnLeases)
+      .where(and(eq(turnLeases.turnId, runId), eq(turnLeases.attemptEpoch, token.attemptEpoch)));
+  } finally {
+    if (active?.token.attemptEpoch === token.attemptEpoch && controllers.get(runId) === active) {
+      clearInterval(active.heartbeat);
+      clearInterval(active.cancellationPoll);
+      controllers.delete(runId);
+      active.completion.resolve();
+    }
   }
-  completions.get(runId)?.resolve();
-  completions.delete(runId);
-  await getDb()
-    .delete(turnLeases)
-    .where(and(eq(turnLeases.turnId, runId), eq(turnLeases.attemptEpoch, token.attemptEpoch)));
 }
 
 export async function cancelRun(sessionId: string, runId: string): Promise<boolean> {
@@ -160,25 +169,30 @@ export async function cancelRun(sessionId: string, runId: string): Promise<boole
     return false;
   }
   await requestAgentRunCancellation(runId);
-  const completion = completions.get(runId)?.promise;
-  controllers.get(runId)?.controller.abort(new DOMException("agent run cancelled", "AbortError"));
-  if (completion) {
-    await completion;
-  } else {
-    const deadline = Date.now() + CANCELLATION_WAIT_MS;
-    while (Date.now() < deadline) {
-      const current = await getAgentRunById(runId);
-      if (!current || TERMINAL_RUN_STATUSES.has(current.status)) {
-        return true;
+  const deadline = Date.now() + CANCELLATION_WAIT_MS;
+  while (Date.now() < deadline) {
+    const active = controllers.get(runId);
+    if (active) {
+      active.controller.abort(new DOMException("agent run cancelled", "AbortError"));
+      const remaining = deadline - Date.now();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          active.completion.promise,
+          new Promise<void>((resolve) => {
+            timeout = setTimeout(resolve, remaining);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timeout);
       }
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, CANCELLATION_POLL_MS);
-      });
+      continue;
     }
-    return false;
+    const current = await getAgentRunById(runId);
+    if (!current || TERMINAL_RUN_STATUSES.has(current.status)) return true;
+    await delay(CANCELLATION_POLL_MS);
   }
-  const current = await getAgentRunById(runId);
-  return current != null && TERMINAL_RUN_STATUSES.has(current.status);
+  return false;
 }
 
 export async function reconcileOrphanedRuns(): Promise<void> {
@@ -199,7 +213,6 @@ export async function reconcileOrphanedRuns(): Promise<void> {
       ),
     ),
   );
-  await getDb().delete(turnLeases).where(inArray(turnLeases.turnId, runIds));
   logger.info({ count: interrupted.length }, "reconciled orphaned runs");
 }
 

@@ -63,6 +63,7 @@ export const inferenceRequestSchema = z.strictObject({
     reasoning: z.enum(["provider-default", "none", "minimal", "low", "medium", "high", "xhigh", "max"]).optional(),
     tools: z
       .array(
+        z.union([
         z.strictObject({
           type: z.literal("function"),
           name: z
@@ -74,6 +75,16 @@ export const inferenceRequestSchema = z.strictObject({
           strict: z.boolean().optional(),
           inputExamples: z.array(z.strictObject({ input: z.record(z.string(), z.json()) })).optional(),
         }),
+        z.strictObject({
+          type: z.literal("provider"),
+          id: z.literal("openai.custom"),
+          name: z.literal("apply_patch"),
+          args: z.strictObject({
+            description: z.string(),
+            format: z.strictObject({type: z.literal("grammar"), syntax: z.literal("lark"), definition: z.string().max(4096)}),
+          }),
+        }),
+        ]),
       )
       .max(128)
       .optional(),

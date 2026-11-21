@@ -1,16 +1,16 @@
-import type { ExecutionEnvironment } from "@repo/agent-runtime/execution/environment";
-import { canonicalizeShellCommand } from "@repo/agent-runtime/execution/exec-policy";
-import { createExecutionHostManifests } from "@repo/agent-runtime/execution/execution-host";
 import {
+  ToolOrchestrator,
+  type SandboxViolation,
+  createExecutionHostManifests,
+  canonicalizeShellCommand,
+  type ExecutionEnvironment,
   clonePermissionProfile,
   compilePermissionProfile,
   permissionProfileSummary,
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
   type PermissionProfile,
-} from "@repo/agent-runtime/execution/permissions";
-import { ProcessManager } from "@repo/agent-runtime/execution/process-manager";
-import { ToolOrchestrator, type SandboxViolation } from "@repo/agent-runtime/execution/tool-orchestrator";
+} from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 
 import { artifactToolContextSchema } from "../tools/context.js";
@@ -26,7 +26,7 @@ export const CLOUD_EXECUTION_ENVIRONMENT = {
     externalSources: "read-only",
   },
   network: { access: "restricted", protocols: ["http", "https"] },
-  process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
+  process: { shell: true, lifetime: "turn", backgroundServices: "turn-scoped" },
   deliverables: "session-file",
   permissions: { profileId: ":workspace", enforcement: "managed", approvalPolicy: "on-request" },
 } as const satisfies ExecutionEnvironment;
@@ -80,11 +80,9 @@ export async function createCloudToolAdapters(
       approvalPolicy: settings.approvalPolicy,
     },
   };
-  const processManager = new ProcessManager();
   const orchestrator = new ToolOrchestrator({
     approvalPolicy: settings.approvalPolicy,
     permissionProfile,
-    processManager,
     continuation,
     fileSystemPolicy: {
       workspaceRoot: "/workspace",
@@ -96,10 +94,13 @@ export async function createCloudToolAdapters(
     {
       environment,
       orchestrator,
-      run: async (input, attempt, options) => {
+      run: async (input, attempt, options, io) => {
         options.abortSignal?.throwIfAborted();
         return requireRunSandbox(options.experimental_sandbox).runAttempt(attempt, {
           command: input.command,
+          shell: input.shell,
+          login: input.login,
+          io,
           workingDirectory: input.workdir ?? "/workspace/work",
           timeoutMs: input.timeout_ms,
           abortSignal: options.abortSignal,
@@ -139,7 +140,7 @@ export async function createCloudToolAdapters(
     environment,
     manifests,
     permissionProfile,
-    processManager,
+    processManager: orchestrator.services.processes,
     toolApproval: orchestrator.toolApproval,
     dispose: async () => orchestrator.close(),
   };

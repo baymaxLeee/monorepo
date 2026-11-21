@@ -1,16 +1,17 @@
-import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
-import { PluginManager } from "@repo/agent-runtime/plugins/manager";
-import type {
-  AgentPluginContext,
-  ResolvedPluginSkillContribution,
-  ResolvedPluginSet,
-  ResolvedTurnPluginSnapshot,
-} from "@repo/agent-runtime/plugins/types";
-import { compileTurnTools } from "@repo/agent-runtime/tools/catalog";
-import { deferAgentToolLoading } from "@repo/agent-runtime/tools/manifest";
-import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
-import type { SkillSource } from "@repo/agent-runtime/tools/skills";
-import type { AgentToolManifest } from "@repo/agent-runtime/tools/types";
+import {
+  PluginManager,
+  type AgentPluginContext,
+  type ResolvedPluginSkillContribution,
+  type ResolvedPluginSet,
+  type ResolvedTurnPluginSnapshot,
+  type SkillSource,
+  deferAgentToolLoading,
+  createPortableToolRegistry,
+  compileTurnTools,
+  type AgentToolManifest,
+  type ApprovalPolicy,
+  type BuiltInPermissionProfileId,
+} from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
@@ -102,6 +103,8 @@ export class ToolCatalog {
       activatedSkill,
       contributions: { skills: [...portableTools.skills] },
       environment: cloudAdapters.environment,
+      permissionProfile: cloudAdapters.permissionProfile,
+      processManager: cloudAdapters.processManager,
       toolApproval: cloudAdapters.toolApproval,
       dispose: () => resources.disposeAsync(),
     };

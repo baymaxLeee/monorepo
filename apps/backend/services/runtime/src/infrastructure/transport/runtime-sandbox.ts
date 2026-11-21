@@ -1,4 +1,4 @@
-import { InternalHttpClient, responseTransportError, type InternalClientOptions } from "./http.js";
+import { InternalHttpClient, responseTransportError, TransportError, type InternalClientOptions } from "./http.js";
 import type { components } from "./schema/runtime-sandbox.js";
 
 export type SandboxScope = components["schemas"]["SandboxScope"];
@@ -20,21 +20,28 @@ export class RuntimeSandboxClient {
   create(scope: SandboxScope): Promise<SandboxSession> {
     return this.http.requestJson({ method: "POST", path: "/sessions", body: scope });
   }
+  private async processRequest(path: string, input: SandboxStart | SandboxContinue, signal?: AbortSignal) {
+    const request = () => this.http.requestJson<SandboxProcess>({ method: "POST", path, body: input, signal });
+    try {
+      return await request();
+    } catch (error) {
+      signal?.throwIfAborted();
+      const unavailable = error instanceof TransportError && [502, 503, 504].includes(error.status);
+      const disconnected = error instanceof TypeError || (error instanceof Error && error.name === "AbortError");
+      if (!unavailable && !disconnected) throw error;
+      // The guest binds a start or write to its original request ID. Resend the same bytes and cursor.
+      return request();
+    }
+  }
   start(id: string, input: SandboxStart, signal?: AbortSignal): Promise<SandboxProcess> {
-    return this.http.requestJson({
-      method: "POST",
-      path: `/sessions/${encodeURIComponent(id)}/commands`,
-      body: input,
-      signal,
-    });
+    return this.processRequest(`/sessions/${encodeURIComponent(id)}/commands`, input, signal);
   }
   write(id: string, processId: string, input: SandboxContinue, signal?: AbortSignal): Promise<SandboxProcess> {
-    return this.http.requestJson({
-      method: "POST",
-      path: `/sessions/${encodeURIComponent(id)}/processes/${encodeURIComponent(processId)}`,
-      body: input,
+    return this.processRequest(
+      `/sessions/${encodeURIComponent(id)}/processes/${encodeURIComponent(processId)}`,
+      input,
       signal,
-    });
+    );
   }
   cancel(id: string, processId: string, scope: SandboxScope): Promise<SandboxProcess> {
     return this.http.requestJson({

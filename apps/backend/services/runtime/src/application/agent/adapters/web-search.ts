@@ -1,5 +1,4 @@
-import { ToolBlockedError } from "@repo/agent-runtime/tools/outcome";
-import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
+import { type WebSearchInput, type WebSearchOutput, ToolBlockedError } from "@repo/agent-runtime";
 
 import { getServerSettings } from "../../../config/server.js";
 

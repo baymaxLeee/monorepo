@@ -2,7 +2,7 @@ import type { SandboxSession } from "#runtime/transport";
 
 import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
-import { isMissingSandboxResourceError } from "../../cloud-workspace.js";
+import { isMissingSandboxResourceError, workspaceFinalizationIsObsolete } from "../../cloud-workspace.js";
 import type { SandboxExecutionLifecycle } from "../runs/sandbox-executions.js";
 
 interface SandboxLeaseOptions {
@@ -93,7 +93,7 @@ export class SandboxLease {
         await journal.finalizing(scope);
         await persist(this.active.id);
       } catch (error) {
-        if (!isMissingSandboxResourceError(error)) {
+        if (!workspaceFinalizationIsObsolete(error)) {
           await journal.finalizationFailed(scope, error);
           throw error;
         }
@@ -104,9 +104,9 @@ export class SandboxLease {
     await this.release();
   }
 
-  private async release(missingGuest?: unknown) {
+  private async release(reason?: unknown) {
     const { scope, client, journal } = this.options;
-    await journal.releasing(scope, missingGuest);
+    await journal.releasing(scope, reason);
     try {
       await client().destroy(scope);
     } catch (error) {

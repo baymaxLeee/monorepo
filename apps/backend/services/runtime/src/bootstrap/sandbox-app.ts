@@ -9,7 +9,7 @@ import { createLogger, traceMiddleware, requestLogger } from "#runtime/foundatio
 
 import type { SandboxSettings } from "../config/sandbox.js";
 import { continueSchema, scopeSchema, startSchema, workspaceEditSchema } from "../sandbox/contracts.js";
-import { Engine, resourceName } from "../sandbox/engine.js";
+import { Engine, resourceName, SandboxNotFoundError } from "../sandbox/engine.js";
 
 export function createApp(config: SandboxSettings, engine = new Engine(config)) {
   const app = new Hono();
@@ -121,7 +121,7 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
     return c.json(
       await engine.process(c.req.param("id"), scope, {
         ...input,
-        op: input.chars ? "write" : "poll",
+        op: input.chars || input.stdin_base64 || input.close_stdin ? "write" : "poll",
         session_id: c.req.param("processId"),
       }),
     );
@@ -204,6 +204,8 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
   });
   app.onError((error, c) => {
     if (error instanceof HTTPException) return error.getResponse();
+    if (error instanceof SandboxNotFoundError)
+      return c.json({ code: "sandbox_not_found", message: error.message }, 404);
     const invalid = error instanceof z.ZodError || error instanceof SyntaxError;
     return c.json({ message: invalid ? "invalid sandbox request" : error.message }, invalid ? 400 : 422);
   });

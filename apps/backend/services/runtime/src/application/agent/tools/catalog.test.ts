@@ -2,11 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
-import type {
-  AgentPluginContext,
-  ResolvedPluginSet,
-  ResolvedTurnPluginSnapshot,
-} from "@repo/agent-runtime/plugins/types";
+import type { AgentPluginContext, ResolvedPluginSet, ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
@@ -163,7 +159,7 @@ void test("plugin skills use the host immutable loader through progressive discl
     assert.deepEqual(resolved.contributions.skills, [
       { name: "knowledge@platform:Research", description: "Research workspace knowledge." },
     ]);
-    const output = await resolved.tools.load_skill!.execute?.({ name: "knowledge@platform:Research" }, {
+    const output = await resolved.tools.load_skill.execute?.({ name: "knowledge@platform:Research" }, {
       toolCallId: "load",
       messages: [],
       abortSignal: undefined,

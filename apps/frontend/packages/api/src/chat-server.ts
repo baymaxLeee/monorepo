@@ -256,6 +256,41 @@ export interface ConversationContextResponse {
   context: ConversationContextView | null;
 }
 
+export type ConversationFileLastWriterType =
+  (typeof ConversationFileLastWriterType)[keyof typeof ConversationFileLastWriterType];
+
+export const ConversationFileLastWriterType = {
+  unknown: "unknown",
+  user: "user",
+  agent: "agent",
+} as const;
+
+export type ConversationFileLastWriter = {
+  /** @nullable */
+  id: string | null;
+  type: ConversationFileLastWriterType;
+};
+
+export interface ConversationFile {
+  asset_id: string;
+  conversation_id: string;
+  created_at: string;
+  /** @minimum 1 */
+  edit_max_bytes: number;
+  editable: boolean;
+  /** @pattern ^"[a-f0-9]{32}"$ */
+  etag: string;
+  filename: string;
+  id: string;
+  last_writer: ConversationFileLastWriter;
+  mime_type: string;
+  revision_id: string;
+  sha256: string;
+  size: number;
+  title: string;
+  updated_at: string;
+}
+
 export type MessageBranchCandidateRole = (typeof MessageBranchCandidateRole)[keyof typeof MessageBranchCandidateRole];
 
 export const MessageBranchCandidateRole = {
@@ -276,57 +311,6 @@ export interface MessageBranchGroup {
   /** @nullable */
   parent_message_id: string | null;
   selected_message_id: string;
-}
-
-export type ConversationDocumentIngestStatus =
-  (typeof ConversationDocumentIngestStatus)[keyof typeof ConversationDocumentIngestStatus];
-
-export const ConversationDocumentIngestStatus = {
-  uploading: "uploading",
-  processing: "processing",
-  completed: "completed",
-  failed: "failed",
-  cancelled: "cancelled",
-  pending: "pending",
-} as const;
-
-export type ConversationDocumentKind = (typeof ConversationDocumentKind)[keyof typeof ConversationDocumentKind];
-
-export const ConversationDocumentKind = {
-  source: "source",
-  artifact: "artifact",
-} as const;
-
-export interface ConversationDocument {
-  /** @nullable */
-  asset_id: string | null;
-  conversation_id: string;
-  created_at: string;
-  editable_source: boolean;
-  filename: string;
-  id: string;
-  /** @nullable */
-  ingest_error: string | null;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  ingest_progress: number;
-  ingest_status: ConversationDocumentIngestStatus;
-  kind: ConversationDocumentKind;
-  mime_type: string;
-  /** @nullable */
-  source_filename: string | null;
-  /** @nullable */
-  source_mime_type: string | null;
-  /** @nullable */
-  source_revision_id: string | null;
-  /** @nullable */
-  source_sha256: string | null;
-  /** @minimum 0 */
-  source_size: number;
-  title: string;
-  updated_at: string;
 }
 
 export type PersistedMessageContentMetadata = { [key: string]: unknown };
@@ -392,9 +376,9 @@ export interface ConversationDetail {
   /** @nullable */
   active_run_id: string | null;
   approval_policy: ApprovalPolicy;
+  attachments: ConversationFile[];
   branches: MessageBranchGroup[];
   created_at: string;
-  documents: ConversationDocument[];
   id: string;
   /** @nullable */
   latest_run_id: string | null;
@@ -415,44 +399,60 @@ export interface ConversationDetail {
   workspace_id: string;
 }
 
-export type ConversationDocumentDetail = ConversationDocument & {
-  content_md: string;
-};
+export type ConversationDocumentIngestStatus =
+  (typeof ConversationDocumentIngestStatus)[keyof typeof ConversationDocumentIngestStatus];
 
-export type ConversationFileLastWriterType =
-  (typeof ConversationFileLastWriterType)[keyof typeof ConversationFileLastWriterType];
-
-export const ConversationFileLastWriterType = {
-  unknown: "unknown",
-  user: "user",
-  agent: "agent",
+export const ConversationDocumentIngestStatus = {
+  uploading: "uploading",
+  processing: "processing",
+  completed: "completed",
+  failed: "failed",
+  cancelled: "cancelled",
+  pending: "pending",
 } as const;
 
-export type ConversationFileLastWriter = {
-  /** @nullable */
-  id: string | null;
-  type: ConversationFileLastWriterType;
-};
+export type ConversationDocumentKind = (typeof ConversationDocumentKind)[keyof typeof ConversationDocumentKind];
 
-export interface ConversationFile {
-  asset_id: string;
+export const ConversationDocumentKind = {
+  source: "source",
+  artifact: "artifact",
+} as const;
+
+export interface ConversationDocument {
+  /** @nullable */
+  asset_id: string | null;
   conversation_id: string;
   created_at: string;
-  /** @minimum 1 */
-  edit_max_bytes: number;
-  editable: boolean;
-  /** @pattern ^"[a-f0-9]{32}"$ */
-  etag: string;
+  editable_source: boolean;
   filename: string;
   id: string;
-  last_writer: ConversationFileLastWriter;
+  /** @nullable */
+  ingest_error: string | null;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  ingest_progress: number;
+  ingest_status: ConversationDocumentIngestStatus;
+  kind: ConversationDocumentKind;
   mime_type: string;
-  revision_id: string;
-  sha256: string;
-  size: number;
+  /** @nullable */
+  source_filename: string | null;
+  /** @nullable */
+  source_mime_type: string | null;
+  /** @nullable */
+  source_revision_id: string | null;
+  /** @nullable */
+  source_sha256: string | null;
+  /** @minimum 0 */
+  source_size: number;
   title: string;
   updated_at: string;
 }
+
+export type ConversationDocumentDetail = ConversationDocument & {
+  content_md: string;
+};
 
 export interface CreateCanvasConversationInput {
   /**
@@ -822,6 +822,45 @@ export interface VideoProductionDetail {
   production: VideoProduction;
 }
 
+export type CompleteConversationAttachmentBody = {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  client_ref: string;
+  /** @pattern ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$ */
+  upload_id: string;
+};
+
+export type PrepareConversationAttachmentBody = {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  client_ref: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  filename: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  media_type: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  size_bytes: number;
+};
+
+export type PrepareConversationAttachment200 = {
+  completed: boolean;
+  upload_id: string;
+  upload_url: string;
+};
+
 export type GetConversationDocumentParams = {
   include_content?: boolean;
 };
@@ -835,6 +874,11 @@ export type AuthorizeConversationDocumentDeliveryParams = {
 };
 
 export type AuthorizeConversationFileDeliveryParams = {
+  /**
+   * @minimum 1
+   * @maximum 4096
+   */
+  max_dim?: number;
   revision_id?: string;
 };
 
@@ -1109,35 +1153,35 @@ export type StreamLocalInferenceBodyOptionsToolChoice =
       type: "tool";
     };
 
-export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput = {
-  [key: string]: LocalInferenceSchema3 | null;
-};
-
-export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem = {
-  input: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput;
-};
-
-export type StreamLocalInferenceBodyOptionsToolsItemInputSchema = { [key: string]: LocalInferenceSchema2 | null };
-
-export type StreamLocalInferenceBodyOptionsToolsItemType =
-  (typeof StreamLocalInferenceBodyOptionsToolsItemType)[keyof typeof StreamLocalInferenceBodyOptionsToolsItemType];
-
-export const StreamLocalInferenceBodyOptionsToolsItemType = {
-  function: "function",
-} as const;
-
-export type StreamLocalInferenceBodyOptionsToolsItem = {
-  description?: string;
-  inputExamples?: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem[];
-  inputSchema: StreamLocalInferenceBodyOptionsToolsItemInputSchema;
-  /**
-   * @maxLength 128
-   * @pattern ^[a-zA-Z0-9_-]+$
-   */
-  name: string;
-  strict?: boolean;
-  type: StreamLocalInferenceBodyOptionsToolsItemType;
-};
+export type StreamLocalInferenceBodyOptionsToolsItem =
+  | {
+      description?: string;
+      inputExamples?: {
+        input: { [key: string]: LocalInferenceSchema3 | null };
+      }[];
+      inputSchema: { [key: string]: LocalInferenceSchema2 | null };
+      /**
+       * @maxLength 128
+       * @pattern ^[a-zA-Z0-9_-]+$
+       */
+      name: string;
+      strict?: boolean;
+      type: "function";
+    }
+  | {
+      args: {
+        description: string;
+        format: {
+          /** @maxLength 4096 */
+          definition: string;
+          syntax: "lark";
+          type: "grammar";
+        };
+      };
+      id: "openai.custom";
+      name: "apply_patch";
+      type: "provider";
+    };
 
 export type StreamLocalInferenceBodyOptions = {
   /**
@@ -1346,6 +1390,38 @@ export const getConversationAgentTrace = (
 ) => {
   return apiMutator<AgentRunTrace>(
     { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/trace`, method: "GET" },
+    options,
+  );
+};
+
+export const completeConversationAttachment = (
+  conversationId: string,
+  completeConversationAttachmentBody: CompleteConversationAttachmentBody,
+  options?: SecondParameter<typeof apiMutator<ConversationFile>>,
+) => {
+  return apiMutator<ConversationFile>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/attachments/complete`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: completeConversationAttachmentBody,
+    },
+    options,
+  );
+};
+
+export const prepareConversationAttachment = (
+  conversationId: string,
+  prepareConversationAttachmentBody: PrepareConversationAttachmentBody,
+  options?: SecondParameter<typeof apiMutator<PrepareConversationAttachment200>>,
+) => {
+  return apiMutator<PrepareConversationAttachment200>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/attachments/prepare`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: prepareConversationAttachmentBody,
+    },
     options,
   );
 };
@@ -1711,6 +1787,12 @@ export type SubmitConversationAgentRunInputResult = NonNullable<
 >;
 export type GetConversationAgentRunInputResult = NonNullable<Awaited<ReturnType<typeof getConversationAgentRunInput>>>;
 export type GetConversationAgentTraceResult = NonNullable<Awaited<ReturnType<typeof getConversationAgentTrace>>>;
+export type CompleteConversationAttachmentResult = NonNullable<
+  Awaited<ReturnType<typeof completeConversationAttachment>>
+>;
+export type PrepareConversationAttachmentResult = NonNullable<
+  Awaited<ReturnType<typeof prepareConversationAttachment>>
+>;
 export type GetConversationContextResult = NonNullable<Awaited<ReturnType<typeof getConversationContext>>>;
 export type GetConversationDocumentResult = NonNullable<Awaited<ReturnType<typeof getConversationDocument>>>;
 export type UpdateConversationDocumentResult = NonNullable<Awaited<ReturnType<typeof updateConversationDocument>>>;

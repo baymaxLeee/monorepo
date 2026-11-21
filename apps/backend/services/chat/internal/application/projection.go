@@ -3,7 +3,10 @@ package application
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
+	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -63,12 +66,57 @@ func RuntimeRunBody(product Conversation, body map[string]any) (map[string]any, 
 	for key, value := range body {
 		result[key] = value
 	}
+	if message, ok := result["message"].(map[string]any); ok && message["role"] == "user" {
+		projected, err := runtimeUserAttachments(product, message)
+		if err != nil {
+			return nil, err
+		}
+		result["message"] = projected
+	}
 	delete(result, "host_context")
 	result["id"] = product.RuntimeThreadID
 	result["generate_title"] = isAutoNamableTitle(product.Title)
 	result["plugin_activations"] = clonePluginSelections(product.PluginSelections)
 	return result, nil
 }
+
+// Only the attachment URL crosses namespaces. Text and tool data are opaque.
+func runtimeUserAttachments(product Conversation, message map[string]any) (map[string]any, error) {
+	parts, ok := message["parts"].([]any)
+	if !ok {
+		return message, nil
+	}
+	projected := slices.Clone(parts)
+	for i, value := range parts {
+		part, ok := value.(map[string]any)
+		if !ok || part["type"] != "file" {
+			continue
+		}
+		raw, _ := part["url"].(string)
+		canonical, err := runtimeFileURL(product, raw)
+		if err != nil {
+			return nil, err
+		}
+		projectedPart := maps.Clone(part)
+		projectedPart["url"] = canonical
+		projected[i] = projectedPart
+	}
+	result := maps.Clone(message)
+	result["parts"] = projected
+	return result, nil
+}
+
+func runtimeFileURL(product Conversation, raw string) (string, error) {
+	prefix := "/api/chat-server/conversations/" + url.PathEscape(product.ID) + "/files/"
+	tail, inConversation := strings.CutPrefix(raw, prefix)
+	id, content := strings.CutSuffix(tail, "/content")
+	if !inConversation || !content || !validFileID.MatchString(id) {
+		return "", BadRequest("file attachments must reference a file in this conversation")
+	}
+	return "/api/chat-server/sessions/" + url.PathEscape(product.RuntimeThreadID) + "/files/" + id + "/content", nil
+}
+
+var validFileID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
 
 func isAutoNamableTitle(title string) bool {
 	trimmed := strings.TrimSpace(title)

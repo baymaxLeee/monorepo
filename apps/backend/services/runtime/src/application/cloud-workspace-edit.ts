@@ -8,7 +8,7 @@ import type { AuthContext } from "../api/http/middleware/auth.js";
 import { sandboxClient } from "../infrastructure/clients/sandbox.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import { turnLeases, turnSandboxExecutions as sandboxExecutions } from "../infrastructure/persistence/schema.js";
-import { ConflictError } from "./errors.js";
+import { ConflictError, RequestError } from "./errors.js";
 import { editableFileByteLimit } from "./file-edit-limits.js";
 import { getSessionFile, type SessionFile } from "./session-files.js";
 
@@ -167,7 +167,7 @@ export async function coordinateCloudWorkspaceUserEdit<T>(
     content: Uint8Array;
     signal?: AbortSignal;
   },
-  commit: () => Promise<T>,
+  commit: (attempt?: { runId: string; attemptEpoch: string }) => Promise<T>,
   deps: CloudWorkspaceEditDependencies = defaults,
 ): Promise<T> {
   const workspace = await deps.active(input);
@@ -182,15 +182,17 @@ export async function coordinateCloudWorkspaceUserEdit<T>(
   const token = `user-${input.operationId}`;
   await deps.acquire(workspace, token);
 
+  const attempt = { runId: workspace.scope.run_id, attemptEpoch: workspace.scope.attempt_epoch };
   let release = true;
   try {
     input.signal?.throwIfAborted();
     const file = await deps.file(input);
+    if (!file.editable) throw new RequestError("file is not editable");
     const previous = await readBounded(await deps.download(workspace, file.workspace_path, input.signal));
     const previousSha = sha256(previous);
     const nextSha = sha256(input.content);
     if (file.etag !== input.expectedEtag) {
-      if (file.sha256 === nextSha && previousSha === nextSha) return commit();
+      if (file.sha256 === nextSha && previousSha === nextSha) return commit(attempt);
       throw new ConflictError("session file changed since it was read", "file_content_conflict", {
         current_etag: file.etag,
       });
@@ -206,7 +208,7 @@ export async function coordinateCloudWorkspaceUserEdit<T>(
       await deps.upload(workspace, file.workspace_path, input.content, token, input.signal);
     }
     try {
-      return await commit();
+      return await commit(attempt);
     } catch (error) {
       try {
         if (previousSha !== nextSha) await deps.upload(workspace, file.workspace_path, previous, token);

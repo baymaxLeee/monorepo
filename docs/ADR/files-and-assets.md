@@ -4,13 +4,17 @@
 
 ## 所有权
 
-Storage 管理逻辑文件 Asset、不可变 Revision、内容寻址 Blob、Claim、上传、delivery 与物理回收。Knowledge 管理语义文档、解析索引与检索。Runtime 管理 Session、消息以及 `conversation_files`/Plan 对不可变 Asset revision 的业务引用。Canvas 管理项目、画布、节点、素材及生成历史；Admin 管理 Skill 文件树/发布。这些服务保存 `asset_id + revision_id`，不保存 Storage 的物理 locator。
+Storage 管理逻辑文件 Asset、不可变 Revision、内容寻址 Blob、Claim、上传、delivery 与物理回收。Knowledge 管理语义文档、解析索引与检索。Runtime 管理 Session、消息以及 `thread_files`/Plan 对不可变 Asset revision 的业务引用。Canvas 管理项目、画布、节点、素材及生成历史；Admin 管理 Skill 文件树/发布。这些服务保存 `asset_id + revision_id`，不保存 Storage 的物理 locator。
 
 本地文件系统 adapter 支持单 writer 持久卷；多副本写入前必须另选具备一致性语义的存储。数据库与 byte volume 要作为一致恢复点备份。字节流式处理，不把整个视频/上传体加载进内存。
 
 ## 上传、引用与回收
 
 浏览器先调用资源所属服务的 prepare，拿到绑定用途与身份的 upload session，再向 Storage 上传，最后由资源所属服务 finalize。浏览器不能自行挑选 category 调用通用上传入口。稳定 client_ref 支持中断重试；finalize 前不是可见业务资源。
+
+Web Chat 通过已授权的产品会话申请上传。Runtime 将身份、Session 和前端的 `client_ref` 绑定到 Storage 上传凭据。上传完成后，Runtime 校验归属和状态，在同一个事务中登记固定 revision 的会话文件和 strong Claim intent。重复完成会返回同一个 `file_id`。同名文件按上传 ID 分目录，原件在沙箱中的稳定只读路径为 `/workspace/sources/attachments/<upload-id>/<filename>`。
+
+消息只保存 AI SDK 原生 `file` 引用。Chat 将当前产品会话的文件路由映射到 Runtime Session，Runtime 从文件记录取得文件名、类型和路径。模型通过工作区工具读取普通文件，视觉输入按需从 Storage 的原件生成有尺寸上限的图片。Knowledge 在显式导入知识或生成媒体时管理文档。这一设计沿用 Codex 分开保存附件与按引用解析模型输入的做法。[Codex AttachmentStore](https://github.com/openai/codex/blob/main/codex-rs/attachment-store/src/lib.rs)
 
 服务上传使用 caller-scoped 幂等键；相同键/元数据重放返回已有 revision，冲突元数据拒绝。业务事务同时保存资源与 Claim intent，独立 relay 至少一次投递，接收方按 owner identity 和 generation 幂等处理。跨库一致性通过收敛实现。
 
@@ -38,12 +42,12 @@ Storage 不提供仅依赖工作区身份的公开签发或原件读取接口。
 
 ChatArtifactPreview 统一处理 URL 获取、文本下载、请求取消、失败展示与续签；HTML 使用沙箱 iframe 的 src，图片、音视频和 PDF 直接使用 URL，音视频使用 HTTP Range。Markdown 只读快照使用 Streamdown，其他文本/代码使用只读 CodeEditor，保持原始文本而不将 JSON 转换为对象。原件下载直接交给浏览器并使用 attachment disposition。Chat 会话文件透传 asset_id/revision_id，由 Runtime 验证会话权限后请求 Storage 签发；editable_source 标记的 Knowledge Markdown 从 Storage 加载原文交给 MarkdownEditor，编辑提交仍由 Knowledge 的文档接口负责。
 
-删除会话在 Chat 本地事务中释放 `conversation_file` Claim intent，并通过 outbox 请求 Knowledge 幂等清理该会话的生成文档/暂存媒体；用户独立上传的 source 保留。Knowledge conversation tombstone 拒绝迟到写入。Knowledge 在 source ingest 请求内同步完成转换与索引，服务本地操作保持幂等并使用数据库 advisory lock 串行化同一文档。检索使用 PostgreSQL/pgvector 与文本检索，模型配置从 Admin 获取。
+删除会话时，Runtime 在本地事务中记录释放 `session_file` Claim 的意图，并通过 outbox 请求 Knowledge 幂等清理该会话的生成文档/暂存媒体；用户在 Knowledge 独立导入的 source 保留。Knowledge conversation tombstone 拒绝迟到写入。Knowledge 在 source ingest 请求内同步完成转换与索引，服务本地操作保持幂等并使用数据库 advisory lock 串行化同一文档。检索使用 PostgreSQL/pgvector 与文本检索，模型配置从 Admin 获取。
 
-会话分支通过 Knowledge 的内部快照接口复制语义文档，通过 Chat 发布事务复制
-`conversation_files`；两者都创建独立 owner/Claim、共享精确 Asset/revision，不复制字节。
+会话分支通过 Knowledge 的内部快照接口复制语义文档，通过 Runtime 发布事务复制
+`thread_files`；两者都创建独立 owner/Claim、共享精确 Asset/revision，不复制字节。
 源文档副本作为只读 artifact 保留解析投影，避免重复 source 索引；原 source 生命周期不变。
-Chat 的预留 cleanup intent 在失败/进程中断后回收 Knowledge 未发布引用，成功发布时以租约校验、
+Runtime 的预留 cleanup intent 在失败/进程中断后回收 Knowledge 未发布引用，成功发布时以租约校验、
 本地 file rows/Claim intents 和新会话写入同一事务完成。删除任一会话只释放该分支自己的 Claim。
 
 ## 事实源与验证

@@ -1,4 +1,4 @@
-import type { InstructionInput, MemoryDatum } from "@repo/agent-runtime/instructions/index";
+import type { InstructionInput, MemoryDatum } from "@repo/agent-runtime";
 
 import { listActiveMemories } from "../memory/repository.js";
 

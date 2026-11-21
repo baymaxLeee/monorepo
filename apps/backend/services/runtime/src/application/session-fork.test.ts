@@ -113,6 +113,22 @@ for (const step of ["forkSessionDocuments", "publish"] as const) {
     assert.ok(!calls.includes("publish"));
   });
 }
+test("forked attachment points at the file owned by the child session", () => {
+  const part = { type: "file", mediaType: "text/plain", url: "/api/chat-server/sessions/source/files/input/content" };
+  const input = {
+    sourceId: "source",
+    sessionId: "branch",
+    messageId: "reply",
+    documentIds: {},
+    fileIds: { input: "copy" },
+  };
+  const content = { version: 1, parts: [part] };
+  assert.deepEqual(forkMessageContent(content, input).parts, [
+    { ...part, url: "/api/chat-server/sessions/branch/files/copy/content" },
+  ]);
+  assert.throws(() => forkMessageContent(content, { ...input, fileIds: {} }), /无法创建完整分支/);
+});
+
 test("file references remap while completed results remain history and unfinished tools cannot resume", () => {
   const content = {
     version: 1,
@@ -168,14 +184,14 @@ test("preliminary output and unfinished todo state are frozen without replay", (
           output: { ok: true, status: "running" },
         },
         {
-          type: "tool-update_todos",
+          type: "tool-update_plan",
           toolCallId: "todos",
           state: "output-available",
           output: {
             ok: true,
             status: "completed",
             data: {
-              todos: [
+              plan: [
                 { id: "t", status: "in_progress" },
                 { id: "done", status: "completed" },
               ],
@@ -194,7 +210,7 @@ test("preliminary output and unfinished todo state are frozen without replay", (
     ok: true,
     status: "completed",
     data: {
-      todos: [
+      plan: [
         { id: "t", status: "cancelled" },
         { id: "done", status: "completed" },
       ],

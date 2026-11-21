@@ -1,4 +1,4 @@
-import type { RuntimeInputMode, RuntimeInputOutcome, RuntimeInputQueue } from "@repo/agent-runtime/session/input-queue";
+import type { RuntimeInputMode, RuntimeInputOutcome, RuntimeInputQueue } from "@repo/agent-runtime";
 import { and, eq, gt } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
@@ -188,7 +188,7 @@ export function startAgentRunInputInbox(token: RunLeaseToken, inputChannel: Runt
       closed = true;
       clearInterval(timer);
       await polling;
-      await Promise.allSettled([...settlements]);
+      await Promise.allSettled(settlements);
     },
   };
 }

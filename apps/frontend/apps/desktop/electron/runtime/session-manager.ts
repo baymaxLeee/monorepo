@@ -1,41 +1,41 @@
 import { randomUUID } from "node:crypto";
-import { realpath } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { realpath, rm } from "node:fs/promises";
 
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
-import { RuntimeTurn, type TurnScope } from "@repo/agent-runtime";
-import { contextCompactionThreshold } from "@repo/agent-runtime/context/budget";
-import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
-import { projectRuntimeContext } from "@repo/agent-runtime/context/manager";
-import { runtimeTokenUsage } from "@repo/agent-runtime/context/token-usage";
 import {
+  RuntimeTurn,
+  type TurnScope,
+  contextCompactionThreshold,
+  appendWorkspaceChangeEvent,
+  attachExecutionEnvironment,
+  renderAvailableSkills,
+  projectRuntimeContext,
   estimateSessionContext,
   finalizeSessionContext,
   type ContextEstimate,
-} from "@repo/agent-runtime/context/usage";
-import { attachExecutionEnvironment } from "@repo/agent-runtime/execution/environment";
-import { ExecPolicy } from "@repo/agent-runtime/execution/exec-policy";
-import { compilePermissionProfile, type ApprovalPolicy } from "@repo/agent-runtime/execution/permissions";
-import { ToolOrchestrator } from "@repo/agent-runtime/execution/tool-orchestrator";
-import { renderAvailableSkills } from "@repo/agent-runtime/instructions/index";
-import { PluginManager } from "@repo/agent-runtime/plugins/manager";
-import type {
-  AgentPluginContext,
-  PluginActivation,
-  ResolvedPluginSet,
-  ResolvedTurnPluginSnapshot,
-} from "@repo/agent-runtime/plugins/types";
-import { fileDataChunks } from "@repo/agent-runtime/protocol/artifact";
-import {
+  PluginManager,
+  type AgentPluginContext,
+  type PluginActivation,
+  type ResolvedPluginSet,
+  type ResolvedTurnPluginSnapshot,
   applyToolApprovalResponse,
   finalizeInterruptedMessages,
   hasPendingToolApprovals,
-} from "@repo/agent-runtime/protocol/lifecycle";
-import type { RuntimeTurnSettings } from "@repo/agent-runtime/session/types";
-import { compileTurnTools } from "@repo/agent-runtime/tools/catalog";
-import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
-import { continuedSkillName } from "@repo/agent-runtime/tools/skills";
-import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
-import { readUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
+  type RuntimeTurnSettings,
+  SessionServices,
+  fileDataChunks,
+  continuedSkillName,
+  type WebSearchInput,
+  type WebSearchOutput,
+  ToolOrchestrator,
+  createPortableToolRegistry,
+  compileTurnTools,
+  ExecPolicy,
+  compilePermissionProfile,
+  runtimeTokenUsage,
+} from "@repo/agent-runtime";
+import { consumeStream, createUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 
 import type {
   DesktopEvent,
@@ -48,6 +48,7 @@ import type {
 } from "../../contracts/bridge.generated";
 import type { InferenceConfig, ReasoningEffort } from "../../contracts/inference.generated";
 import { localUserMessagePreview } from "../local-user-message";
+import { attachmentDirectory, selectedWorkspacePath, storeAttachment } from "./attachments";
 import { localExecutionTools } from "./execution-tools";
 import { LocalJournal } from "./journal";
 import { resolveDesktopPlugins } from "./local-plugins";
@@ -80,6 +81,7 @@ export class DesktopSessionManager {
   readonly journal: LocalJournal;
   private readonly plugins: NonNullable<DesktopSessionOptions["pluginLoader"]>;
   private readonly workspaces: LocalWorkspaces;
+  private readonly sessions = new Map<string, { policy: string; services: SessionServices }>();
   private active = new Map<string, ActiveRun>();
   private closed = false;
   private segments = new Map<string, { id: string; messages: UIMessage[]; chunks: UIMessageChunk[]; done: boolean }>();
@@ -87,12 +89,17 @@ export class DesktopSessionManager {
   private observedWorkspaceEpochs = new Map<string, number>();
   constructor(private readonly options: DesktopSessionOptions) {
     this.journal = new LocalJournal(options.directory);
+    this.options = {
+      ...options,
+      directory: realpathSync(options.directory),
+      controlDirectories: options.controlDirectories.map((path) => realpathSync(path)),
+    };
     this.workspaces = new LocalWorkspaces(
       {
         supervisor: options.supervisor,
         executable: options.executable,
         fileWorker: options.fileWorker,
-        protectedPaths: options.controlDirectories,
+        protectedPaths: this.options.controlDirectories,
       },
       (root, paths) => {
         for (const thread of this.journal.list()) {
@@ -160,7 +167,20 @@ export class DesktopSessionManager {
   async file(id: string, operation: Record<string, unknown>) {
     const thread = this.get(id);
     const profile = compilePermissionProfile(thread.permissionProfile, { workspaceRoot: thread.workspace }).profile;
-    return this.workspaces.access(thread.workspace, (workspace) => workspace.sandbox.file(profile, operation));
+    return this.workspaces.access(thread.workspace, (workspace) =>
+      workspace.sandbox.file(profile, operation, undefined, attachmentDirectory(this.options.directory, thread.id)),
+    );
+  }
+  workspaceFilePath(id: string, path: string) {
+    return selectedWorkspacePath(this.get(id).workspace, path, this.options.controlDirectories);
+  }
+  async importAttachment(id: string, filename: string, bytes: Uint8Array) {
+    const { workspace } = this.get(id);
+    return this.workspaces.access(workspace, async () => {
+      this.get(id);
+      const root = attachmentDirectory(this.options.directory, id);
+      return storeAttachment(root, filename, bytes);
+    });
   }
   openStream(id: string) {
     return { thread: this.get(id), segment: this.segments.get(id) ?? null };
@@ -229,14 +249,23 @@ export class DesktopSessionManager {
     this.save(thread);
     if (!hasPendingToolApprovals(thread.messages)) this.start(thread);
   }
-  setExecutionPolicy(id: string, approvalPolicy: LocalApprovalPolicy, permissionProfile: LocalPermissionProfileId) {
+  async setExecutionPolicy(
+    id: string,
+    approvalPolicy: LocalApprovalPolicy,
+    permissionProfile: LocalPermissionProfileId,
+  ) {
     const thread = this.get(id);
     if (this.active.has(id) || thread.status === "waiting") {
       throw new Error("当前轮次的权限与审批策略已冻结");
     }
+    if (thread.approvalPolicy === approvalPolicy && thread.permissionProfile === permissionProfile) return;
+    const session = this.sessions.get(id);
+    this.sessions.delete(id);
+    const drained = session?.services.close();
     thread.approvalPolicy = approvalPolicy;
     thread.permissionProfile = permissionProfile;
     this.save(thread);
+    await drained;
   }
   setModelBinding(id: string, providerId: string, reasoningEffort: ReasoningEffort) {
     const thread = this.get(id);
@@ -278,7 +307,6 @@ export class DesktopSessionManager {
     const signal = scope.signal;
     const runWorkspace = await this.workspaces.open(thread.workspace);
     scope.defer(async () => {
-      runWorkspace.sandbox.cancel();
       await runWorkspace.queue;
     });
     signal.throwIfAborted();
@@ -323,17 +351,26 @@ export class DesktopSessionManager {
       skillSource: { skills: [...bodies.values()], activeSkillName: continuedSkillName(thread.messages.at(-1)) },
     });
     const activePermission = compilePermissionProfile(thread.permissionProfile, { workspaceRoot: thread.workspace });
+    const policy = JSON.stringify([activePermission.profile, thread.approvalPolicy]);
+    let session = this.sessions.get(thread.id);
+    if (session?.policy !== policy) {
+      await session?.services.close();
+      session = { policy, services: new SessionServices() };
+      this.sessions.set(thread.id, session);
+    }
+    const attachmentRoot = attachmentDirectory(this.options.directory, thread.id);
     const orchestrator = new ToolOrchestrator({
       continuation: thread.messages.at(-1),
-      approvalPolicy: thread.approvalPolicy as ApprovalPolicy,
+      approvalPolicy: thread.approvalPolicy,
       permissionProfile: activePermission.profile,
       fileSystemPolicy: {
         workspaceRoot: thread.workspace,
         workingDirectory: thread.workspace,
         immutableWriteRoots: this.options.controlDirectories,
+        additionalReadRoots: [attachmentRoot],
       },
       execPolicy: new ExecPolicy(),
-      processManager: runWorkspace.sandbox.processes,
+      sessionServices: session.services,
     });
     scope.defer(() => orchestrator.close());
     const { environment, executionManifests } = localExecutionTools(
@@ -342,6 +379,7 @@ export class DesktopSessionManager {
       activePermission,
       orchestrator,
       () => modelEpoch,
+      attachmentRoot,
     );
     const { tools, activeTools, toolCallers, toolSources } = compileTurnTools(
       [...portableTools.manifests, ...executionManifests],
@@ -358,16 +396,20 @@ export class DesktopSessionManager {
     const original = structuredClone(thread.messages);
     const projected = await projectRuntimeContext({
       messages: original,
+      tools,
       model,
       limits: config,
       checkpoint: this.journal.getCheckpoint(thread.id),
       signal,
       saveCheckpoint: async (checkpoint) => this.journal.saveCheckpoint(thread.id, checkpoint),
     });
+    const assistantId = original.at(-1)?.role === "assistant" ? original.at(-1)!.id : randomUUID();
     return {
       messages: projected.messages,
       settings: {
         model,
+        contextLimits: config,
+        stepCheckpoint: { assistantId, save: projected.saveStepCheckpoint },
         middleware: [contextCaptureMiddleware],
         tools,
         toolApproval: orchestrator.toolApproval,
@@ -405,17 +447,22 @@ export class DesktopSessionManager {
           return changes.length > 0 ? { messages: appendWorkspaceChangeEvent(messages, changes) } : {};
         },
       } satisfies RuntimeTurnSettings<Record<string, unknown>>,
-      host: original,
+      host: { original, assistantId },
     };
   }
   private async run(thread: LocalThread, turn: RuntimeTurn, settlements: Set<Promise<void>>) {
+    let persistenceError: Error | undefined;
     try {
-      const { result, tools, host: original } = await turn.start((scope) => this.prepare(thread, scope));
+      const {
+        result,
+        tools,
+        host: { original, assistantId },
+      } = await turn.start((scope) => this.prepare(thread, scope));
       const stream = toUIMessageStream({
         stream: result.stream,
         tools,
         originalMessages: original,
-        generateMessageId: randomUUID,
+        generateMessageId: () => assistantId,
         onError: (error) => (error instanceof Error ? error.message : "本地执行失败"),
       });
       const segment = this.segments.get(thread.id)!;
@@ -439,25 +486,46 @@ export class DesktopSessionManager {
           },
         }),
       );
-      const last = original.at(-1);
-      let lastSaved = 0;
-      for await (const message of readUIMessageStream({
-        stream: observed,
-        message: last?.role === "assistant" ? last : undefined,
-        terminateOnError: true,
-      })) {
+      const record = (message: UIMessage) => {
         const index = thread.messages.findIndex((item) => item.id === message.id);
         if (index < 0) thread.messages.push(message);
         else thread.messages[index] = message;
-        if (Date.now() - lastSaved > 100) {
-          this.save(thread);
-          lastSaved = Date.now();
-        }
-      }
+      };
+
+      const journalStream = createUIMessageStream({
+        originalMessages: original,
+        generateId: () => assistantId,
+        execute: ({ writer }) => writer.merge(observed),
+        onStepEnd: ({ responseMessage }) => {
+          record(responseMessage);
+          try {
+            this.save(thread);
+          } catch (error) {
+            persistenceError = error instanceof Error ? error : new Error(String(error));
+            turn.cancel();
+            throw persistenceError;
+          }
+        },
+        onEnd: ({ responseMessage }) => {
+          if (responseMessage.parts.length) record(responseMessage);
+        },
+        onError: (error) => {
+          const failure = error instanceof Error ? error : new Error(String(error));
+          if (!turn.cancelled) persistenceError ??= failure;
+          return failure.message;
+        },
+      });
+      await consumeStream({
+        stream: journalStream,
+        onError: (error) => {
+          throw error;
+        },
+      });
+      if (persistenceError) throw persistenceError;
       turn.signal.throwIfAborted();
       thread.status = hasPendingToolApprovals(thread.messages) ? "waiting" : "idle";
     } catch (error) {
-      thread.status = turn.cancelled ? "cancelled" : "error";
+      thread.status = turn.cancelled && !persistenceError ? "cancelled" : "error";
       thread.error =
         thread.status === "cancelled"
           ? "已停止，磁盘上的修改仍保留"
@@ -473,7 +541,7 @@ export class DesktopSessionManager {
         thread.error = error instanceof Error ? error.message : "本地运行资源释放失败";
         thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
       }
-      await Promise.allSettled([...settlements]);
+      await Promise.allSettled(settlements);
       thread.pendingInputs = thread.pendingInputs.filter((input) => input.state !== "delivered");
       try {
         this.save(thread);
@@ -495,12 +563,17 @@ export class DesktopSessionManager {
     }
   }
   async stop(id: string) {
+    const session = this.sessions.get(id);
+    this.sessions.delete(id);
+    const drained = session?.services.close();
     const active = this.active.get(id);
     if (active) {
       active.turn.cancel();
       await active.done;
+      await drained;
       return;
     }
+    await drained;
     const thread = this.get(id);
     if (thread.status === "waiting") {
       thread.status = "cancelled";
@@ -510,14 +583,19 @@ export class DesktopSessionManager {
     }
   }
   async remove(id: string) {
+    const { workspace } = this.get(id);
     await this.stop(id);
     this.segments.delete(id);
     this.observedWorkspaceEpochs.delete(id);
     this.journal.remove(id);
+    await this.workspaces.drain(workspace);
+    await rm(attachmentDirectory(this.options.directory, id), { recursive: true, force: true });
   }
   async close() {
     this.closed = true;
     await Promise.all([...this.active.keys()].map((id) => this.stop(id)));
+    await Promise.all([...this.sessions.values()].map((session) => session.services.close()));
+    this.sessions.clear();
     await this.workspaces.close();
     this.journal.close();
   }

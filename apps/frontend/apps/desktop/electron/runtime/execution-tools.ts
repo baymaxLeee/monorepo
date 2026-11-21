@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 
-import type { ExecutionEnvironment } from "@repo/agent-runtime/execution/environment";
-import { canonicalizeShellCommand } from "@repo/agent-runtime/execution/exec-policy";
-import { createExecutionHostManifests } from "@repo/agent-runtime/execution/execution-host";
-import type { compilePermissionProfile } from "@repo/agent-runtime/execution/permissions";
-import type { ToolOrchestrator, SandboxViolation } from "@repo/agent-runtime/execution/tool-orchestrator";
-import { workspaceMediaType, type PublishedWorkspaceFile } from "@repo/agent-runtime/protocol/artifact";
+import {
+  type ToolOrchestrator,
+  type SandboxViolation,
+  createExecutionHostManifests,
+  canonicalizeShellCommand,
+  workspaceMediaType,
+  type PublishedWorkspaceFile,
+  type ExecutionEnvironment,
+  type compilePermissionProfile,
+} from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 
 import type { LocalThread } from "../../contracts/bridge.generated";
@@ -60,6 +64,7 @@ export function localExecutionTools(
   activePermission: ReturnType<typeof compilePermissionProfile>,
   orchestrator: ToolOrchestrator,
   modelEpoch: () => number,
+  attachmentRoot: string,
 ) {
   const artifacts = publishedArtifacts(thread.messages);
   const environment = {
@@ -75,7 +80,7 @@ export function localExecutionTools(
       access: activePermission.profile.type === "disabled" ? "public" : "restricted",
       protocols: ["http", "https"],
     },
-    process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
+    process: { shell: true, lifetime: "session", backgroundServices: "session-scoped" },
     deliverables: "workspace-reference",
     permissions: {
       profileId: activePermission.id,
@@ -95,7 +100,12 @@ export function localExecutionTools(
           if (current.epoch !== modelEpoch()) {
             throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
           }
-          return current.sandbox.file(authority.permissionProfile, { operation: "readOptional", path }, signal);
+          return current.sandbox.file(
+            authority.permissionProfile,
+            { operation: "readOptional", path },
+            signal,
+            attachmentRoot,
+          );
         });
         if (result === null) return null;
         if (
@@ -202,32 +212,30 @@ export function localExecutionTools(
       artifacts.set(fileId, data);
       return data;
     },
-    run: (input, attempt, options) =>
-      workspaces.access(thread.workspace, async (w) => {
+    run: async (input, attempt, options, io) => {
+      options.abortSignal?.throwIfAborted();
+      const { w, running } = await workspaces.access(thread.workspace, async (w) => {
         if (w.epoch !== modelEpoch()) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
-        const result = await w.sandbox.execute(
-          attempt,
-          "/bin/bash",
-          [
-            "--noprofile",
-            "--norc",
-            "-c",
-            'cd -- "$1" && eval "$2"',
-            "bash",
-            input.workdir ?? thread.workspace,
-            input.command,
-          ],
+        const running = w.sandbox.execute(
+          { ...attempt, attachmentRoot },
+          input.shell ?? "/bin/bash",
+          [input.login ? "-lc" : "-c", input.command],
           undefined,
-          options.abortSignal,
+          io.signal,
           input.timeout_ms,
           networkViolationHint(input.command),
+          io,
+          input.workdir,
         );
-        await new Promise<void>((resolve) => {
-          setImmediate(resolve);
-        });
-        w.flushChanges();
-        return result;
-      }),
+        return { w, running };
+      });
+      const result = await running;
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      w.flushChanges();
+      return result;
+    },
   });
   return { environment, executionManifests };
 }

@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+export const ATTACHMENT_ROOT = "/workspace/sources/attachments/";
+
 const WORKSPACE_ROOT = "/workspace/";
 const MAX_COMPONENT_BYTES = 255;
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
@@ -36,7 +38,7 @@ function idToken(id: string): string {
   return Buffer.from(id, "utf8").toString("hex");
 }
 
-function safeComponent(filename: string): string | null {
+export function workspaceFilename(filename: string): string | null {
   const normalized = filename.normalize("NFC");
   if (
     !normalized ||
@@ -101,7 +103,7 @@ export function allocateLegacyWorkspacePaths(files: readonly LegacyWorkspaceFile
   const baseNames = new Map<string, string>();
   const counts = new Map<string, number>();
   for (const file of sorted) {
-    const baseName = safeComponent(file.filename) ?? fallbackName(file.id);
+    const baseName = workspaceFilename(file.filename) ?? fallbackName(file.id);
     baseNames.set(file.id, baseName);
     counts.set(baseName, (counts.get(baseName) ?? 0) + 1);
   }

@@ -39,6 +39,5 @@ export const mediaToolContextSchema = z.object({
   tenantId: z.string(),
   workspaceId: z.string(),
   sessionId: z.string(),
-  attachedImageDocumentIds: z.array(z.string()).optional(),
 });
 export type MediaToolContext = z.infer<typeof mediaToolContextSchema>;

@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { ToolSet } from "@ai-sdk/provider-utils";
-import { fileDataChunks } from "@repo/agent-runtime/protocol/artifact";
-import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
+import { fileDataChunks, isToolOutcome } from "@repo/agent-runtime";
 import {
   isToolUIPart,
   toUIMessageStream,
@@ -15,7 +14,9 @@ import {
 import { getDocument, knowledgeDocumentSessionId } from "../../../infrastructure/clients/knowledge.js";
 import { uploadAsset } from "../../../infrastructure/clients/storage.js";
 import { RequestError } from "../../errors.js";
-import { getSessionFile, publishSessionFile } from "../../session-files.js";
+import { getSessionFile, publishSessionFile, type SessionFile } from "../../session-files.js";
+import { workspaceFilename } from "../../workspace-paths.js";
+import { sessionFileIdFromUrl, sessionFileUrl } from "../context/file-parts.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 type AgentStreamEndEvent = Parameters<UIMessageStreamOnEndCallback<AnyUIMessage>>[0];
@@ -55,13 +56,14 @@ const nativePartDependencies: NativePartDependencies = {
 };
 
 export interface NativeFilePublicationContext {
+  attemptEpoch: string;
   runId: string;
   sessionId: string;
   userId: string;
   tenantId: string;
   workspaceId: string;
   signal: AbortSignal;
-  stageWorkspaceFile?: (path: string, content: Uint8Array, signal: AbortSignal) => Promise<boolean>;
+  stageWorkspaceFile?: (file: SessionFile, content: Uint8Array, signal: AbortSignal) => Promise<void>;
 }
 
 /**
@@ -134,7 +136,7 @@ export function createPublishedAgentPartStream<TOOLS extends ToolSet>(input: {
                 dependencies,
                 fileIndex++,
               );
-              controller.enqueue(published!);
+              controller.enqueue(published);
             } else {
               controller.enqueue(chunk);
               for (const file of fileDataChunks(chunk)) controller.enqueue(file);
@@ -219,16 +221,6 @@ function authorizedDocumentId(url: string, sessionId: string): string | null {
   }
 }
 
-function authorizedSessionFileId(url: string, sessionId: string): string | null {
-  try {
-    const parsed = new URL(url, "http://chat.local");
-    const fileId = parsed.searchParams.get("file_id");
-    return fileId && parsed.pathname.includes(`/sessions/${encodeURIComponent(sessionId)}/files/`) ? fileId : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function publishNativeFileParts(
   parts: AnyUIMessage["parts"],
   context: NativeFilePublicationContext,
@@ -238,7 +230,7 @@ export async function publishNativeFileParts(
   const published: NativeFileChunk[] = [];
   for (const [index, part] of parts.entries()) {
     if (part.type !== "file" && part.type !== "reasoning-file") continue;
-    const existingFileId = authorizedSessionFileId(part.url, context.sessionId);
+    const existingFileId = sessionFileIdFromUrl(part.url, context.sessionId);
     if (existingFileId) {
       await dependencies.getSessionFile(context, context.sessionId, existingFileId);
       published.push(part);
@@ -263,11 +255,12 @@ export async function publishNativeFileParts(
     if (!response.ok) throw new Error("model file data URL could not be decoded");
     const bytes = new Uint8Array(await response.arrayBuffer());
     context.signal.throwIfAborted();
+    const ordinal = firstFileIndex + index + 1;
     const filename =
-      part.type === "file" && part.filename
-        ? part.filename
-        : `${part.type}-${index + 1}.${nativeFileExtension(part.mediaType)}`;
-    const idempotencyKey = `${context.runId}:native-file:${firstFileIndex + index}`;
+      (part.type === "file" && part.filename && workspaceFilename(part.filename)) ||
+      `${part.type}-${ordinal}.${nativeFileExtension(part.mediaType)}`;
+    const workspacePath = `/workspace/outputs/${context.runId}/${ordinal}/${filename}`;
+    const idempotencyKey = `${context.runId}:native-file:${ordinal - 1}`;
     const asset = await dependencies.uploadAsset({
       userId: context.userId,
       tenantId: context.tenantId,
@@ -279,7 +272,6 @@ export async function publishNativeFileParts(
       idempotencyKey,
       signal: context.signal,
     });
-    await context.stageWorkspaceFile?.(`/workspace/${filename}`, bytes, context.signal);
     const file = await dependencies.publishSessionFile({
       userId: context.userId,
       tenantId: context.tenantId,
@@ -293,12 +285,15 @@ export async function publishNativeFileParts(
       sizeBytes: asset.sizeBytes,
       sha256: asset.sha256,
       idempotencyKey,
-      workspacePath: `/workspace/${filename}`,
+      workspacePath,
       writerType: "agent",
       writerId: context.runId,
+      sandboxAttempt: { runId: context.runId, attemptEpoch: context.attemptEpoch },
+      checkedOut: false,
     });
-    const url = `/api/chat-server/sessions/${encodeURIComponent(context.sessionId)}/files/${encodeURIComponent(file.id)}/content?file_id=${encodeURIComponent(file.id)}`;
-    published.push({ ...part, url } as NativeFileChunk);
+    await context.stageWorkspaceFile?.(file, bytes, context.signal);
+    const url = sessionFileUrl(context.sessionId, file.id);
+    published.push({ ...part, url });
   }
   return published;
 }

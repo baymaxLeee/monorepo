@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { LocalUserMessagePart } from "../contracts/bridge.generated";
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILE_PARTS = 8;
 const MAX_MESSAGE_PARTS = MAX_FILE_PARTS * 2 + 1;
 const MAX_TEXT_LENGTH = 64_000;
@@ -31,6 +31,7 @@ function validateInlineFile(part: Extract<LocalUserMessagePart, { type: "file" }
   if (match[1]!.toLowerCase() !== part.mediaType.toLowerCase()) {
     throw new Error("本地附件媒体类型与内容不一致");
   }
+  if (!part.mediaType.toLowerCase().startsWith("image/")) throw new Error("普通附件请使用本地文件路径");
   const encoded = match[2]!;
   if (encoded.length % 4 !== 0) throw new Error("本地附件编码无效");
   const bytes = Buffer.from(encoded, "base64");

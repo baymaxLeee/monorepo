@@ -78,6 +78,8 @@ export const startSchema = z
       .refine((value) => Object.keys(value).length <= 64, "too many environment variables")
       .optional(),
     tty: z.boolean().default(false),
+    binary_io: z.boolean().optional(),
+    pipe_stdin: z.boolean().optional(),
     yield_time_ms: z.number().int().min(0).max(10000).default(1000),
     timeout_ms: z.number().int().positive().default(120000),
   })
@@ -87,6 +89,8 @@ export const continueSchema = z
     scope: scopeSchema,
     request_id: identity,
     chars: z.string().max(65536).default(""),
+    stdin_base64: z.base64().max(65536).optional(),
+    close_stdin: z.boolean().optional(),
     stdout_offset: z.number().int().nonnegative().default(0),
     stderr_offset: z.number().int().nonnegative().default(0),
     yield_time_ms: z.number().int().min(0).max(10000).default(1000),

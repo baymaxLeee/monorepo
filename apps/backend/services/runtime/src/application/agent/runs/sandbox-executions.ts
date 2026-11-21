@@ -7,7 +7,11 @@ import type { SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { turnLeases, turnSandboxExecutions } from "../../../infrastructure/persistence/schema.js";
-import { isMissingSandboxResourceError, persistCloudWorkspace } from "../../cloud-workspace.js";
+import {
+  isMissingSandboxResourceError,
+  persistCloudWorkspace,
+  workspaceFinalizationIsObsolete,
+} from "../../cloud-workspace.js";
 
 export interface SandboxExecutionLifecycle {
   restoring(scope: SandboxScope): Promise<void>;
@@ -207,7 +211,7 @@ const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
         and(
           eq(turnSandboxExecutions.turnId, scope.run_id),
           eq(turnSandboxExecutions.attemptEpoch, BigInt(scope.attempt_epoch)),
-          eq(turnSandboxExecutions.state, "releasing"),
+          inArray(turnSandboxExecutions.state, ["releasing", "finalizing"]),
         ),
       );
   },
@@ -222,28 +226,22 @@ export async function reconcileSandboxExecutions(
       try {
         if (state === "finalizing") {
           if (!sandboxId) throw new Error("finalizing sandbox execution has no resource id");
-          await deps.finalize(scope, sandboxId);
-          await deps.releasing(scope);
+          let releaseReason: unknown;
+          try {
+            await deps.finalize(scope, sandboxId);
+          } catch (error) {
+            if (!workspaceFinalizationIsObsolete(error)) throw error;
+            releaseReason = error;
+          }
+          await deps.releasing(scope, releaseReason);
         }
-        await deps.destroy(scope);
+        try {
+          await deps.destroy(scope);
+        } catch (error) {
+          if (!isMissingSandboxResourceError(error)) throw error;
+        }
         await deps.released(scope);
       } catch (error) {
-        if (state === "finalizing" && isMissingSandboxResourceError(error)) {
-          try {
-            await deps.releasing(scope, error);
-            try {
-              await deps.destroy(scope);
-            } catch (releaseError) {
-              if (!isMissingSandboxResourceError(releaseError)) throw releaseError;
-            }
-            await deps.released(scope);
-            return;
-          } catch (releaseError) {
-            await deps.failed(scope, releaseError);
-            logger.error({ err: releaseError, runId: scope.run_id }, "missing sandbox release failed");
-            return;
-          }
-        }
         await deps.failed(scope, error);
         logger.error({ err: error, runId: scope.run_id }, "sandbox release retry failed");
       }

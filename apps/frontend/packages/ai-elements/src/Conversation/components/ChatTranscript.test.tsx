@@ -7,12 +7,12 @@ import { ChatTranscript } from "./ChatTranscript";
 
 test("each turn keeps one stable checklist when calls stream and when history is restored", async () => {
   const todo = {
-    type: "tool-update_todos",
+    type: "tool-update_plan",
     toolCallId: "first",
     toolMetadata: { agent: { uiKind: "todo-list" } },
     state: "output-available",
     input: {},
-    output: { ok: true, status: "completed", data: { todos: [{ id: "one", content: "核对需求", status: "pending" }] } },
+    output: { ok: true, status: "completed", data: { plan: [{ step: "核对需求", status: "pending" }] } },
   } as const;
   const first: ChatUIMessage = {
     id: "first-reply",
@@ -21,7 +21,7 @@ test("each turn keeps one stable checklist when calls stream and when history is
   };
   const next = {
     type: "dynamic-tool",
-    toolName: "update_todos",
+    toolName: "update_plan",
     toolCallId: "second",
     toolMetadata: todo.toolMetadata,
     state: "input-streaming",
@@ -38,10 +38,10 @@ test("each turn keeps one stable checklist when calls stream and when history is
   }
   const view = render(transcript([first], "streaming"));
   expect(await screen.findByText("核对需求")).toBeTruthy();
-  const card = screen.getByRole("button", { name: /update_todos\s*已完成/ });
+  const card = screen.getByRole("button", { name: /update_plan\s*已完成/ });
   view.rerender(transcript([updated], "streaming"));
   expect(screen.getByText("核对需求")).toBeTruthy();
-  expect(screen.getAllByRole("button", { name: /update_todos/ })).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: /update_plan/ })).toHaveLength(1);
   const revised: ChatUIMessage = {
     ...first,
     parts: [
@@ -53,14 +53,14 @@ test("each turn keeps one stable checklist when calls stream and when history is
         output: {
           ok: true,
           status: "completed",
-          data: { todos: [{ id: "one", content: "交付报告", status: "in_progress" }] },
+          data: { plan: [{ step: "交付报告", status: "in_progress" }] },
         },
       },
     ],
   };
   view.rerender(transcript([revised], "streaming"));
   expect(await screen.findByText("交付报告")).toBeTruthy();
-  expect(screen.getByRole("button", { name: /update_todos/ })).toBe(card);
+  expect(screen.getByRole("button", { name: /update_plan/ })).toBe(card);
   expect(screen.queryByText("核对需求")).toBeNull();
   expect(screen.getByText("需求已记录")).toBeTruthy();
 
@@ -77,7 +77,7 @@ test("each turn keeps one stable checklist when calls stream and when history is
   view.unmount();
   const restored = render(transcript([failed, laterUser, laterReply], "ready"));
   expect(await screen.findByText("更新清单失败")).toBeTruthy();
-  expect(screen.getAllByRole("button", { name: /update_todos/ })).toHaveLength(2);
+  expect(screen.getAllByRole("button", { name: /update_plan/ })).toHaveLength(2);
   expect(screen.getAllByText("核对需求")).toHaveLength(1);
   restored.rerender(transcript([first], "ready"));
   expect(await screen.findByText("核对需求")).toBeTruthy();

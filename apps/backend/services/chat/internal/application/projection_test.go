@@ -100,3 +100,28 @@ func TestJSONNumberProjectionKeepsNumericEncoding(t *testing.T) {
 		t.Fatalf("context id = %v", got["id"])
 	}
 }
+
+func TestRuntimeRunBodyResolvesUserAttachmentInMappedSession(t *testing.T) {
+	product := testConversation()
+	submit := func(raw string) (map[string]any, error) {
+		part := map[string]any{"type": "file", "url": raw}
+		return RuntimeRunBody(product, map[string]any{"message": map[string]any{"role": "user", "parts": []any{part}}})
+	}
+	result, err := submit("/api/chat-server/conversations/chat-conversation/files/upload/content")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := result["message"].(map[string]any)["parts"].([]any)[0].(map[string]any)["url"]
+	if got != "/api/chat-server/sessions/runtime-thread/files/upload/content" {
+		t.Fatalf("attachment URL = %v", got)
+	}
+	for _, raw := range []string{
+		"/api/chat-server/conversations/other/files/upload/content",
+		"/api/chat-server/conversations/chat-conversation/documents/doc/content",
+		"/arbitrary?file_id=upload",
+	} {
+		if _, err := submit(raw); err == nil {
+			t.Fatalf("accepted attachment %q", raw)
+		}
+	}
+}

@@ -59,7 +59,7 @@ test("cloud Bash adapter propagates cancellation", async () => {
   const runtime = await createCloudToolAdapters();
   const bash = executable(runtime, "bash");
   const signal = AbortSignal.abort(new DOMException("Stopped", "AbortError"));
-  const input = { command: "echo ignored", timeout_ms: 10_000, sandbox_permissions: "use_default" };
+  const input = { command: "echo ignored", sandbox_permissions: "use_default" };
   await runtime.toolApproval({
     toolCall: { toolCallId: "runtime-test", toolName: "bash", input },
     messages: [],
@@ -114,12 +114,12 @@ test("cloud adapters compile the session execution policy instead of using fixed
 });
 
 test("a replacement cloud execution resumes only the approved retry in its assistant journal", async () => {
-  const input = { command: "echo ok", sandbox_permissions: "use_default", timeout_ms: 10_000 };
+  const input = { command: "echo ok", sandbox_permissions: "use_default" };
   const retry = {
     ...input,
     retry_of: "denial",
     sandbox_permissions: "with_additional_permissions",
-    additional_permissions: { network: { allowedHosts: ["test.invalid"] } },
+    additional_permissions: { network: { enabled: true } },
   };
   const continuation = {
     id: "assistant",

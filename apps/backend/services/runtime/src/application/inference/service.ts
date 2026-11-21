@@ -1,4 +1,4 @@
-import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
+import { assembleInstructions } from "@repo/agent-runtime";
 
 import type { AuthContext } from "../../api/http/middleware/auth.js";
 import { getProvider } from "../../infrastructure/clients/admin.js";

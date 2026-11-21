@@ -1,16 +1,18 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { realpath, stat } from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
-import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/execution/permissions";
-import { ProcessManager } from "@repo/agent-runtime/execution/process-manager";
-import type {
-  SandboxAttempt,
-  SandboxAttemptResult,
-  SandboxViolation,
-} from "@repo/agent-runtime/execution/tool-orchestrator";
+import {
+  type SandboxAttempt,
+  type SandboxAttemptResult,
+  type SandboxViolation,
+  type ProcessIO,
+  ProcessManager,
+  compilePermissionProfile,
+  type PermissionProfile,
+} from "@repo/agent-runtime";
 
 export function within(root: string, target: string): boolean {
   const path = relative(root, target);
@@ -29,17 +31,28 @@ export function seatbeltProfile(
   protectedPaths: string[],
   permissionProfile: PermissionProfile,
   marker = "com.monorepo.desktop.test",
+  attachmentRoot?: string,
 ): string {
   if (permissionProfile.type === "external") {
     throw new Error("本地执行没有 external sandbox owner");
   }
+  const protectedRules = protectedPaths.flatMap((path) => {
+    const subtree = `(subpath ${quote(path)})`;
+    if (attachmentRoot && within(path, attachmentRoot)) {
+      return [
+        `(deny file-read* (require-all ${subtree} (require-not (subpath ${quote(attachmentRoot)}))))`,
+        `(deny file-write* ${subtree})`,
+      ];
+    }
+    return [`(deny file-read* file-write* ${subtree})`];
+  });
   if (permissionProfile.type === "disabled") {
     return [
       "(version 1)",
       "(allow default)",
       `(allow mach-lookup (global-name ${quote(marker)}))`,
       '(deny mach-lookup (global-name "com.monorepo.desktop.forbidden"))',
-      ...protectedPaths.map((p) => `(deny file-read* file-write* (subpath ${quote(p)}))`),
+      ...protectedRules,
     ].join("\n");
   }
   const readPaths = [
@@ -59,6 +72,7 @@ export function seatbeltProfile(
     "/private/etc/resolv.conf",
     "/private/etc/services",
     ...runtimePaths,
+    ...(attachmentRoot ? [attachmentRoot] : []),
     scratch,
   ];
   const fileRules =
@@ -89,7 +103,7 @@ export function seatbeltProfile(
     ...fileRules,
     '(allow file-read* file-write-data (literal "/dev/null") (literal "/dev/zero") (literal "/dev/random") (literal "/dev/urandom"))',
     '(allow mach-lookup (global-name "com.apple.system.logger") (global-name "com.apple.system.notification_center"))',
-    ...protectedPaths.map((p) => `(deny file-read* file-write* (subpath ${quote(p)}))`),
+    ...protectedRules,
   ].join("\n");
 }
 
@@ -133,13 +147,15 @@ export class LocalSandbox {
   }
 
   async execute(
-    attempt: SandboxAttempt,
+    attempt: SandboxAttempt & { attachmentRoot?: string },
     command: string,
     args: string[],
     input?: string,
     signal?: AbortSignal,
     timeoutMs = 120_000,
     violationHint?: SandboxViolation,
+    io?: ProcessIO,
+    cwd?: string,
   ): Promise<SandboxAttemptResult> {
     const operationSignal = signal ? AbortSignal.any([signal, attempt.abortSignal]) : attempt.abortSignal;
     operationSignal.throwIfAborted();
@@ -151,6 +167,11 @@ export class LocalSandbox {
       (await realpath(this.options.root)) !== this.options.root
     )
       throw new Error("工作目录已被移动或替换，请重新授权");
+    const workingDirectory = cwd
+      ? await realpath(isAbsolute(cwd) ? cwd : resolve(this.options.root, cwd))
+      : this.options.root;
+    if (!within(this.options.root, workingDirectory))
+      throw new Error("workdir must stay inside the authorized workspace");
     const marker = `com.monorepo.desktop.run.${randomUUID()}`;
     const profile = seatbeltProfile(
       this.options.root,
@@ -165,10 +186,11 @@ export class LocalSandbox {
       this.options.protectedPaths,
       attempt.sandboxed ? attempt.permissionProfile : { type: "disabled" },
       marker,
+      attempt.attachmentRoot,
     );
     return new Promise<SandboxAttemptResult>((resolve, reject) => {
-      const child = spawn(this.options.supervisor, [marker, profile, command, ...args], {
-        cwd: this.options.root,
+      const child = spawn(this.options.supervisor, [marker, profile, ...(io?.tty ? ["--pty"] : []), command, ...args], {
+        cwd: workingDirectory,
         stdio: ["pipe", "pipe", "pipe"],
         env: {
           PATH: `${this.options.scratch}/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
@@ -181,6 +203,7 @@ export class LocalSandbox {
       const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };
       let stdout = "",
         stderr = "",
+        diagnostic = "",
         bytes = 0,
         failure: Error | undefined,
         timedOut = false;
@@ -190,6 +213,13 @@ export class LocalSandbox {
       };
       const cancel = () => stop();
       this.active.add(cancel);
+      if (io?.tty)
+        io.stdin(
+          (chars) =>
+            new Promise<void>((accept, fail) => {
+              child.stdin.write(chars, (error) => (error ? fail(error) : accept()));
+            }),
+        );
       const timeout = setTimeout(() => {
         timedOut = true;
         child.stdin.destroy();
@@ -201,6 +231,12 @@ export class LocalSandbox {
         this.active.delete(cancel);
       };
       const collect = (chunk: Buffer, channel: "stdout" | "stderr") => {
+        if (io) {
+          const fragment = decoders[channel].write(chunk);
+          io.output(fragment);
+          if (channel === "stderr" || io.tty) diagnostic = (diagnostic + fragment).slice(-8192);
+          return;
+        }
         bytes += chunk.byteLength;
         if (bytes > 8 * 1024 * 1024) {
           stop(new Error("命令输出超过 8 MiB，请将结果写入工作文件"));
@@ -223,13 +259,15 @@ export class LocalSandbox {
         if (failure) reject(failure);
         else {
           const output = { stdout: stdout + decoders.stdout.end(), stderr: stderr + decoders.stderr.end() };
+          if (io) io.output(output.stdout + output.stderr);
+          const errorText = io ? diagnostic : output.stderr;
           if (timedOut) resolve({ type: "timeout", timeoutMs, ...output });
           else if (code === 70)
-            resolve({ type: "sandbox-unavailable", message: output.stderr || "Seatbelt unavailable", ...output });
+            resolve({ type: "sandbox-unavailable", message: errorText || "Seatbelt unavailable", ...output });
           else if (
             violationHint &&
             code !== 0 &&
-            /operation not permitted|permission denied|sandbox/iu.test(output.stderr)
+            /operation not permitted|permission denied|sandbox/iu.test(errorText)
           ) {
             resolve({ type: "sandbox-violation", violation: violationHint, ...output });
           } else resolve({ type: "exit", exitCode: code ?? 128, ...output });
@@ -244,6 +282,7 @@ export class LocalSandbox {
     permissionProfile: PermissionProfile,
     operation: Record<string, unknown>,
     signal?: AbortSignal,
+    attachmentRoot?: string,
   ): Promise<unknown> {
     const result = await this.processes.run((process, abortSignal) =>
       this.execute(
@@ -251,12 +290,13 @@ export class LocalSandbox {
           attempt: 1,
           sandboxed: permissionProfile.type !== "disabled",
           permissionProfile,
+          attachmentRoot,
           process,
           abortSignal,
         },
         this.options.executable,
         [this.options.fileWorker],
-        JSON.stringify({ ...operation, root: this.options.root }),
+        JSON.stringify({ ...operation, root: this.options.root, attachmentRoot }),
         signal,
         30_000,
       ),

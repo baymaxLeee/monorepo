@@ -29,6 +29,7 @@ const userMessage: UIMessage = {
 
 const publicationContext: NativeFilePublicationContext = {
   runId: "run",
+  attemptEpoch: "1",
   sessionId: "session",
   userId: "user",
   tenantId: "tenant",
@@ -107,7 +108,7 @@ function dependencies(overrides: Partial<NativePartDependencies> = {}): NativePa
         session_id: input.sessionId,
         title: input.title,
         filename: input.filename,
-        workspace_path: `/workspace/${input.filename}`,
+        workspace_path: input.workspacePath,
         mime_type: input.mediaType,
         size: input.sizeBytes,
         asset_id: input.assetId,
@@ -319,7 +320,7 @@ test("real SDK file and reasoning-file parts are published before persistence", 
         session_id: input.sessionId,
         title: input.title,
         filename: input.filename,
-        workspace_path: `/workspace/${input.filename}`,
+        workspace_path: input.workspacePath,
         mime_type: input.mediaType,
         size: input.sizeBytes,
         asset_id: input.assetId,
@@ -357,12 +358,12 @@ test("real SDK file and reasoning-file parts are published before persistence", 
       {
         type: "file",
         mediaType: "image/png",
-        url: "/api/chat-server/sessions/session/files/file-asset-1/content?file_id=file-asset-1",
+        url: "/api/chat-server/sessions/session/files/file-asset-1/content",
       },
       {
         type: "reasoning-file",
         mediaType: "application/pdf",
-        url: "/api/chat-server/sessions/session/files/file-asset-2/content?file_id=file-asset-2",
+        url: "/api/chat-server/sessions/session/files/file-asset-2/content",
       },
     ],
   );
@@ -400,6 +401,32 @@ test("publication failure rejects the owner completion and cannot produce finish
   );
 });
 
+test("a journaled session file rechecks ownership and reuses its canonical reference", async () => {
+  const part = {
+    type: "file" as const,
+    mediaType: "text/plain",
+    url: "/api/chat-server/sessions/session/files/file/content",
+  };
+  const deps = dependencies({
+    fetchDataUrl: async () => assert.fail("a registered file must not be reuploaded"),
+    getSessionFile: async (_auth, sessionId, fileId) => {
+      assert.equal(sessionId, publicationContext.sessionId);
+      assert.equal(fileId, "file");
+      return sessionFile();
+    },
+  });
+  assert.deepEqual(await publishNativeFileParts([part], publicationContext, deps), [part]);
+  await assert.rejects(
+    publishNativeFileParts([part], publicationContext, {
+      ...deps,
+      getSessionFile: async () => {
+        throw new Error("unauthorized file");
+      },
+    }),
+    /unauthorized file/,
+  );
+});
+
 test("native model file publication rejects arbitrary remote URLs", async () => {
   await assert.rejects(
     publishNativeFileParts(
@@ -411,20 +438,46 @@ test("native model file publication rejects arbitrary remote URLs", async () => 
   );
 });
 
-test("native model files join an already-active stable workspace before publication", async () => {
-  const staged: Array<{ path: string; bytes: number[] }> = [];
-  await publishNativeFileParts(
-    [{ type: "file", mediaType: "text/plain", filename: "result.txt", url: "data:text/plain;base64,aGk=" }],
-    {
-      ...publicationContext,
-      stageWorkspaceFile: async (path, content) => {
-        staged.push({ path, bytes: [...content] });
-        return true;
-      },
+test("native output publication fences the writer before touching the guest, with one stable path per emission", async () => {
+  const paths: string[] = [];
+  const events: string[] = [];
+  const piece = { type: "file" as const, mediaType: "text/plain", url: "data:text/plain;base64,aGk=" };
+  const context = {
+    ...publicationContext,
+    stageWorkspaceFile: async (file: SessionFile, content: Uint8Array) => {
+      assert.deepEqual([...content], [104, 105]);
+      events.push("stage");
+      paths.push(file.workspace_path);
     },
-    dependencies(),
+  };
+  const deps = dependencies({
+    publishSessionFile: async (input) => {
+      events.push("publish");
+      assert.deepEqual(input.sandboxAttempt, { runId: "run", attemptEpoch: "1" });
+      assert.equal(input.checkedOut, false);
+      return dependencies().publishSessionFile(input);
+    },
+  });
+  for (const index of [0, 1]) await publishNativeFileParts([piece], context, deps, index);
+  await publishNativeFileParts([{ ...piece, filename: "result.txt" }], context, deps, 2);
+  await publishNativeFileParts([{ ...piece, filename: "result.txt" }], context, deps, 3);
+  assert.deepEqual(events, ["publish", "stage", "publish", "stage", "publish", "stage", "publish", "stage"]);
+  assert.deepEqual(paths, [
+    "/workspace/outputs/run/1/file-1.txt",
+    "/workspace/outputs/run/2/file-2.txt",
+    "/workspace/outputs/run/3/result.txt",
+    "/workspace/outputs/run/4/result.txt",
+  ]);
+  await assert.rejects(
+    publishNativeFileParts([piece], context, {
+      ...deps,
+      publishSessionFile: async () => {
+        throw new Error("writer superseded");
+      },
+    }),
+    /writer superseded/,
   );
-  assert.deepEqual(staged, [{ path: "/workspace/result.txt", bytes: [104, 105] }]);
+  assert.equal(paths.length, 4);
 });
 
 test("the composed HTTP owner emits one start and one finish", async () => {

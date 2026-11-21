@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { AgentPluginContext, ResolvedPluginSkillContribution } from "@repo/agent-runtime/plugins/types";
+import type { AgentPluginContext, ResolvedPluginSkillContribution } from "@repo/agent-runtime";
 
 import { storageClient } from "../../../infrastructure/clients/storage.js";
 

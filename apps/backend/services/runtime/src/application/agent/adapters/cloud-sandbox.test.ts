@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
-import { compilePermissionProfile } from "@repo/agent-runtime/execution/permissions";
-import type { SandboxAttempt } from "@repo/agent-runtime/execution/tool-orchestrator";
+import { type SandboxAttempt, compilePermissionProfile } from "@repo/agent-runtime";
 
 import type { SandboxProcess } from "#runtime/transport";
 
@@ -94,7 +94,15 @@ function fixture() {
     },
     cancel: async () => ({ ...process, termination: { type: "exit", exit_code: 137 } }),
   };
+  const checkout = new Map<
+    string,
+    Pick<SessionFile, "workspace_path" | "id" | "path_generation" | "etag" | "sha256" | "size">
+  >();
   const deps: SandboxDependencies = {
+    checkout: async () => [...checkout.values()],
+    recordCheckout: async (_scope, file) => {
+      checkout.set(file.workspace_path, file);
+    },
     sandbox: () => client,
     asset: () => ({
       content: async () => new Blob([bytes]).stream(),
@@ -112,8 +120,8 @@ function fixture() {
           revisionId: "rev",
           filename: "output.bin",
           mediaType: "application/octet-stream",
-          sizeBytes: 5,
-          sha256: "sha",
+          sizeBytes: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
         };
       },
     }),
@@ -172,7 +180,7 @@ function fixture() {
         { ownerType: "session_file", ownerId: "file", slot: "source", generation: 1 },
       );
       assert.equal(candidate.filename, "notes.md");
-      return {
+      const saved: SessionFile = {
         id: "file",
         session_id: "c",
         filename: "notes.md",
@@ -192,6 +200,8 @@ function fixture() {
         created_at: "now",
         updated_at: "later",
       };
+      if (input.sandboxAttempt) await deps.recordCheckout(input.sandboxAttempt, saved);
+      return saved;
     },
     delete: async () => {},
     execution: {
@@ -233,6 +243,8 @@ test("lazy run allocation is single-flight; original binary bytes survive import
   assert.equal(f.calls.length, 0);
   await Promise.all([run.runAttempt(attempt(), { command: "one" }), run.runAttempt(attempt(), { command: "two" })]);
   assert.equal(f.calls.filter((c) => c === "create").length, 1);
+  assert.deepEqual(f.imported, []);
+  await run.refresh();
   assert.deepEqual(f.imported, [bytes]);
   assert.ok(!f.calls.includes("publish"));
   const saved = await run.save("/workspace/outputs/output.bin", "save");
@@ -344,7 +356,7 @@ test("attachment scope failures destroy partial initialization; foreign process 
   const f = fixture();
   f.deps.documents = async () => [{ ...document, workspace_id: "other" }];
   const run = new RunSandbox(context, f.deps);
-  await assert.rejects(run.runAttempt(attempt(), { command: "never" }), /scope mismatch/);
+  await assert.rejects(run.refresh(), /scope mismatch/);
   assert.deepEqual(f.calls, ["create", "destroy"]);
 });
 
@@ -358,23 +370,22 @@ test("command continuation consumes output offsets and preserves streamed output
 
 test("command results preserve absolute output cursors and per-stream retention loss", async () => {
   const f = fixture();
-  f.client.start = async () =>
-    ({
-      session_id: "truncated",
-      stdout: "retained stdout tail",
-      stderr: "stderr",
-      termination: { type: "exit", exit_code: 0 },
-      stdout_offset: 100_000,
-      stderr_offset: 6,
-      truncated: true,
-      stdout_truncated: true,
-      stderr_truncated: false,
-    }) as SandboxProcess;
+  f.client.start = async () => ({
+    session_id: "truncated",
+    stdout: "retained stdout tail",
+    stderr: "stderr",
+    termination: { type: "exit", exit_code: 0 },
+    stdout_offset: 100_000,
+    stderr_offset: 6,
+    truncated: true,
+    stdout_truncated: true,
+    stderr_truncated: false,
+  });
   const run = new RunSandbox(context, f.deps);
 
   const result = await run.runAttempt(attempt(), { command: "large-output" });
 
-  assert.deepEqual((result as typeof result & { outputMetadata?: unknown }).outputMetadata, {
+  assert.deepEqual(result.outputMetadata, {
     stdout: { totalBytes: 100_000, truncated: true },
     stderr: { totalBytes: 6, truncated: false },
   });
@@ -544,7 +555,7 @@ test("refresh imports and reports only session sources added or updated after in
   f.deps.documents = async () => documents;
   const run = new RunSandbox(context, f.deps);
 
-  await run.runAttempt(attempt(), { command: "true" });
+  await run.refresh();
   documents = [
     document,
     {
@@ -582,19 +593,70 @@ test("refresh imports and reports only session sources added or updated after in
   await run.dispose();
 });
 
-test("official SDK spawn streams process output and rejects unsupported writable stdin", async () => {
+test("an SDK helper timeout leaves its owning workspace available for the next command", async () => {
   const f = fixture();
+  f.client.start = async () => ({
+    session_id: "timed-out",
+    termination: { type: "timeout", timeout_ms: 120_000 },
+    stdout: "",
+    stderr: "",
+    stdout_offset: 0,
+    stderr_offset: 0,
+    truncated: false,
+  });
   const run = new RunSandbox(context, f.deps);
-  const process = await run.spawn({ command: "printf output" });
+  const child = await run.spawn({ command: "slow" });
+  assert.deepEqual(await child.wait(), { exitCode: 124 });
+  assert.equal((await run.ensure()).id, "sandbox");
+  assert.ok(!f.calls.includes("destroy"));
+  await run.dispose();
+});
+
+test("official SDK spawn streams raw bytes and writes ordered binary stdin through EOF", async () => {
+  const f = fixture();
+  let complete!: () => void;
+  const eof = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  let received = Buffer.alloc(0);
+  const proc = {
+    session_id: "child",
+    stdout_offset: 0,
+    stderr_offset: 0,
+    stdout: "",
+    stderr: "",
+    termination: null,
+    truncated: false,
+  };
+  f.client.start = async (_id, input) => {
+    assert.ok(input.binary_io);
+    return proc;
+  };
+  f.client.write = async (_id, _processId, input) => {
+    if (input.stdin_base64) received = Buffer.concat([received, Buffer.from(input.stdin_base64, "base64")]);
+    if (input.close_stdin) complete();
+    if (input.close_stdin || input.stdin_base64) return proc;
+    await eof;
+    return {
+      ...proc,
+      stdout: received.toString("base64"),
+      stdout_offset: received.length,
+      termination: { type: "exit", exit_code: 0 },
+    };
+  };
+  const run = new RunSandbox(context, f.deps);
+  const process = await run.spawn({ command: "cat", stdin: true });
+  const writer = process.stdin.getWriter();
+  await writer.write(bytes);
+  await writer.close();
   const [stdout, stderr, status] = await Promise.all([
-    new Response(process.stdout).text(),
+    new Response(process.stdout).arrayBuffer(),
     new Response(process.stderr).text(),
     process.wait(),
   ]);
-  assert.equal(stdout, "firstsecond");
+  assert.deepEqual(new Uint8Array(stdout), bytes);
   assert.equal(stderr, "");
   assert.deepEqual(status, { exitCode: 0 });
-  await assert.rejects(run.spawn({ command: "cat", stdin: true }), /not supported/);
   await run.dispose();
 });
 
@@ -608,10 +670,12 @@ test("failed exports are never registered as artifacts, and later runs import pe
       },
     });
   const run = new RunSandbox(context, f.deps);
+  await run.refresh();
   await assert.rejects(run.save("/workspace/outputs/x", "a"), /truncated/);
   assert.ok(!f.calls.includes("publish"));
   await run.dispose();
   const next = new RunSandbox({ ...context, runId: "next" }, f.deps);
+  await next.refresh();
   await next.runAttempt(attempt(), { command: "cat" });
   assert.deepEqual(f.imported, [bytes, bytes]);
   await next.dispose();
@@ -660,6 +724,42 @@ test("Runtime-owned saved files import exact Storage bytes including trailing ne
   assert.deepEqual(f.imported[0], original);
   assert.match(new TextDecoder().decode(f.imported[1]), /11111111111111111111111111111111/);
   await run.dispose();
+});
+
+test("session input bytes are available on the first tool call and survive an empty output snapshot", async () => {
+  const f = fixture();
+  const path = "/workspace/sources/attachments/upload/report.bin";
+  f.deps.documents = async () => assert.fail("ordinary uploads are independent of Knowledge");
+  f.deps.recordCheckout = async () => assert.fail("read-only inputs must stay out of the output checkout");
+  f.deps.files = async () => [
+    {
+      id: "input",
+      session_id: "c",
+      title: "report.bin",
+      filename: "report.bin",
+      workspace_path: path,
+      workspace_state: "live",
+      path_generation: 1,
+      mime_type: "application/octet-stream",
+      size: bytes.length,
+      asset_id: "asset",
+      revision_id: "revision",
+      sha256: "sha",
+      editable: false,
+      edit_max_bytes: 0,
+      etag: "etag",
+      last_writer: { type: "user", id: "u" },
+      created_at: "now",
+      updated_at: "now",
+    },
+  ];
+  const run = new RunSandbox(context, f.deps);
+  await run.runAttempt(attempt(), { command: "cat" });
+  assert.equal(f.importedPaths[0], "sources/attachments/upload/report.bin");
+  assert.deepEqual(f.imported[0], bytes);
+  await assert.rejects(run.save(path, "save"), /imported sources/);
+  await run.dispose();
+  assert.ok(!f.calls.includes("publish"));
 });
 
 test("agent updates preserve file identity, use the imported revision and advance only that work copy baseline", async () => {
@@ -723,11 +823,25 @@ test("agent updates preserve file identity, use the imported revision and advanc
   await run.dispose();
 });
 
+test("finalization retains the guest if Storage returns bytes different from the frozen snapshot", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  f.client.snapshot = async () => ({
+    files: [{ path: "draft.txt", size: bytes.length, sha256: "a".repeat(64) }],
+  });
+  const run = new RunSandbox(context, f.deps);
+  await run.runAttempt(attempt(), { command: "create draft" });
+  await assert.rejects(run.dispose(), /snapshot/i);
+  assert.equal(f.calls.includes("publish"), false);
+  assert.equal(f.calls.includes("destroy"), false);
+  assert.equal(f.executionStates.at(-1), "finalization-failed");
+});
+
 test("run finalization automatically persists new workspace files before destroying compute", async () => {
   const f = fixture();
   f.deps.documents = async () => [];
   f.client.snapshot = async () => ({
-    files: [{ path: "draft.txt", size: bytes.byteLength, sha256: "a".repeat(64) }],
+    files: [{ path: "draft.txt", size: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") }],
   });
   const run = new RunSandbox(context, f.deps);
   await run.runAttempt(attempt(), { command: "create draft" });
@@ -789,18 +903,18 @@ test("missing sandbox cleanup is terminal instead of retrying an impossible snap
   const f = fixture();
   f.deps.documents = async () => [];
   f.client.snapshot = async () => {
-    throw Object.assign(new Error("runtime-sandbox snapshot failed: 422"), {
+    throw Object.assign(new Error("runtime-sandbox snapshot failed: 404"), {
       service: "runtime-sandbox",
-      status: 422,
-      body: { message: "error: no such object: sandbox-run" },
+      status: 404,
+      body: { code: "sandbox_not_found", message: "sandbox-run no longer exists" },
     });
   };
   f.client.destroy = async () => {
     f.calls.push("destroy");
-    throw Object.assign(new Error("runtime-sandbox destroy failed: 422"), {
+    throw Object.assign(new Error("runtime-sandbox destroy failed: 404"), {
       service: "runtime-sandbox",
-      status: 422,
-      body: { message: "error: no such object: sandbox-run" },
+      status: 404,
+      body: { code: "sandbox_not_found", message: "sandbox-run no longer exists" },
     });
   };
   const run = new RunSandbox(context, f.deps);
@@ -820,4 +934,73 @@ test("a rejected reservation cannot release a guest belonging to an existing lea
   await assert.rejects(run.ensure(), /reservation exists/);
   await run.dispose();
   assert.ok(!f.calls.includes("destroy"));
+});
+
+test("a closing guest cannot tombstone files it never checked out", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  const run = new RunSandbox(context, f.deps);
+  await run.ensure();
+  f.deps.files = async () => [
+    {
+      id: "file",
+      session_id: "c",
+      title: "Notes",
+      filename: "notes.md",
+      workspace_path: "/workspace/notes.md",
+      workspace_state: "live",
+      path_generation: 1,
+      mime_type: "text/markdown",
+      size: 4,
+      asset_id: "asset",
+      revision_id: "revision",
+      sha256: "old",
+      editable: true,
+      edit_max_bytes: 2097152,
+      etag: '"11111111111111111111111111111111"',
+      last_writer: { type: "agent", id: "old" },
+      created_at: "now",
+      updated_at: "now",
+    },
+  ];
+  f.deps.delete = async () => assert.fail("attempt did not observe this file");
+  await run.dispose();
+});
+
+test("finalization recovers a native output staged before the checkout write failed", async () => {
+  const f = fixture();
+  const run = new RunSandbox(context, f.deps);
+  await run.ensure();
+  const file: SessionFile = {
+    id: "published",
+    session_id: "c",
+    title: "image",
+    filename: "image.bin",
+    workspace_path: "/workspace/outputs/r/1/image.bin",
+    workspace_state: "live",
+    path_generation: 1,
+    mime_type: "application/octet-stream",
+    size: bytes.length,
+    asset_id: "a",
+    revision_id: "rev",
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    editable: false,
+    edit_max_bytes: 0,
+    etag: "e",
+    last_writer: { type: "agent", id: "r" },
+    created_at: "now",
+    updated_at: "now",
+  };
+  f.deps.files = async () => [file];
+  f.deps.recordCheckout = async () => {
+    throw new Error("checkout write interrupted");
+  };
+  await assert.rejects(run.stagePublishedFile(file, bytes), /checkout write interrupted/);
+  f.client.snapshot = async () => ({
+    files: [{ path: "outputs/r/1/image.bin", size: file.size, sha256: file.sha256 }],
+  });
+  await run.dispose();
+  assert.equal(f.calls.includes("publish"), false);
+  assert.equal(f.calls.includes("upload"), false);
+  assert.equal(f.calls.includes("destroy"), true);
 });

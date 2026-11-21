@@ -882,56 +882,130 @@
                         "maxItems": 128,
                         "type": "array",
                         "items": {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "function"
-                              ]
-                            },
-                            "name": {
-                              "type": "string",
-                              "maxLength": 128,
-                              "pattern": "^[a-zA-Z0-9_-]+$"
-                            },
-                            "description": {
-                              "type": "string"
-                            },
-                            "inputSchema": {
+                          "anyOf": [
+                            {
                               "type": "object",
-                              "additionalProperties": {
-                                "$ref": "#/components/schemas/LocalInference__schema2"
-                              }
-                            },
-                            "strict": {
-                              "type": "boolean"
-                            },
-                            "inputExamples": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "input": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                      "$ref": "#/components/schemas/LocalInference__schema3"
-                                    }
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "function"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "maxLength": 128,
+                                  "pattern": "^[a-zA-Z0-9_-]+$"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "inputSchema": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "$ref": "#/components/schemas/LocalInference__schema2"
                                   }
                                 },
-                                "required": [
-                                  "input"
-                                ],
-                                "additionalProperties": false
-                              }
+                                "strict": {
+                                  "type": "boolean"
+                                },
+                                "inputExamples": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "input": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "$ref": "#/components/schemas/LocalInference__schema3"
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "input"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "name",
+                                "inputSchema"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "provider"
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "enum": [
+                                    "openai.custom"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "enum": [
+                                    "apply_patch"
+                                  ]
+                                },
+                                "args": {
+                                  "type": "object",
+                                  "properties": {
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "format": {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "enum": [
+                                            "grammar"
+                                          ]
+                                        },
+                                        "syntax": {
+                                          "type": "string",
+                                          "enum": [
+                                            "lark"
+                                          ]
+                                        },
+                                        "definition": {
+                                          "type": "string",
+                                          "maxLength": 4096
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "syntax",
+                                        "definition"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "description",
+                                    "format"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "id",
+                                "name",
+                                "args"
+                              ],
+                              "additionalProperties": false
                             }
-                          },
-                          "required": [
-                            "type",
-                            "name",
-                            "inputSchema"
-                          ],
-                          "additionalProperties": false
+                          ]
                         }
                       },
                       "toolChoice": {
@@ -1460,6 +1534,149 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/attachments/prepare": {
+      "post": {
+        "operationId": "prepareSessionAttachment",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "media_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "size_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "client_ref",
+                  "filename",
+                  "media_type",
+                  "size_bytes"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Storage upload capability for this attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "upload_id",
+                    "upload_url",
+                    "completed"
+                  ],
+                  "properties": {
+                    "upload_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "upload_url": {
+                      "type": "string"
+                    },
+                    "completed": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/attachments/complete": {
+      "post": {
+        "operationId": "completeSessionAttachment",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "upload_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "client_ref",
+                  "upload_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "immutable session attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionFile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "upload not found in session"
+          },
+          "409": {
+            "description": "upload incomplete"
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/documents/{document_id}": {
       "get": {
         "operationId": "getSessionDocument",
@@ -1611,6 +1828,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "max_dim",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
             }
           },
           {
@@ -3056,7 +3282,7 @@
           "selected_message_id",
           "messages",
           "branches",
-          "documents",
+          "attachments",
           "active_run_id",
           "latest_run_id"
         ],
@@ -3116,10 +3342,10 @@
               "$ref": "#/components/schemas/MessageBranchGroup"
             }
           },
-          "documents": {
+          "attachments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SessionDocument"
+              "$ref": "#/components/schemas/SessionFile"
             }
           },
           "active_run_id": {

@@ -1,6 +1,10 @@
-import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
-import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
-import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import {
+  type InstructionInput,
+  type ResolvedTurnPluginSnapshot,
+  type ApprovalPolicy,
+  type BuiltInPermissionProfileId,
+  type RuntimeTokenUsage,
+} from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
@@ -30,8 +34,8 @@ export interface CloudTurnInput {
   approvalPolicy: ApprovalPolicy;
   permissionProfile: BuiltInPermissionProfileId;
   continuation?: UIMessage;
+  onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
   previousResponseId?: string | null;
-  attachedImageDocumentIds?: string[];
   instructionInput: InstructionInput;
   /** Skill already active in the logical turn, including client-tool continuations. */
   activeSkillName?: string | null;

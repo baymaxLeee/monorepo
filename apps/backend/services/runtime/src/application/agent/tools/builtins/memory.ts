@@ -1,5 +1,4 @@
-import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
-import { ToolBlockedError } from "@repo/agent-runtime/tools/outcome";
+import { defineAgentTool, ToolBlockedError } from "@repo/agent-runtime";
 import { tool } from "ai";
 import { z } from "zod";
 

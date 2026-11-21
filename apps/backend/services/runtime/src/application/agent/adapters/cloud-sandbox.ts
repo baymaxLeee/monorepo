@@ -1,14 +1,17 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/execution/permissions";
-import { ProcessManager } from "@repo/agent-runtime/execution/process-manager";
-import type {
-  CommandOutputMetadata,
-  SandboxAttempt,
-  SandboxAttemptResult,
-  SandboxViolation,
-} from "@repo/agent-runtime/execution/tool-orchestrator";
-import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
+import {
+  type CommandOutputMetadata,
+  type SandboxAttempt,
+  type SandboxAttemptResult,
+  type SandboxViolation,
+  type ProcessIO,
+  ProcessManager,
+  workspaceMediaType,
+  compilePermissionProfile,
+  type PermissionProfile,
+  permissionProfileFileAccess,
+} from "@repo/agent-runtime";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
 import type { SandboxProcess } from "#runtime/transport";
@@ -21,6 +24,7 @@ import {
 import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { storageClient, type StorageClient } from "../../../infrastructure/clients/storage.js";
+import { logger } from "../../../infrastructure/observability/logger.js";
 import { persistCloudWorkspace } from "../../cloud-workspace.js";
 import {
   deleteWorkspaceSessionFile,
@@ -29,10 +33,14 @@ import {
   saveSessionFile,
   type SessionFile,
 } from "../../session-files.js";
-import { isValidWorkspacePath } from "../../workspace-paths.js";
+import { readWorkspaceCheckout, recordWorkspaceCheckout } from "../../workspace-checkout.js";
+import { ATTACHMENT_ROOT, isValidWorkspacePath } from "../../workspace-paths.js";
 import { sandboxExecutionLifecycle, type SandboxExecutionLifecycle } from "../runs/sandbox-executions.js";
 import type { ArtifactToolContext } from "../tools/context.js";
 import { SandboxLease } from "./sandbox-lease.js";
+
+type SpawnOptions = Parameters<Experimental_SandboxSession["spawn"]>[0];
+type WritableProcess = Experimental_SandboxProcess & { stdin: WritableStream<Uint8Array> };
 
 export interface SandboxDependencies {
   sandbox: () => Pick<
@@ -42,6 +50,8 @@ export interface SandboxDependencies {
   asset: () => Pick<StorageClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
   documents: typeof listDocuments;
   files: typeof listSessionFiles;
+  checkout: typeof readWorkspaceCheckout;
+  recordCheckout: typeof recordWorkspaceCheckout;
   publish: typeof publishSessionFile;
   update: typeof saveSessionFile;
   delete: typeof deleteWorkspaceSessionFile;
@@ -53,6 +63,8 @@ const defaults: SandboxDependencies = {
   asset: storageClient,
   documents: listDocuments,
   files: listSessionFiles,
+  checkout: readWorkspaceCheckout,
+  recordCheckout: recordWorkspaceCheckout,
   publish: publishSessionFile,
   update: saveSessionFile,
   delete: deleteWorkspaceSessionFile,
@@ -149,7 +161,7 @@ function shellQuote(value: string) {
  * Run-scoped implementation of AI SDK 7's Experimental_SandboxSession.
  *
  * The installed SDK contract exposes command, file and process primitives.
- * Chat restores and finalizes the stable business tree around the SDK-owned
+ * Runtime restores and finalizes the session workspace around the SDK-owned
  * command/file primitives; deliverable publication remains a product action.
  */
 export class RunSandbox implements Experimental_SandboxSession {
@@ -162,10 +174,10 @@ export class RunSandbox implements Experimental_SandboxSession {
     string,
     { fingerprint: string; source: { path: string; document_id?: string; file_id?: string } }
   >();
-  private readonly workspaceBaseline = new Map<string, SessionFile>();
   private readonly observedFileEtags = new Map<string, string>();
   private fileObservationInitialized = false;
   private sourceManifest = "";
+  private includeKnowledgeSources = false;
   private readonly scope: SandboxScope;
   constructor(
     private readonly context: ArtifactToolContext & { attemptEpoch: string },
@@ -207,7 +219,9 @@ export class RunSandbox implements Experimental_SandboxSession {
     const signal = this.lease.signal;
     const client = this.deps.sandbox();
     const imported: Array<{ path: string; document_id?: string; file_id?: string }> = [];
-    const documents = await this.deps.documents(this.context.userId, this.context.sessionId);
+    const documents = this.includeKnowledgeSources
+      ? await this.deps.documents(this.context.userId, this.context.sessionId)
+      : [];
     for (const document of documents) {
       signal.throwIfAborted();
       if (
@@ -266,7 +280,9 @@ export class RunSandbox implements Experimental_SandboxSession {
         if (!body.locked) await body.cancel().catch(() => {});
       }
       this.sources.set(key, { fingerprint, source });
-      this.workspaceBaseline.set(file.workspace_path, file);
+      if (!file.workspace_path.startsWith(ATTACHMENT_ROOT)) {
+        await this.deps.recordCheckout(this.context, file);
+      }
       imported.push(source);
     }
     const manifest = `${JSON.stringify(
@@ -291,6 +307,7 @@ export class RunSandbox implements Experimental_SandboxSession {
   }
 
   async refresh(signal?: AbortSignal) {
+    this.includeKnowledgeSources = true;
     const existed = this.lease.started;
     const session = await this.ensure(signal);
     const sources = existed
@@ -341,6 +358,9 @@ export class RunSandbox implements Experimental_SandboxSession {
     attempt: SandboxAttempt,
     options: {
       command: string;
+      shell?: string;
+      login?: boolean;
+      io?: ProcessIO;
       workingDirectory?: string;
       env?: Record<string, string>;
       timeoutMs?: number;
@@ -357,11 +377,14 @@ export class RunSandbox implements Experimental_SandboxSession {
     let process = await client.start(
       session.id,
       {
-        command: options.command,
+        command:
+          options.shell || options.login
+            ? `exec ${shellQuote(options.shell ?? "/bin/bash")} ${options.login ? "-lc" : "-c"} ${shellQuote(options.command)}`
+            : options.command,
         workdir: options.workingDirectory ?? "/workspace/work",
         env: options.env ?? {},
-        tty: false,
-        yield_time_ms: 10_000,
+        tty: options.io?.tty ?? false,
+        yield_time_ms: options.io ? 0 : 10_000,
         timeout_ms: options.timeoutMs ?? 120_000,
         scope: this.scope,
         request_id: randomBytes(16).toString("hex"),
@@ -378,23 +401,49 @@ export class RunSandbox implements Experimental_SandboxSession {
         stderr: { totalBytes: 0, truncated: false },
       },
     };
-    appendProcessOutput(output, process);
-    while (process.termination === null) {
-      signal?.throwIfAborted();
-      process = await client.write(
-        session.id,
-        process.session_id,
-        {
-          scope: this.scope,
-          request_id: randomBytes(16).toString("hex"),
-          chars: "",
-          yield_time_ms: 10_000,
-          stdout_offset: process.stdout_offset,
-          stderr_offset: process.stderr_offset,
-        },
-        signal,
-      );
-      appendProcessOutput(output, process);
+    const capture = (chunk: SandboxProcess) => {
+      if (options.io) options.io.output(chunk.stdout + chunk.stderr);
+      else appendProcessOutput(output, chunk);
+    };
+    capture(process);
+    const processId = process.session_id;
+    if (options.io?.tty)
+      options.io.stdin(async (chars, requestId) => {
+        signal.throwIfAborted();
+        await client.write(
+          session.id,
+          processId,
+          {
+            scope: this.scope,
+            request_id: requestId,
+            chars,
+            yield_time_ms: 0,
+            stdout_offset: process.stdout_offset,
+            stderr_offset: process.stderr_offset,
+          },
+          signal,
+        );
+      });
+    try {
+      while (process.termination === null) {
+        signal?.throwIfAborted();
+        process = await client.write(
+          session.id,
+          process.session_id,
+          {
+            scope: this.scope,
+            request_id: randomBytes(16).toString("hex"),
+            chars: "",
+            yield_time_ms: options.io ? 250 : 10_000,
+            stdout_offset: process.stdout_offset,
+            stderr_offset: process.stderr_offset,
+          },
+          signal,
+        );
+        capture(process);
+      }
+    } finally {
+      if (process.termination === null) await client.cancel(session.id, processId, this.scope);
     }
     const termination = process.termination;
     switch (termination.type) {
@@ -455,8 +504,16 @@ export class RunSandbox implements Experimental_SandboxSession {
     return this.runHelper(options);
   }
 
+  private checkFileAccess(relative: string, access: "read" | "write") {
+    const path = `/workspace/${relative}`;
+    if (permissionProfileFileAccess(this.helperPermissionProfile, { path, access }) !== "allowed") {
+      throw new Error(`The active permission profile does not grant ${access} access to ${path}.`);
+    }
+  }
+
   async readFile(options: { path: string; abortSignal?: AbortSignal }) {
     const relative = sandboxRelativePath(options.path);
+    this.checkFileAccess(relative, "read");
     const absolute = `/workspace/${relative}`;
     const check = await this.runHelper({
       command: `test -f ${shellQuote(absolute)}`,
@@ -529,6 +586,7 @@ export class RunSandbox implements Experimental_SandboxSession {
 
   async writeFile(options: { path: string; content: ReadableStream<Uint8Array>; abortSignal?: AbortSignal }) {
     const relative = writableSandboxPath(options.path);
+    this.checkFileAccess(relative, "write");
     const session = await this.ensure(options.abortSignal);
     await this.deps
       .sandbox()
@@ -628,8 +686,8 @@ find -H ${shellQuote(absolute)} -mindepth 1 -maxdepth 1 -printf '%f\\0%y\\0'`,
     if (fields.length % 2 !== 0) throw new Error(`Sandbox returned an invalid directory listing for ${absolute}.`);
     const entries: Array<{ name: string; type: "file" | "directory" | "symlink" | "other" }> = [];
     for (let index = 0; index < fields.length; index += 2) {
-      const name = fields[index]!;
-      const kind = fields[index + 1]!;
+      const name = fields[index];
+      const kind = fields[index + 1];
       entries.push({
         name,
         type: kind === "f" ? "file" : kind === "d" ? "directory" : kind === "l" ? "symlink" : "other",
@@ -653,26 +711,35 @@ rm -- ${shellQuote(absolute)}`,
     return true;
   }
 
-  async stagePublishedFile(path: string, content: Uint8Array, signal?: AbortSignal): Promise<boolean> {
-    if (!this.lease.attached) return false;
-    const workspacePath = path.startsWith("/workspace/") ? path : `/workspace/${path}`;
-    if (this.workspaceBaseline.has(workspacePath)) {
-      throw new Error(`A workspace file already exists at ${workspacePath}.`);
+  async stagePublishedFile(file: SessionFile, content: Uint8Array, signal?: AbortSignal): Promise<void> {
+    if (!this.lease.attached) return;
+    const relative = writableSandboxPath(file.workspace_path);
+    const session = await this.ensure(signal);
+    const client = this.deps.sandbox();
+    const active = this.operationSignal(signal);
+    try {
+      await client.upload(session.id, this.scope, relative, new Blob([content]).stream(), active, undefined, {
+        mode: "create",
+      });
+    } catch (error) {
+      active.throwIfAborted();
+      // A repeated create or lost upload acknowledgement may leave exactly these bytes in place.
+      const actual = await this.fileDigest(session.id, relative, active).catch(() => null);
+      if (actual !== file.sha256) throw error;
     }
-    await this.writeBinaryFile({ path: workspacePath, content, abortSignal: signal });
-    return true;
+    await this.deps.recordCheckout(this.context, file);
   }
 
-  async spawn(options: {
-    command: string;
-    workingDirectory?: string;
-    env?: Record<string, string>;
-    abortSignal?: AbortSignal;
-    stdin?: boolean;
-  }): Promise<Experimental_SandboxProcess & { stdin: WritableStream<Uint8Array> }> {
-    if (options.stdin) {
-      throw new Error("Writable process stdin is not supported by this sandbox transport.");
-    }
+  private async fileDigest(id: string, path: string, signal: AbortSignal) {
+    const body = await this.deps.sandbox().download(id, this.scope, path, signal);
+    const hash = createHash("sha256");
+    for await (const chunk of body) hash.update(chunk);
+    return hash.digest("hex");
+  }
+
+  spawn(options: SpawnOptions & { stdin: true }): Promise<WritableProcess>;
+  spawn(options: SpawnOptions): Promise<Experimental_SandboxProcess>;
+  async spawn(options: SpawnOptions): Promise<Experimental_SandboxProcess | WritableProcess> {
     const session = await this.ensure(options.abortSignal);
     const identity = this.helperProcesses.reserve();
     const controller = new AbortController();
@@ -698,6 +765,8 @@ rm -- ${shellQuote(absolute)}`,
           workdir: options.workingDirectory ?? "/workspace/work",
           env: options.env ?? {},
           tty: false,
+          binary_io: true,
+          pipe_stdin: options.stdin === true,
           yield_time_ms: 0,
           timeout_ms: 120_000,
           scope: this.scope,
@@ -710,7 +779,27 @@ rm -- ${shellQuote(absolute)}`,
       if (this.helperProcesses.contains(identity)) this.helperProcesses.close(identity);
       throw error;
     }
-    const encoder = new TextEncoder();
+    const processId = process.session_id;
+    let cancelling: Promise<unknown> | undefined;
+    const terminate = () => (cancelling ??= client.cancel(session.id, processId, this.scope));
+    const writeInput = async (data: { stdin_base64: string } | { close_stdin: true }) => {
+      signal.throwIfAborted();
+      if (process.termination) throw new Error("Process stdin is closed");
+      await client.write(
+        session.id,
+        processId,
+        {
+          scope: this.scope,
+          request_id: randomBytes(16).toString("hex"),
+          chars: "",
+          yield_time_ms: 0,
+          stdout_offset: process.stdout_offset,
+          stderr_offset: process.stderr_offset,
+          ...data,
+        },
+        signal,
+      );
+    };
     let stdoutController!: ReadableStreamDefaultController<Uint8Array>;
     let stderrController!: ReadableStreamDefaultController<Uint8Array>;
     let stdoutOpen = true;
@@ -732,8 +821,9 @@ rm -- ${shellQuote(absolute)}`,
       },
     });
     const enqueue = () => {
-      if (stdoutOpen && process.stdout) stdoutController.enqueue(encoder.encode(process.stdout));
-      if (stderrOpen && process.stderr) stderrController.enqueue(encoder.encode(process.stderr));
+      if (process.truncated) throw new Error("Sandbox process output exceeded its retention window");
+      if (stdoutOpen && process.stdout) stdoutController.enqueue(Buffer.from(process.stdout, "base64"));
+      if (stderrOpen && process.stderr) stderrController.enqueue(Buffer.from(process.stderr, "base64"));
     };
     let resolveWait!: (value: { exitCode: number }) => void;
     let rejectWait!: (reason: unknown) => void;
@@ -761,7 +851,6 @@ rm -- ${shellQuote(absolute)}`,
           enqueue();
         }
         const termination = process.termination;
-        if (termination.type === "timeout") await this.dispose();
         if (stdoutOpen) stdoutController.close();
         if (stderrOpen) stderrController.close();
         if (termination.type === "exit") resolveWait({ exitCode: termination.exit_code });
@@ -771,6 +860,8 @@ rm -- ${shellQuote(absolute)}`,
             new Error(termination.type === "sandbox-violation" ? "Sandbox process was denied." : termination.message),
           );
       } catch (error) {
+        if (!process.termination)
+          await terminate().catch((err) => logger.error({ err }, "sandbox process cancellation failed"));
         if (stdoutOpen) stdoutController.error(error);
         if (stderrOpen) stderrController.error(error);
         rejectWait(error);
@@ -784,19 +875,29 @@ rm -- ${shellQuote(absolute)}`,
         }
       }
     })();
-    let killPromise: Promise<void> | undefined;
-    return {
+    // A caller can consume a stream before observing wait(). Keep its rejection observable there.
+    void completion.catch(() => {});
+    const handle: Experimental_SandboxProcess = {
       stdout,
       stderr,
       wait: () => completion,
-      kill: () =>
-        (killPromise ??= (async () => {
-          if (process.termination === null) await client.cancel(session.id, process.session_id, this.scope);
-          await completion;
-        })()),
-      stdin: new WritableStream({
-        write() {
-          throw new Error("Writable process stdin was not enabled.");
+      kill: async () => {
+        if (!process.termination) await terminate();
+        await completion;
+      },
+    };
+    if (!options.stdin) return handle;
+    return {
+      ...handle,
+      stdin: new WritableStream<Uint8Array>({
+        async write(bytes) {
+          for (let offset = 0; offset < bytes.byteLength; offset += 49152) {
+            await writeInput({ stdin_base64: Buffer.from(bytes.subarray(offset, offset + 49152)).toString("base64") });
+          }
+        },
+        close: () => writeInput({ close_stdin: true }),
+        abort: async () => {
+          await handle.kill();
         },
       }),
     };
@@ -807,23 +908,10 @@ rm -- ${shellQuote(absolute)}`,
     const workspacePath = `/workspace/${path}`;
     if (!isValidWorkspacePath(workspacePath)) throw new Error("Invalid workspace file path.");
     const session = await this.ensure(signal);
-    const baseline = this.workspaceBaseline.get(workspacePath);
+    const baseline = (await this.deps.checkout(this.context)).find((file) => file.workspace_path === workspacePath);
     const filename = path.split("/").at(-1)!;
     if (baseline) {
-      const firstBody = await this.deps.sandbox().download(session.id, this.scope, path, this.operationSignal(signal));
-      const hash = createHash("sha256");
-      const reader = firstBody.getReader();
-      try {
-        while (true) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          hash.update(chunk.value);
-        }
-      } finally {
-        await reader.cancel().catch(() => {});
-        reader.releaseLock();
-        if (!firstBody.locked) await firstBody.cancel().catch(() => {});
-      }
+      const digest = await this.fileDigest(session.id, path, this.operationSignal(signal));
       const file = await this.deps.update(
         {
           userId: this.context.userId,
@@ -834,10 +922,11 @@ rm -- ${shellQuote(absolute)}`,
           expectedEtag: baseline.etag,
           workspacePath,
           expectedPathGeneration: baseline.path_generation,
-          contentSha256: hash.digest("hex"),
+          contentSha256: digest,
           operationId: createHash("sha256").update(`${this.context.runId}:${requestId}`).digest("hex"),
           writerType: "agent",
           writerId: this.context.runId,
+          sandboxAttempt: this.context,
         },
         async (idempotencyKey, current, claim) => {
           const storage = this.deps.asset();
@@ -871,7 +960,6 @@ rm -- ${shellQuote(absolute)}`,
           }
         },
       );
-      this.workspaceBaseline.set(workspacePath, file);
       return {
         file_id: file.id,
         workspace_path: workspacePath,
@@ -911,8 +999,8 @@ rm -- ${shellQuote(absolute)}`,
         workspacePath,
         writerType: "agent",
         writerId: this.context.runId,
+        sandboxAttempt: this.context,
       });
-      this.workspaceBaseline.set(workspacePath, file);
       return {
         file_id: file.id,
         workspace_path: workspacePath,

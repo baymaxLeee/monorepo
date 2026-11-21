@@ -1,19 +1,26 @@
-import { parseRuntimeCompactionState, type RuntimeCompactionState } from "@repo/agent-runtime/context/compaction";
-import { projectRuntimeContext, type RuntimeContextCheckpointWrite } from "@repo/agent-runtime/context/manager";
-import type { RuntimeTokenUsage } from "@repo/agent-runtime/context/token-usage";
-import type { UIMessage } from "ai";
+import {
+  projectRuntimeContext,
+  parseCheckpointState,
+  type RuntimeContextCheckpointWrite,
+  type RuntimeTokenUsage,
+} from "@repo/agent-runtime";
+import type { ToolSet, UIMessage } from "ai";
 import { and, eq } from "drizzle-orm";
 
 import { createProviderModel, type LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { contextCheckpoints } from "../../../infrastructure/persistence/schema.js";
+import { withRunLease, type RunLeaseToken, type RuntimeTransaction } from "../runs/repository.js";
 import { transformFilePartsForModel } from "./model-files.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
-async function saveCheckpoint(sessionId: string, checkpoint: RuntimeContextCheckpointWrite): Promise<void> {
-  const db = getDb();
+async function saveCheckpoint(
+  db: RuntimeTransaction,
+  sessionId: string,
+  checkpoint: RuntimeContextCheckpointWrite,
+): Promise<void> {
   const now = new Date();
   if (checkpoint.expectedRevision != null) {
     const updated = await db
@@ -21,7 +28,7 @@ async function saveCheckpoint(sessionId: string, checkpoint: RuntimeContextCheck
       .set({
         revision: BigInt(checkpoint.expectedRevision + 1),
         coveredItemId: checkpoint.coveredThroughMessageId,
-        summary: checkpoint.state.summary,
+        summary: "summary" in checkpoint.state ? checkpoint.state.summary : "",
         stateJson: checkpoint.state as unknown as Record<string, unknown>,
         estimatedTokens: checkpoint.estimatedTokens,
         updatedAt: now,
@@ -40,7 +47,7 @@ async function saveCheckpoint(sessionId: string, checkpoint: RuntimeContextCheck
     threadId: sessionId,
     revision: 1n,
     coveredItemId: checkpoint.coveredThroughMessageId,
-    summary: checkpoint.state.summary,
+    summary: "summary" in checkpoint.state ? checkpoint.state.summary : "",
     stateJson: checkpoint.state as unknown as Record<string, unknown>,
     estimatedTokens: checkpoint.estimatedTokens,
     createdAt: now,
@@ -49,36 +56,45 @@ async function saveCheckpoint(sessionId: string, checkpoint: RuntimeContextCheck
 }
 
 export async function projectModelContext(input: {
+  owner: RunLeaseToken;
   sessionId: string;
   userId: string;
   tenantId: string;
   workspaceId: string;
   provider: LanguageProviderSnapshot & { supportsImageInput: boolean };
   abortSignal: AbortSignal;
+  previousInputTokens?: number;
+  remoteBinding?: string;
+  instructions?: Parameters<typeof projectRuntimeContext>[0]["instructions"];
   messages: AnyUIMessage[];
+  tools: ToolSet;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
 }) {
   const [stored] = await getDb()
     .select()
     .from(contextCheckpoints)
     .where(eq(contextCheckpoints.threadId, input.sessionId));
-  const state = parseRuntimeCompactionState(stored?.stateJson);
+  const state = parseCheckpointState(stored?.stateJson);
   const checkpoint =
     stored && stored.coveredItemId && state
       ? {
           revision: Number(stored.revision),
           coveredThroughMessageId: stored.coveredItemId,
-          state: state satisfies RuntimeCompactionState,
+          state,
         }
       : null;
   return projectRuntimeContext({
     messages: input.messages,
+    tools: input.tools,
     model: createProviderModel(input.provider),
     limits: input.provider,
+    previousInputTokens: input.previousInputTokens,
+    remoteBinding: input.remoteBinding,
+    instructions: input.instructions,
     checkpoint,
     signal: input.abortSignal,
     onCompactionUsage: input.onCompactionUsage,
-    saveCheckpoint: (next) => saveCheckpoint(input.sessionId, next),
+    saveCheckpoint: (next) => withRunLease(input.owner, (tx) => saveCheckpoint(tx, input.sessionId, next)),
     prepareRecent: (messages) =>
       transformFilePartsForModel(messages, {
         userId: input.userId,

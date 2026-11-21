@@ -1,9 +1,14 @@
-import { authorizeConversationDocumentDelivery, type ConversationDocumentDetail } from "@repo/api/chat";
+import {
+  authorizeConversationFileDelivery,
+  authorizeConversationDocumentDelivery,
+  type ConversationDocumentDetail,
+} from "@repo/api/chat";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;
 
 export type DocumentSourceOptions = {
+  kind?: "document" | "file";
   version?: string;
   maxDim?: number;
 };
@@ -31,8 +36,8 @@ export function fetchCachedDocumentSource(
   documentId: string,
   versionOrOptions?: string | DocumentSourceOptions,
 ): Promise<Blob> {
-  const { version = "", maxDim } = normalizeSourceOptions(versionOrOptions);
-  const key = cacheKey(conversationId, documentId, version, maxDim);
+  const { version = "", maxDim, kind = "document" } = normalizeSourceOptions(versionOrOptions);
+  const key = kind + ":" + cacheKey(conversationId, documentId, version, maxDim);
   const cached = sourceCache.get(key);
   if (cached) {
     sourceCache.delete(key);
@@ -41,18 +46,15 @@ export function fetchCachedDocumentSource(
   }
 
   const variant = maxDim ? `thumb-${maxDim}` : "full";
-  const variantPrefix = `${docPrefix(conversationId, documentId)}${variant}:`;
+  const variantPrefix = `${kind}:${docPrefix(conversationId, documentId)}${variant}:`;
   for (const existing of sourceCache.keys()) {
     if (existing.startsWith(variantPrefix)) {
       sourceCache.delete(existing);
     }
   }
 
-  const request = authorizeConversationDocumentDelivery(
-    conversationId,
-    documentId,
-    maxDim ? { max_dim: maxDim } : undefined,
-  )
+  const authorize = kind === "file" ? authorizeConversationFileDelivery : authorizeConversationDocumentDelivery;
+  const request = authorize(conversationId, documentId, maxDim ? { max_dim: maxDim } : undefined)
     .then(async (capability) => {
       const response = await fetch(capability.url, { credentials: "omit", referrerPolicy: "no-referrer" });
       if (!response.ok) throw new Error(`document download failed: ${response.status}`);
@@ -94,7 +96,7 @@ export function useDocumentBlobUrl(
   enabled: boolean,
   versionOrOptions?: string | DocumentSourceOptions,
 ) {
-  const { version = "", maxDim } = normalizeSourceOptions(versionOrOptions);
+  const { version = "", maxDim, kind = "document" } = normalizeSourceOptions(versionOrOptions);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -113,6 +115,7 @@ export function useDocumentBlobUrl(
     void fetchCachedDocumentSource(conversationId, documentId, {
       version,
       maxDim,
+      kind,
     })
       .then((blob) => {
         if (!active) {
@@ -137,7 +140,7 @@ export function useDocumentBlobUrl(
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [conversationId, documentId, enabled, maxDim, version]);
+  }, [conversationId, documentId, enabled, maxDim, version, kind]);
 
   return { blobUrl, loading, error };
 }

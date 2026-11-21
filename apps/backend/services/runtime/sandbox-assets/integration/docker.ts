@@ -155,19 +155,51 @@ test(
       });
       assert.match(continued.stdout, /got:hello/);
       assert.equal(exitCode(continued), 0);
-      const allow = await client.start(id, {
-        scope,
-        command: "curl -fsS --max-time 8 https://example.com -o /tmp/egress.html && head -c 100 /tmp/egress.html",
+      const pipe = await client.start(id, {
+        ...request,
+        command: "cat",
         request_id: randomUUID(),
-        workdir: "/workspace/work",
-        env: {},
-        tty: false,
-        yield_time_ms: 10_000,
-        timeout_ms: 10_000,
-        sandbox: sandbox(["example.com"]),
+        sandbox: sandbox(),
+        binary_io: true,
+        pipe_stdin: true,
+        yield_time_ms: 0,
+        timeout_ms: 10000,
       });
-      assert.equal(exitCode(allow), 0, allow.stderr);
-      assert.ok(allow.stdout.length > 0, allow.stderr);
+      await client.write(id, pipe.session_id, {
+        scope,
+        request_id: randomUUID(),
+        chars: "",
+        stdin_base64: Buffer.from(binary).toString("base64"),
+        stdout_offset: 0,
+        stderr_offset: 0,
+        yield_time_ms: 0,
+      });
+      const echoed = await client.write(id, pipe.session_id, {
+        scope,
+        request_id: randomUUID(),
+        chars: "",
+        close_stdin: true,
+        stdout_offset: 0,
+        stderr_offset: 0,
+        yield_time_ms: 1000,
+      });
+      assert.equal(exitCode(echoed), 0);
+      assert.deepEqual(Buffer.from(echoed.stdout, "base64"), Buffer.from(binary));
+      await t.test("approved public HTTPS through the sandbox proxy", async () => {
+        const allow = await client.start(id, {
+          scope,
+          command: "curl -fsS --max-time 8 https://example.com -o /tmp/egress.html && head -c 100 /tmp/egress.html",
+          request_id: randomUUID(),
+          workdir: "/workspace/work",
+          env: {},
+          tty: false,
+          yield_time_ms: 10_000,
+          timeout_ms: 10_000,
+          sandbox: sandbox(["example.com"]),
+        });
+        assert.equal(exitCode(allow), 0, allow.stderr);
+        assert.ok(allow.stdout.length > 0, allow.stderr);
+      });
       const denied = await start("curl -fsS --max-time 5 http://169.254.169.254/latest/meta-data", {
         yield_time_ms: 10000,
       });
@@ -205,6 +237,7 @@ test(
         "import pathlib; live=[]\nfor p in pathlib.Path('/proc').glob('[0-9]*/status'):\n try:\n  s=p.read_text(); live += [str(p)] if 'Uid:\\t1000\\t' in s and 'State:\\tZ' not in s else []\n except FileNotFoundError: pass\nprint(live)",
       ]);
       assert.equal(survivors.trim(), "[]");
+      assert.equal((await start("printf still-usable")).stdout, "still-usable");
     } finally {
       await client.destroy(scope);
       await new Promise<void>((resolve) => {

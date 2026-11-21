@@ -4,8 +4,12 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/execution/permissions";
-import type { SandboxAttempt, SandboxAttemptResult } from "@repo/agent-runtime/execution/tool-orchestrator";
+import {
+  type SandboxAttempt,
+  type SandboxAttemptResult,
+  compilePermissionProfile,
+  type PermissionProfile,
+} from "@repo/agent-runtime";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { LocalSandbox, seatbeltProfile } from "../electron/sandbox";
@@ -51,6 +55,31 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
   afterAll(async () => {
     sandbox?.cancel();
     if (directory) await rm(directory, { recursive: true, force: true });
+  });
+
+  it("runs terminal input and output through a real sandboxed PTY", async () => {
+    let text = "";
+    const result = await sandbox.execute(
+      attempt(),
+      "/bin/sh",
+      ["-c", 'test -t 0 && test -t 1 && read -r line && printf "answer=%s" "$line"'],
+      undefined,
+      undefined,
+      5000,
+      undefined,
+      {
+        tty: true,
+        signal: new AbortController().signal,
+        output(chunk) {
+          text += chunk;
+        },
+        stdin(write) {
+          void write("hello\n", "request");
+        },
+      },
+    );
+    expect(result).toMatchObject({ type: "exit", exitCode: 0 });
+    expect(text).toContain("answer=hello");
   });
 
   it("allows authorized writes and rejects outside reads, writes and symlink escapes", async () => {
@@ -127,6 +156,27 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
       });
+    }
+  });
+
+  it("grants only the selected thread source directory for shell reads, including in full-access mode", async () => {
+    const control = join(sandbox.options.root, "control");
+    const root = join(control, "attachments", "thread-a");
+    const sibling = join(control, "attachments", "thread-b");
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(sibling, { recursive: true })]);
+    const source = join(root, "source.txt");
+    const other = join(sibling, "source.txt");
+    await Promise.all([writeFile(source, "selected"), writeFile(other, "private")]);
+    for (const sandboxed of [true, false]) {
+      const execute = (cmd: string, ...args: string[]) =>
+        sandbox.execute({ ...attempt(), sandboxed, attachmentRoot: root }, cmd, args);
+      expect(await execute("/bin/cat", source)).toMatchObject({ exitCode: 0, stdout: "selected" });
+      for (const blocked of [other, join(control, "secret")]) {
+        expect(await execute("/bin/cat", blocked)).toMatchObject({ exitCode: 1, stdout: "" });
+      }
+      const write = await execute("/bin/sh", "-c", 'printf changed > "$1"', "sh", source);
+      expect(write.type === "exit" && write.exitCode !== 0).toBe(true);
+      expect(await readFile(source, "utf8")).toBe("selected");
     }
   });
 

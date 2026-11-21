@@ -3,8 +3,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { toPersistedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
-import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import { toPersistedTurnPluginSnapshot, type ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { importLocalPlugin, listLocalPlugins, resolveDesktopPlugins } from "../electron/runtime/local-plugins";

@@ -1,10 +1,14 @@
 import { randomBytes } from "node:crypto";
 
-import { RuntimeTurn } from "@repo/agent-runtime";
-import { contextCompactionThreshold, shouldResetStoredResponseLineage } from "@repo/agent-runtime/context/budget";
-import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
-import { resolveTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
-import type { PluginActivation } from "@repo/agent-runtime/plugins/types";
+import {
+  RuntimeTurn,
+  contextCompactionThreshold,
+  shouldResetStoredResponseLineage,
+  resolveTurnPluginSnapshot,
+  type PluginActivation,
+  type ApprovalPolicy,
+  type BuiltInPermissionProfileId,
+} from "@repo/agent-runtime";
 import {
   consumeStream,
   createUIMessageStream,
@@ -27,19 +31,14 @@ import {
   getSkillFile,
   resolveAgentPlugins,
 } from "../../../infrastructure/clients/admin.js";
-import { getDocument, knowledgeDocumentSessionId } from "../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedThreadItemContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
+import { getSessionAttachment } from "../../session-files.js";
 import { getSessionRow, listMessages, type Message } from "../../sessions.js";
 import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
 import type { ContextCategoryId } from "../context/context-snapshot.js";
-import {
-  activatedSkillNameFromParts,
-  attachedImageDocumentIdsFromParts,
-  hasUntrustedFilePart,
-  referencedDocumentIdsFromParts,
-} from "../context/file-parts.js";
+import { activatedSkillNameFromParts, sessionFileIdFromUrl } from "../context/file-parts.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
 import { projectModelContext } from "../context/model-context.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
@@ -71,6 +70,7 @@ import { abortRun, registerRunController, releaseRun } from "./lease.js";
 import {
   claimAgentRunOperation,
   finalizeAgentRunJournal,
+  persistCompletedStep,
   getAgentRunById,
   hasSessionContextCheckpoint,
   getLatestResponseLineage,
@@ -147,10 +147,6 @@ function textFromUiMessage(message: AnyUIMessage): string {
     .map((part) => part.text)
     .join("")
     .trim();
-}
-
-function referencedDocumentIds(message: AnyUIMessage): string[] {
-  return referencedDocumentIdsFromParts(message.parts);
 }
 
 function requestedOperation(input: RunAgentInput, latestMessage: AnyUIMessage): AgentRunOperation {
@@ -277,29 +273,21 @@ export async function createAgentRunResponse(
     throw new RequestError("tool continuation requires an assistant message");
   }
   const submittedUser = operation === "submit-message" || operation === "edit-message" ? latestMessage : null;
-  if (submittedUser) assertUserSubmissionParts(submittedUser);
-  if (submittedUser && hasUntrustedFilePart(submittedUser.parts)) {
-    throw new RequestError("file attachments must reference a session document");
-  }
-  const requestedDocumentIds = submittedUser ? [...new Set(referencedDocumentIds(submittedUser))] : [];
   if (submittedUser) {
-    const prompt = textFromUiMessage(submittedUser);
-    if (!prompt.trim() && !requestedDocumentIds.length) {
+    assertUserSubmissionParts(submittedUser);
+    if (!submittedUser.id || submittedUser.id.length > 32)
+      throw new RequestError("user message id must contain 1 to 32 characters");
+    if (!textFromUiMessage(submittedUser) && !submittedUser.parts.some((part) => part.type === "file"))
       throw new RequestError("agent prompt is required");
-    }
-  }
-
-  await Promise.all(
-    requestedDocumentIds.map(async (documentId) => {
-      const document = await getDocument(session.userId, documentId);
-      if (knowledgeDocumentSessionId(document) !== session.id) {
-        throw new RequestError(`document ${documentId} does not belong to this session`);
-      }
-    }),
-  );
-
-  if (submittedUser && (!submittedUser.id || submittedUser.id.length > 32)) {
-    throw new RequestError("user message id must contain 1 to 32 characters");
+    submittedUser.parts = await Promise.all(
+      submittedUser.parts.map(async (part) => {
+        if (part.type !== "file") return part;
+        const fileId = sessionFileIdFromUrl(part.url, session.id);
+        if (!fileId || part.providerReference != null) throw new RequestError("invalid session attachment reference");
+        const file = await getSessionAttachment(auth, session.id, fileId);
+        return { type: "file" as const, url: part.url, filename: file.filename, mediaType: file.mime_type };
+      }),
+    );
   }
   const claimedUserMessage = submittedUser;
   const claim = await claimAgentRunOperation({
@@ -411,18 +399,58 @@ export async function createAgentRunResponse(
           "stored response lineage requires compaction or lacks reliable usage; rebuilding from the local journal",
         );
       }
-      const projectionSource = continueStoredLineage ? [modelUiMessages.at(-1)!] : modelUiMessages;
-      const replayingFullHistory = !continueStoredLineage;
-      const projectionUiMessages = replayingFullHistory
-        ? removeStoredResponseReferences(projectionSource.map(compactHistoricalSkillOutputs))
-        : projectionSource.map(compactHistoricalSkillOutputs);
+      const projectionUiMessages = removeStoredResponseReferences(modelUiMessages.map(compactHistoricalSkillOutputs));
+      const skills = input.skills ?? [];
+
+      const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
+      const currentSkillName = continuedSkill?.name ?? activatedSkillName;
+      const prepared = await prepareCloudTurn(
+        {
+          workspaceRole: auth.workspaceRole,
+          runId,
+          attemptEpoch: claim.attemptEpoch,
+          userId: session.userId,
+          tenantId: auth.tenantId,
+          workspaceId: auth.workspaceId,
+          sessionId: session.id,
+          signal: scope.signal,
+          pluginSnapshot,
+          continuation: persistedContinuation,
+          provider,
+          reasoningEffort: input.reasoningEffort,
+          approvalPolicy: session.approvalPolicy as ApprovalPolicy,
+          permissionProfile: session.permissionProfile as BuiltInPermissionProfileId,
+          onCompactionUsage: (usage) => {
+            contextUsage = addUsage(contextUsage, usage);
+          },
+          previousResponseId: continueStoredLineage ? lineage.responseId : null,
+          instructionInput,
+          activeSkillName: currentSkillName,
+          skills,
+          loadSkillBody: async (skillId: string) => {
+            const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
+            return skill.files.length
+              ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
+              : skill.body;
+          },
+          loadSkillFile: (skillId: string, path: string) =>
+            getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
+        },
+        toolCatalog,
+        scope,
+      );
       const projected = await projectModelContext({
+        owner: leaseToken,
         sessionId: session.id,
         userId: session.userId,
         tenantId: session.tenantId,
         workspaceId: session.workspaceId,
         provider,
         abortSignal: scope.signal,
+        tools: prepared.settings.tools,
+        remoteBinding: prepared.settings.remoteCompactionBinding,
+        instructions: prepared.settings.instructions,
+        previousInputTokens: lineageIsCurrent ? (lineage.inputTokens ?? undefined) : undefined,
         messages: await validateUIMessages<AnyUIMessage>({
           messages: projectionUiMessages,
           metadataSchema: chatMessageMetadataSchema.optional(),
@@ -432,48 +460,16 @@ export async function createAgentRunResponse(
           contextUsage = addUsage(contextUsage, usage);
         },
       });
-      const modelMessages = projected.messages;
+      if (projected.checkpointAdvanced) prepared.settings.onHistoryReplacement?.();
       contextUsage = projected.compactionUsage;
 
-      const skills = input.skills ?? [];
-
-      const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
-      const currentSkillName = continuedSkill?.name ?? activatedSkillName;
       return {
-        messages: modelMessages,
-        ...(await prepareCloudTurn(
-          {
-            workspaceRole: auth.workspaceRole,
-            runId,
-            attemptEpoch: claim.attemptEpoch,
-            userId: session.userId,
-            tenantId: auth.tenantId,
-            workspaceId: auth.workspaceId,
-            sessionId: session.id,
-            signal: scope.signal,
-            pluginSnapshot,
-            continuation: persistedContinuation,
-            provider,
-            reasoningEffort: input.reasoningEffort,
-            approvalPolicy: session.approvalPolicy as ApprovalPolicy,
-            permissionProfile: session.permissionProfile as BuiltInPermissionProfileId,
-            previousResponseId: continueStoredLineage ? lineage.responseId : null,
-            attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
-            instructionInput,
-            activeSkillName: currentSkillName,
-            skills,
-            loadSkillBody: async (skillId: string) => {
-              const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
-              return skill.files.length
-                ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
-                : skill.body;
-            },
-            loadSkillFile: (skillId: string, path: string) =>
-              getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
-          },
-          toolCatalog,
-          scope,
-        )),
+        ...prepared,
+        settings: {
+          ...prepared.settings,
+          stepCheckpoint: { assistantId: assistantMessageId, save: projected.saveStepCheckpoint },
+        },
+        messages: projected.messages,
       };
     });
     const result = turn.result;
@@ -485,12 +481,13 @@ export async function createAgentRunResponse(
       assistantMessageId,
       publicationContext: {
         runId,
+        attemptEpoch: claim.attemptEpoch.toString(),
         sessionId: session.id,
         userId: session.userId,
         tenantId: auth.tenantId,
         workspaceId: auth.workspaceId,
         signal: runSignal,
-        stageWorkspaceFile: (path, content, signal) => turn.host.sandbox.stagePublishedFile(path, content, signal),
+        stageWorkspaceFile: (file, content, signal) => turn.host.sandbox.stagePublishedFile(file, content, signal),
       },
       onError: (error) => {
         logger.error({ err: error }, "stream failed");
@@ -498,6 +495,7 @@ export async function createAgentRunResponse(
       },
     });
 
+    let stepJournalError: Error | undefined;
     const uiStream = createUIMessageStream<AnyUIMessage>({
       originalMessages: modelUiMessages,
       generateId: () => assistantMessageId,
@@ -529,7 +527,12 @@ export async function createAgentRunResponse(
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
         const aborted = capacityError == null && (runSignal.aborted || currentRun?.status === "cancel_requested");
-        const streamError = capacityError ?? terminalStreamError(end.outcome, end.finishReason);
+        let streamError = stepJournalError ?? capacityError ?? terminalStreamError(end.outcome, end.finishReason);
+        try {
+          await runtimeTurn.dispose();
+        } catch (error) {
+          streamError ??= error instanceof Error ? error : new Error(String(error));
+        }
         const failed = streamError != null;
         const usage = await Promise.resolve(result.totalUsage).catch(() => null);
         const tokens = addUsage(extractUsageTokens(usage), contextUsage);
@@ -554,11 +557,20 @@ export async function createAgentRunResponse(
         writer.write({ type: "finish", finishReason: end.finishReason, messageMetadata: metadata });
       },
       onError: describeStreamError,
+      onStepEnd: async ({ responseMessage }) => {
+        try {
+          await persistCompletedStep(leaseToken, responseMessage.id, { version: 2, parts: responseMessage.parts });
+        } catch (error) {
+          stepJournalError = error instanceof Error ? error : new Error(String(error));
+          runtimeTurn.cancel();
+          throw stepJournalError;
+        }
+      },
       onEnd: async ({ responseMessage, isContinuation, finishReason, outcome }) => {
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
         const aborted = capacityError == null && (runSignal.aborted || currentRun?.status === "cancel_requested");
-        const streamError = capacityError ?? terminalStreamError(outcome, finishReason);
+        const streamError = stepJournalError ?? capacityError ?? terminalStreamError(outcome, finishReason);
         try {
           if (isContinuation !== (operation === "tool-continuation")) {
             throw new Error("SDK continuation identity does not match the claimed operation");

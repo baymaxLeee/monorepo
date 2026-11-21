@@ -16,7 +16,7 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 ## Layout
 
 - `src/router/index.tsx` — relative route tree exposed as `./routes`
-- Web and Electron cloud routes render the same `ConversationSessionView`, `ChatStream` and `ChatPrompt`. The Desktop new-conversation shell composes the same `PromptInput` into the native context-bar layout; its `+` picker sends selected local files as bounded native `file` parts, while cloud creation uses the Conversation/Storage upload path.
+- Web and Electron cloud routes render the same `ConversationSessionView`, `ChatStream` and `ChatPrompt`. The Desktop new-conversation shell composes the same `PromptInput` into the native context-bar layout; its `+` picker uses the desktop bridge for ordinary file paths and native inline image parts for vision. Cloud creation uses the Conversation/Storage upload path.
 - `src/pages/chat/Chat.tsx` — route wrapper for `@repo/ai-elements/conversation` ChatSession
 - `src/pages/local/` — Desktop-only local transport/controller; it injects native runtime state into the shared session UI and is not a parallel product shell
 - `src/pages/layout/ChatLayout.tsx` — three-region composition only; no message, list or preview-content subscriptions

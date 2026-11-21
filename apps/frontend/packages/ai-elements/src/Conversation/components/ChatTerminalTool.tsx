@@ -22,23 +22,19 @@ export function ChatTerminalTool({
   const outcome = parseToolOutcome(output);
   const payload = outcome ? toolOutcomePayload(outcome) : output;
   const result = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-  const termination = result.termination;
-  const exitCode =
-    termination &&
-    typeof termination === "object" &&
-    "type" in termination &&
-    termination.type === "exit" &&
-    "exitCode" in termination
-      ? termination.exitCode
-      : result.exitCode;
-  const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const exitCode = result.exit_code;
+  const stdout = typeof result.output === "string" ? result.output : "";
   const failure = errorText ?? (outcome?.ok === false ? outcome.error.message : undefined);
   return (
     <TerminalContent
-      command={typeof args.command === "string" ? args.command : "运行命令"}
+      command={
+        typeof args.cmd === "string"
+          ? args.cmd
+          : typeof args.session_id === "number"
+            ? `终端 ${args.session_id}`
+            : "运行命令"
+      }
       stdout={stdout}
-      stderr={stderr}
       failure={failure}
       running={running}
       exitCode={typeof exitCode === "number" ? exitCode : undefined}
@@ -51,23 +47,18 @@ export function ChatTerminalTool({
 const TerminalContent = memo(function TerminalContent({
   command,
   stdout,
-  stderr,
   failure,
   running,
   exitCode,
 }: {
   command: string;
   stdout: string;
-  stderr: string;
   failure?: string;
   running: boolean;
   exitCode?: number;
 }) {
   const suites = useMemo(() => (!running ? parseTapResults(stdout) : null), [stdout, running]);
-  const output = useMemo(
-    () => [stdout, stderr, failure !== stderr ? failure : undefined].filter(Boolean).join("\n"),
-    [stdout, stderr, failure],
-  );
+  const output = useMemo(() => [stdout, failure].filter(Boolean).join("\n"), [stdout, failure]);
   return (
     <>
       {suites && <TestResults suites={suites} />}
@@ -76,7 +67,7 @@ const TerminalContent = memo(function TerminalContent({
           command={command}
           output={output}
           isStreaming={running}
-          failed={failure !== undefined}
+          failed={failure !== undefined || (exitCode !== undefined && exitCode !== 0)}
           exitCode={exitCode}
         />
       </Suspense>

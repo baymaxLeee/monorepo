@@ -14,19 +14,19 @@ The AI SDK gives three distinct, first-class mechanisms. Most "I need to send X 
 
 ### 1a. Official `UIMessagePart` types (persisted in `message.parts`)
 
-| Part type         | Use it for                                             |
-| ----------------- | ------------------------------------------------------ |
-| `text`            | assistant/user text                                    |
-| `reasoning`       | model reasoning / thinking                             |
-| `tool-<name>`     | a typed tool call + its input/output (static tools)    |
-| `dynamic-tool`    | a tool whose name isn't known at compile time          |
-| `file`            | a file/document reference or attachment (URL-based)    |
-| `reasoning-file`  | a provider reasoning attachment, disclosed separately  |
-| `source-url`      | a cited web source (RAG) — emit via `sendSources:true` |
-| `source-document` | a cited document source (RAG)                          |
-| `step-start`      | multi-step boundary marker                             |
-| `steering-message` | 运行中加入下一 step/任务的用户补充（experimental）   |
-| `data-<name>`     | **app-specific** dynamic data (the escape hatch)       |
+| Part type          | Use it for                                             |
+| ------------------ | ------------------------------------------------------ |
+| `text`             | assistant/user text                                    |
+| `reasoning`        | model reasoning / thinking                             |
+| `tool-<name>`      | a typed tool call + its input/output (static tools)    |
+| `dynamic-tool`     | a tool whose name isn't known at compile time          |
+| `file`             | a file/document reference or attachment (URL-based)    |
+| `reasoning-file`   | a provider reasoning attachment, disclosed separately  |
+| `source-url`       | a cited web source (RAG) — emit via `sendSources:true` |
+| `source-document`  | a cited document source (RAG)                          |
+| `step-start`       | multi-step boundary marker                             |
+| `steering-message` | 运行中加入下一 step/任务的用户补充（experimental）     |
+| `data-<name>`      | **app-specific** dynamic data (the escape hatch)       |
 
 ### 1b. Message metadata (`message.metadata`, message-level, not a part)
 
@@ -67,7 +67,7 @@ Before adding any new streamed field, walk this ladder and stop at the first hit
 
 ### Precedent: the file-token redundancy (do not repeat)
 
-An earlier iteration embedded a **custom file token** in message text to reference an attached document. That duplicated the official `file` part and was removed in favor of `file` parts (`documentIdFromFilePart` parses the document id out of a `/documents/:id/source` URL). Lesson: a custom encoding that an official part already expresses is redundant — delete it.
+An earlier iteration embedded a **custom file token** in message text to reference an attached document. That duplicated the official `file` part and was removed in favor of `file` parts (the conversation content URL identifies the document by its path). Lesson: a custom encoding that an official part already expresses is redundant — delete it.
 
 ---
 
@@ -90,13 +90,13 @@ There is no separate task-progress SSE stream. Durable video creation progress r
 - **None of these duplicate an official part.** Each carries app-specific data the protocol has no part for, using the official mechanism correctly (transient+`onData`; persisted reference part).
 - We already use official parts everywhere one exists: `text`, `reasoning`, `tool-*`, `file`, and `source-*` (`sendSources: true`). Do not wrap any of these in `data-*`.
 - Known non-redundant overlaps to leave alone:
-  - Source-document references use an official `file` part whose URL carries the document id. There is no separate `document_ids` request field.
-  - `generate_images` (media generation) returns its result **as tool output**, not a custom part: an inline async-generator tool emits a running ToolOutcome with progress `{ count }`, then a completed or partial ToolOutcome whose data is `{ images: [{ document_id, filename, media_type }], count, failed }`. Business failures use a structured ToolOutcome on the official `output-available` state and AI SDK `toModelOutput` maps blocked/failed to model-side `error-json`; Abort and protocol failures use `output-error`. A multi-image request is ONE call with a `prompts[]` array (one image per prompt, processed serially); `count` is the requested total and `failed` how many prompts dropped (partial gallery). See docs/ADR/agent-runtime.md for the serial generation-orchestration model. The frontend `ChatImageCard` renders a **lightweight reference card** (icon + count, zero bytes fetched at render); clicking it opens the image lightbox, which fetches the group from those `document_id`s on demand (served via `/documents/:id/source`, the same route `file` parts use) — no `data-*` part is needed because the tool part already carries everything. Generated bytes live in Knowledge, never a temporary provider URL (docs/ADR/identity-and-configuration.md); the transcript never inlines them (docs/ADR/frontend.md).
+  - A user attachment is a native `file` part with a stable URL of the form `/api/chat-server/conversations/:id/files/:fileId/content`. The file belongs to the originating conversation.
+  - `generate_images` (media generation) returns its result **as tool output**, not a custom part: an inline async-generator tool emits a running ToolOutcome with progress `{ count }`, then a completed or partial ToolOutcome whose data is `{ images: [{ document_id, filename, media_type }], count, failed }`. Business failures use a structured ToolOutcome on the official `output-available` state and AI SDK `toModelOutput` maps blocked/failed to model-side `error-json`; Abort and protocol failures use `output-error`. A multi-image request is ONE call with a `prompts[]` array (one image per prompt, processed serially); `count` is the requested total and `failed` how many prompts dropped (partial gallery). See docs/ADR/agent-runtime.md for the serial generation-orchestration model. The frontend `ChatImageCard` renders a **lightweight reference card** (icon + count, zero bytes fetched at render); clicking it opens the image lightbox, which fetches the group from those `document_id`s on demand (served through the authorized document delivery route) — no `data-*` part is needed because the tool part already carries everything. Generated bytes live in Knowledge, never a temporary provider URL (docs/ADR/identity-and-configuration.md); the transcript never inlines them (docs/ADR/frontend.md).
   - `create_video_production` creates a durable production task. It yields preliminary `{ status, task_id, kind: "video" }` results while Runtime worker plans, then a completed result carrying `production_id` once the initial storyboard and cost projection are durable. The same Workflow continues approvals, paid generation, Take review, assembly, and publication after the chat tool has completed. `ChatVideoCard` opens the director workspace from that production id; no second task-progress stream or custom `data-*` part is needed.
   - Tool definitions carry `toolMetadata.agent` with capability, effect, execution, source, trust, and `uiKind`. AI SDK propagates this metadata onto official tool parts; the frontend selects media/todo/approval UI by `uiKind`, not by hard-coded public tool names. The transcript shows ordinary calls in order. Each assistant reply shows one checklist at the first `todo-list` call’s position. The latest snapshot stays visible while the next call streams its input, then the new result updates the same card. The assistant message ID identifies this checklist across updates and history replay. Pending approval requests stay actionable. All calls remain in the persisted UIMessage parts. `subagent` denotes one official tool part containing one to three actual inline child ToolLoopAgents and their nested UIMessage progress. `artifact` marks the trusted cloud `upload_artifacts` result that the stream layer projects to one `data-file` per uploaded file; the UI renders those ordered data parts while the upload remains an ordinary observable tool call rather than a specialized preview card. Persisted fork tool parts add `agent.historical: true`; external task approvals remain in the original conversation. Unfinished/preliminary results become native `output-error`, never a replay request.
-  - `update_todos` output items carry an optional `deliverable` tag (`"artifact" | "image" | "video"`). It is **not** a new part: it rides the existing `tool-update_todos` output. The frontend reads the live `image-gallery`/`video`/`artifact` tool parts emitted in the same reply after the latest `update_todos` and advances the active tagged todo from its serial deliverable card while the model is between snapshots. This is display-layer derivation from official tool parts (the completion fact already on the wire), so no `data-*` part is added; the model's next-step `update_todos` remains the canonical snapshot. See docs/ADR/agent-runtime.md and docs/ADR/agent-runtime.md.
-  - Persisted `tool-update_todos` UIMessage output is also the model-side truth source while it remains in retained history. The context projector never reconstructs or dynamically injects Todo business state (docs/ADR/agent-runtime.md).
-  - On explicit user cancellation, unfinished official tool parts are persisted as `output-error`; no cancellation `data-*` part is added. Non-completed `update_todos` items become `cancelled`, which is a terminal persisted todo status. Navigation-only disconnects do not perform this transition. See docs/ADR/agent-runtime.md.
+  - `update_plan` takes an optional explanation and a complete `plan` array. Each item contains `step` and `status`. The UI renders the snapshot. The model receives the text `Plan updated`.
+  - Persisted `tool-update_plan` UIMessage output is also the model-side truth source while it remains in retained history. The context projector never reconstructs or dynamically injects Todo business state (docs/ADR/agent-runtime.md).
+  - On explicit user cancellation, unfinished official tool parts are persisted as `output-error`; no cancellation `data-*` part is added. Non-completed `update_plan` items become `cancelled`, which is a terminal persisted todo status. Navigation-only disconnects do not perform this transition. See docs/ADR/agent-runtime.md.
 
 ---
 
@@ -113,7 +113,7 @@ Runtime schemas for application metadata and registered `data-*` parts live in [
 | `expected_revision` | Last hydrated conversation history revision. A stale value is a conflict, never an implicit merge. |
 | `request_id` | Stable logical-operation id. `(conversation_id, request_id)` binds to a canonical fingerprint of the full operation, target, message and run context; exact retries replay the same run, any changed reuse is rejected. |
 
-The browser cannot start a history mutation until hydration and UIMessage schema validation have established `expected_revision`. History selection and explicit request replay are each single-flight operations; a selection response applies only if the SDK message snapshot is unchanged. A user-originated `file` must use the authorized conversation-document URL and must not supply `providerReference`; provider references are accepted only on server-produced assistant parts. Image model projection reads that authorized resource with `maxDim: 1536` while the journal retains the stable URL.
+The browser cannot start a history mutation until hydration and UIMessage schema validation have established `expected_revision`. History selection and explicit request replay are each single-flight operations; a selection response applies only if the SDK message snapshot is unchanged. Chat maps the URL of a user-originated `file` to the authorized Runtime Session before journaling. Runtime verifies the attachment belongs to that Session and rebuilds the part with its registered metadata. User parts cannot supply `providerReference`. The journal retains the stable file URL. During model projection, ordinary files become read-only workspace paths and vision models receive supported images from the registered Storage revision at a maximum dimension of 1536 pixels.
 
 The response is the official UIMessage SSE protocol. The outer composition owns the only public message `start`/`finish`. Nested model conversion retains its SDK finish internally to capture `finishReason`; the composition suppresses that inner finish before merging content. Files are published per new chunk in order, never by scanning the assembled continuation for already published files. Search evidence is projected to native `source-*` while the original tool output remains intact. Model `file` and `reasoning-file` parts must be published to an authorized conversation resource before the finish can be committed. A successful cloud `upload_artifacts` result remains one batch tool result for harness continuity and is projected once per uploaded file to ordered `data-file` parts for inline display; those references are not duplicated as native `file` parts. Local emits the same `data-file` terminal contract without fabricating a cloud tool call.
 
