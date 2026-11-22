@@ -257,6 +257,57 @@ test("a provider stream idle timeout retries the current model step", async () =
   ]);
 });
 
+test("provider keepalives preserve a slow model request without retrying", async () => {
+  let calls = 0;
+  let cancellations = 0;
+  const model: LanguageModelV4 = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test",
+    supportedUrls: {},
+    doGenerate: async () => {
+      throw new Error("stream only");
+    },
+    doStream: async () => {
+      calls++;
+      let pingTimer: ReturnType<typeof setInterval>;
+      let outputTimer: ReturnType<typeof setTimeout>;
+      return {
+        stream: new ReadableStream<LanguageModelV4StreamPart>({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            pingTimer = setInterval(() => controller.enqueue({ type: "ping" }), 5);
+            outputTimer = setTimeout(() => {
+              clearInterval(pingTimer);
+              controller.enqueue({ type: "text-start", id: "answer" });
+              controller.enqueue({ type: "text-delta", id: "answer", delta: "slow response" });
+              controller.enqueue({ type: "text-end", id: "answer" });
+              controller.enqueue(finish);
+              controller.close();
+            }, 120);
+          },
+          cancel() {
+            cancellations++;
+            clearInterval(pingTimer);
+            clearTimeout(outputTimer);
+          },
+        }),
+      };
+    },
+  };
+  const agent = createAgentLoop({
+    model,
+    tools: {},
+    maxRetries: 0,
+    streamRetries: MODEL_STREAM_RETRIES,
+    middleware: [createRetryableModelStreamMiddleware(50)],
+  });
+  const result = await agent.stream({ messages: [{ role: "user", content: "hello" }] });
+  await result.consumeStream();
+  assert.equal(calls, 1);
+  assert.equal(cancellations, 0);
+});
+
 test("read-only network retry runs at most three retries", async () => {
   let calls = 0;
   const value = await retryTransientNetwork(
