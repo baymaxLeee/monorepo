@@ -2,6 +2,7 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { convertToModelMessages, pruneMessages, type ModelMessage, type ToolSet, type UIMessage } from "ai";
 import { z } from "zod";
 
+import type { ModelStreamRetryPolicy } from "../turn/model-retry.js";
 import {
   contextCompactionThreshold,
   effectiveModelInputWindow,
@@ -138,6 +139,7 @@ export async function projectRuntimeContext(input: {
   previousInputTokens?: number;
   remoteBinding?: string;
   instructions?: Parameters<typeof compactRemote>[0]["instructions"];
+  compactionRetry?: ModelStreamRetryPolicy;
 }) {
   const checkpoint = input.checkpoint;
   const candidate = parseCheckpointState(checkpoint?.state);
@@ -205,6 +207,7 @@ export async function projectRuntimeContext(input: {
             instructions: input.instructions,
             signal: input.signal,
             onUsage: input.onCompactionUsage,
+            retry: input.compactionRetry,
           });
         })()
       : await compactRuntimeHistory({
@@ -214,6 +217,7 @@ export async function projectRuntimeContext(input: {
           previous: state && "summary" in state ? state : null,
           signal: input.signal,
           onUsage: input.onCompactionUsage,
+          retry: input.compactionRetry,
         });
     state = compacted.state;
     compactionUsage = compacted.usage;

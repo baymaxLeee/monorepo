@@ -298,18 +298,32 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(calls).toBe(1);
   });
 
-  it("reopens a completed tool step and its compaction while the next sample is still running", async () => {
+  it("retries compaction before reopening a completed tool step while the next sample is still running", async () => {
     let resume: () => void = () => {};
     const resumed = new Promise<void>((resolve) => {
       resume = resolve;
     });
     let samples = 0;
+    let compactionCalls = 0;
+    const events: DesktopEvent[] = [];
     const f = await fixture(
       async (request) => {
         if (JSON.stringify(request.options.prompt).includes("Compress the older transcript prefix")) {
+          compactionCalls++;
+          if (compactionCalls === 1) {
+            return new ReadableStream<LanguageModelV4StreamPart>({
+              start(controller) {
+                controller.enqueue({
+                  type: "error",
+                  error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+                });
+                controller.close();
+              },
+            });
+          }
           return reply([
             { type: "text-start", id: "s" },
-            { type: "text-delta", id: "s", delta: JSON.stringify({ summary: "saved evidence" }) },
+            { type: "text-delta", id: "s", delta: "saved evidence" },
             { type: "text-end", id: "s" },
           ]);
         }
@@ -335,6 +349,8 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
           maxOutputTokens: 1_000,
           instructions: "",
         }),
+        emit: (event) => events.push(event),
+        waitForModelRetry: async () => {},
       },
     );
     await writeFile(join(f.thread.workspace, "evidence.txt"), "evidence ".repeat(1500));
@@ -349,6 +365,15 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
       reader.close();
     }
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
+    expect(compactionCalls).toBe(2);
+    expect(
+      events.flatMap((event) =>
+        event.type === "stream" && event.chunk?.type === "data-model-retry" ? [event.chunk.data] : [],
+      ),
+    ).toEqual([
+      { state: "retrying", attempt: 1, maxAttempts: 3 },
+      { state: "recovered", attempt: 1, maxAttempts: 3 },
+    ]);
   });
 
   it("persists model binding updates and freezes them for the active turn", async () => {

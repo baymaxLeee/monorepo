@@ -1,7 +1,12 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
-import { streamText, type AssistantModelMessage, type ModelMessage, type ToolSet } from "ai";
+import { streamText, wrapLanguageModel, type AssistantModelMessage, type ModelMessage, type ToolSet } from "ai";
 import { z } from "zod";
 
+import {
+  MODEL_STREAM_RETRIES,
+  retryableModelStreamMiddleware,
+  type ModelStreamRetryPolicy,
+} from "../turn/model-retry.js";
 import { runtimeTokenUsage, type RuntimeTokenUsage } from "./usage.js";
 
 export const remoteCheckpointSchema = z.strictObject({
@@ -35,9 +40,11 @@ export async function compactRemote(input: {
   tools?: ToolSet;
   signal?: AbortSignal;
   onUsage?(usage: RuntimeTokenUsage): void;
+  retry?: ModelStreamRetryPolicy;
 }) {
+  input.retry?.reset();
   const result = streamText({
-    model: input.model,
+    model: wrapLanguageModel({ model: input.model, middleware: retryableModelStreamMiddleware }),
     messages: input.messages,
     instructions: input.instructions,
     // Tool descriptions remain part of the prompt. A compaction request never dispatches a tool.
@@ -58,7 +65,11 @@ export async function compactRemote(input: {
       ),
     toolChoice: "none",
     providerOptions: { openai: { store: false, compactionTrigger: true } },
+    maxRetries: 0,
+    streamRetries: MODEL_STREAM_RETRIES,
     abortSignal: input.signal,
+    onChunk: input.retry?.onChunk,
+    onError: input.retry?.onError ?? (() => {}),
   });
   const [content, usage] = await Promise.all([result.content, result.usage]);
   const consumed = runtimeTokenUsage(usage);

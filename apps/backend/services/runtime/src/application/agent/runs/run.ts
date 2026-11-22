@@ -467,6 +467,7 @@ export async function createAgentRunResponse(
         onCompactionUsage: (usage) => {
           contextUsage = addUsage(contextUsage, usage);
         },
+        compactionRetry: prepared.settings.compactionRetry,
       });
       if (projected.checkpointAdvanced) prepared.settings.onHistoryReplacement?.();
       contextUsage = projected.compactionUsage;

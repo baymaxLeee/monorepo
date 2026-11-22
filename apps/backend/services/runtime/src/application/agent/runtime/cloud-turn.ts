@@ -275,6 +275,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     contextLimits: provider,
+    compactionRetry: modelRetry,
     remoteCompactionBinding:
       new URL(provider.baseUrl).origin === "https://api.openai.com"
         ? JSON.stringify([provider.id, provider.model])

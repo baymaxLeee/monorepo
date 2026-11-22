@@ -11,6 +11,7 @@ export {
   retryTransientNetwork,
   waitForTransientRetry,
   type ModelRetryEvent,
+  type ModelStreamRetryPolicy,
 } from "./turn/model-retry.js";
 export {
   applyToolApprovalResponse,

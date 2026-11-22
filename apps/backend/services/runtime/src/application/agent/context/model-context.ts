@@ -69,6 +69,7 @@ export async function projectModelContext(input: {
   messages: AnyUIMessage[];
   tools: ToolSet;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
+  compactionRetry?: Parameters<typeof projectRuntimeContext>[0]["compactionRetry"];
 }) {
   const [stored] = await getDb()
     .select()
@@ -94,6 +95,7 @@ export async function projectModelContext(input: {
     checkpoint,
     signal: input.abortSignal,
     onCompactionUsage: input.onCompactionUsage,
+    compactionRetry: input.compactionRetry,
     saveCheckpoint: (next) => withRunLease(input.owner, (tx) => saveCheckpoint(tx, input.sessionId, next)),
     prepareRecent: (messages) =>
       transformFilePartsForModel(messages, {

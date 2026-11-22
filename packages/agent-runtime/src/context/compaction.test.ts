@@ -35,7 +35,7 @@ test("feeds every chunk of an oversized single message to the compactor", async 
             controller.enqueue({
               type: "text-delta",
               id: "summary",
-              delta: JSON.stringify({ summary: `summary pass ${prompts.length}` }),
+              delta: `summary pass ${prompts.length}`,
             });
             controller.enqueue({ type: "text-end", id: "summary" });
             controller.enqueue(finish);
@@ -62,4 +62,80 @@ test("feeds every chunk of an oversized single message to the compactor", async 
   assert.match(prompts[0]!, /final=\\\"false\\\"/);
   assert.match(prompts.at(-1)!, /final=\\\"true\\\"/);
   assert.equal(result.state.summary, `summary pass ${prompts.length}`);
+});
+
+test("accepts the compactor's plain-text summary without requiring structured output", async () => {
+  const model: LanguageModelV4 = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "compactor",
+    supportedUrls: {},
+    doGenerate: async () => {
+      throw new Error("stream only");
+    },
+    doStream: async () => ({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "stream-start", warnings: [] });
+          controller.enqueue({ type: "text-start", id: "summary" });
+          controller.enqueue({ type: "text-delta", id: "summary", delta: "durable plain-text summary" });
+          controller.enqueue({ type: "text-end", id: "summary" });
+          controller.enqueue(finish);
+          controller.close();
+        },
+      }),
+    }),
+  };
+
+  const result = await compactRuntimeHistory({
+    model,
+    limits: { contextWindow: 2_000, maxOutputTokens: 512 },
+    messages: [{ id: "old", role: "user", parts: [{ type: "text", text: "important history" }] }],
+    previous: null,
+  });
+
+  assert.equal(result.state.summary, "durable plain-text summary");
+});
+
+test("retries only the interrupted compaction model call", async () => {
+  let calls = 0;
+  const model: LanguageModelV4 = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "compactor",
+    supportedUrls: {},
+    doGenerate: async () => {
+      throw new Error("stream only");
+    },
+    doStream: async () => {
+      calls++;
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            if (calls === 1) {
+              controller.enqueue({ type: "error", error: { retryable: true, message: "connection reset" } });
+              controller.close();
+              return;
+            }
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            controller.enqueue({ type: "text-start", id: "summary" });
+            controller.enqueue({ type: "text-delta", id: "summary", delta: "summary after reconnect" });
+            controller.enqueue({ type: "text-end", id: "summary" });
+            controller.enqueue(finish);
+            controller.close();
+          },
+        }),
+      };
+    },
+  };
+
+  const result = await compactRuntimeHistory({
+    model,
+    limits: { contextWindow: 2_000, maxOutputTokens: 512 },
+    messages: [{ id: "old", role: "user", parts: [{ type: "text", text: "important history" }] }],
+    previous: null,
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(result.state.summary, "summary after reconnect");
 });

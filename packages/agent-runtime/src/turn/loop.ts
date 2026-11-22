@@ -43,6 +43,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
     contextLimits,
     remoteCompactionBinding,
     onCompactionUsage,
+    compactionRetry,
     onHistoryReplacement,
     stepCheckpoint,
     ...settings
@@ -89,6 +90,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
                   instructions: options.instructions,
                   signal: ownerSignal,
                   onUsage: onCompactionUsage,
+                  retry: compactionRetry,
                 })
               ).state;
               return remoteCompactionMessage(state);
@@ -102,6 +104,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
               transcript,
               signal: ownerSignal,
               onUsage: onCompactionUsage,
+              retry: compactionRetry,
             })
           ).state;
           return state.summary;

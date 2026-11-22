@@ -4,6 +4,7 @@ import type { StreamTextOnChunkCallback, ToolLoopAgentSettings, ToolSet } from "
 import type { ModelContextLimits } from "../context/budget.js";
 import type { projectRuntimeContext } from "../context/history.js";
 import type { RuntimeTokenUsage } from "../context/usage.js";
+import type { ModelStreamRetryPolicy } from "./model-retry.js";
 
 type SdkLoopSettings<C extends Record<string, unknown>> = ToolLoopAgentSettings<never, ToolSet, C>;
 
@@ -22,6 +23,7 @@ export type RuntimeTurnSettings<C extends Record<string, unknown>> = Omit<
   };
   onHistoryReplacement?: () => void;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
+  compactionRetry?: ModelStreamRetryPolicy;
   middleware?: LanguageModelV4Middleware[];
   /** AI SDK current-step provider stream retries. Hosts must classify safe
    * retry boundaries before surfacing an error part to the loop. */

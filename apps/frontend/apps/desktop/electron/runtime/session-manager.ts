@@ -430,6 +430,7 @@ export class DesktopSessionManager {
       limits: config,
       checkpoint: this.journal.getCheckpoint(thread.id),
       signal,
+      compactionRetry: modelRetry,
       saveCheckpoint: async (checkpoint) => this.journal.saveCheckpoint(thread.id, checkpoint),
     });
     const assistantId = original.at(-1)?.role === "assistant" ? original.at(-1)!.id : randomUUID();
@@ -438,6 +439,7 @@ export class DesktopSessionManager {
       settings: {
         model,
         contextLimits: config,
+        compactionRetry: modelRetry,
         stepCheckpoint: { assistantId, save: projected.saveStepCheckpoint },
         middleware: [retryableModelStreamMiddleware, contextCaptureMiddleware],
         tools,

@@ -10,6 +10,12 @@ export interface ModelRetryEvent {
   maxAttempts: typeof MODEL_STREAM_RETRIES;
 }
 
+export interface ModelStreamRetryPolicy {
+  reset(): void;
+  onChunk(event: { chunk: { type: string } }): void;
+  onError(event: { error: unknown }): Promise<void>;
+}
+
 interface RetryableShape {
   retryable?: unknown;
   isRetryable?: unknown;
@@ -162,7 +168,7 @@ export function createModelStreamRetryPolicy(options: {
   signal?: AbortSignal;
   emit(event: ModelRetryEvent): void;
   wait?: (attempt: number, signal?: AbortSignal) => Promise<void>;
-}) {
+}): ModelStreamRetryPolicy {
   let attempt = 0;
   let active = false;
   const emit = (state: ModelRetryEvent["state"]) => options.emit({ state, attempt, maxAttempts: MODEL_STREAM_RETRIES });
