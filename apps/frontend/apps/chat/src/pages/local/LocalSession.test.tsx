@@ -204,7 +204,7 @@ test("shows each model reconnect attempt and clears the hint after recovery", as
   act(() => {
     void sessionViewApi.chat?.resumeStream();
   });
-  expect((await screen.findByRole("status")).textContent).toContain("模型响应中断，正在重试（1/3）");
+  expect((await screen.findByRole("status")).textContent).toContain("网络连接中断，正在重连（1/3）");
 
   act(() => {
     f.emit({
