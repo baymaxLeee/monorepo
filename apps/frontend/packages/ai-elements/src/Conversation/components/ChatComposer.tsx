@@ -9,6 +9,7 @@ import { memo, type RefObject, useEffect, useState } from "react";
 import { uploadConversationFile } from "../lib/upload-conversation-file";
 import { ChatComposerControls, type ReasoningEffort } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
+import type { ActiveTodoList } from "./ChatPlanState";
 import { ChatPrompt } from "./ChatPrompt";
 import { ExecutionPolicy, type ApprovalPolicyValue, type PermissionProfileValue } from "./ExecutionPolicy";
 
@@ -33,6 +34,7 @@ type ChatComposerProps = {
   loadSkills: (signal: AbortSignal) => Promise<PromptSlashCommand[]>;
   onSubmit: (value: PromptInputValue) => Promise<void>;
   onStop: () => Promise<void>;
+  activePlan?: ActiveTodoList | null;
 };
 
 export const ChatComposer = memo(function ChatComposer({
@@ -53,6 +55,7 @@ export const ChatComposer = memo(function ChatComposer({
   loadSkills,
   onSubmit,
   onStop,
+  activePlan,
 }: ChatComposerProps) {
   const [models, setModels] = useState<ModelProvider[]>([]);
   const [selectedModelId, setSelectedModelId] = useState(initialModelId);
@@ -80,6 +83,7 @@ export const ChatComposer = memo(function ChatComposer({
   return (
     <ChatPrompt
       ref={promptRef}
+      activePlan={activePlan}
       disabled={false}
       loading={busy}
       submitWhileLoading={runActive}

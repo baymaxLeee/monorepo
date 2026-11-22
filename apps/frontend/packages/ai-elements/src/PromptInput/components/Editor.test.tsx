@@ -199,6 +199,16 @@ test("text-only composers hide attachment actions", () => {
   expect(screen.queryByRole("button", { name: "添加附件" })).toBeNull();
 });
 
+test("composer header shares the input surface and is separated from the editor", async () => {
+  const { container } = render(<Editor headerRender={() => <div>任务进度</div>} />);
+  const surface = container.querySelector('[data-slot="input-group"]');
+  const header = surface?.querySelector('[data-slot="prompt-input-header"]');
+  const input = await screen.findByRole("textbox", { name: "消息" });
+  expect(header?.textContent).toBe("任务进度");
+  expect(header?.classList.contains("border-b")).toBe(true);
+  expect(Boolean(header && header.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+});
+
 test("composer keeps one resting surface size with or without custom controls", () => {
   const { container, rerender } = render(<Editor maxFiles={0} />);
   const surface = container.querySelector('[data-slot="input-group"]');

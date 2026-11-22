@@ -21,25 +21,17 @@ import { AskUserToolCard } from "./AskUserToolCard";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatSubagents } from "./ChatSubagents";
 import { ChatTerminalTool } from "./ChatTerminalTool";
-import {
-  ChatTodoListCard,
-  type DeliverableCompletion,
-  isTodoListSettled,
-  parseTodoListOutput,
-} from "./ChatTodoListCard";
 import { ChatVideoCard } from "./ChatVideoCard";
 
 export function ChatToolPart({
   part,
   conversationId,
-  deliverableCompletion,
   onOpenArtifact,
   onAnswerClientTool,
   onToolApproval,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   conversationId: string;
-  deliverableCompletion: DeliverableCompletion;
   onOpenArtifact?: (documentId: string) => void;
   onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval?: (approvalId: string, approved: boolean) => void;
@@ -169,12 +161,8 @@ export function ChatToolPart({
     kind === "ask-user" && toolName === "ask_user" && !part.providerExecuted && isClientTool(part)
       ? parseAskUserInput(input)
       : null;
-  const todoList = kind === "todo-list" ? parseTodoListOutput(output) : null;
-
   const hasError = part.state === "output-error" || outputErrorReason != null;
-  const todoSettled = todoList != null && isTodoListSettled(todoList.todos, deliverableCompletion);
-  const isOpenByDefault =
-    todoList != null ? !todoSettled : (askUserInput != null && part.state === "input-available") || hasError;
+  const isOpenByDefault = (askUserInput != null && part.state === "input-available") || hasError;
 
   return (
     <Tool defaultOpen={isOpenByDefault}>
@@ -200,9 +188,7 @@ export function ChatToolPart({
             {errorText?.trim() || outputErrorReason || "工具调用失败，未返回错误详情。"}
           </div>
         ) : null}
-        {todoList ? (
-          <ChatTodoListCard todos={todoList.todos} deliverableCompletion={deliverableCompletion} />
-        ) : kind === "ask-user" ? null : (
+        {kind === "ask-user" ? null : (
           <>
             {askUserInput == null && input !== undefined ? <ToolJsonBlock value={input} /> : null}
             {askUserInput == null && input === undefined && rawInput !== undefined ? (

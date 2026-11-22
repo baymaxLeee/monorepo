@@ -25,7 +25,7 @@ import { useChatStore } from "../store/useChatStore";
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { Sources } from "./ChatCitedResponse";
 import { ChatMessagePart } from "./ChatMessagePart";
-import { projectMessageTodos } from "./ChatTodoListCard";
+import { visibleMessageParts } from "./ChatPlanState";
 
 export interface ChatMessageViewProps {
   message: ChatUIMessage;
@@ -76,10 +76,7 @@ export function ChatMessageView({
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { visibleParts, todoIndex, deliverableCompletion } = useMemo(
-    () => projectMessageTodos(message.parts),
-    [message.parts],
-  );
+  const visibleParts = useMemo(() => visibleMessageParts(message.parts), [message.parts]);
   const sources = useMemo(
     () => message.parts.filter((part) => part.type === "source-url" || part.type === "source-document"),
     [message.parts],
@@ -113,14 +110,13 @@ export function ChatMessageView({
           (part, index) =>
             part && (
               <ChatMessagePart
-                key={index === todoIndex ? `todo-list:${message.id}` : partKey(message.id, part, index)}
+                key={partKey(message.id, part, index)}
                 part={part}
                 sources={sources}
                 partIndex={index}
                 conversationId={conversationId}
                 streaming={streaming}
                 variant={variant}
-                deliverableCompletion={deliverableCompletion}
                 onOpenArtifact={onOpenArtifact}
                 onOpenFile={onOpenFile}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}

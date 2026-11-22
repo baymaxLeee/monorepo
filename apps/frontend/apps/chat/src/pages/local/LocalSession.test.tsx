@@ -52,7 +52,7 @@ vi.mock("@repo/ai-elements/conversation", async (importOriginal) => ({
     onToolApproval,
   }: {
     chat: { resumeStream(): Promise<void> };
-    composer: ReactNode;
+    composer: (activePlan: null) => ReactNode;
     issue: ReactNode;
     onToolApproval: (id: string, approved: boolean) => void;
   }) => {
@@ -60,7 +60,7 @@ vi.mock("@repo/ai-elements/conversation", async (importOriginal) => ({
     return (
       <div>
         {issue}
-        {composer}
+        {composer(null)}
         <button onClick={() => onToolApproval("approval", true)}>共享授权</button>
       </div>
     );

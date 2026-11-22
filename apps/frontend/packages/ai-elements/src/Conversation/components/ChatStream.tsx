@@ -8,6 +8,7 @@ import {
 import { type ComponentProps, type Ref, memo, useDeferredValue, useEffect, useMemo, useRef } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
+import { projectActiveTodoList, type ActiveTodoList } from "./ChatPlanState";
 import { ChatTranscript } from "./ChatTranscript";
 
 type ChatStreamProps = Omit<ComponentProps<typeof ChatTranscript>, "messages" | "status"> & {
@@ -16,6 +17,7 @@ type ChatStreamProps = Omit<ComponentProps<typeof ChatTranscript>, "messages" | 
   scrollRef: Ref<ConversationScrollHandle>;
   onStatusChange: (status: Chat<ChatUIMessage>["status"]) => void;
   onCanvasChange?: () => void;
+  onActivePlanChange?: (plan: ActiveTodoList | null) => void;
 };
 
 type ChatStreamContentProps = Omit<ChatStreamProps, "scrollRef">;
@@ -27,12 +29,14 @@ const ChatStreamContent = memo(function ChatStreamContent({
   resume = false,
   onStatusChange,
   onCanvasChange,
+  onActivePlanChange,
   ...props
 }: ChatStreamContentProps) {
   const { messages, status } = useChat({ chat, resume, throttle: 50 });
   // Keep the transport/status subscriber current while React schedules the
   // high-frequency transcript as one consistent, interruptible snapshot.
   const transcript = useDeferredValue(useMemo(() => ({ messages, status }), [messages, status]));
+  const activePlan = useMemo(() => projectActiveTodoList(transcript.messages), [transcript.messages]);
   const canvasCallback = useRef(onCanvasChange);
   useEffect(() => {
     canvasCallback.current = onCanvasChange;
@@ -56,6 +60,9 @@ const ChatStreamContent = memo(function ChatStreamContent({
   useEffect(() => {
     onStatusChange(status);
   }, [status, onStatusChange]);
+  useEffect(() => {
+    onActivePlanChange?.(activePlan);
+  }, [activePlan?.revision, onActivePlanChange]);
   return <ChatTranscript {...props} messages={transcript.messages} status={transcript.status} />;
 });
 

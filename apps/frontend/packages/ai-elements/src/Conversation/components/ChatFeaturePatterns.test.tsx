@@ -5,7 +5,7 @@ import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { ChatCitedResponse } from "./ChatCitedResponse";
 import { ChatComposerControls } from "./ChatComposerControls";
-import { projectMessageTodos } from "./ChatTodoListCard";
+import { projectActiveTodoList } from "./ChatPlanState";
 import { ExecutionPolicy } from "./ExecutionPolicy";
 
 test("shared composer controls combine model and reasoning selection in one popover", async () => {
@@ -226,7 +226,11 @@ test.each(["completed", "running", "failed"] as const)(
       toolMetadata: { agent: { uiKind: "todo-list" } },
       state: "output-available",
       input: {},
-      output: { ok: true, status: "completed", data: { plan: [] } },
+      output: {
+        ok: true,
+        status: "completed",
+        data: { plan: [{ step: "保存报告", status: "in_progress", deliverable: "artifact" }] },
+      },
     } as const;
     const parts: ChatUIMessage["parts"] = [
       todo,
@@ -244,10 +248,72 @@ test.each(["completed", "running", "failed"] as const)(
               : { ok: true, status, data: { files: [{ file_id: "file", filename: "report.md" }] } },
       },
     ];
-    expect(projectMessageTodos(parts).deliverableCompletion.artifact).toEqual([status === "failed" ? "error" : status]);
-    expect(projectMessageTodos([...parts, { ...todo, toolCallId: "next" }]).deliverableCompletion.artifact).toEqual([]);
+    expect(projectActiveTodoList([{ id: "reply", role: "assistant", parts }])?.deliverableCompletion.artifact).toEqual([
+      status === "failed" ? "error" : status,
+    ]);
+    expect(
+      projectActiveTodoList([{ id: "reply", role: "assistant", parts: [...parts, { ...todo, toolCallId: "next" }] }])
+        ?.deliverableCompletion.artifact,
+    ).toEqual([]);
   },
 );
+test("a failed plan update keeps the latest successful snapshot", () => {
+  const successful: ChatUIMessage["parts"][number] = {
+    type: "tool-update_plan",
+    toolCallId: "current",
+    toolMetadata: { agent: { uiKind: "todo-list" } },
+    state: "output-available",
+    input: {},
+    output: { ok: true, status: "completed", data: { plan: [{ step: "继续实现", status: "in_progress" }] } },
+  };
+  const failed: ChatUIMessage["parts"][number] = {
+    type: "tool-update_plan",
+    toolCallId: "failed",
+    toolMetadata: { agent: { uiKind: "todo-list" } },
+    state: "output-error",
+    input: {},
+    errorText: "更新失败",
+  };
+  const projected = projectActiveTodoList([
+    { id: "first", role: "assistant", parts: [successful] },
+    { id: "second", role: "assistant", parts: [failed] },
+  ]);
+  expect(projected?.todos.map((todo) => todo.content)).toEqual(["继续实现"]);
+});
+test("a later turn cannot complete an older plan and an empty snapshot clears it", () => {
+  const plan: ChatUIMessage["parts"][number] = {
+    type: "tool-update_plan",
+    toolCallId: "plan",
+    toolMetadata: { agent: { uiKind: "todo-list" } },
+    state: "output-available",
+    input: {},
+    output: {
+      ok: true,
+      status: "completed",
+      data: { plan: [{ step: "保存报告", status: "in_progress", deliverable: "artifact" }] },
+    },
+  };
+  const unrelatedArtifact: ChatUIMessage["parts"][number] = {
+    type: "tool-upload_artifacts",
+    toolCallId: "later-file",
+    toolMetadata: { agent: { uiKind: "artifact" } },
+    state: "output-available",
+    input: {},
+    output: { ok: true, status: "completed", data: { files: [{ file_id: "file", filename: "later.md" }] } },
+  };
+  const messages: ChatUIMessage[] = [
+    { id: "plan-owner", role: "assistant", parts: [plan] },
+    { id: "later-turn", role: "assistant", parts: [unrelatedArtifact] },
+  ];
+  expect(projectActiveTodoList(messages)?.deliverableCompletion.artifact).toEqual([]);
+
+  const clearPlan: ChatUIMessage["parts"][number] = {
+    ...plan,
+    toolCallId: "clear",
+    output: { ok: true, status: "completed", data: { plan: [] } },
+  };
+  expect(projectActiveTodoList([...messages, { id: "clear-plan", role: "assistant", parts: [clearPlan] }])).toBeNull();
+});
 test("checkpoint prevents duplicate requests and preserves retry after failure", async () => {
   let reject: (error: Error) => void = () => {};
   const fork = vi.fn(

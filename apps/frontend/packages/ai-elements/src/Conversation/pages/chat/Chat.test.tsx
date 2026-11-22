@@ -130,6 +130,11 @@ vi.mock("@repo/ai-elements", () => ({
   ConversationContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ConversationEmptyState: () => null,
   ConversationScrollButton: () => null,
+  Plan: ({ children }: { children: ReactNode }) => <section>{children}</section>,
+  PlanContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  PlanHeader: ({ title }: { title: ReactNode }) => <button>{title}</button>,
+  Task: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TaskTitle: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }));
 vi.mock("@repo/design-system", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick: () => void }) => (
@@ -179,6 +184,7 @@ vi.mock("@repo/ai-elements/prompt-input", () => ({
     onSubmit,
     loading,
     submitWhileLoading,
+    headerRender,
     footerStartRender,
     footerEndRender,
   }: {
@@ -187,18 +193,20 @@ vi.mock("@repo/ai-elements/prompt-input", () => ({
     onSubmit: (value: PromptInputValue) => void;
     loading: boolean;
     submitWhileLoading?: boolean;
+    headerRender?: (api: unknown) => ReactNode;
     footerStartRender: () => ReactNode;
     footerEndRender: () => ReactNode;
   }) => {
     state.composerRenders++;
-    if (ref)
-      ref.current = {
-        clear: state.promptClear,
-        setValue: vi.fn(),
-        getValue: () => ({ text: "补充输入", segments: [], tokens: [], files: {} }),
-      };
+    const api = {
+      clear: state.promptClear,
+      setValue: vi.fn(),
+      getValue: () => ({ text: "补充输入", segments: [], tokens: [], files: {} }),
+    };
+    if (ref) ref.current = api;
     return (
       <>
+        {headerRender?.(api)}
         <input aria-label="下一条消息" data-loading={loading} data-submit-while-loading={submitWhileLoading} />
         <button
           onClick={() =>
@@ -339,6 +347,43 @@ test("text deltas do not rerender the composer, and typing/stop remain available
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "停止" })));
   expect(state.stop).toHaveBeenCalledOnce();
   expect(state.cancel).toHaveBeenCalledWith("conversation", "run", { skipErrorNotify: true });
+});
+
+test("the latest plan snapshot stays inside the composer above its input while its successor streams", async () => {
+  const plan = (toolCallId: string, step: string, status: "pending" | "in_progress" | "completed") => ({
+    type: "tool-update_plan" as const,
+    toolCallId,
+    toolMetadata: { agent: { uiKind: "todo-list" } },
+    state: "output-available" as const,
+    input: {},
+    output: { ok: true, status: "completed", data: { plan: [{ step, status }] } },
+  });
+  state.messages = [
+    { id: "first-plan", role: "assistant", parts: [plan("first", "旧计划", "completed")] },
+    { id: "next-request", role: "user", parts: [{ type: "text", text: "继续" }] },
+    {
+      id: "latest-plan",
+      role: "assistant",
+      parts: [
+        plan("latest", "当前任务", "in_progress"),
+        {
+          type: "tool-update_plan",
+          toolCallId: "streaming-successor",
+          toolMetadata: { agent: { uiKind: "todo-list" } },
+          state: "input-streaming",
+          input: {},
+        },
+      ],
+    },
+  ] as UIMessage[];
+
+  await mount();
+
+  const progress = await screen.findByLabelText("任务进度");
+  expect(progress.textContent).toContain("当前任务");
+  expect(progress.textContent).not.toContain("旧计划");
+  expect(progress.closest("footer")).toBeTruthy();
+  expect(progress.compareDocumentPosition(screen.getByRole("textbox")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 test("a published text delta is deferred outside the transport commit", async () => {

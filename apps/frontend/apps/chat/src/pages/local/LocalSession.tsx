@@ -231,9 +231,10 @@ export function LocalSession({
           </p>
         ) : null
       }
-      composer={
+      composer={(activePlan) => (
         <ChatPrompt
           ref={promptRef}
+          activePlan={activePlan}
           placeholder={state.status === "waiting" ? "等待工具审批…" : busy ? "补充当前任务…" : "发送消息或创建任务…"}
           loading={busy || state.status === "waiting"}
           submitWhileLoading={busy && state.status !== "waiting"}
@@ -265,7 +266,7 @@ export function LocalSession({
             />
           )}
         />
-      }
+      )}
     />
   );
 }

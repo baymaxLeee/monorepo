@@ -271,6 +271,7 @@ AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-
 - 推理区域默认可折叠，并以帮助用户理解决策的摘要为目标；不得伪装或暴露不应展示的内部 chain-of-thought。
 - 长生命周期输出使用 Artifact，不把完整文档、代码或媒体编辑器塞进消息气泡。Artifact 的保存、版本、关闭和未保存状态必须清楚。
 - composer 在生成期间仍应允许用户查看和编辑下一条输入；是否允许排队由产品语义明确决定。附件显示上传、处理、失败和删除状态。
+- `update_plan` 从持久化工具 parts 投影为 Composer 外框内、编辑区上方唯一的当前任务清单，两区只用分割线区隔；新快照准备中或失败时保留最近成功快照，成功空快照清除。成功调用不在 transcript 重复展示，授权与失败仍留在消息流中。
 - PromptInput 的公开附件状态为 `uploading` / `ready` / `failed`，业务方负责将文件服务状态映射为可发送状态；业务标识保留在 opaque `meta`，UI 不解析 `artifactId` / `ingestStatus`。失败重试进入 uploading，移除和卸载释放本地文件/预览资源，草稿恢复保持 inline token 与空行。
 - 输入区提供可访问名称；多行输入和候选导航兼容中文 IME。候选列表由 React 树内的 Base UI Popover 承载，复用 modal layer，并通过 controls/active-descendant 关联编辑器。触控输入至少 16px，主要操作命中区至少 44px；减少动态效果设置覆盖等待动画。
 - Markdown 保留 Streamdown sanitize/harden；模型生成的远程图片及 data 图片不自动加载，上传/生成媒体走受权文件入口。宿主 CSS 扫描 Streamdown 与插件分发文件。Streamdown 配置与 renderer 更新必须能触发响应，不用只比较正文的 memo comparator。

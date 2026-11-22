@@ -84,6 +84,8 @@ export interface PromptInputProps {
   onSubmit?: (value: PromptInputValue, event: FormEvent<HTMLFormElement>) => void;
   onStop?: () => void;
   renderToken?: (token: PromptInputToken, context: PromptInputRenderContext) => ReactNode;
+  /** Content attached to the top of the shared composer surface. */
+  headerRender?: (api: PromptInputApi) => ReactNode;
   toolbarRender?: (api: PromptInputApi) => ReactNode;
   footerStartRender?: (api: PromptInputApi) => ReactNode;
   footerEndRender?: (api: PromptInputApi) => ReactNode;

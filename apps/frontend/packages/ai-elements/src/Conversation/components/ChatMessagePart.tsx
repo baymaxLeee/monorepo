@@ -14,7 +14,6 @@ import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatCitedResponse } from "./ChatCitedResponse";
 import { ChatFileTag } from "./ChatFileTag";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
-import type { DeliverableCompletion } from "./ChatTodoListCard";
 const ToolPartView = lazy(() => import("./ChatToolPart").then((m) => ({ default: m.ChatToolPart })));
 
 export function ChatMessagePart({
@@ -24,7 +23,6 @@ export function ChatMessagePart({
   conversationId,
   streaming,
   variant,
-  deliverableCompletion,
   onOpenArtifact,
   onOpenFile,
   onOpenWorkspaceFile,
@@ -40,7 +38,6 @@ export function ChatMessagePart({
   conversationId: string;
   streaming: boolean;
   variant: "user" | "assistant";
-  deliverableCompletion: DeliverableCompletion;
   onOpenArtifact?: (documentId: string) => void;
   onOpenFile?: (fileId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -168,7 +165,6 @@ export function ChatMessagePart({
         <ToolPartView
           part={part}
           conversationId={conversationId}
-          deliverableCompletion={deliverableCompletion}
           onOpenArtifact={onOpenArtifact}
           onAnswerClientTool={onAnswerClientTool}
           onToolApproval={onToolApproval}

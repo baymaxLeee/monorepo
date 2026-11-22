@@ -372,7 +372,7 @@ export function ChatSession({
           </p>
         ) : null
       }
-      composer={
+      composer={(activePlan) => (
         <ChatComposer
           id={id}
           promptRef={promptRef}
@@ -391,8 +391,9 @@ export function ChatSession({
           loadSkills={loadSkills}
           onSubmit={submit}
           onStop={stopRun}
+          activePlan={activePlan}
         />
-      }
+      )}
       overlay={<ChatImagePreview />}
     />
   );

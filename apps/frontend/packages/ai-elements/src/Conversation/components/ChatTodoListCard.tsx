@@ -1,12 +1,6 @@
 import { Plan, PlanContent, PlanHeader, Task, TaskTitle } from "@repo/ai-elements";
-import { isToolUIPart, type UIMessage } from "ai";
 
-import { parseArtifactOutput } from "../lib/artifact-output";
-import type { ChatUIMessage } from "../lib/chat-message";
-import { toolUiKind } from "../lib/conversation-messages";
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
-import { parseGenerateImageOutput } from "./ChatImageCard";
-import { parseCreateVideoProductionOutput } from "./ChatVideoCard";
 
 export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
@@ -18,8 +12,6 @@ export type TodoItem = {
   status: TodoStatus;
   deliverable?: DeliverableKind;
 };
-
-type ToolPart = Extract<UIMessage["parts"][number], { toolCallId: string }>;
 
 type DeliverablePartStatus = "running" | "completed" | "error" | "cancelled";
 type ResolvedTodoStatus = TodoStatus | "failed";
@@ -69,97 +61,6 @@ export function parseTodoListOutput(output: unknown): { todos: TodoItem[] } | nu
     ];
   });
   return { todos };
-}
-
-function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
-  if (part.state === "output-error") {
-    return "errorText" in part && /取消|cancel/i.test(part.errorText) ? "cancelled" : "error";
-  }
-  const output = "output" in part ? part.output : undefined;
-  switch (toolUiKind(part)) {
-    case "image-gallery": {
-      const parsed = parseGenerateImageOutput(output);
-      if (parsed?.status === "partial" && parsed.images.length > 0) {
-        return "completed";
-      }
-      if (parsed?.ok === false) {
-        return "error";
-      }
-      if (parsed?.status === "cancelled") {
-        return "cancelled";
-      }
-      if (parsed?.status === "failed") {
-        return "error";
-      }
-      return parsed?.status === "completed" ? "completed" : "running";
-    }
-    case "video": {
-      const parsed = parseCreateVideoProductionOutput(output);
-      if (parsed?.ok === false) {
-        return "error";
-      }
-      if (parsed?.status === "cancelled") {
-        return "cancelled";
-      }
-      if (parsed?.status === "failed") {
-        return "error";
-      }
-      return parsed?.status === "completed" && (parsed.productionId || parsed.documentId) ? "completed" : "running";
-    }
-    case "artifact": {
-      const outcome = parseToolOutcome(output);
-      if (outcome?.ok === false) return "error";
-      const artifact = parseArtifactOutput(output);
-      if (artifact?.documentId || artifact?.fileId) {
-        return "completed";
-      }
-      return "running";
-    }
-    default:
-      return "running";
-  }
-}
-
-const DELIVERABLE_BY_UI_KIND = new Map<string, DeliverableKind>([
-  ["image-gallery", "image"],
-  ["video", "video"],
-  ["artifact", "artifact"],
-]);
-
-// Each assistant reply owns one checklist. Keep its first position and original
-// part indices so later snapshots neither remount the card nor shift file references.
-export function projectMessageTodos(parts: ChatUIMessage["parts"]) {
-  const visibleParts: (ChatUIMessage["parts"][number] | null)[] = [...parts];
-  const deliverableCompletion: DeliverableCompletion = { artifact: [], image: [], video: [] };
-  let todoIndex = -1;
-  let deliverablesStart = parts.length;
-  for (const [index, part] of parts.entries()) {
-    if (!isToolUIPart(part) || toolUiKind(part) !== "todo-list" || part.state === "approval-requested") continue;
-    if (todoIndex < 0) todoIndex = index;
-    else visibleParts[index] = null;
-
-    const current = visibleParts[todoIndex];
-    const preparing = part.state === "input-streaming" || part.state === "input-available";
-    if (
-      preparing &&
-      current &&
-      isToolUIPart(current) &&
-      current.state === "output-available" &&
-      parseTodoListOutput(current.output)
-    ) {
-      continue;
-    }
-    visibleParts[todoIndex] = part;
-    deliverablesStart = index + 1;
-  }
-  for (let index = deliverablesStart; index < parts.length; index++) {
-    const part = parts[index];
-    if (!isToolUIPart(part)) continue;
-    const kind = toolUiKind(part);
-    const deliverable = kind && DELIVERABLE_BY_UI_KIND.get(kind);
-    if (deliverable) deliverableCompletion[deliverable].push(deliverablePartStatus(part));
-  }
-  return { visibleParts, todoIndex, deliverableCompletion };
 }
 
 // A whole image request is ONE generate_images call and one gallery part even

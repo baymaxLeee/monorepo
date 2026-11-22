@@ -81,7 +81,7 @@ test("tool metadata cannot hide a tool call", async () => {
   expect(await screen.findByRole("button", { name: /previously_internal\s*执行中/ })).toBeTruthy();
 });
 
-test("only the latest todo snapshot is rendered within a message", async () => {
+test("successful todo snapshots leave the transcript while approval remains actionable", async () => {
   render(
     <ChatMessageView
       {...props}
@@ -125,11 +125,9 @@ test("only the latest todo snapshot is rendered within a message", async () => {
       }}
     />,
   );
-  const trigger = await screen.findByRole("button", { name: /update_plan\s*已完成/ });
-  fireEvent.click(trigger);
-  expect(screen.getByText("新计划")).toBeTruthy();
+  expect(screen.queryByText("新计划")).toBeNull();
   expect(screen.queryByText("旧计划")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "允许" }));
+  fireEvent.click(await screen.findByRole("button", { name: "允许" }));
   expect(props.onToolApproval).toHaveBeenCalledWith("todo-approval", true);
 });
 

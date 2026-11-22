@@ -202,6 +202,11 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
         }}
       />
       <InputGroup className={`h-auto min-h-24 flex-col overflow-hidden rounded-3xl ${composerSurfaceClassName}`}>
+        {props.headerRender ? (
+          <div data-slot="prompt-input-header" className="w-full border-b px-4 py-3">
+            {props.headerRender(api)}
+          </div>
+        ) : null}
         {toolbarRender?.(api)}
         <EditorContent editor={editor} data-slot="input-group-control" className="prompt-input-content w-full" />
         <PromptInputActions
