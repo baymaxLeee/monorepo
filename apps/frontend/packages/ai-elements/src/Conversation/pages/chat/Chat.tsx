@@ -129,6 +129,7 @@ export function ChatSession({
     historyMutationPending,
     activeRunId,
     issue,
+    modelRetry,
     canRetry,
     canStartHistoryMutation,
     recover,
@@ -360,6 +361,15 @@ export function ChatSession({
             onRetry={canRetry ? retryRequest : undefined}
             onStop={stopRun}
           />
+        ) : modelRetry ? (
+          <p
+            role={modelRetry.state === "retrying" ? "status" : "alert"}
+            className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-foreground"
+          >
+            {modelRetry.state === "retrying"
+              ? `网络连接中断，正在重连（${modelRetry.attempt}/${modelRetry.maxAttempts}）…`
+              : `网络连接仍不可用，已重试 ${modelRetry.maxAttempts} 次`}
+          </p>
         ) : null
       }
       composer={

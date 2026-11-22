@@ -34,6 +34,9 @@ import {
   ExecPolicy,
   compilePermissionProfile,
   runtimeTokenUsage,
+  MODEL_STREAM_RETRIES,
+  createModelStreamRetryPolicy,
+  retryableModelStreamMiddleware,
 } from "@repo/agent-runtime";
 import { consumeStream, createUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 
@@ -52,27 +55,8 @@ import { attachmentDirectory, selectedWorkspacePath, storeAttachment } from "./a
 import { localExecutionTools } from "./execution-tools";
 import { LocalJournal } from "./journal";
 import { resolveDesktopPlugins } from "./local-plugins";
-import { isRetryableModelConnectionError, relayModel, type RelayCall } from "./relay-model";
+import { relayModel, type RelayCall } from "./relay-model";
 import { LocalWorkspaces } from "./workspace";
-
-const MODEL_STREAM_RETRIES = 3;
-
-function waitForModelRetry(attempt: number, signal: AbortSignal) {
-  signal.throwIfAborted();
-  const base = 200 * 2 ** (attempt - 1);
-  const delay = Math.round(base * (0.9 + Math.random() * 0.2));
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", abort);
-      resolve();
-    }, delay);
-    const abort = () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    signal.addEventListener("abort", abort, { once: true });
-  });
-}
 
 export interface DesktopSessionOptions {
   directory: string;
@@ -374,15 +358,13 @@ export class DesktopSessionManager {
     }
     const config = await this.options.config(thread.providerId, thread.reasoningEffort, signal);
     const model = relayModel(config, this.options.call);
-    let modelRetryAttempt = 0,
-      modelRetryActive = false;
-    const emitModelRetry = (state: "retrying" | "recovered" | "failed") => {
-      this.emitStreamChunk(thread.id, {
-        type: "data-model-retry",
-        data: { state, attempt: modelRetryAttempt, maxAttempts: MODEL_STREAM_RETRIES },
-        transient: true,
-      });
-    };
+    const modelRetry = createModelStreamRetryPolicy({
+      signal,
+      emit: (event) => this.emitStreamChunk(thread.id, { type: "data-model-retry", data: event, transient: true }),
+      ...(this.options.waitForModelRetry
+        ? { wait: (attempt: number) => this.options.waitForModelRetry!(attempt, signal) }
+        : {}),
+    });
     let modelEpoch = runWorkspace.epoch;
     const portableTools = createPortableToolRegistry({
       model: {
@@ -457,7 +439,7 @@ export class DesktopSessionManager {
         model,
         contextLimits: config,
         stepCheckpoint: { assistantId, save: projected.saveStepCheckpoint },
-        middleware: [contextCaptureMiddleware],
+        middleware: [retryableModelStreamMiddleware, contextCaptureMiddleware],
         tools,
         toolApproval: orchestrator.toolApproval,
         activeTools,
@@ -488,33 +470,10 @@ export class DesktopSessionManager {
           this.save(thread);
         },
         onStepStart: () => {
-          modelRetryAttempt = 0;
-          modelRetryActive = false;
+          modelRetry.reset();
         },
-        onChunk: ({ chunk }) => {
-          if (
-            modelRetryActive &&
-            chunk.type !== "error" &&
-            chunk.type !== "ping" &&
-            chunk.type !== "start" &&
-            chunk.type !== "start-step"
-          ) {
-            modelRetryActive = false;
-            emitModelRetry("recovered");
-          }
-        },
-        onError: async ({ error }) => {
-          if (!isRetryableModelConnectionError(error)) return;
-          if (modelRetryAttempt >= MODEL_STREAM_RETRIES) {
-            modelRetryActive = false;
-            emitModelRetry("failed");
-            return;
-          }
-          modelRetryAttempt++;
-          modelRetryActive = true;
-          emitModelRetry("retrying");
-          await (this.options.waitForModelRetry ?? waitForModelRetry)(modelRetryAttempt, signal);
-        },
+        onChunk: modelRetry.onChunk,
+        onError: modelRetry.onError,
         prepareStep: ({ messages }) => {
           runWorkspace.flushChanges();
           modelEpoch = runWorkspace.epoch;

@@ -2,6 +2,17 @@ export { RuntimeTurn, type TurnScope } from "./turn/turn.js";
 export { createRuntimeInputQueue, type RuntimeInputQueue, type RuntimeInputMode } from "./turn/input-queue.js";
 export type { RuntimeTurnSettings } from "./turn/settings.js";
 export {
+  MODEL_STREAM_RETRIES,
+  MODEL_STREAM_IDLE_TIMEOUT_MS,
+  createRetryableModelStreamMiddleware,
+  createModelStreamRetryPolicy,
+  isRetryableNetworkError,
+  retryableModelStreamMiddleware,
+  retryTransientNetwork,
+  waitForTransientRetry,
+  type ModelRetryEvent,
+} from "./turn/model-retry.js";
+export {
   applyToolApprovalResponse,
   finalizeInterruptedMessages,
   finalizeInterruptedParts,

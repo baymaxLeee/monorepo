@@ -119,6 +119,14 @@ test("relay emits native provider parts, meters once and strips provider persist
   assert.deepEqual(f.calls[0]?.providerOptions, { openai: { store: false } });
   assert.equal(f.calls[0]?.includeRawChunks, false);
 });
+test("relay explicitly keeps the HTTP response in chunked streaming mode", async () => {
+  const f = fixture([{ type: "stream-start", warnings: [] }, finish]);
+
+  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+
+  assert.equal(response.headers.get("transfer-encoding"), "chunked");
+  await response.body?.cancel();
+});
 test("unauthorized model, injected provider options, remote URLs and hosted tools never reach provider", async () => {
   for (const payload of [
     { ...request(), model: "other" },
@@ -173,39 +181,53 @@ test("a provider connection failure before the stream starts uses the same retry
   assert.deepEqual(f.charges, [null]);
 });
 
-test("a failure after semantic output or hosted execution is not retryable", async () => {
-  for (const parts of [
-    [
-      { type: "text-start", id: "answer" },
-      { type: "text-delta", id: "answer", delta: "partial" },
-    ] satisfies LanguageModelV4StreamPart[],
-    [
-      {
-        type: "tool-call",
-        toolCallId: "x",
-        toolName: "shell",
-        input: "{}",
-        providerExecuted: true,
-      } satisfies LanguageModelV4StreamPart,
-    ],
-  ]) {
-    const f = fixture(parts);
-    const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
-    const output = (await response.text())
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
-    assert.deepEqual(output.at(-1), {
-      type: "error",
-      error: {
-        code: "model_stream_interrupted",
-        message: "模型响应中断，请重新发送消息",
-        retryable: false,
-      },
-    });
-    assert.equal(f.calls.length, 1);
-    assert.deepEqual(f.charges, [null]);
-  }
+test("a connection drop after partial semantic output remains retryable", async () => {
+  const f = fixture([
+    { type: "text-start", id: "answer" },
+    { type: "text-delta", id: "answer", delta: "partial" },
+  ]);
+  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const output = (await response.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
+  assert.deepEqual(output.at(-1), {
+    type: "error",
+    error: {
+      code: "model_connection_failed",
+      message: "模型连接中断",
+      retryable: true,
+    },
+  });
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(f.charges, [null]);
+});
+
+test("provider-hosted execution remains a terminal protocol violation", async () => {
+  const f = fixture([
+    {
+      type: "tool-call",
+      toolCallId: "x",
+      toolName: "shell",
+      input: "{}",
+      providerExecuted: true,
+    } satisfies LanguageModelV4StreamPart,
+  ]);
+  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const output = (await response.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
+  assert.deepEqual(output.at(-1), {
+    type: "error",
+    error: {
+      code: "model_stream_interrupted",
+      message: "模型响应中断，请重新发送消息",
+      retryable: false,
+    },
+  });
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(f.charges, [null]);
 });
 
 test("a socket failure after only stream metadata remains retryable", async () => {

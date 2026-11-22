@@ -8,6 +8,7 @@ import {
   type PluginActivation,
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
+  type ModelRetryEvent,
 } from "@repo/agent-runtime";
 import {
   consumeStream,
@@ -363,6 +364,12 @@ export async function createAgentRunResponse(
 
     const assistantMessageId =
       operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex");
+    const pendingModelRetryEvents: ModelRetryEvent[] = [];
+    let modelRetrySink: ((event: ModelRetryEvent) => void) | null = null;
+    const publishModelRetry = (event: ModelRetryEvent) => {
+      if (modelRetrySink) modelRetrySink(event);
+      else pendingModelRetryEvents.push(event);
+    };
     const turn = await runtimeTurn.start(async (scope) => {
       const inbox = startAgentRunInputInbox(leaseToken, runtimeTurn.input);
       scope.defer(() => inbox.close());
@@ -423,6 +430,7 @@ export async function createAgentRunResponse(
           onCompactionUsage: (usage) => {
             contextUsage = addUsage(contextUsage, usage);
           },
+          onModelRetry: publishModelRetry,
           previousResponseId: continueStoredLineage ? lineage.responseId : null,
           instructionInput,
           activeSkillName: currentSkillName,
@@ -514,6 +522,8 @@ export async function createAgentRunResponse(
             historyRevision: claim.historyRevision,
           } satisfies ChatMessageMetadata,
         });
+        modelRetrySink = (event) => writer.write({ type: "data-model-retry", data: event, transient: true });
+        for (const event of pendingModelRetryEvents.splice(0)) modelRetrySink(event);
         const titlePromise = shouldGenerateTitle
           ? generateConversationTitlePart({ provider, userText: titleSourceText })
               .then((part) => {
@@ -523,6 +533,7 @@ export async function createAgentRunResponse(
           : Promise.resolve();
         writer.merge(agentParts.stream);
         const end = await agentParts.end;
+        modelRetrySink = null;
         await titlePromise;
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;

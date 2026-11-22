@@ -203,6 +203,34 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     ]);
   });
 
+  it("retries the current model step after partial text without replaying the turn", async () => {
+    let calls = 0;
+    const f = await fixture(
+      async () => {
+        calls++;
+        if (calls > 1) return reply(text());
+        return new ReadableStream<LanguageModelV4StreamPart>({
+          start(controller) {
+            controller.enqueue({ type: "text-start", id: "partial" });
+            controller.enqueue({ type: "text-delta", id: "partial", delta: "partial" });
+            controller.enqueue({
+              type: "error",
+              error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+            });
+            controller.close();
+          },
+        });
+      },
+      { waitForModelRetry: async () => {} },
+    );
+
+    f.runtime.send(f.thread.id, user("first"), randomUUID());
+    const completed = await done(f.runtime, f.thread.id);
+    expect(completed.status).toBe("idle");
+    expect(calls).toBe(2);
+    expect(completed.messages.filter((message) => message.role === "user")).toHaveLength(1);
+  });
+
   it("stops after three retries and accepts an explicit next turn without replay", async () => {
     let calls = 0;
     const events: DesktopEvent[] = [];
@@ -242,7 +270,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(recovered.messages.filter((message) => message.role === "user")).toHaveLength(2);
   });
 
-  it("does not retry after model output has started", async () => {
+  it("does not retry an explicit terminal provider error after model output has started", async () => {
     let calls = 0;
     const f = await fixture(async () => {
       calls++;

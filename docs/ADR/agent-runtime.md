@@ -51,6 +51,14 @@ Backend 和 Desktop 只能准备 model、tools、environment、sandbox、persist
 
 AI SDK 继续拥有 model/tool loop、stable tool ordering、approval、`prepareStep`、stream 和原生流式取消。TurnScope 将宿主取消与本轮资源的生命周期绑定。kernel 不复制 planner、router、failure counter、repair model 或另一套 stop state machine。交互 Turn 显式使用 SDK 的 `isLoopFinished()`，连续工具调用可以超过 20 步，模型给出最终回复、等待外部输入、取消或失败时交回宿主。普通工具失败作为观察结果回到同一 loop；持久化、权限或协议破坏则 fail closed。
 
+### 网络故障恢复
+
+Cloud 与 Desktop 共用 Codex 式的当前采样恢复语义。模型调用遇到明确的瞬时网络错误、HTTP 408/409/429、5xx、120 秒建连或流 idle timeout 时，AI SDK 只重启当前 model step，最多重试 3 次，退避为 200/400/800 ms 并带少量 jitter。已经完成的 model step、工具调用和工具副作用不会重放；当前失败采样即使已经输出部分文本，也由 SDK 封闭该 attempt 后重新采样。取消会立即打断退避。HTTP 400/401/403、输入或协议错误、provider-hosted tool execution 等终态失败不进入重试。
+
+每次重试通过 transient `data-model-retry` 发布 `retrying/recovered/failed`，两个宿主的会话界面显示同一套重连进度；事件不写入 journal 或模型上下文。Desktop 的 HTTP relay 显式保持 chunked response，并把上游未完成流规范化为 retryable model error，避免代理层把它降级为不可分类的 `ERR_INCOMPLETE_CHUNKED_ENCODING`。这套策略适用于首个采样及工具后的后续采样，不重启整个 Turn。
+
+所有 manifest 声明为非流式 `effect: read` 的 Tool 都采用相同的 3 次瞬时网络失败重试边界，包括内置读取、公共 Web 工具和 MCP 只读工具。`web_fetch` 还把结构化的 408/409/429 和 5xx 结果纳入重试；403 等权限错误立即返回。`write/add/update/destructive/unknown` Tool 可能包含 POST、上传、扣费或其他副作用，只有各自拥有幂等键或恢复协议时才可在工具内部重试。任意 Bash/`curl` 命令同样不透明重放；失败作为工具结果交回模型，由模型结合命令语义决定下一步。
+
 ## 运行中输入与取消
 
 运行中只有三个不同动作：
@@ -71,7 +79,7 @@ shared context manager 将完整 UIMessage journal 投影为 bounded ModelMessag
 
 1. 有效输入窗口为 `max(512, contextWindow - maxOutputTokens - 8000)`；自动压缩水位取有效输入窗口、模型上下文窗口的 90% 和显式模型水位三者的最小值。stored lineage 到达水位时从 journal 重建。这个水位同时是 UI 的 `autoCompactAt` 和 context manager 开始拆分 prefix/tail 的依据，不能出现 lineage 已断开但投影仍不压缩的不同阈值。
 2. 近期 tail 保留原生消息，并在自动压缩水位内为 compacted prefix 预留 6000 tokens；只压缩旧前缀。单条超长 prefix 消息按连续 chunk 全量送给 compactor；工具与 `data-*` 的大 payload 可以有界截断，保留调用 ID、首尾内容和截断标记。最终 ModelMessage 投影若仍超过有效输入窗口就拒绝调用，不能依赖 provider 隐式截断。
-3. Cloud 对 OpenAI 一方 Responses 端点使用 `compaction_trigger`，以 `store: false` 请求和重放加密的 `compaction` item。checkpoint 绑定 provider 和 model；切换后从完整 journal 投影。其他端点和 Desktop relay 采用流式文本压缩，增量合并旧摘要和新 prefix，持久化 `runtime-context-v1`。
+3. Cloud 对 OpenAI 一方 Responses 端点使用 `compaction_trigger`，以 `store: false` 请求和重放加密的 `compaction` item。checkpoint 绑定 provider 和 model；切换后从完整 journal 投影。Ark stored Responses 只有在 `previous_response_id` 与 journal 直接相邻时才发送最后一个 assistant 之后的 user/tool suffix；lineage 缺失时移除旧 `itemId` 并物化完整本地 prompt，禁止发送悬空 `item_reference`。其他端点和 Desktop relay 采用流式文本压缩，增量合并旧摘要和新 prefix，持久化 `runtime-context-v1`。
 4. checkpoint 记录 `coveredThroughMessageId` 和 revision。两端先完成近期消息转换、输入窗口校验与取消检查，再由 PostgreSQL/SQLite 通过 CAS 安装；compaction 或 checkpoint 写入失败会终止本次主模型调用，不能假装压缩成功或推进 coverage。Cloud 和 Desktop 在 SDK 的 `finish-step` 将包含 artifacts 的消息 parts 写入当前助手消息。Cloud 以 turn 租约约束写入，终态复用同一 item 和 ordinal。轮内压缩覆盖完整工具步骤时，checkpoint 记录输入消息、助手消息和该步的工具调用 ID。恢复时校验所选分支、工具完成状态和远程模型绑定，随后重放保留的用户输入和剩余步骤。缺失或不匹配时重新投影原始 journal。
 5. 文件授权/字节加载是 host 的 `prepareRecent` adapter；shared manager 不访问 Storage、数据库或本地文件系统。持久 journal 从不因 projection/pruning/compaction 被改写。
 

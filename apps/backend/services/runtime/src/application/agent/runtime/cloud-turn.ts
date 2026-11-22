@@ -1,4 +1,4 @@
-import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
+import type { LanguageModelV4CallOptions, LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import {
   type TurnScope,
@@ -8,6 +8,9 @@ import {
   type RuntimeTurnSettings,
   transformToolPreservingCaller,
   isToolOutcome,
+  MODEL_STREAM_RETRIES,
+  createModelStreamRetryPolicy,
+  retryableModelStreamMiddleware,
 } from "@repo/agent-runtime";
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
@@ -36,6 +39,17 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
     logger.error({ err: error }, `${label} failed`);
   });
+}
+
+function storedContinuationPrompt(
+  prompt: LanguageModelV4CallOptions["prompt"],
+): LanguageModelV4CallOptions["prompt"] | null {
+  let assistant = prompt.length - 1;
+  while (assistant >= 0 && prompt[assistant]?.role !== "assistant") assistant--;
+  if (assistant < 0) return null;
+  const suffix = prompt.slice(assistant + 1);
+  if (suffix.length === 0 || suffix.some((message) => message.role !== "user" && message.role !== "tool")) return null;
+  return [...prompt.filter((message) => message.role === "system"), ...suffix];
 }
 
 type ExecutableTool = ToolSet[string] & {
@@ -176,8 +190,11 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     resolvedTools.environment,
   );
   const providerModel = createInferenceModel(provider, input.reasoningEffort);
+  const modelRetry = createModelStreamRetryPolicy({
+    signal: input.signal,
+    emit: (event) => input.onModelRetry?.(event),
+  });
   const { toolSources } = resolvedTools;
-  let deltaRoles: Array<"user" | "tool"> | null = null;
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
     transformParams: async ({ params }) => {
@@ -208,16 +225,13 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
           providerOptions: { ...params.providerOptions, openai: { ...params.providerOptions?.openai, store: false } },
         };
       }
-      if (previousResponseId && deltaRoles) {
+      if (previousResponseId) {
         // The retained SDK messages stay complete, even when the wire request is incremental.
-        const suffix = params.prompt.slice(-deltaRoles.length);
-        if (
-          suffix.length === deltaRoles.length &&
-          suffix.every((message, index) => message.role === deltaRoles![index])
-        ) {
+        const incrementalPrompt = storedContinuationPrompt(params.prompt);
+        if (incrementalPrompt) {
           return {
             ...params,
-            prompt: [...params.prompt.filter((message) => message.role === "system"), ...suffix],
+            prompt: incrementalPrompt,
             providerOptions: {
               ...params.providerOptions,
               openai: { ...params.providerOptions?.openai, previousResponseId },
@@ -233,10 +247,11 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   const settings = {
     id: "chat-agent",
     model: providerModel,
-    middleware: [contextCaptureMiddleware],
+    middleware: [retryableModelStreamMiddleware, contextCaptureMiddleware],
     instructions,
     maxOutputTokens: provider.maxOutputTokens,
-    timeout: { chunkMs: 120_000 },
+    maxRetries: 0,
+    streamRetries: MODEL_STREAM_RETRIES,
     tools: instrumentedTools,
     // The catalog is dynamic, so its string-keyed ToolSet cannot retain the caller-name literal type.
     experimental_toolCallers: resolvedTools.toolCallers as never,
@@ -267,25 +282,17 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     onCompactionUsage: input.onCompactionUsage,
     onHistoryReplacement: () => {
       previousResponseId = null;
-      deltaRoles = null;
     },
-    prepareStep: async ({ messages, steps, experimental_steeringMessages }) => {
+    prepareStep: async ({ messages }) => {
       const changes = (await sandbox.consumeExternalFileChanges()).map((change) => change.path);
-      const full = appendWorkspaceChangeEvent(messages, changes);
-      let first = full.length;
-      while (first > 0 && (full[first - 1]?.role === "tool" || full[first - 1]?.role === "user")) first--;
-      // For a new user turn, preceding consecutive user messages already belong to the stored response.
-      if (!steps.length && messages.at(-1)?.role === "user")
-        first = Math.max(first, messages.length - 1 - (experimental_steeringMessages?.length ?? 0));
-      deltaRoles = first < full.length ? full.slice(first).map((message) => message.role as "tool" | "user") : null;
-      if (!deltaRoles) previousResponseId = null;
-      return { messages: full };
+      return { messages: appendWorkspaceChangeEvent(messages, changes) };
     },
     // Generic ToolSet context requirements are conditional; the catalog still builds the inferred context map above.
     // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
     toolsContext: toolsContext as never,
     runtimeContext,
     onStepStart: (event) => {
+      modelRetry.reset();
       currentStepNumber = event.stepNumber;
       modelStepSpans.set(
         currentStepNumber,
@@ -306,6 +313,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         }),
       );
     },
+    onChunk: modelRetry.onChunk,
+    onError: modelRetry.onError,
     onStepEnd: (event) => {
       const contextEstimate = contextEstimates.get(currentStepNumber);
       contextEstimates.delete(currentStepNumber);

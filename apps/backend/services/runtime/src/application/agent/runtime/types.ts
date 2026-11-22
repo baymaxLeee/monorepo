@@ -4,6 +4,7 @@ import {
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
   type RuntimeTokenUsage,
+  type ModelRetryEvent,
 } from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 
@@ -35,6 +36,7 @@ export interface CloudTurnInput {
   permissionProfile: BuiltInPermissionProfileId;
   continuation?: UIMessage;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
+  onModelRetry?: (event: ModelRetryEvent) => void;
   previousResponseId?: string | null;
   instructionInput: InstructionInput;
   /** Skill already active in the logical turn, including client-tool continuations. */

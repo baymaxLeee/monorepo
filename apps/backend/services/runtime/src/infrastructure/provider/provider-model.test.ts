@@ -148,6 +148,82 @@ test("uses Ark stored continuation semantics for every configured chat model", a
   }
 });
 
+test("materializes Ark prompt content when no stored response lineage is available", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody: Record<string, unknown> = {};
+  globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json({
+      id: "resp_rebuilt",
+      object: "response",
+      created_at: 1_700_000_000,
+      model: "gpt-test",
+      status: "completed",
+      incomplete_details: null,
+      output: [
+        {
+          type: "message",
+          id: "msg_rebuilt",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: "done" }],
+        },
+      ],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        total_tokens: 2,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens_details: { reasoning_tokens: 0 },
+      },
+    });
+  };
+
+  const rebuiltPrompt: LanguageModelV4CallOptions["prompt"] = [
+    { role: "user", content: [{ type: "text", text: "research this" }] },
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "reasoning",
+          text: "I should search first.",
+          providerOptions: { openai: { itemId: "rs_stored", reasoningEncryptedContent: null } },
+        },
+        {
+          type: "tool-call",
+          toolCallId: "call_search",
+          toolName: "web_search",
+          input: { query: "current result" },
+          providerOptions: { openai: { itemId: "fc_stored" } },
+        },
+      ],
+    },
+    {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "call_search",
+          toolName: "web_search",
+          output: { type: "json", value: { results: [] } },
+        },
+      ],
+    },
+  ];
+
+  try {
+    const model = createProviderModel(provider);
+    await model.doGenerate({ prompt: rebuiltPrompt });
+
+    assert.doesNotMatch(JSON.stringify(requestBody.input), /item_reference|rs_stored|fc_stored/);
+    assert.match(JSON.stringify(requestBody.input), /research this|web_search|call_search/);
+    assert.equal(requestBody.store, true);
+    assert.equal("previous_response_id" in requestBody, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("removes caller-supplied context management from Ark requests", async () => {
   const originalFetch = globalThis.fetch;
   const requestBodies: Record<string, unknown>[] = [];

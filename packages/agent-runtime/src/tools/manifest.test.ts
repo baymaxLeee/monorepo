@@ -61,3 +61,40 @@ test("tool conversion rejects duplicate manifest names", () => {
 
   assert.throws(() => manifestsToTools([manifest, manifest]), /duplicate agent tool duplicate/);
 });
+
+test("read tools retry transient network failures while write tools never replay", async () => {
+  let readCalls = 0;
+  const read = defineAgentTool(
+    "read-network",
+    tool({
+      inputSchema: z.object({}),
+      execute: async () => {
+        readCalls++;
+        if (readCalls === 1) throw Object.assign(new Error("socket reset"), { code: "ECONNRESET" });
+        return "recovered";
+      },
+    }),
+    { capability: "external", effect: "read", trust: "open-world", execution: "inline" },
+    { summary: "Read network state." },
+  );
+  const readResult = await read.tool!.execute!({}, options as ToolExecutionOptions<unknown>);
+  assert.equal(readCalls, 2);
+  assert.deepEqual(readResult, { ok: true, status: "completed", data: "recovered" });
+
+  let writeCalls = 0;
+  const write = defineAgentTool(
+    "write-network",
+    tool({
+      inputSchema: z.object({}),
+      execute: async (): Promise<string> => {
+        writeCalls++;
+        throw Object.assign(new Error("socket reset"), { code: "ECONNRESET" });
+      },
+    }),
+    { capability: "external", effect: "write", trust: "open-world", execution: "inline" },
+    { summary: "Write network state." },
+  );
+  const writeResult = await write.tool!.execute!({}, options as ToolExecutionOptions<unknown>);
+  assert.equal(writeCalls, 1);
+  assert.ok(isToolOutcome(writeResult) && writeResult.status === "failed");
+});

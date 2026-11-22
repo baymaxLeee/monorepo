@@ -11,7 +11,12 @@ import { lastAssistantMessageIsCompleteWithApprovalResponses, lastAssistantMessa
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { chatDataPartSchemas, chatMessageMetadataSchema, type ChatUIMessage } from "../lib/chat-message";
+import {
+  chatDataPartSchemas,
+  chatMessageMetadataSchema,
+  type ChatUIDataTypes,
+  type ChatUIMessage,
+} from "../lib/chat-message";
 import {
   hasCompletedClientTool,
   hasPendingClientTool,
@@ -35,6 +40,7 @@ export function useConversationChat(id: string) {
   const [historyMutationPending, setHistoryMutationPending] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [issue, setIssue] = useState<{ kind: "connection" | "history" | "cancel"; message: string } | null>(null);
+  const [modelRetry, setModelRetry] = useState<ChatUIDataTypes["model-retry"] | null>(null);
   const refreshRef = useRef<(() => Promise<void>) | null>(null);
   const titleRafRef = useRef<number | null>(null);
   const pendingTitleRef = useRef<{ id: string; title: string } | null>(null);
@@ -112,6 +118,10 @@ export function useConversationChat(id: string) {
           }
         },
         onData: (dataPart) => {
+          if (dataPart.type === "data-model-retry") {
+            setModelRetry(dataPart.data.state === "recovered" ? null : dataPart.data);
+            return;
+          }
           if (dataPart.type !== "data-conversation-title") {
             return;
           }
@@ -123,6 +133,7 @@ export function useConversationChat(id: string) {
         },
         onFinish: ({ isDisconnect, isError, isAbort }) => {
           if (connectedChatRef.current !== chat) return;
+          setModelRetry(null);
           bumpTraceRefresh();
           const streamedRevision = chat.messages.at(-1)?.metadata?.historyRevision;
           if (streamedRevision !== undefined)
@@ -200,6 +211,7 @@ export function useConversationChat(id: string) {
     setActiveRunId(null);
     setDetail(null);
     setIssue(null);
+    setModelRetry(null);
     historyRevisionRef.current = undefined;
     historySelectionRef.current++;
     historySelectionPendingRef.current = false;
@@ -377,6 +389,7 @@ export function useConversationChat(id: string) {
     historyMutationPending,
     activeRunId,
     issue,
+    modelRetry,
     canRetry: transport.getPendingRequest?.() != null && !retryRequestPendingRef.current,
     canStartHistoryMutation,
     recover,

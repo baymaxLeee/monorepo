@@ -33,6 +33,9 @@ const responseHeaders = {
   "Content-Type": "application/x-ndjson",
   "Cache-Control": "no-store",
   "X-Accel-Buffering": "no",
+  // @hono/node-server otherwise probes early chunks and can infer a short
+  // Content-Length before the provider has finished producing the stream.
+  "Transfer-Encoding": "chunked",
 };
 
 class IncompleteProviderStreamError extends Error {}
@@ -80,9 +83,13 @@ export async function inferenceResponse(
   signal.throwIfAborted();
   const operation = await deps.reserve(auth, request.requestId, request.model, reserved);
   const controller = new AbortController();
-  const abort = () => controller.abort();
+  const abort = () => controller.abort(signal.reason);
   signal.addEventListener("abort", abort, { once: true });
-  const deadline = setTimeout(abort, 5 * 60_000);
+  let timedOut = false;
+  const deadline = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new DOMException("Provider request timeout", "TimeoutError"));
+  }, 5 * 60_000);
   const cleanup = () => {
     clearTimeout(deadline);
     signal.removeEventListener("abort", abort);
@@ -100,12 +107,11 @@ export async function inferenceResponse(
   } catch (error) {
     cleanup();
     await operation.settle(null);
-    return errorResponse(safeRelayError(!signal.aborted && connectionFailure(error)));
+    return errorResponse(safeRelayError(!signal.aborted && (timedOut || connectionFailure(error))));
   }
   const encoder = new TextEncoder();
   let settled = false,
     finished = false,
-    semanticOutput = false,
     outputBytes = 0;
   const settle = async (tokens: number | null) => {
     if (!settled) {
@@ -154,7 +160,6 @@ export async function inferenceResponse(
           await reader.cancel().catch(() => undefined);
           output.close();
         }
-        if (part.type !== "stream-start" && part.type !== "finish") semanticOutput = true;
       } catch (error) {
         controller.abort();
         await reader.cancel().catch(() => undefined);
@@ -162,10 +167,11 @@ export async function inferenceResponse(
         // The HTTP response may already be a 200 with partial NDJSON. Terminate
         // the model protocol explicitly so proxies do not turn an upstream
         // failure into ERR_INCOMPLETE_CHUNKED_ENCODING for the desktop client.
+        // A retry restarts only this provider sample. Completed agent steps and
+        // tool effects are outside this relay, so partial text does not make a
+        // transient transport failure unsafe to retry.
         const retryable =
-          !semanticOutput &&
-          !signal.aborted &&
-          (error instanceof IncompleteProviderStreamError || connectionFailure(error));
+          !signal.aborted && (timedOut || error instanceof IncompleteProviderStreamError || connectionFailure(error));
         const part = {
           type: "error",
           error: safeRelayError(retryable),

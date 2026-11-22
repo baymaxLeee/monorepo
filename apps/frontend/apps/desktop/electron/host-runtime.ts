@@ -172,7 +172,6 @@ export class RuntimeHost {
     const abort = new AbortController();
     this.requests.set(id, abort);
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let semanticOutput = false;
     try {
       const response = await this.fetchApi("/api/chat-server/local-inference/stream", {
         method: "POST",
@@ -199,7 +198,6 @@ export class RuntimeHost {
           if (!line.trim()) continue;
           const part: { type: string } = JSON.parse(line);
           if (part.type === "finish" || part.type === "error") terminal = true;
-          else if (part.type !== "stream-start") semanticOutput = true;
           if (this.child === child) child.postMessage({ type: "inference-part", id, part });
         }
       }
@@ -212,7 +210,7 @@ export class RuntimeHost {
           id,
           part: {
             type: "error",
-            error: safeInferenceError(!semanticOutput && !abort.signal.aborted && isConnectionFailure(error)),
+            error: safeInferenceError(!abort.signal.aborted && isConnectionFailure(error)),
           },
         });
         child.postMessage({ type: "inference-end", id });

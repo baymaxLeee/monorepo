@@ -41,6 +41,12 @@ test("Web Fetch preserves HTTP availability semantics in the unified issue", () 
     retryable: false,
     source: "web-fetch",
   });
+  assert.deepEqual(webFetchIssue({ type: "error", errorCode: "http_error", statusCode: 503, message: "HTTP 503" }), {
+    code: "SERVICE_UNAVAILABLE",
+    message: "HTTP 503",
+    retryable: true,
+    source: "web-fetch",
+  });
 });
 
 test("Code Mode executes isolated ECMAScript and preserves its SDK caller", async () => {

@@ -2,6 +2,7 @@ import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/t
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
+import { retryTransientNetwork } from "../turn/model-retry.js";
 import { defineAgentTool, transformToolPreservingCaller } from "./manifest.js";
 import { toolCompleted, toolFailed, type ToolIssue } from "./outcome.js";
 
@@ -41,6 +42,13 @@ export function webFetchIssue(result: WebFetchError): ToolIssue {
   if (result.errorCode === "http_error" && result.statusCode === 429) {
     return { code: "PROVIDER_RATE_LIMITED", message: result.message, retryable: true, source: "web-fetch" };
   }
+  if (
+    result.errorCode === "http_error" &&
+    result.statusCode != null &&
+    (result.statusCode === 408 || result.statusCode === 409 || result.statusCode >= 500)
+  ) {
+    return { code: "SERVICE_UNAVAILABLE", message: result.message, retryable: true, source: "web-fetch" };
+  }
   if (result.errorCode === "http_error" && (result.statusCode === 401 || result.statusCode === 403)) {
     return { code: "SERVICE_PERMISSION_DENIED", message: result.message, retryable: false, source: "web-fetch" };
   }
@@ -56,6 +64,13 @@ const readPolicy = {
   trust: "open-world" as const,
   execution: "inline" as const,
 };
+
+class RetryableWebFetchError extends Error {
+  readonly retryable = true;
+  constructor(readonly result: WebFetchError) {
+    super(result.message);
+  }
+}
 
 export function createWebSearchManifest(
   search: (input: WebSearchInput, options: { abortSignal?: AbortSignal }) => Promise<WebSearchOutput>,
@@ -90,10 +105,26 @@ export function createWebFetchManifest() {
     {
       ...described,
       execute: async (input, options) => {
-        const result = await base.execute(input, options);
-        options.abortSignal?.throwIfAborted();
-        if (!("type" in result)) throw new Error("Web Fetch returned an unexpected streaming result.");
-        return result.type === "error" ? toolFailed(webFetchIssue(result)) : toolCompleted(result);
+        try {
+          const result = await retryTransientNetwork(
+            async () => {
+              const candidate = await base.execute(input, options);
+              options.abortSignal?.throwIfAborted();
+              if (!("type" in candidate)) throw new Error("Web Fetch returned an unexpected streaming result.");
+              if (candidate.type === "error" && webFetchIssue(candidate).retryable)
+                throw new RetryableWebFetchError(candidate);
+              return candidate;
+            },
+            {
+              signal: options.abortSignal,
+              shouldRetry: (error) => error instanceof RetryableWebFetchError,
+            },
+          );
+          return result.type === "error" ? toolFailed(webFetchIssue(result)) : toolCompleted(result);
+        } catch (error) {
+          if (error instanceof RetryableWebFetchError) return toolFailed(webFetchIssue(error.result));
+          throw error;
+        }
       },
     },
     { ...readPolicy, callableByCodeMode: true },

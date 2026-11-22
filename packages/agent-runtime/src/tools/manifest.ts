@@ -7,6 +7,7 @@ import {
 import type { ToolSet } from "ai";
 import { z } from "zod";
 
+import { retryTransientNetwork } from "../turn/model-retry.js";
 import {
   isToolEmission,
   normalizeToolIssue,
@@ -108,7 +109,10 @@ export function transformToolPreservingCaller(
   );
 }
 
-function wrapToolDefinition(definition: ToolSet[string], options: { strictByDefault: boolean }): ToolSet[string] {
+function wrapToolDefinition(
+  definition: ToolSet[string],
+  settings: { strictByDefault: boolean; retryReadNetwork: boolean },
+): ToolSet[string] {
   return transformToolPreservingCaller(definition, (current) => {
     const candidate = current as ToolSet[string] & {
       outputSchema?: z.ZodType<unknown>;
@@ -137,13 +141,22 @@ function wrapToolDefinition(definition: ToolSet[string], options: { strictByDefa
 
     return {
       ...candidate,
-      ...(options.strictByDefault && "inputSchema" in candidate ? { strict: candidate.strict ?? true } : {}),
+      ...(settings.strictByDefault && "inputSchema" in candidate ? { strict: candidate.strict ?? true } : {}),
       outputSchema: toolOutcomeSchema(dataSchema),
       ...(execute
         ? {
             execute: (input: unknown, options: { abortSignal?: AbortSignal; toolCallId?: string }) => {
               try {
-                const result = execute(input, options);
+                const result = settings.retryReadNetwork
+                  ? retryTransientNetwork(
+                      async () => {
+                        const value = execute(input, options);
+                        if (isAsyncIterable(value)) throw new Error("read tool retry cannot wrap a streaming result");
+                        return await value;
+                      },
+                      { signal: options.abortSignal },
+                    )
+                  : execute(input, options);
                 if (isAsyncIterable(result)) {
                   return wrapAsyncToolResult(result, options);
                 }
@@ -197,6 +210,7 @@ export function defineAgentTool(
   const described = attachPlanningGuidance(definition, planning);
   const wrapped = wrapToolDefinition(described, {
     strictByDefault: resolvedPolicy.source === "builtin",
+    retryReadNetwork: resolvedPolicy.effect === "read" && resolvedPolicy.streaming !== true,
   });
   const wrappedWithMetadata = transformToolPreservingCaller(wrapped, (candidate) => ({
     ...candidate,

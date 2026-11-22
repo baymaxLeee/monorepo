@@ -46,6 +46,25 @@ const PROVIDER_BODY_RESERVED_KEYS = new Set([
   "parallel_tool_calls",
 ]);
 
+const PROVIDER_REQUEST_TIMEOUT_MS = 120_000;
+
+async function secureProviderRequest(input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> {
+  const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+  const timeout = new AbortController();
+  const timer = setTimeout(
+    () => timeout.abort(new DOMException("Provider request timeout", "TimeoutError")),
+    PROVIDER_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    return await secureProviderFetch(input, {
+      ...init,
+      signal: callerSignal ? AbortSignal.any([callerSignal, timeout.signal]) : timeout.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function normalizeOpenAIBaseUrl(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, "");
   try {
@@ -246,16 +265,16 @@ async function normalizeResponsesJson(response: Response): Promise<Response> {
 function createResponsesFetch(extraBody: JSONObject): typeof fetch {
   return async (input, init) => {
     if (typeof init?.body !== "string") {
-      return secureProviderFetch(input, init);
+      return secureProviderRequest(input, init);
     }
     const url = input instanceof Request ? input.url : input.toString();
     if (!url.endsWith("/responses")) {
-      return secureProviderFetch(input, init);
+      return secureProviderRequest(input, init);
     }
     const body = JSON.parse(init.body) as JSONObject;
     Object.assign(body, extraBody);
     delete body.context_management;
-    const response = await secureProviderFetch(input, { ...init, body: JSON.stringify(body) });
+    const response = await secureProviderRequest(input, { ...init, body: JSON.stringify(body) });
     return response.headers.get("content-type")?.includes("text/event-stream")
       ? normalizeResponsesStream(response)
       : normalizeResponsesJson(response);
@@ -280,6 +299,28 @@ function prepareArkPrompt(
   return { prompt: input, instructions: instructions.length > 0 ? instructions.join("\n\n") : undefined };
 }
 
+function materializeArkPrompt(prompt: LanguageModelV4CallOptions["prompt"]): LanguageModelV4CallOptions["prompt"] {
+  return prompt.map((message) => {
+    if (message.role !== "assistant") return message;
+    return {
+      ...message,
+      content: message.content.map((part) => {
+        if (part.type === "custom") return part;
+        const openaiOptions = part.providerOptions?.openai;
+        if (!openaiOptions || !("itemId" in openaiOptions)) return part;
+        const { itemId: _itemId, ...materializedOptions } = openaiOptions;
+        return {
+          ...part,
+          providerOptions: {
+            ...part.providerOptions,
+            openai: materializedOptions,
+          },
+        };
+      }),
+    };
+  });
+}
+
 export function createProviderModel(
   provider: LanguageProviderSnapshot,
   options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null } = {},
@@ -301,7 +342,14 @@ export function createProviderModel(
         store: params.providerOptions?.openai?.store === false ? false : true,
       };
       openaiOptions.contextManagement = undefined;
-      const arkPrompt = prepareArkPrompt(params.prompt, openaiOptions.instructions);
+      // Ark item references are valid only inside the stored response lineage
+      // that created them. Once previous_response_id is unavailable, send the
+      // materialized local journal instead of dangling provider references.
+      const prompt =
+        openaiOptions.previousResponseId || openaiOptions.store === false
+          ? params.prompt
+          : materializeArkPrompt(params.prompt);
+      const arkPrompt = prepareArkPrompt(prompt, openaiOptions.instructions);
       openaiOptions.instructions = arkPrompt.instructions;
       return {
         ...params,

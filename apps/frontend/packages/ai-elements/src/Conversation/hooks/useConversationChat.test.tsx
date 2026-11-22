@@ -116,6 +116,25 @@ test("real SDK text deltas update the Chat instance without rendering its owner"
   expect(mocks.fetch).toHaveBeenCalledTimes(2);
 });
 
+test("model retry data reports reconnect progress and clears after recovery", async () => {
+  const view = await mount();
+  await act(async () => {
+    void view.result.current.chat.sendMessage({ text: "hello" });
+  });
+  await chunk({
+    type: "data-model-retry",
+    data: { state: "retrying", attempt: 2, maxAttempts: 3 },
+    transient: true,
+  });
+  expect(view.result.current.modelRetry).toEqual({ state: "retrying", attempt: 2, maxAttempts: 3 });
+  await chunk({
+    type: "data-model-retry",
+    data: { state: "recovered", attempt: 2, maxAttempts: 3 },
+    transient: true,
+  });
+  expect(view.result.current.modelRetry).toBeNull();
+});
+
 test("client-tool pauses keep the live tool part instead of reloading stored messages", async () => {
   const view = await mount();
   let sent: Promise<void>;
