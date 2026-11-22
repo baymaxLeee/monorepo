@@ -40,6 +40,7 @@ type ChatTranscriptProps = Pick<
 > & {
   messages: ChatUIMessage[];
   status: "submitted" | "streaming" | "ready" | "error";
+  runActive?: boolean;
   loading: boolean;
   branches: NonNullable<ChatMessageViewProps["branch"]>[];
   pendingInputs?: readonly PendingAgentInput[];
@@ -70,6 +71,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   conversationId,
   messages,
   status,
+  runActive = false,
   loading,
   branches,
   pendingInputs = [],
@@ -93,7 +95,7 @@ export const ChatTranscript = memo(function ChatTranscript({
     if (anchorIndex < 0) setFirstVisibleId(messages[start]?.id ?? null);
   }, [anchorIndex, messages, start]);
   const visibleMessages: (ChatUIMessage | null)[] = messages.slice(start);
-  const busy = status === "streaming" || status === "submitted";
+  const busy = runActive || status === "streaming" || status === "submitted";
   const lastMessage = messages.at(-1);
   const pendingAssistantId = busy && isPendingAssistantMessage(lastMessage) ? lastMessage?.id : undefined;
   if (busy && lastMessage?.role === "user") visibleMessages.push(null);

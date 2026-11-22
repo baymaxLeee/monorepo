@@ -166,7 +166,7 @@ export function applyAdditionalPermissions(
   additional: AdditionalPermissionProfile | undefined,
 ): PermissionProfile {
   const result = clonePermissionProfile(base);
-  if (!additional) return result;
+  if (!additional || result.type === "disabled") return result;
 
   const grants: FileSystemPermissionEntry[] = [
     ...(additional.file_system?.read ?? []).map((path) => ({ path, access: "read" as const })),
@@ -190,7 +190,7 @@ export function applyAdditionalPermissions(
     }
   }
 
-  if (additional.network?.enabled && result.type !== "disabled") result.network = { type: "enabled" };
+  if (additional.network?.enabled) result.network = { type: "enabled" };
   return clonePermissionProfile(result);
 }
 

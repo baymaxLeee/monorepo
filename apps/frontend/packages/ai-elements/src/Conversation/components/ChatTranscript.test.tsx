@@ -77,6 +77,26 @@ test("an empty streaming assistant uses one stable message row for its pending s
   );
 });
 
+test("an active host run keeps the pending row visible while the transport is ready", () => {
+  const user: ChatUIMessage = { id: "user", role: "user", parts: [{ type: "text", text: "hello" }] };
+  render(
+    <Conversation>
+      <ConversationContent>
+        <ChatTranscript
+          conversationId="conversation"
+          messages={[user]}
+          status="ready"
+          runActive
+          loading={false}
+          branches={[]}
+        />
+      </ConversationContent>
+    </Conversation>,
+  );
+
+  expect(screen.getByRole("status").textContent).toContain("正在思考");
+});
+
 test("submission keeps the same pending indicator until assistant content arrives", () => {
   const user: ChatUIMessage = { id: "user", role: "user", parts: [{ type: "text", text: "hello" }] };
   const assistant: ChatUIMessage = {

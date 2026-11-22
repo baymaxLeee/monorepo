@@ -257,6 +257,70 @@ test("a provider stream idle timeout retries the current model step", async () =
   ]);
 });
 
+test("provider pings do not postpone the semantic stream idle timeout", async () => {
+  let calls = 0;
+  let cancellations = 0;
+  const model: LanguageModelV4 = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test",
+    supportedUrls: {},
+    doGenerate: async () => {
+      throw new Error("stream only");
+    },
+    doStream: async () => {
+      calls++;
+      if (calls === 1) {
+        let pingTimer: ReturnType<typeof setInterval>;
+        let failureTimer: ReturnType<typeof setTimeout>;
+        return {
+          stream: new ReadableStream<LanguageModelV4StreamPart>({
+            start(controller) {
+              controller.enqueue({ type: "stream-start", warnings: [] });
+              pingTimer = setInterval(() => controller.enqueue({ type: "ping" }), 1);
+              failureTimer = setTimeout(() => {
+                clearInterval(pingTimer);
+                controller.enqueue({
+                  type: "error",
+                  error: { isRetryable: false, statusCode: 400, message: "semantic timeout did not fire" },
+                });
+                controller.close();
+              }, 40);
+            },
+            cancel() {
+              cancellations++;
+              clearInterval(pingTimer);
+              clearTimeout(failureTimer);
+            },
+          }),
+        };
+      }
+      return {
+        stream: new ReadableStream<LanguageModelV4StreamPart>({
+          start(controller) {
+            controller.enqueue({ type: "text-start", id: "answer" });
+            controller.enqueue({ type: "text-delta", id: "answer", delta: "recovered" });
+            controller.enqueue({ type: "text-end", id: "answer" });
+            controller.enqueue(finish);
+            controller.close();
+          },
+        }),
+      };
+    },
+  };
+  const agent = createAgentLoop({
+    model,
+    tools: {},
+    maxRetries: 0,
+    streamRetries: MODEL_STREAM_RETRIES,
+    middleware: [createRetryableModelStreamMiddleware(5)],
+  });
+  const result = await agent.stream({ messages: [{ role: "user", content: "hello" }] });
+  await result.consumeStream();
+  assert.equal(calls, 2);
+  assert.equal(cancellations, 1);
+});
+
 test("read-only network retry runs at most three retries", async () => {
   let calls = 0;
   const value = await retryTransientNetwork(

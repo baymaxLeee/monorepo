@@ -206,6 +206,7 @@ export function LocalSession({
       resume
       scrollRef={scrollRef}
       onStatusChange={setStatus}
+      runActive={state.status === "running"}
       conversationId={initial.id}
       loading={false}
       branches={[]}
@@ -226,8 +227,8 @@ export function LocalSession({
             className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-foreground"
           >
             {modelRetry.state === "retrying"
-              ? `网络连接中断，正在重连（${modelRetry.attempt}/${modelRetry.maxAttempts}）…`
-              : `网络连接仍不可用，已重试 ${modelRetry.maxAttempts} 次`}
+              ? `模型响应中断，正在重试（${modelRetry.attempt}/${modelRetry.maxAttempts}）…`
+              : `模型响应仍不可用，已重试 ${modelRetry.maxAttempts} 次`}
           </p>
         ) : null
       }

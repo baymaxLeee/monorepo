@@ -5,6 +5,7 @@ import { canonicalizeShellCommand, ExecPolicy } from "./exec-policy.js";
 import { compilePermissionProfile, type PermissionProfile } from "./permissions.js";
 
 const workspace = compilePermissionProfile(":workspace", { workspaceRoot: "/workspace" }).profile;
+const fullAccess = compilePermissionProfile(":danger-full-access", { workspaceRoot: "/workspace" }).profile;
 
 test("shell lowering evaluates canonical argv segments instead of raw command substrings", () => {
   assert.deepEqual(canonicalizeShellCommand(`printf '%s\\n' "curl is text" && git status --short`), {
@@ -62,6 +63,61 @@ test("approval policies map Codex exec decisions without changing the sandbox pr
     sandboxPermissions: "use_default",
   });
   assert.equal(human.type, "needs-human-approval");
+});
+
+test("never with full access ignores redundant sandbox escalation for non-dangerous shell commands", () => {
+  const policy = new ExecPolicy();
+  const command = `target=$(rg --files src | head -n 1); printf '%s\\n' "$target"`;
+
+  assert.deepEqual(
+    policy.requirement({
+      command,
+      approvalPolicy: "never",
+      permissionProfile: fullAccess,
+      sandboxPermissions: "use_default",
+    }),
+    { type: "skip", bypassSandbox: false, reason: null },
+  );
+  assert.deepEqual(
+    policy.requirement({
+      command,
+      approvalPolicy: "never",
+      permissionProfile: fullAccess,
+      sandboxPermissions: "with_additional_permissions",
+      additionalPermissions: {
+        file_system: { write: ["/tmp/generated"] },
+        network: { enabled: true },
+      },
+    }),
+    { type: "skip", bypassSandbox: false, reason: null },
+  );
+  assert.equal(
+    policy.requirement({
+      command: "rm -rf build",
+      approvalPolicy: "never",
+      permissionProfile: fullAccess,
+      sandboxPermissions: "use_default",
+    }).type,
+    "forbidden",
+  );
+  assert.equal(
+    policy.requirement({
+      command: `for target in build cache; do rm -rf "$target"; done`,
+      approvalPolicy: "never",
+      permissionProfile: fullAccess,
+      sandboxPermissions: "use_default",
+    }).type,
+    "forbidden",
+  );
+  assert.equal(
+    policy.requirement({
+      command: `printf '%s\\n' "$(rm -rf build)"`,
+      approvalPolicy: "never",
+      permissionProfile: fullAccess,
+      sandboxPermissions: "use_default",
+    }).type,
+    "forbidden",
+  );
 });
 
 test("explicit allow cannot bypass sandbox while the profile contains denied reads", () => {

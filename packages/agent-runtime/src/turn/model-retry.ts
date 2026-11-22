@@ -86,23 +86,52 @@ class ModelStreamIdleTimeoutError extends Error {
   }
 }
 
+function isSemanticModelProgress(part: LanguageModelV4StreamPart): boolean {
+  switch (part.type) {
+    case "text-delta":
+    case "reasoning-delta":
+    case "tool-input-delta":
+      return part.delta.length > 0;
+    case "stream-start":
+    case "response-metadata":
+    case "ping":
+    case "raw":
+    case "text-start":
+    case "text-end":
+    case "reasoning-start":
+    case "reasoning-end":
+    case "tool-input-start":
+    case "tool-input-end":
+    case "error":
+      return false;
+    default:
+      return true;
+  }
+}
+
 function classifyProviderStream(stream: ReadableStream<LanguageModelV4StreamPart>, idleTimeoutMs: number) {
   const reader = stream.getReader();
+  let lastSemanticProgressAt = Date.now();
   return new ReadableStream<LanguageModelV4StreamPart>({
     async pull(controller) {
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
+        const remainingIdleMs = Math.max(0, idleTimeoutMs - (Date.now() - lastSemanticProgressAt));
         const next = await Promise.race([
           reader.read(),
           new Promise<never>((_resolve, reject) => {
-            timeout = setTimeout(() => reject(new ModelStreamIdleTimeoutError(idleTimeoutMs)), idleTimeoutMs);
+            timeout = setTimeout(() => reject(new ModelStreamIdleTimeoutError(idleTimeoutMs)), remainingIdleMs);
           }),
         ]);
         if (next.done) {
           controller.close();
           return;
         }
+        if (!isSemanticModelProgress(next.value) && Date.now() - lastSemanticProgressAt >= idleTimeoutMs) {
+          throw new ModelStreamIdleTimeoutError(idleTimeoutMs);
+        }
         if (next.value.type !== "error" || isRetryableNetworkError(next.value.error)) {
+          if (isSemanticModelProgress(next.value)) lastSemanticProgressAt = Date.now();
           controller.enqueue(next.value);
           return;
         }

@@ -80,6 +80,19 @@ test("network additions survive an already-unrestricted filesystem", () => {
   });
 });
 
+test("additional permissions are redundant when sandbox enforcement is disabled", () => {
+  assert.deepEqual(
+    applyAdditionalPermissions(
+      { type: "disabled" },
+      {
+        file_system: { write: ["/tmp/generated"] },
+        network: { enabled: true },
+      },
+    ),
+    { type: "disabled" },
+  );
+});
+
 test("permission profiles normalize conflicts and reject invalid authorities", () => {
   const profile = compilePermissionProfile("custom", {
     workspaceRoot: "/workspace",

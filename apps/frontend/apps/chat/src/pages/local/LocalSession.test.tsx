@@ -24,7 +24,10 @@ const promptApi = vi.hoisted(() => ({
     files: {},
   })),
 }));
-const sessionViewApi = vi.hoisted(() => ({ chat: null as { resumeStream(): Promise<void> } | null }));
+const sessionViewApi = vi.hoisted(() => ({
+  chat: null as { resumeStream(): Promise<void> } | null,
+  runActive: false,
+}));
 
 vi.mock("@repo/ai-elements", () => ({ ContextUsage: () => <span data-testid="local-context-usage" /> }));
 vi.mock("@repo/api/chat", () => ({
@@ -50,13 +53,16 @@ vi.mock("@repo/ai-elements/conversation", async (importOriginal) => ({
     composer,
     issue,
     onToolApproval,
+    runActive,
   }: {
     chat: { resumeStream(): Promise<void> };
     composer: (activePlan: null) => ReactNode;
     issue: ReactNode;
     onToolApproval: (id: string, approved: boolean) => void;
+    runActive?: boolean;
   }) => {
     sessionViewApi.chat = chat;
+    sessionViewApi.runActive = Boolean(runActive);
     return (
       <div>
         {issue}
@@ -170,6 +176,14 @@ beforeEach(() => {
   promptApi.clear.mockClear();
   promptApi.setValue.mockClear();
   sessionViewApi.chat = null;
+  sessionViewApi.runActive = false;
+});
+
+test("keeps the transcript pending while the native runtime is active", () => {
+  const f = fixture("running");
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} />);
+
+  expect(sessionViewApi.runActive).toBe(true);
 });
 
 test("shows each model reconnect attempt and clears the hint after recovery", async () => {
@@ -190,7 +204,7 @@ test("shows each model reconnect attempt and clears the hint after recovery", as
   act(() => {
     void sessionViewApi.chat?.resumeStream();
   });
-  expect((await screen.findByRole("status")).textContent).toContain("网络连接中断，正在重连（1/3）");
+  expect((await screen.findByRole("status")).textContent).toContain("模型响应中断，正在重试（1/3）");
 
   act(() => {
     f.emit({

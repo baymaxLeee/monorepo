@@ -41,9 +41,98 @@ const BROAD_ALLOW_PROGRAMS = new Set([
   "sudo",
 ]);
 const SHELL_PROGRAMS = new Set(["bash", "sh", "zsh"]);
+const SHELL_CONTROL_PREFIXES = new Set(["!", "do", "elif", "else", "if", "then", "until", "while"]);
 
 function isOperatorStart(value: string, index: number): boolean {
   return value[index] === ";" || value[index] === "|" || value[index] === "&" || value[index] === "\n";
+}
+
+// Dynamic syntax is not itself unsafe. Lower literal substitutions separately
+// so dangerous commands remain reviewable without rejecting ordinary variables.
+function commandSubstitutions(script: string): string[] {
+  const substitutions: string[] = [];
+  let quote: "single" | "double" | null = null;
+  let escaped = false;
+
+  for (let index = 0; index < script.length; index++) {
+    const char = script[index]!;
+    if (quote === "single") {
+      if (char === "'") quote = null;
+      continue;
+    }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "'") {
+      if (quote === null) quote = "single";
+      continue;
+    }
+    if (char === '"') {
+      quote = quote === "double" ? null : "double";
+      continue;
+    }
+    if (char === "`") {
+      let end = index + 1;
+      let innerEscaped = false;
+      for (; end < script.length; end++) {
+        const inner = script[end]!;
+        if (innerEscaped) {
+          innerEscaped = false;
+        } else if (inner === "\\") {
+          innerEscaped = true;
+        } else if (inner === "`") {
+          break;
+        }
+      }
+      if (end < script.length) {
+        substitutions.push(script.slice(index + 1, end));
+        index = end;
+      }
+      continue;
+    }
+    if (char !== "$" || script[index + 1] !== "(" || script[index + 2] === "(") continue;
+
+    let depth = 1;
+    let end = index + 2;
+    let innerQuote: "single" | "double" | null = null;
+    let innerEscaped = false;
+    for (; end < script.length; end++) {
+      const inner = script[end]!;
+      if (innerQuote === "single") {
+        if (inner === "'") innerQuote = null;
+        continue;
+      }
+      if (innerEscaped) {
+        innerEscaped = false;
+        continue;
+      }
+      if (inner === "\\") {
+        innerEscaped = true;
+        continue;
+      }
+      if (inner === "'") {
+        if (innerQuote === null) innerQuote = "single";
+        continue;
+      }
+      if (inner === '"') {
+        innerQuote = innerQuote === "double" ? null : "double";
+        continue;
+      }
+      if (innerQuote === "double") continue;
+      if (inner === "(") depth++;
+      if (inner === ")" && --depth === 0) break;
+    }
+    if (depth === 0) {
+      substitutions.push(script.slice(index + 2, end));
+      index = end;
+    }
+  }
+  return substitutions;
 }
 
 function lowerShellScript(script: string): { commands: string[][]; analyzable: boolean } {
@@ -60,6 +149,7 @@ function lowerShellScript(script: string): { commands: string[][]; analyzable: b
   const flushCommand = () => {
     flushToken();
     while (command[0] && /^[A-Za-z_][A-Za-z0-9_]*=/u.test(command[0])) command.shift();
+    while (command[0] && SHELL_CONTROL_PREFIXES.has(command[0])) command.shift();
     if (command.length) commands.push(command);
     command = [];
   };
@@ -109,6 +199,11 @@ function lowerShellScript(script: string): { commands: string[][]; analyzable: b
   }
   if (escaped || quote) analyzable = false;
   flushCommand();
+  for (const substitution of commandSubstitutions(script)) {
+    const nested = lowerShellScript(substitution);
+    commands.push(...nested.commands);
+    analyzable = false;
+  }
   return { commands, analyzable };
 }
 
@@ -184,14 +279,8 @@ function dangerousReason(command: readonly string[]): string | null {
 function fallbackDecision(
   command: readonly string[],
   approvalPolicy: ApprovalPolicy,
-  permissionProfile: PermissionProfile,
-  analyzable: boolean,
 ): { decision: ExecPolicyDecision; reason: string | null } {
-  const reason =
-    dangerousReason(command) ??
-    (!analyzable && permissionProfile.type === "disabled"
-      ? "dynamic shell syntax without sandbox protection requires explicit review"
-      : null);
+  const reason = dangerousReason(command);
   if (reason) return { decision: approvalPolicy === "never" ? "forbidden" : "prompt", reason };
   if (approvalPolicy === "unless-trusted") return { decision: "prompt", reason: "project is not trusted" };
   return { decision: "allow", reason: null };
@@ -231,7 +320,7 @@ export class ExecPolicy {
     if (input.sandboxPermissions !== "with_additional_permissions" && input.additionalPermissions) {
       return { type: "forbidden", reason: "additional_permissions requires with_additional_permissions" };
     }
-    if (input.sandboxPermissions !== "use_default") {
+    if (input.sandboxPermissions !== "use_default" && input.permissionProfile.type !== "disabled") {
       return input.approvalPolicy === "never"
         ? { type: "forbidden", reason: "approval policy forbids sandbox permission escalation" }
         : { type: "needs-approval", reason: "command requests additional sandbox authority" };
@@ -247,7 +336,7 @@ export class ExecPolicy {
     let everyCommandExplicitlyAllowed = canonical.analyzable;
     for (const command of commands) {
       const evaluation = this.evaluateCommand(command);
-      const fallback = fallbackDecision(command, input.approvalPolicy, input.permissionProfile, canonical.analyzable);
+      const fallback = fallbackDecision(command, input.approvalPolicy);
       const candidate = evaluation.matchedRule
         ? { decision: evaluation.decision, reason: evaluation.matchedRule.reason ?? null, rule: evaluation.matchedRule }
         : { ...fallback, rule: null };
