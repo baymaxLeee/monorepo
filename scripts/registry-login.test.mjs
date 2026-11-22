@@ -84,9 +84,12 @@ test("mirror workflow uses the retrying login for built and reused images", () =
   assert.equal(workflow.match(/sparse-checkout: scripts\/registry-login\.sh/g)?.length, 2);
 });
 
-test("mirror workflow uses provider-neutral repository variable names", () => {
+test("mirror workflow uses provider-neutral repository configuration names", () => {
   const workflow = readFileSync(resolve(".github/workflows/mirror-images.yml"), "utf8");
   assert.equal(workflow.match(/vars\.MIRROR_HOST/g)?.length, 4);
   assert.equal(workflow.match(/vars\.MIRROR_NAMESPACE/g)?.length, 3);
+  assert.equal(workflow.match(/secrets\.MIRROR_USERNAME/g)?.length, 2);
+  assert.equal(workflow.match(/secrets\.MIRROR_PASSWORD/g)?.length, 2);
   assert.doesNotMatch(workflow, /vars\.TCR_(?:HOST|NAMESPACE)/);
+  assert.doesNotMatch(workflow, /secrets\.TCR_(?:USERNAME|PASSWORD)/);
 });

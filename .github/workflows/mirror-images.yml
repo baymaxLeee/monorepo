@@ -84,8 +84,8 @@ jobs:
       - name: Login to mirror registry
         env:
           MIRROR_HOST: ${{ vars.MIRROR_HOST || 'ccr.ccs.tencentyun.com' }}
-          MIRROR_USERNAME: ${{ secrets.TCR_USERNAME }}
-          MIRROR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+          MIRROR_USERNAME: ${{ secrets.MIRROR_USERNAME }}
+          MIRROR_PASSWORD: ${{ secrets.MIRROR_PASSWORD }}
         run: printf '%s\n' "${MIRROR_PASSWORD}" | bash scripts/registry-login.sh "${MIRROR_HOST}" "${MIRROR_USERNAME}"
       - name: Copy changed image to mirror
         env:
@@ -121,8 +121,8 @@ jobs:
       - name: Login to mirror registry
         env:
           MIRROR_HOST: ${{ vars.MIRROR_HOST || 'ccr.ccs.tencentyun.com' }}
-          MIRROR_USERNAME: ${{ secrets.TCR_USERNAME }}
-          MIRROR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+          MIRROR_USERNAME: ${{ secrets.MIRROR_USERNAME }}
+          MIRROR_PASSWORD: ${{ secrets.MIRROR_PASSWORD }}
         run: printf '%s\n' "${MIRROR_PASSWORD}" | bash scripts/registry-login.sh "${MIRROR_HOST}" "${MIRROR_USERNAME}"
       - name: Reuse mirrored digest
         env:

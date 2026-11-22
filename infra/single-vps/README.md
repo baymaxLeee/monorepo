@@ -229,8 +229,8 @@ GitHub repo → Settings → Secrets and variables → Actions:
 | --- | --- | --- |
 | Variable | `MIRROR_NAMESPACE` | `<your-tcr-namespace>` |
 | Variable | `MIRROR_HOST` _(optional)_ | `ccr.ccs.tencentyun.com` _(default is fine; only change if you're in a non-Shanghai TCR region)_ |
-| Secret | `TCR_USERNAME` | Tencent Cloud account ID (digits) |
-| Secret | `TCR_PASSWORD` | TCR access credential from step 1.4 |
+| Secret | `MIRROR_USERNAME` | Registry account username |
+| Secret | `MIRROR_PASSWORD` | Registry access credential from step 1.4 |
 
 The next `build-images` run publishes GHCR first; `mirror-images` then transfers
 only rebuilt components and retags unchanged component digests in TCR.
