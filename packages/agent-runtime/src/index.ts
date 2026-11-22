@@ -6,11 +6,13 @@ export {
   MODEL_STREAM_IDLE_TIMEOUT_MS,
   createRetryableModelStreamMiddleware,
   createModelStreamRetryPolicy,
+  classifyModelNetworkFailure,
   isRetryableNetworkError,
   retryableModelStreamMiddleware,
   retryTransientNetwork,
   waitForTransientRetry,
   type ModelRetryEvent,
+  type ModelNetworkFailureReason,
   type ModelStreamRetryPolicy,
 } from "./turn/model-retry.js";
 export {
@@ -21,13 +23,9 @@ export {
   hasPendingToolApprovals,
 } from "./turn/message-lifecycle.js";
 
-export {
-  contextCompactionThreshold,
-  effectiveModelInputWindow,
-  recentContextTailBudget,
-  shouldResetStoredResponseLineage,
-  type ModelContextLimits,
-} from "./context/budget.js";
+export { resolveContextWindow, shouldResetStoredResponseLineage, type ModelContextLimits } from "./context/budget.js";
+
+export type { ContextCompactionEvent } from "./context/compaction.js";
 export { COMPACTION_STATE_VERSION } from "./context/compaction.js";
 export {
   parseCheckpointState,

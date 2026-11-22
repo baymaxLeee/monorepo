@@ -158,8 +158,9 @@ test("a connection failure before semantic output is retryable and keeps the res
     type: "error",
     error: {
       code: "model_connection_failed",
-      message: "模型连接中断",
+      message: "模型响应流提前中断",
       retryable: true,
+      reason: "incomplete_stream",
     },
   });
   assert.equal(f.calls.length, 1);
@@ -173,8 +174,9 @@ test("a provider connection failure before the stream starts uses the same retry
     type: "error",
     error: {
       code: "model_connection_failed",
-      message: "模型连接中断",
+      message: "模型服务暂时不可用",
       retryable: true,
+      reason: "provider_unavailable",
     },
   });
   assert.equal(f.calls.length, 1);
@@ -195,8 +197,9 @@ test("a connection drop after partial semantic output remains retryable", async 
     type: "error",
     error: {
       code: "model_connection_failed",
-      message: "模型连接中断",
+      message: "模型响应流提前中断",
       retryable: true,
+      reason: "incomplete_stream",
     },
   });
   assert.equal(f.calls.length, 1);
@@ -222,8 +225,9 @@ test("provider-hosted execution remains a terminal protocol violation", async ()
     type: "error",
     error: {
       code: "model_stream_interrupted",
-      message: "模型响应中断，请重新发送消息",
+      message: "模型响应协议错误，请重新发送消息",
       retryable: false,
+      reason: "protocol",
     },
   });
   assert.equal(f.calls.length, 1);
@@ -243,8 +247,9 @@ test("a socket failure after only stream metadata remains retryable", async () =
       type: "error",
       error: {
         code: "model_connection_failed",
-        message: "模型连接中断",
+        message: "模型连接被重置",
         retryable: true,
+        reason: "connection_reset",
       },
     },
   ]);

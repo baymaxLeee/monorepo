@@ -1,3 +1,4 @@
+import { retryTransientNetwork } from "@repo/agent-runtime";
 import { generateText } from "ai";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
@@ -41,6 +42,7 @@ export function conversationTitlePart(title: string): ConversationTitlePart {
 export async function generateConversationTitlePart(input: {
   provider: LanguageProviderSnapshot;
   userText: string;
+  signal?: AbortSignal;
 }): Promise<ConversationTitlePart | null> {
   const source = input.userText.trim().slice(0, 4_000);
   if (source.length < 2) {
@@ -48,13 +50,21 @@ export async function generateConversationTitlePart(input: {
   }
   try {
     const model = createProviderModel(input.provider);
-    const result = await generateText({
-      model,
-      instructions: TITLE_INSTRUCTIONS,
-      prompt: source,
-      maxOutputTokens: Math.min(1_024, input.provider.maxOutputTokens),
-      timeout: { totalMs: 20_000, stepMs: 20_000 },
-    });
+    const timeoutSignal = AbortSignal.timeout(20_000);
+    const signal = input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal;
+    const result = await retryTransientNetwork(
+      () =>
+        generateText({
+          model,
+          instructions: TITLE_INSTRUCTIONS,
+          prompt: source,
+          maxOutputTokens: Math.min(1_024, input.provider.maxOutputTokens),
+          maxRetries: 0,
+          abortSignal: signal,
+          timeout: { stepMs: 20_000 },
+        }),
+      { signal },
+    );
     const title = sanitizeConversationTitle(result.text ?? "");
     return title.length ? conversationTitlePart(title) : null;
   } catch (error) {

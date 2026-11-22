@@ -3,13 +3,13 @@ import { convertToModelMessages, pruneMessages, type ModelMessage, type ToolSet,
 import { z } from "zod";
 
 import type { ModelStreamRetryPolicy } from "../turn/model-retry.js";
+import { resolveContextWindow, type ModelContextLimits } from "./budget.js";
 import {
-  contextCompactionThreshold,
-  effectiveModelInputWindow,
-  recentContextTailBudget,
-  type ModelContextLimits,
-} from "./budget.js";
-import { compactRuntimeHistory, parseRuntimeCompactionState, type RuntimeCompactionState } from "./compaction.js";
+  compactRuntimeHistory,
+  parseRuntimeCompactionState,
+  type ContextCompactionEvent,
+  type RuntimeCompactionState,
+} from "./compaction.js";
 import { escapeXmlAttr, escapeXmlText } from "./instructions/xml.js";
 import {
   compactRemote,
@@ -140,7 +140,9 @@ export async function projectRuntimeContext(input: {
   remoteBinding?: string;
   instructions?: Parameters<typeof compactRemote>[0]["instructions"];
   compactionRetry?: ModelStreamRetryPolicy;
+  onCompaction?: (event: ContextCompactionEvent) => void;
 }) {
+  const window = resolveContextWindow(input.limits);
   const checkpoint = input.checkpoint;
   const candidate = parseCheckpointState(checkpoint?.state);
   const compacted = candidate?.version === "step-compaction-v1" ? candidate.compacted : candidate;
@@ -165,8 +167,8 @@ export async function projectRuntimeContext(input: {
     state && "summary" in state ? estimateTextTokens(state.summary) + 64 : 0,
   );
   let splitAt = 0;
-  if (Math.max(estimated, input.previousInputTokens ?? 0) >= contextCompactionThreshold(input.limits)) {
-    const budget = recentContextTailBudget(input.limits);
+  if (Math.max(estimated, input.previousInputTokens ?? 0) >= window.compactAt) {
+    const budget = window.recentTailTokens;
     splitAt = pending.length;
     let tailTokens = 0;
     while (splitAt > 0) {
@@ -188,6 +190,7 @@ export async function projectRuntimeContext(input: {
     splitAt = 0;
   let compactionUsage = EMPTY_RUNTIME_TOKEN_USAGE;
   if (splitAt > 0) {
+    input.onCompaction?.({ state: "started", phase: "history" });
     const prefix = pending.slice(0, splitAt);
     const compacted = input.remoteBinding
       ? await (async () => {
@@ -250,9 +253,10 @@ export async function projectRuntimeContext(input: {
       return sum + 256;
     }
   }, 0);
-  const inputWindow = effectiveModelInputWindow(input.limits);
-  if (projectedTokens > inputWindow) {
-    throw new Error(`projected model context exceeds the safe input window (${projectedTokens} > ${inputWindow})`);
+  if (projectedTokens > window.inputCapacity) {
+    throw new Error(
+      `projected model context exceeds the safe input window (${projectedTokens} > ${window.inputCapacity})`,
+    );
   }
   input.signal?.throwIfAborted();
   if (splitAt > 0 && state && coveredThroughMessageId) {
@@ -262,6 +266,7 @@ export async function projectRuntimeContext(input: {
       state,
       estimatedTokens: "summary" in state ? estimateTextTokens(state.summary) : 0,
     });
+    input.onCompaction?.({ state: "completed", phase: "history" });
   }
   let revision = splitAt > 0 ? (checkpoint?.revision ?? 0) + 1 : (checkpoint?.revision ?? null);
   const inputItem = input.messages.at(-1);

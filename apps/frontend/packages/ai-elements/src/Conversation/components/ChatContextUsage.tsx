@@ -2,21 +2,25 @@ import { ContextUsage } from "@repo/ai-elements";
 import { type ConversationContextView, getConversationContext } from "@repo/api/chat";
 import { useEffect, useState } from "react";
 
+import type { ChatUIDataTypes } from "../lib/chat-message";
+
 export function ChatContextUsage({
   conversationId,
   refreshKey,
   running,
+  live,
 }: {
   conversationId: string;
   refreshKey: number;
   running: boolean;
+  live: ChatUIDataTypes["context-usage"] | null;
 }) {
   const [state, setState] = useState<{
     conversationId: string;
     context: ConversationContextView | null;
   }>({ conversationId, context: null });
   const [loading, setLoading] = useState(false);
-  const context = state.conversationId === conversationId ? state.context : null;
+  const context = live ?? (state.conversationId === conversationId ? state.context : null);
 
   useEffect(() => {
     if (!conversationId) {

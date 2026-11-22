@@ -70,6 +70,7 @@ export async function projectModelContext(input: {
   tools: ToolSet;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
   compactionRetry?: Parameters<typeof projectRuntimeContext>[0]["compactionRetry"];
+  onCompaction?: Parameters<typeof projectRuntimeContext>[0]["onCompaction"];
 }) {
   const [stored] = await getDb()
     .select()
@@ -84,7 +85,7 @@ export async function projectModelContext(input: {
           state,
         }
       : null;
-  return projectRuntimeContext({
+  const projected = await projectRuntimeContext({
     messages: input.messages,
     tools: input.tools,
     model: createProviderModel(input.provider),
@@ -96,6 +97,7 @@ export async function projectModelContext(input: {
     signal: input.abortSignal,
     onCompactionUsage: input.onCompactionUsage,
     compactionRetry: input.compactionRetry,
+    onCompaction: input.onCompaction,
     saveCheckpoint: (next) => withRunLease(input.owner, (tx) => saveCheckpoint(tx, input.sessionId, next)),
     prepareRecent: (messages) =>
       transformFilePartsForModel(messages, {
@@ -107,4 +109,5 @@ export async function projectModelContext(input: {
         signal: input.abortSignal,
       }),
   });
+  return { ...projected, compacted: checkpoint !== null || projected.checkpointAdvanced };
 }

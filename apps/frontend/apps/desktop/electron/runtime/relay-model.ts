@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4StreamPart } from "@ai-sdk/provider";
+import { MODEL_STREAM_RETRIES, type ModelNetworkFailureReason } from "@repo/agent-runtime";
 
 import {
   inferenceRequestSchema,
   inferenceRelayErrorSchema,
   type InferenceConfig,
+  type InferenceRelayError,
   type InferenceRequest,
 } from "../../contracts/inference.generated";
 
@@ -18,14 +20,13 @@ export class RetryableModelConnectionError extends Error {
   readonly code = "model_connection_failed";
   readonly retryable = true;
 
-  constructor() {
-    super("网络连接仍不可用，已重试 3 次，请稍后重试");
+  constructor(
+    readonly reason: ModelNetworkFailureReason,
+    message: string,
+  ) {
+    super(`${message}，已重试 ${MODEL_STREAM_RETRIES} 次，请稍后重试`);
     this.name = "RetryableModelConnectionError";
   }
-}
-
-export function isRetryableModelConnectionError(error: unknown): error is RetryableModelConnectionError {
-  return error instanceof RetryableModelConnectionError;
 }
 
 function normalizedRelayStream(stream: ReadableStream<LanguageModelV4StreamPart>) {
@@ -38,7 +39,11 @@ function normalizedRelayStream(stream: ReadableStream<LanguageModelV4StreamPart>
         }
         const parsed = inferenceRelayErrorSchema.safeParse(part.error);
         if (parsed.success && parsed.data.retryable) {
-          controller.enqueue({ type: "error", error: new RetryableModelConnectionError() });
+          const failure = parsed.data as Extract<InferenceRelayError, { retryable: true }>;
+          controller.enqueue({
+            type: "error",
+            error: new RetryableModelConnectionError(failure.reason, failure.message),
+          });
           return;
         }
         controller.error(new Error(parsed.success ? parsed.data.message : "模型请求失败，请稍后重试"));

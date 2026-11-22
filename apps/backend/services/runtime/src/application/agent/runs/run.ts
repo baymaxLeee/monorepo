@@ -2,13 +2,15 @@ import { randomBytes } from "node:crypto";
 
 import {
   RuntimeTurn,
-  contextCompactionThreshold,
+  resolveContextWindow,
   shouldResetStoredResponseLineage,
   resolveTurnPluginSnapshot,
   type PluginActivation,
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
+  type ContextCompactionEvent,
   type ModelRetryEvent,
+  type SessionContextSnapshot,
 } from "@repo/agent-runtime";
 import {
   consumeStream,
@@ -37,7 +39,7 @@ import type { PersistedThreadItemContent } from "../../../infrastructure/persist
 import { NotFoundError, RequestError } from "../../errors.js";
 import { getSessionAttachment } from "../../session-files.js";
 import { getSessionRow, listMessages, type Message } from "../../sessions.js";
-import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
+import { chatDataSchemas, chatMessageMetadataSchema, type ChatUIDataTypes } from "../chat-ui-schema.js";
 import type { ContextCategoryId } from "../context/context-snapshot.js";
 import { activatedSkillNameFromParts, sessionFileIdFromUrl } from "../context/file-parts.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
@@ -370,6 +372,31 @@ export async function createAgentRunResponse(
       if (modelRetrySink) modelRetrySink(event);
       else pendingModelRetryEvents.push(event);
     };
+    let contextCompacted = false;
+    const pendingCompactionEvents: ContextCompactionEvent[] = [];
+    let compactionSink: ((event: ContextCompactionEvent) => void) | null = null;
+    const publishCompaction = (event: ContextCompactionEvent) => {
+      if (event.state === "completed") contextCompacted = true;
+      if (compactionSink) compactionSink(event);
+      else pendingCompactionEvents.push(event);
+    };
+    const pendingContextUsageEvents: ChatUIDataTypes["context-usage"][] = [];
+    let contextUsageSink: ((event: ChatUIDataTypes["context-usage"]) => void) | null = null;
+    const publishContextUsage = (update: { snapshot: SessionContextSnapshot; estimated: boolean }) => {
+      const event: ChatUIDataTypes["context-usage"] = {
+        contextWindow: provider.contextWindow,
+        autoCompactAt: resolveContextWindow(provider).compactAt,
+        usedTokens: update.snapshot.usedTokens,
+        estimated: update.estimated,
+        compacted: contextCompacted,
+        categories: update.snapshot.categories.map((category) => ({
+          id: category.id === "session" ? "conversation" : category.id,
+          tokens: category.tokens,
+        })),
+      };
+      if (contextUsageSink) contextUsageSink(event);
+      else pendingContextUsageEvents.push(event);
+    };
     const turn = await runtimeTurn.start(async (scope) => {
       const inbox = startAgentRunInputInbox(leaseToken, runtimeTurn.input);
       scope.defer(() => inbox.close());
@@ -430,6 +457,8 @@ export async function createAgentRunResponse(
           onCompactionUsage: (usage) => {
             contextUsage = addUsage(contextUsage, usage);
           },
+          onCompaction: publishCompaction,
+          onContextUsage: publishContextUsage,
           onModelRetry: publishModelRetry,
           previousResponseId: continueStoredLineage ? lineage.responseId : null,
           instructionInput,
@@ -468,8 +497,10 @@ export async function createAgentRunResponse(
           contextUsage = addUsage(contextUsage, usage);
         },
         compactionRetry: prepared.settings.compactionRetry,
+        onCompaction: publishCompaction,
       });
       if (projected.checkpointAdvanced) prepared.settings.onHistoryReplacement?.();
+      contextCompacted = projected.compacted;
       contextUsage = projected.compactionUsage;
 
       return {
@@ -525,8 +556,12 @@ export async function createAgentRunResponse(
         });
         modelRetrySink = (event) => writer.write({ type: "data-model-retry", data: event, transient: true });
         for (const event of pendingModelRetryEvents.splice(0)) modelRetrySink(event);
+        compactionSink = (event) => writer.write({ type: "data-context-compaction", data: event, transient: true });
+        for (const event of pendingCompactionEvents.splice(0)) compactionSink(event);
+        contextUsageSink = (event) => writer.write({ type: "data-context-usage", data: event, transient: true });
+        for (const event of pendingContextUsageEvents.splice(0)) contextUsageSink(event);
         const titlePromise = shouldGenerateTitle
-          ? generateConversationTitlePart({ provider, userText: titleSourceText })
+          ? generateConversationTitlePart({ provider, userText: titleSourceText, signal: runSignal })
               .then((part) => {
                 if (part) writer.write(part);
               })
@@ -535,6 +570,8 @@ export async function createAgentRunResponse(
         writer.merge(agentParts.stream);
         const end = await agentParts.end;
         modelRetrySink = null;
+        compactionSink = null;
+        contextUsageSink = null;
         await titlePromise;
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
@@ -748,7 +785,7 @@ export async function getSessionContext(
   return {
     context: {
       contextWindow: limits?.contextWindow ?? null,
-      autoCompactAt: limits ? contextCompactionThreshold(limits) : null,
+      autoCompactAt: limits ? resolveContextWindow(limits).compactAt : null,
       usedTokens: snapshot.usedTokens,
       estimated: record.totalEstimated,
       compacted,

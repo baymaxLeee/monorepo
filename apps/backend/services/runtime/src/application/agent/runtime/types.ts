@@ -5,6 +5,8 @@ import {
   type BuiltInPermissionProfileId,
   type RuntimeTokenUsage,
   type ModelRetryEvent,
+  type ContextCompactionEvent,
+  type SessionContextSnapshot,
 } from "@repo/agent-runtime";
 import type { UIMessage } from "ai";
 
@@ -36,6 +38,8 @@ export interface CloudTurnInput {
   permissionProfile: BuiltInPermissionProfileId;
   continuation?: UIMessage;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
+  onCompaction?: (event: ContextCompactionEvent) => void;
+  onContextUsage?: (update: { snapshot: SessionContextSnapshot; estimated: boolean }) => void;
   onModelRetry?: (event: ModelRetryEvent) => void;
   previousResponseId?: string | null;
   instructionInput: InstructionInput;

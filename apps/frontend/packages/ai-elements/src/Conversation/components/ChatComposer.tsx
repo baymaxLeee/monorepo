@@ -6,6 +6,7 @@ import { getErrorMessage } from "@repo/shared";
 import { XIcon } from "lucide-react";
 import { memo, type RefObject, useEffect, useState } from "react";
 
+import type { ChatUIDataTypes } from "../lib/chat-message";
 import { uploadConversationFile } from "../lib/upload-conversation-file";
 import { ChatComposerControls, type ReasoningEffort } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
@@ -31,6 +32,7 @@ type ChatComposerProps = {
   activatedSkillName: string | null;
   setActivatedSkillName: (name: string | null) => void;
   traceRefreshKey: number;
+  contextUsage: ChatUIDataTypes["context-usage"] | null;
   loadSkills: (signal: AbortSignal) => Promise<PromptSlashCommand[]>;
   onSubmit: (value: PromptInputValue) => Promise<void>;
   onStop: () => Promise<void>;
@@ -52,6 +54,7 @@ export const ChatComposer = memo(function ChatComposer({
   activatedSkillName,
   setActivatedSkillName,
   traceRefreshKey,
+  contextUsage,
   loadSkills,
   onSubmit,
   onStop,
@@ -168,7 +171,7 @@ export const ChatComposer = memo(function ChatComposer({
             }}
             disabled={busy}
           />
-          <ChatContextUsage conversationId={id ?? ""} refreshKey={traceRefreshKey} running={busy} />
+          <ChatContextUsage conversationId={id ?? ""} refreshKey={traceRefreshKey} running={busy} live={contextUsage} />
         </>
       )}
       footerEndRender={() => (

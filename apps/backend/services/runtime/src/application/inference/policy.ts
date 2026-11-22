@@ -1,5 +1,5 @@
-import { APICallError, type LanguageModelV4, type LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import { estimateTextTokens } from "@repo/agent-runtime";
+import type { LanguageModelV4, LanguageModelV4StreamPart } from "@ai-sdk/provider";
+import { classifyModelNetworkFailure, estimateTextTokens, type ModelNetworkFailureReason } from "@repo/agent-runtime";
 
 import type { AuthContext } from "../../api/http/middleware/auth.js";
 import { ForbiddenError, RequestError } from "../errors.js";
@@ -40,21 +40,23 @@ const responseHeaders = {
 
 class IncompleteProviderStreamError extends Error {}
 
-function connectionFailure(error: unknown) {
-  if (APICallError.isInstance(error)) return error.isRetryable;
-  if (typeof error === "object" && error !== null && "isRetryable" in error) {
-    return (error as { isRetryable?: unknown }).isRetryable === true;
-  }
-  return (
-    error instanceof TypeError ||
-    (error instanceof Error && /network|fetch|socket|ECONN|EPIPE|timed? ?out|terminated|chunked/i.test(error.message))
-  );
-}
+const NETWORK_FAILURE_MESSAGES: Record<ModelNetworkFailureReason, string> = {
+  dns: "模型服务域名解析失败",
+  timeout: "模型连接超时",
+  connection_reset: "模型连接被重置",
+  incomplete_stream: "模型响应流提前中断",
+  provider_unavailable: "模型服务暂时不可用",
+};
 
-function safeRelayError(retryable: boolean): InferenceRelayError {
-  return retryable
-    ? { code: "model_connection_failed", message: "模型连接中断", retryable: true }
-    : { code: "model_stream_interrupted", message: "模型响应中断，请重新发送消息", retryable: false };
+function safeRelayError(reason: ModelNetworkFailureReason | null): InferenceRelayError {
+  return reason
+    ? { code: "model_connection_failed", message: NETWORK_FAILURE_MESSAGES[reason], retryable: true, reason }
+    : {
+        code: "model_stream_interrupted",
+        message: "模型响应协议错误，请重新发送消息",
+        retryable: false,
+        reason: "protocol",
+      };
 }
 
 function errorResponse(error: InferenceRelayError) {
@@ -107,7 +109,8 @@ export async function inferenceResponse(
   } catch (error) {
     cleanup();
     await operation.settle(null);
-    return errorResponse(safeRelayError(!signal.aborted && (timedOut || connectionFailure(error))));
+    const reason = signal.aborted ? null : timedOut ? "timeout" : classifyModelNetworkFailure(error);
+    return errorResponse(safeRelayError(reason));
   }
   const encoder = new TextEncoder();
   let settled = false,
@@ -170,11 +173,16 @@ export async function inferenceResponse(
         // A retry restarts only this provider sample. Completed agent steps and
         // tool effects are outside this relay, so partial text does not make a
         // transient transport failure unsafe to retry.
-        const retryable =
-          !signal.aborted && (timedOut || error instanceof IncompleteProviderStreamError || connectionFailure(error));
+        const reason = signal.aborted
+          ? null
+          : timedOut
+            ? "timeout"
+            : error instanceof IncompleteProviderStreamError
+              ? "incomplete_stream"
+              : classifyModelNetworkFailure(error);
         const part = {
           type: "error",
-          error: safeRelayError(retryable),
+          error: safeRelayError(reason),
         } satisfies LanguageModelV4StreamPart;
         output.enqueue(encoder.encode(`${JSON.stringify(part)}\n`));
         output.close();

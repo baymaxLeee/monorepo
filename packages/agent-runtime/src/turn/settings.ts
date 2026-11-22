@@ -2,6 +2,7 @@ import type { LanguageModelV4, LanguageModelV4Middleware } from "@ai-sdk/provide
 import type { StreamTextOnChunkCallback, ToolLoopAgentSettings, ToolSet } from "ai";
 
 import type { ModelContextLimits } from "../context/budget.js";
+import type { ContextCompactionEvent } from "../context/compaction.js";
 import type { projectRuntimeContext } from "../context/history.js";
 import type { RuntimeTokenUsage } from "../context/usage.js";
 import type { ModelStreamRetryPolicy } from "./model-retry.js";
@@ -23,6 +24,7 @@ export type RuntimeTurnSettings<C extends Record<string, unknown>> = Omit<
   };
   onHistoryReplacement?: () => void;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
+  onCompaction?: (event: ContextCompactionEvent) => void;
   compactionRetry?: ModelStreamRetryPolicy;
   middleware?: LanguageModelV4Middleware[];
   /** AI SDK current-step provider stream retries. Hosts must classify safe

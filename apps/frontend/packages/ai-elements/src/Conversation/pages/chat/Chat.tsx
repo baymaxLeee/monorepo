@@ -24,6 +24,7 @@ import { useForkConversation } from "../../hooks/useForkConversation";
 import { useSourceAction } from "../../hooks/useSourceAction";
 import type { ChatUIMessage } from "../../lib/chat-message";
 import { buildUserFilePart } from "../../lib/file-parts";
+import { contextCompactionStatusText, modelRetryStatusText } from "../../lib/runtime-status";
 import { useChatStore } from "../../store/useChatStore";
 
 const EMPTY_ATTACHMENTS: ConversationFile[] = [];
@@ -130,6 +131,8 @@ export function ChatSession({
     activeRunId,
     issue,
     modelRetry,
+    contextCompaction,
+    contextUsage,
     canRetry,
     canStartHistoryMutation,
     recover,
@@ -367,9 +370,11 @@ export function ChatSession({
             role={modelRetry.state === "retrying" ? "status" : "alert"}
             className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-foreground"
           >
-            {modelRetry.state === "retrying"
-              ? `网络连接中断，正在重连（${modelRetry.attempt}/${modelRetry.maxAttempts}）…`
-              : `网络连接仍不可用，已重试 ${modelRetry.maxAttempts} 次`}
+            {modelRetryStatusText(modelRetry)}
+          </p>
+        ) : contextCompaction ? (
+          <p role="status" className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-foreground">
+            {contextCompactionStatusText(contextCompaction)}
           </p>
         ) : null
       }
@@ -389,6 +394,7 @@ export function ChatSession({
           activatedSkillName={activatedSkillName}
           setActivatedSkillName={setActivatedSkillName}
           traceRefreshKey={traceRefreshKey}
+          contextUsage={contextUsage}
           loadSkills={loadSkills}
           onSubmit={submit}
           onStop={stopRun}

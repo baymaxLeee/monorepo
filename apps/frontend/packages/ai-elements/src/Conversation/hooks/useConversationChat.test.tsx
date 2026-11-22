@@ -123,16 +123,48 @@ test("model retry data reports reconnect progress and clears after recovery", as
   });
   await chunk({
     type: "data-model-retry",
-    data: { state: "retrying", attempt: 2, maxAttempts: 3 },
+    data: { state: "retrying", attempt: 2, maxAttempts: 3, reason: "dns" },
     transient: true,
   });
-  expect(view.result.current.modelRetry).toEqual({ state: "retrying", attempt: 2, maxAttempts: 3 });
+  expect(view.result.current.modelRetry).toEqual({ state: "retrying", attempt: 2, maxAttempts: 3, reason: "dns" });
   await chunk({
     type: "data-model-retry",
-    data: { state: "recovered", attempt: 2, maxAttempts: 3 },
+    data: { state: "recovered", attempt: 2, maxAttempts: 3, reason: "dns" },
     transient: true,
   });
   expect(view.result.current.modelRetry).toBeNull();
+});
+
+test("compaction is visible and context usage updates at the model-step boundary", async () => {
+  const view = await mount();
+  await act(async () => {
+    void view.result.current.chat.sendMessage({ text: "hello" });
+  });
+  await chunk({
+    type: "data-context-compaction",
+    data: { state: "started", phase: "step" },
+    transient: true,
+  });
+  expect(view.result.current.contextCompaction).toEqual({ state: "started", phase: "step" });
+  await chunk({
+    type: "data-context-usage",
+    data: {
+      contextWindow: 128_000,
+      autoCompactAt: 115_200,
+      usedTokens: 64_000,
+      estimated: false,
+      compacted: true,
+      categories: [{ id: "conversation", tokens: 64_000 }],
+    },
+    transient: true,
+  });
+  expect(view.result.current.contextUsage?.usedTokens).toBe(64_000);
+  await chunk({
+    type: "data-context-compaction",
+    data: { state: "completed", phase: "step" },
+    transient: true,
+  });
+  expect(view.result.current.contextCompaction).toBeNull();
 });
 
 test("client-tool pauses keep the live tool part instead of reloading stored messages", async () => {

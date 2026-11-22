@@ -6,7 +6,7 @@ import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import {
   RuntimeTurn,
   type TurnScope,
-  contextCompactionThreshold,
+  resolveContextWindow,
   appendWorkspaceChangeEvent,
   attachExecutionEnvironment,
   renderAvailableSkills,
@@ -33,6 +33,7 @@ import {
   compileTurnTools,
   ExecPolicy,
   compilePermissionProfile,
+  EMPTY_RUNTIME_TOKEN_USAGE,
   runtimeTokenUsage,
   MODEL_STREAM_RETRIES,
   createModelStreamRetryPolicy,
@@ -365,7 +366,27 @@ export class DesktopSessionManager {
         ? { wait: (attempt: number) => this.options.waitForModelRetry!(attempt, signal) }
         : {}),
     });
-    let modelEpoch = runWorkspace.epoch;
+    const publishContextCompaction: NonNullable<RuntimeTurnSettings<Record<string, unknown>>["onCompaction"]> = (
+      event,
+    ) => this.emitStreamChunk(thread.id, { type: "data-context-compaction", data: event, transient: true });
+    const publishContextUsage = (
+      snapshot: NonNullable<ReturnType<typeof finalizeSessionContext>>,
+      estimated: boolean,
+    ): LocalThread["contextUsage"] => {
+      const value: NonNullable<LocalThread["contextUsage"]> = {
+        contextWindow: config.contextWindow,
+        autoCompactAt: resolveContextWindow(config).compactAt,
+        usedTokens: snapshot.usedTokens,
+        estimated,
+        compacted: this.journal.getCheckpoint(thread.id) !== null,
+        categories: snapshot.categories.map((category) => ({
+          id: category.id === "session" ? "conversation" : category.id,
+          tokens: category.tokens,
+        })),
+      };
+      this.emitStreamChunk(thread.id, { type: "data-context-usage", data: value, transient: true });
+      return value;
+    };
     const portableTools = createPortableToolRegistry({
       model: {
         name: config.model,
@@ -407,7 +428,6 @@ export class DesktopSessionManager {
       this.workspaces,
       activePermission,
       orchestrator,
-      () => modelEpoch,
       attachmentRoot,
     );
     const { tools, activeTools, toolCallers, toolSources } = compileTurnTools(
@@ -419,18 +439,22 @@ export class DesktopSessionManager {
       specificationVersion: "v4",
       transformParams: async ({ params }) => {
         contextEstimate = estimateSessionContext({ prompt: params.prompt, tools: params.tools, toolSources });
+        const snapshot = finalizeSessionContext(contextEstimate, EMPTY_RUNTIME_TOKEN_USAGE);
+        if (snapshot) publishContextUsage(snapshot, true);
         return params;
       },
     };
     const original = structuredClone(thread.messages);
+    const checkpoint = this.journal.getCheckpoint(thread.id);
     const projected = await projectRuntimeContext({
       messages: original,
       tools,
       model,
       limits: config,
-      checkpoint: this.journal.getCheckpoint(thread.id),
+      checkpoint,
       signal,
       compactionRetry: modelRetry,
+      onCompaction: publishContextCompaction,
       saveCheckpoint: async (checkpoint) => this.journal.saveCheckpoint(thread.id, checkpoint),
     });
     const assistantId = original.at(-1)?.role === "assistant" ? original.at(-1)!.id : randomUUID();
@@ -440,6 +464,7 @@ export class DesktopSessionManager {
         model,
         contextLimits: config,
         compactionRetry: modelRetry,
+        onCompaction: publishContextCompaction,
         stepCheckpoint: { assistantId, save: projected.saveStepCheckpoint },
         middleware: [retryableModelStreamMiddleware, contextCaptureMiddleware],
         tools,
@@ -458,17 +483,7 @@ export class DesktopSessionManager {
           const snapshot = finalizeSessionContext(contextEstimate, usage);
           contextEstimate = undefined;
           if (!snapshot) return;
-          thread.contextUsage = {
-            contextWindow: config.contextWindow,
-            autoCompactAt: contextCompactionThreshold(config),
-            usedTokens: snapshot.usedTokens,
-            estimated: !(usage.inputTokens != null && usage.inputTokens > 0),
-            compacted: this.journal.getCheckpoint(thread.id) !== null,
-            categories: snapshot.categories.map((category) => ({
-              id: category.id === "session" ? "conversation" : category.id,
-              tokens: category.tokens,
-            })),
-          };
+          thread.contextUsage = publishContextUsage(snapshot, !(usage.inputTokens != null && usage.inputTokens > 0));
           this.save(thread);
         },
         onStepStart: () => {
@@ -478,10 +493,9 @@ export class DesktopSessionManager {
         onError: modelRetry.onError,
         prepareStep: ({ messages }) => {
           runWorkspace.flushChanges();
-          modelEpoch = runWorkspace.epoch;
           const observed = this.observedWorkspaceEpochs.get(thread.id) ?? 0;
           const changes = [...runWorkspace.changed].filter(([, epoch]) => epoch > observed).map(([path]) => path);
-          this.observedWorkspaceEpochs.set(thread.id, modelEpoch);
+          this.observedWorkspaceEpochs.set(thread.id, runWorkspace.epoch);
           return changes.length > 0 ? { messages: appendWorkspaceChangeEvent(messages, changes) } : {};
         },
       } satisfies RuntimeTurnSettings<Record<string, unknown>>,

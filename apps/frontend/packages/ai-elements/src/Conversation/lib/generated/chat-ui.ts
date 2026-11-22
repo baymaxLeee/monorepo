@@ -42,11 +42,35 @@ export const chatMessageMetadataSchema = z
 
 export const chatDataPartSchemas = {
   "conversation-title": z.object({ title: z.string().trim().min(1).max(200) }).strict(),
+  "context-compaction": z
+    .object({
+      state: z.enum(["started", "completed"]),
+      phase: z.enum(["history", "step"]),
+    })
+    .strict(),
+  "context-usage": z
+    .object({
+      contextWindow: z.number().int().positive().nullable(),
+      autoCompactAt: z.number().int().positive().nullable(),
+      usedTokens: z.number().int().nonnegative(),
+      estimated: z.boolean(),
+      compacted: z.boolean(),
+      categories: z.array(
+        z
+          .object({
+            id: z.enum(["system", "tools", "rules", "skills", "mcp", "memory", "conversation"]),
+            tokens: z.number().int().nonnegative(),
+          })
+          .strict(),
+      ),
+    })
+    .strict(),
   "model-retry": z
     .object({
       state: z.enum(["retrying", "recovered", "failed"]),
       attempt: z.number().int().min(1).max(3),
       maxAttempts: z.literal(3),
+      reason: z.enum(["dns", "timeout", "connection_reset", "incomplete_stream", "provider_unavailable"]),
     })
     .strict(),
   "skill-activation": z.object({ name: z.string().min(1).max(120) }).strict(),

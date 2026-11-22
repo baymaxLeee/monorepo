@@ -63,7 +63,6 @@ export function localExecutionTools(
   workspaces: LocalWorkspaces,
   activePermission: ReturnType<typeof compilePermissionProfile>,
   orchestrator: ToolOrchestrator,
-  modelEpoch: () => number,
   attachmentRoot: string,
 ) {
   const artifacts = publishedArtifacts(thread.messages);
@@ -96,17 +95,14 @@ export function localExecutionTools(
         const signal = options.abortSignal
           ? AbortSignal.any([options.abortSignal, authority.abortSignal])
           : authority.abortSignal;
-        const result = await workspaces.access(thread.workspace, (current) => {
-          if (current.epoch !== modelEpoch()) {
-            throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
-          }
-          return current.sandbox.file(
+        const result = await workspaces.access(thread.workspace, (current) =>
+          current.sandbox.file(
             authority.permissionProfile,
             { operation: "readOptional", path },
             signal,
             attachmentRoot,
-          );
-        });
+          ),
+        );
         if (result === null) return null;
         if (
           !result ||
@@ -126,9 +122,6 @@ export function localExecutionTools(
           ? AbortSignal.any([options.abortSignal, authority.abortSignal])
           : authority.abortSignal;
         const result = await workspaces.access(thread.workspace, async (current) => {
-          if (current.epoch !== modelEpoch()) {
-            throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
-          }
           const written = await current.sandbox.file(
             authority.permissionProfile,
             {
@@ -166,9 +159,6 @@ export function localExecutionTools(
           ? AbortSignal.any([options.abortSignal, authority.abortSignal])
           : authority.abortSignal;
         await workspaces.access(thread.workspace, async (current) => {
-          if (current.epoch !== modelEpoch()) {
-            throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
-          }
           await current.sandbox.file(
             authority.permissionProfile,
             { operation: "delete", path, expectedHash: expectedSha256 },
@@ -215,7 +205,6 @@ export function localExecutionTools(
     run: async (input, attempt, options, io) => {
       options.abortSignal?.throwIfAborted();
       const { w, running } = await workspaces.access(thread.workspace, async (w) => {
-        if (w.epoch !== modelEpoch()) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
         const running = w.sandbox.execute(
           { ...attempt, attachmentRoot },
           input.shell ?? "/bin/bash",

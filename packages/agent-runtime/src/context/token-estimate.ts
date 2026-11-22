@@ -9,3 +9,15 @@ export function estimateTextTokens(value: string): number {
   }
   return Math.ceil(asciiChars / 2) + nonAsciiCodeUnits;
 }
+
+export function truncateTextToTokenBudget(value: string, budget: number): string {
+  if (estimateTextTokens(value) <= budget) return value;
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (estimateTextTokens(value.slice(0, middle)) <= budget) low = middle;
+    else high = middle - 1;
+  }
+  return value.slice(0, low);
+}

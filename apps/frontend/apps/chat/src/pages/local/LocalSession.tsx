@@ -3,7 +3,9 @@ import { type ConversationScrollHandle } from "@repo/ai-elements";
 import {
   chatDataPartSchemas,
   ChatPrompt,
+  contextCompactionStatusText,
   ConversationSessionView,
+  modelRetryStatusText,
   type ChatUIDataTypes,
   type ChatUIMessage,
 } from "@repo/ai-elements/conversation";
@@ -30,6 +32,7 @@ export function LocalSession({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [modelRetry, setModelRetry] = useState<ChatUIDataTypes["model-retry"] | null>(null);
+  const [contextCompaction, setContextCompaction] = useState<ChatUIDataTypes["context-compaction"] | null>(null);
   const [inferenceConfig, setInferenceConfig] = useState<GetLocalInferenceConfig200 | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
   const promptRef = useRef<PromptInputRef>(null);
@@ -43,8 +46,24 @@ export function LocalSession({
         generateId: randomId,
         dataPartSchemas: chatDataPartSchemas,
         onData: (part) => {
-          if (part.type !== "data-model-retry") return;
-          setModelRetry(part.data.state === "recovered" ? null : part.data);
+          if (part.type === "data-model-retry") {
+            setModelRetry(part.data.state === "recovered" ? null : part.data);
+            return;
+          }
+          if (part.type === "data-context-compaction")
+            setContextCompaction(part.data.state === "completed" ? null : part.data);
+          if (
+            part.type === "data-context-usage" &&
+            part.data.contextWindow !== null &&
+            part.data.autoCompactAt !== null
+          ) {
+            const contextUsage: NonNullable<LocalThread["contextUsage"]> = {
+              ...part.data,
+              contextWindow: part.data.contextWindow,
+              autoCompactAt: part.data.autoCompactAt,
+            };
+            setState((current) => ({ ...current, contextUsage }));
+          }
         },
         onError: (cause) => {
           const pending = pendingPrompt.current;
@@ -87,7 +106,10 @@ export function LocalSession({
   useEffect(() => {
     const applyThread = (thread: LocalThread) => {
       setState(localSessionState(thread));
-      if (thread.status !== "running") setModelRetry(null);
+      if (thread.status !== "running") {
+        setModelRetry(null);
+        setContextCompaction(null);
+      }
     };
     const off = bridge.subscribe((event) => {
       if (event.type === "runtime-error") setError(event.message);
@@ -163,6 +185,7 @@ export function LocalSession({
       if (state.status === "waiting" || (!value.text.trim() && value.tokens.length === 0)) return;
       setError(null);
       setModelRetry(null);
+      setContextCompaction(null);
       chat.clearError();
       if (busy) {
         if (value.tokens.length > 0) {
@@ -226,9 +249,11 @@ export function LocalSession({
             role={modelRetry.state === "retrying" ? "status" : "alert"}
             className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-foreground"
           >
-            {modelRetry.state === "retrying"
-              ? `网络连接中断，正在重连（${modelRetry.attempt}/${modelRetry.maxAttempts}）…`
-              : `网络连接仍不可用，已重试 ${modelRetry.maxAttempts} 次`}
+            {modelRetryStatusText(modelRetry)}
+          </p>
+        ) : contextCompaction ? (
+          <p role="status" className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-foreground">
+            {contextCompactionStatusText(contextCompaction)}
           </p>
         ) : null
       }

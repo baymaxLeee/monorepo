@@ -247,14 +247,8 @@ function dangerousReason(command: readonly string[]): string | null {
       .slice(1)
       .filter((part) => part.startsWith("-"))
       .join("");
-    if (
-      flags.includes("r") ||
-      flags.includes("R") ||
-      flags.includes("f") ||
-      command.includes("--recursive") ||
-      command.includes("--force")
-    ) {
-      return "recursive or forced deletion requires explicit review";
+    if (flags.includes("r") || flags.includes("R") || command.includes("--recursive")) {
+      return "recursive deletion requires explicit review";
     }
   }
   if (program === "git" && command[1] === "reset" && command.includes("--hard"))

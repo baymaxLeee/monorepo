@@ -474,7 +474,7 @@ test("Responses compaction checkpoints round-trip through the installed SDK and 
   const projection = {
     messages,
     model,
-    limits: { contextWindow: 10000, maxOutputTokens: 1000 },
+    limits: { contextWindow: 10000, maxOutputTokens: 1000, autoCompactTokenLimit: 512 },
     remoteBinding: "provider/model",
     saveCheckpoint: async (next: RuntimeContextCheckpointWrite) => {
       saved = next;

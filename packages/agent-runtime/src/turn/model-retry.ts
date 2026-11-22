@@ -4,10 +4,18 @@ import { APICallError, StreamProviderError } from "ai";
 export const MODEL_STREAM_RETRIES = 3;
 export const MODEL_STREAM_IDLE_TIMEOUT_MS = 120_000;
 
+export type ModelNetworkFailureReason =
+  | "dns"
+  | "timeout"
+  | "connection_reset"
+  | "incomplete_stream"
+  | "provider_unavailable";
+
 export interface ModelRetryEvent {
   state: "retrying" | "recovered" | "failed";
   attempt: number;
   maxAttempts: typeof MODEL_STREAM_RETRIES;
+  reason: ModelNetworkFailureReason;
 }
 
 export interface ModelStreamRetryPolicy {
@@ -24,49 +32,108 @@ interface RetryableShape {
   code?: unknown;
   cause?: unknown;
   message?: unknown;
+  name?: unknown;
+  reason?: unknown;
 }
 
-const NETWORK_ERROR_CODES = new Set([
+const NETWORK_FAILURE_REASONS = new Set<ModelNetworkFailureReason>([
+  "dns",
+  "timeout",
+  "connection_reset",
+  "incomplete_stream",
+  "provider_unavailable",
+]);
+const DNS_ERROR_CODES = new Set(["EAI_AGAIN", "ENOTFOUND"]);
+const TIMEOUT_ERROR_CODES = new Set([
   "ECONNABORTED",
-  "ECONNREFUSED",
-  "ECONNRESET",
-  "EHOSTUNREACH",
-  "ENETDOWN",
-  "ENETRESET",
-  "ENETUNREACH",
-  "EPIPE",
   "ETIMEDOUT",
   "UND_ERR_CONNECT_TIMEOUT",
   "UND_ERR_HEADERS_TIMEOUT",
-  "UND_ERR_SOCKET",
 ]);
+const RESET_ERROR_CODES = new Set(["ECONNRESET", "ENETRESET", "EPIPE", "UND_ERR_SOCKET"]);
+const UNAVAILABLE_ERROR_CODES = new Set(["ECONNREFUSED", "EHOSTUNREACH", "ENETDOWN", "ENETUNREACH"]);
 
-function retryableStatus(status: unknown): boolean {
-  return typeof status === "number" && (status === 408 || status === 409 || status === 429 || status >= 500);
+function statusFailure(status: unknown): ModelNetworkFailureReason | null {
+  if (status === 408) return "timeout";
+  return typeof status === "number" && (status === 409 || status === 429 || status >= 500)
+    ? "provider_unavailable"
+    : null;
 }
 
-export function isRetryableNetworkError(error: unknown, seen = new Set<unknown>()): boolean {
-  if (error == null || seen.has(error)) return false;
+/** Reduces provider and transport failures to a small, non-sensitive retry
+ * vocabulary. Raw URLs, hostnames, request ids and provider messages never
+ * leave the boundary that observed the failure. */
+export function classifyModelNetworkFailure(
+  error: unknown,
+  seen = new Set<unknown>(),
+): ModelNetworkFailureReason | null {
+  if (error == null || seen.has(error)) return null;
   seen.add(error);
-  if (error instanceof DOMException && error.name === "AbortError") return false;
-  if (APICallError.isInstance(error) || StreamProviderError.isInstance(error)) return error.isRetryable;
-  if (typeof error !== "object" && typeof error !== "string") return false;
+  if (error instanceof DOMException && error.name === "AbortError") return null;
+  if (typeof error !== "object" && typeof error !== "string") return null;
 
   const candidate = (typeof error === "object" ? error : { message: error }) as RetryableShape;
-  if (typeof candidate.retryable === "boolean") return candidate.retryable;
-  if (typeof candidate.isRetryable === "boolean") return candidate.isRetryable;
-  if (retryableStatus(candidate.statusCode) || retryableStatus(candidate.status)) return true;
+  const explicitRetryable =
+    APICallError.isInstance(error) || StreamProviderError.isInstance(error)
+      ? error.isRetryable
+      : typeof candidate.retryable === "boolean"
+        ? candidate.retryable
+        : typeof candidate.isRetryable === "boolean"
+          ? candidate.isRetryable
+          : undefined;
+  if (explicitRetryable === false) return null;
   if (
     (typeof candidate.statusCode === "number" && candidate.statusCode >= 400) ||
     (typeof candidate.status === "number" && candidate.status >= 400)
+  ) {
+    const reason = statusFailure(candidate.statusCode) ?? statusFailure(candidate.status);
+    if (reason) return reason;
+    return null;
+  }
+  if (
+    typeof candidate.reason === "string" &&
+    NETWORK_FAILURE_REASONS.has(candidate.reason as ModelNetworkFailureReason)
   )
-    return false;
-  if (typeof candidate.code === "string" && NETWORK_ERROR_CODES.has(candidate.code.toUpperCase())) return true;
-  if (candidate.cause !== undefined && isRetryableNetworkError(candidate.cause, seen)) return true;
+    return candidate.reason as ModelNetworkFailureReason;
+  const code = typeof candidate.code === "string" ? candidate.code.toUpperCase() : "";
+  if (DNS_ERROR_CODES.has(code)) return "dns";
+  if (TIMEOUT_ERROR_CODES.has(code)) return "timeout";
+  if (RESET_ERROR_CODES.has(code)) return "connection_reset";
+  if (UNAVAILABLE_ERROR_CODES.has(code)) return "provider_unavailable";
+  if (candidate.name === "TimeoutError" || candidate.name === "ModelStreamIdleTimeoutError") return "timeout";
+  if (candidate.cause !== undefined) {
+    const reason = classifyModelNetworkFailure(candidate.cause, seen);
+    if (reason) return reason;
+  }
   const message = typeof candidate.message === "string" ? candidate.message : "";
-  return /fetch failed|network error|socket (?:closed|hang up)|connection (?:closed|lost|reset|terminated)|timed? ?out|timeout|incomplete provider stream/i.test(
-    message,
-  );
+  if (
+    /incomplete (?:provider )?stream|incomplete[_ ]chunked|stream (?:ended|disconnected).*before|ended without/i.test(
+      message,
+    )
+  )
+    return "incomplete_stream";
+  if (/\b(?:ENOTFOUND|EAI_AGAIN)\b|getaddrinfo|dns/i.test(message)) return "dns";
+  if (
+    /\b(?:ECONNABORTED|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|UND_ERR_HEADERS_TIMEOUT)\b|timed? ?out|timeout/i.test(message)
+  )
+    return "timeout";
+  if (
+    /\b(?:ECONNRESET|ENETRESET|EPIPE|UND_ERR_SOCKET)\b|socket (?:closed|hang up)|connection (?:closed|lost|reset|terminated)/i.test(
+      message,
+    )
+  )
+    return "connection_reset";
+  if (
+    /\b(?:ECONNREFUSED|EHOSTUNREACH|ENETDOWN|ENETUNREACH)\b|fetch failed|network error|service unavailable|server busy|overloaded/i.test(
+      message,
+    )
+  )
+    return "provider_unavailable";
+  return explicitRetryable === true || error instanceof TypeError ? "provider_unavailable" : null;
+}
+
+export function isRetryableNetworkError(error: unknown): boolean {
+  return classifyModelNetworkFailure(error) !== null;
 }
 
 function retryPart(error: unknown): ReadableStream<LanguageModelV4StreamPart> {
@@ -171,7 +238,9 @@ export function createModelStreamRetryPolicy(options: {
 }): ModelStreamRetryPolicy {
   let attempt = 0;
   let active = false;
-  const emit = (state: ModelRetryEvent["state"]) => options.emit({ state, attempt, maxAttempts: MODEL_STREAM_RETRIES });
+  let reason: ModelNetworkFailureReason = "provider_unavailable";
+  const emit = (state: ModelRetryEvent["state"]) =>
+    options.emit({ state, attempt, maxAttempts: MODEL_STREAM_RETRIES, reason });
   return {
     reset() {
       attempt = 0;
@@ -191,7 +260,9 @@ export function createModelStreamRetryPolicy(options: {
       }
     },
     async onError({ error }: { error: unknown }) {
-      if (!isRetryableNetworkError(error)) return;
+      const failure = classifyModelNetworkFailure(error);
+      if (!failure) return;
+      reason = failure;
       if (attempt >= MODEL_STREAM_RETRIES) {
         active = false;
         emit("failed");

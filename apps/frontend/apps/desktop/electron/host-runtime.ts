@@ -1,23 +1,31 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
+import { classifyModelNetworkFailure, type ModelNetworkFailureReason } from "@repo/agent-runtime";
 import { utilityProcess, type UtilityProcess } from "electron";
 
 import type { DesktopEvent } from "../contracts/bridge.generated";
 import type { InferenceRelayError } from "../contracts/inference.generated";
 
-function isConnectionFailure(error: unknown) {
-  return (
-    error instanceof TypeError ||
-    (error instanceof Error &&
-      /net::ERR_|fetch failed|network|socket|ECONN|EPIPE|chunked|terminated|响应没有内容|响应中断/i.test(error.message))
-  );
-}
+class IncompleteRelayStreamError extends Error {}
 
-function safeInferenceError(retryable: boolean): InferenceRelayError {
-  return retryable
-    ? { code: "model_connection_failed", message: "模型连接中断", retryable: true }
-    : { code: "model_stream_interrupted", message: "模型响应中断，请重新发送消息", retryable: false };
+const NETWORK_FAILURE_MESSAGES: Record<ModelNetworkFailureReason, string> = {
+  dns: "模型服务域名解析失败",
+  timeout: "模型连接超时",
+  connection_reset: "模型连接被重置",
+  incomplete_stream: "模型响应流提前中断",
+  provider_unavailable: "模型服务暂时不可用",
+};
+
+function safeInferenceError(reason: ModelNetworkFailureReason | null): InferenceRelayError {
+  return reason
+    ? { code: "model_connection_failed", message: NETWORK_FAILURE_MESSAGES[reason], retryable: true, reason }
+    : {
+        code: "model_stream_interrupted",
+        message: "模型响应协议错误，请重新发送消息",
+        retryable: false,
+        reason: "protocol",
+      };
 }
 
 export class RuntimeHost {
@@ -179,7 +187,7 @@ export class RuntimeHost {
         body: JSON.stringify(body),
         signal: abort.signal,
       });
-      if (!response.body) throw new Error("模型响应没有内容");
+      if (!response.body) throw new IncompleteRelayStreamError("模型响应没有内容");
       reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "",
@@ -201,7 +209,7 @@ export class RuntimeHost {
           if (this.child === child) child.postMessage({ type: "inference-part", id, part });
         }
       }
-      if (!terminal || buffer.trim()) throw new Error("模型响应中断，请重新发起请求");
+      if (!terminal || buffer.trim()) throw new IncompleteRelayStreamError("模型响应中断，请重新发起请求");
       if (this.child === child) child.postMessage({ type: "inference-end", id });
     } catch (error) {
       if (this.child === child) {
@@ -210,7 +218,13 @@ export class RuntimeHost {
           id,
           part: {
             type: "error",
-            error: safeInferenceError(!abort.signal.aborted && isConnectionFailure(error)),
+            error: safeInferenceError(
+              abort.signal.aborted
+                ? null
+                : error instanceof IncompleteRelayStreamError
+                  ? "incomplete_stream"
+                  : classifyModelNetworkFailure(error),
+            ),
           },
         });
         child.postMessage({ type: "inference-end", id });

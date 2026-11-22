@@ -41,6 +41,8 @@ export function useConversationChat(id: string) {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [issue, setIssue] = useState<{ kind: "connection" | "history" | "cancel"; message: string } | null>(null);
   const [modelRetry, setModelRetry] = useState<ChatUIDataTypes["model-retry"] | null>(null);
+  const [contextCompaction, setContextCompaction] = useState<ChatUIDataTypes["context-compaction"] | null>(null);
+  const [contextUsage, setContextUsage] = useState<ChatUIDataTypes["context-usage"] | null>(null);
   const refreshRef = useRef<(() => Promise<void>) | null>(null);
   const titleRafRef = useRef<number | null>(null);
   const pendingTitleRef = useRef<{ id: string; title: string } | null>(null);
@@ -58,6 +60,11 @@ export function useConversationChat(id: string) {
       applyConversationTitle: s.applyConversationTitle,
     })),
   );
+  useEffect(() => {
+    setModelRetry(null);
+    setContextCompaction(null);
+    setContextUsage(null);
+  }, [id]);
   const transport = useMemo(
     () =>
       createConversationTransport<ChatUIMessage>(id ?? "missing", {
@@ -122,6 +129,14 @@ export function useConversationChat(id: string) {
             setModelRetry(dataPart.data.state === "recovered" ? null : dataPart.data);
             return;
           }
+          if (dataPart.type === "data-context-compaction") {
+            setContextCompaction(dataPart.data.state === "completed" ? null : dataPart.data);
+            return;
+          }
+          if (dataPart.type === "data-context-usage") {
+            setContextUsage(dataPart.data);
+            return;
+          }
           if (dataPart.type !== "data-conversation-title") {
             return;
           }
@@ -134,6 +149,7 @@ export function useConversationChat(id: string) {
         onFinish: ({ isDisconnect, isError, isAbort }) => {
           if (connectedChatRef.current !== chat) return;
           setModelRetry(null);
+          setContextCompaction(null);
           bumpTraceRefresh();
           const streamedRevision = chat.messages.at(-1)?.metadata?.historyRevision;
           if (streamedRevision !== undefined)
@@ -390,6 +406,8 @@ export function useConversationChat(id: string) {
     activeRunId,
     issue,
     modelRetry,
+    contextCompaction,
+    contextUsage,
     canRetry: transport.getPendingRequest?.() != null && !retryRequestPendingRef.current,
     canStartHistoryMutation,
     recover,

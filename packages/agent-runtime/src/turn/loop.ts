@@ -43,6 +43,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
     contextLimits,
     remoteCompactionBinding,
     onCompactionUsage,
+    onCompaction,
     compactionRetry,
     onHistoryReplacement,
     stepCheckpoint,
@@ -119,6 +120,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
               compacted: state,
             });
         },
+        onCompaction,
       });
       if (bounded !== local) {
         onHistoryReplacement?.();

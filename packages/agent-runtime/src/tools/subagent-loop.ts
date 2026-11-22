@@ -2,6 +2,8 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { addToolInputExamplesMiddleware, isStepCount, ToolLoopAgent, wrapLanguageModel, type ToolSet } from "ai";
 
+import { MODEL_STREAM_RETRIES, retryableModelStreamMiddleware } from "../turn/model-retry.js";
+
 const FINAL_REPORT_INSTRUCTION =
   "This is the final model step. Do not call tools. Return the complete self-contained report requested by the parent agent, including material findings, evidence URLs, uncertainty, and unresolved questions.";
 
@@ -48,9 +50,15 @@ export function createSubagent<const TOOLS extends ToolSet>({
   let previousResponseId: string | null = null;
   const agent = new ToolLoopAgent<never, TOOLS>({
     id,
-    model: wrapLanguageModel({ model, middleware: addToolInputExamplesMiddleware() }),
+    model: wrapLanguageModel({
+      model,
+      middleware: [addToolInputExamplesMiddleware(), retryableModelStreamMiddleware],
+    }),
     instructions,
     maxOutputTokens,
+    maxRetries: 0,
+    streamRetries: MODEL_STREAM_RETRIES,
+    onError: () => {},
     timeout: { chunkMs: 120_000 },
     tools,
     activeTools,

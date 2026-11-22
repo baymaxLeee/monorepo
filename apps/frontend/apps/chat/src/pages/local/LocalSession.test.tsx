@@ -29,7 +29,13 @@ const sessionViewApi = vi.hoisted(() => ({
   runActive: false,
 }));
 
-vi.mock("@repo/ai-elements", () => ({ ContextUsage: () => <span data-testid="local-context-usage" /> }));
+vi.mock("@repo/ai-elements", () => ({
+  ContextUsage: ({ value }: { value?: LocalThread["contextUsage"] }) => (
+    <span data-testid="local-context-usage">
+      {value ? `${value.usedTokens}:${value.estimated ? "estimated" : "confirmed"}` : "empty"}
+    </span>
+  ),
+}));
 vi.mock("@repo/api/chat", () => ({
   getLocalInferenceConfig: vi.fn(async () => ({
     providerId: "provider",
@@ -193,7 +199,7 @@ test("shows each model reconnect attempt and clears the hint after recovery", as
     chunks: [
       {
         type: "data-model-retry",
-        data: { state: "retrying", attempt: 1, maxAttempts: 3 },
+        data: { state: "retrying", attempt: 1, maxAttempts: 3, reason: "connection_reset" },
         transient: true,
       },
     ],
@@ -204,7 +210,7 @@ test("shows each model reconnect attempt and clears the hint after recovery", as
   act(() => {
     void sessionViewApi.chat?.resumeStream();
   });
-  expect((await screen.findByRole("status")).textContent).toContain("网络连接中断，正在重连（1/3）");
+  expect((await screen.findByRole("status")).textContent).toContain("模型连接被重置，正在重连（1/3）");
 
   act(() => {
     f.emit({
@@ -214,13 +220,99 @@ test("shows each model reconnect attempt and clears the hint after recovery", as
       index: 1,
       chunk: {
         type: "data-model-retry",
-        data: { state: "recovered", attempt: 1, maxAttempts: 3 },
+        data: { state: "recovered", attempt: 1, maxAttempts: 3, reason: "connection_reset" },
         transient: true,
       },
     });
     f.emit({ type: "stream", threadId: "local", segmentId: "segment", index: 2, chunk: null });
   });
   await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+});
+
+test("shows automatic context compaction until the shared runtime completes it", async () => {
+  const f = fixture("running", {
+    id: "segment",
+    messages: [],
+    chunks: [
+      {
+        type: "data-context-compaction",
+        data: { state: "started", phase: "history" },
+        transient: true,
+      },
+    ],
+    done: false,
+  });
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} />);
+
+  act(() => {
+    void sessionViewApi.chat?.resumeStream();
+  });
+  expect((await screen.findByRole("status")).textContent).toContain("正在压缩较早的会话历史");
+
+  act(() => {
+    f.emit({
+      type: "stream",
+      threadId: "local",
+      segmentId: "segment",
+      index: 1,
+      chunk: {
+        type: "data-context-compaction",
+        data: { state: "completed", phase: "history" },
+        transient: true,
+      },
+    });
+  });
+  await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+});
+
+test("updates context usage from each live model-step snapshot", async () => {
+  const f = fixture("running", {
+    id: "segment",
+    messages: [],
+    chunks: [
+      {
+        type: "data-context-usage",
+        data: {
+          contextWindow: 100_000,
+          autoCompactAt: 90_000,
+          usedTokens: 40_000,
+          estimated: true,
+          compacted: false,
+          categories: [{ id: "conversation", tokens: 40_000 }],
+        },
+        transient: true,
+      },
+    ],
+    done: false,
+  });
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} />);
+
+  act(() => {
+    void sessionViewApi.chat?.resumeStream();
+  });
+  expect(await screen.findByText("40000:estimated")).toBeTruthy();
+
+  act(() => {
+    f.emit({
+      type: "stream",
+      threadId: "local",
+      segmentId: "segment",
+      index: 1,
+      chunk: {
+        type: "data-context-usage",
+        data: {
+          contextWindow: 100_000,
+          autoCompactAt: 90_000,
+          usedTokens: 42_000,
+          estimated: false,
+          compacted: false,
+          categories: [{ id: "conversation", tokens: 42_000 }],
+        },
+        transient: true,
+      },
+    });
+  });
+  expect(await screen.findByText("42000:confirmed")).toBeTruthy();
 });
 
 test("uses the shared session composer and sends native local message parts", async () => {

@@ -8,11 +8,16 @@ import {
   retryableModelStreamMiddleware,
   type ModelStreamRetryPolicy,
 } from "../turn/model-retry.js";
-import type { ModelContextLimits } from "./budget.js";
-import { estimateTextTokens } from "./token-estimate.js";
+import { resolveContextWindow, type ModelContextLimits } from "./budget.js";
+import { estimateTextTokens, truncateTextToTokenBudget } from "./token-estimate.js";
 import { addRuntimeTokenUsage, EMPTY_RUNTIME_TOKEN_USAGE, runtimeTokenUsage, type RuntimeTokenUsage } from "./usage.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
+
+export interface ContextCompactionEvent {
+  state: "started" | "completed";
+  phase: "history" | "step";
+}
 
 export const COMPACTION_STATE_VERSION = "runtime-context-v1" as const;
 const COMPACTION_MAX_OUTPUT_TOKENS = 4_096;
@@ -95,30 +100,19 @@ function renderPrompt(previous: string, batch: string): string {
   return `<previous_compaction>\n${previous}\n</previous_compaction>\n<older_transcript>\n${batch}\n</older_transcript>`;
 }
 
-function normalizeCompactionSummary(text: string): string {
+function normalizeCompactionSummary(text: string, maxTokens: number): string {
   const trimmed = text.trim();
   try {
     const legacy = JSON.parse(trimmed) as unknown;
     if (legacy && typeof legacy === "object" && "summary" in legacy) {
       const summary = (legacy as { summary?: unknown }).summary;
-      if (typeof summary === "string" && summary.trim()) return summary.trim().slice(0, 16_000);
+      if (typeof summary === "string" && summary.trim())
+        return truncateTextToTokenBudget(summary.trim().slice(0, 16_000), maxTokens);
     }
   } catch {
     // A summary is plain text. JSON parsing only preserves compatibility with older compactor responses.
   }
-  return trimmed.slice(0, 16_000);
-}
-
-function truncateToTokenBudget(value: string, budget: number): string {
-  if (estimateTextTokens(value) <= budget) return value;
-  let low = 0;
-  let high = value.length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    if (estimateTextTokens(value.slice(0, middle)) <= budget) low = middle;
-    else high = middle - 1;
-  }
-  return value.slice(0, low);
+  return truncateTextToTokenBudget(trimmed.slice(0, 16_000), maxTokens);
 }
 
 interface CompactionCursor {
@@ -194,6 +188,7 @@ export async function compactTranscript(input: {
   onUsage?: (usage: RuntimeTokenUsage) => void;
   retry?: ModelStreamRetryPolicy;
 }): Promise<{ state: RuntimeCompactionState; usage: RuntimeTokenUsage }> {
+  const window = resolveContextWindow(input.limits);
   const model = wrapLanguageModel({ model: input.model, middleware: retryableModelStreamMiddleware });
   const maxOutputTokens = Math.max(
     1,
@@ -206,7 +201,7 @@ export async function compactTranscript(input: {
   let cursor: CompactionCursor = { messageIndex: 0, offset: 0 };
   while (cursor.messageIndex < messages.length) {
     const rawPrevious = state ? escapePromptData(state.summary) : "(none)";
-    const previous = truncateToTokenBudget(
+    const previous = truncateTextToTokenBudget(
       rawPrevious,
       Math.max(BATCH_TOKEN_RESERVE, inputBudget - BATCH_TOKEN_RESERVE),
     );
@@ -224,7 +219,7 @@ export async function compactTranscript(input: {
       onError: input.retry?.onError ?? (() => {}),
     });
     const [text, modelUsage] = await Promise.all([result.text, result.usage]);
-    const summary = normalizeCompactionSummary(text);
+    const summary = normalizeCompactionSummary(text, window.summaryMaxTokens);
     if (!summary) throw new Error("context compaction returned no summary");
     const batchUsage = runtimeTokenUsage(modelUsage);
     usage = addRuntimeTokenUsage(usage, batchUsage);

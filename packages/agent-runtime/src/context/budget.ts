@@ -1,7 +1,8 @@
 // Measured fixed headroom for base instructions, the largest shared tool catalog,
 // provider framing and one final tool result. Model limits remain host supplied.
 export const RUNTIME_CONTEXT_OVERHEAD_TOKENS = 8_000;
-export const COMPACTION_SUMMARY_RESERVE_TOKENS = 6_000;
+const MAX_COMPACTION_SUMMARY_RESERVE_TOKENS = 6_000;
+const COMPACTION_SUMMARY_FRAMING_TOKENS = 256;
 
 export interface ModelContextLimits {
   contextWindow: number;
@@ -9,32 +10,42 @@ export interface ModelContextLimits {
   autoCompactTokenLimit?: number;
 }
 
-export function effectiveModelInputWindow(limits: ModelContextLimits): number {
-  return Math.max(512, limits.contextWindow - limits.maxOutputTokens - RUNTIME_CONTEXT_OVERHEAD_TOKENS);
+export interface ContextWindowPlan {
+  inputCapacity: number;
+  compactAt: number;
+  summaryMaxTokens: number;
+  recentTailTokens: number;
 }
 
-export function contextCompactionThreshold(limits: ModelContextLimits): number {
+/** Resolves the one context contract used by journal projection and every
+ * in-turn model sample. Provider input and output ceilings stay independent. */
+export function resolveContextWindow(limits: ModelContextLimits): ContextWindowPlan {
+  // Provider configuration exposes independent input and output ceilings. Treating
+  // the output ceiling as part of the input window turns models with a very large
+  // output allowance into artificially tiny-context models.
+  const inputCapacity = Math.max(512, limits.contextWindow - RUNTIME_CONTEXT_OVERHEAD_TOKENS);
   // ModelInfo::auto_compact_token_limit caps a configured threshold at 90% of the context window.
-  // The SDK hosts also reserve their advertised output and instruction/tool overhead.
-  return Math.max(
+  // The SDK hosts reserve instruction/tool overhead inside the input capacity.
+  const compactAt = Math.max(
     1,
-    Math.min(
-      Math.floor(limits.contextWindow * 0.9),
-      effectiveModelInputWindow(limits),
-      limits.autoCompactTokenLimit ?? Infinity,
-    ),
+    Math.min(Math.floor(limits.contextWindow * 0.9), inputCapacity, limits.autoCompactTokenLimit ?? Infinity),
   );
-}
-
-/** Recent verbatim history retained after automatic compaction. The summary and
- * tail together target the same watermark that disconnects stored lineage. */
-export function recentContextTailBudget(limits: ModelContextLimits): number {
-  return Math.max(512, contextCompactionThreshold(limits) - COMPACTION_SUMMARY_RESERVE_TOKENS);
+  const summaryReserve = Math.min(
+    MAX_COMPACTION_SUMMARY_RESERVE_TOKENS,
+    compactAt,
+    Math.max(512, Math.floor(compactAt / 2)),
+  );
+  return {
+    inputCapacity,
+    compactAt,
+    summaryMaxTokens: Math.max(1, summaryReserve - COMPACTION_SUMMARY_FRAMING_TOKENS),
+    recentTailTokens: compactAt - summaryReserve,
+  };
 }
 
 export function shouldResetStoredResponseLineage(
   inputTokens: number | null | undefined,
   limits: ModelContextLimits,
 ): boolean {
-  return inputTokens == null || inputTokens >= contextCompactionThreshold(limits);
+  return inputTokens == null || inputTokens >= resolveContextWindow(limits).compactAt;
 }

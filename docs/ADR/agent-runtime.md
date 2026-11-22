@@ -53,11 +53,11 @@ AI SDK 继续拥有 model/tool loop、stable tool ordering、approval、`prepare
 
 ### 网络故障恢复
 
-Cloud 与 Desktop 共用 Codex 式的当前采样恢复语义。主循环每个 model step 和自动上下文压缩调用遇到明确的瞬时网络错误、HTTP 408/409/429、5xx、120 秒建连或流 idle timeout 时，AI SDK 只重启当前 model call，最多重试 3 次，退避为 200/400/800 ms 并带少量 jitter。已经完成的 model step、工具调用和工具副作用不会重放；当前失败采样即使已经输出部分文本，也由 SDK 封闭该 attempt 后重新采样。取消会立即打断退避。HTTP 400/401/403、输入或协议错误、provider-hosted tool execution 等终态失败不进入重试。
+Cloud 与 Desktop 共用 Codex 式的当前采样恢复语义。主循环和 isolated child loop 的每个 model step、自动上下文压缩、标题与 memory extraction 调用遇到明确的瞬时网络错误、HTTP 408/409/429、5xx、各调用自身 deadline 或主模型流 120 秒 idle timeout 时，只重启当前 model call，最多重试 3 次，退避为 200/400/800 ms 并带少量 jitter。流式调用由 AI SDK 在当前 step 内恢复；非流式辅助调用关闭 SDK 的宽泛默认 retry，改用同一分类器并共享一次调用的总 deadline。已经完成的 model step、工具调用、数据库写入和其他副作用不会重放；当前失败采样即使已经输出部分文本，也由 SDK 封闭该 attempt 后重新采样。取消会立即打断退避。HTTP 400/401/403、输入或协议错误、provider-hosted tool execution 等终态失败不进入重试。
 
-每次重试通过 transient `data-model-retry` 发布 `retrying/recovered/failed`，两个宿主的会话界面显示同一套重连进度；事件不写入 journal 或模型上下文。Desktop 的 HTTP relay 显式保持 chunked response，并把上游未完成流规范化为 retryable model error，避免代理层把它降级为不可分类的 `ERR_INCOMPLETE_CHUNKED_ENCODING`。这套策略适用于首个采样及工具后的后续采样，不重启整个 Turn。
+主会话与自动压缩的重试通过 transient `data-model-retry` 发布 `retrying/recovered/failed` 和脱敏原因枚举 `dns | timeout | connection_reset | incomplete_stream | provider_unavailable`，两个宿主的会话界面显示同一套重连进度；事件不写入 journal 或模型上下文，也不暴露 hostname、URL、request id 或 provider 原文。Desktop 的 HTTP relay 显式保持 chunked response，并把上游未完成流规范化为 retryable model error，避免代理层把它降级为不可分类的 `ERR_INCOMPLETE_CHUNKED_ENCODING`。这套策略适用于首个采样及工具后的后续采样，不重启整个 Turn。child loop 保持同一个 subagent progress item，后台标题与 memory extraction 不制造主会话状态。
 
-所有 manifest 声明为非流式 `effect: read` 的 Tool 都采用相同的 3 次瞬时网络失败重试边界，包括内置读取、公共 Web 工具和 MCP 只读工具。`web_fetch` 还把结构化的 408/409/429 和 5xx 结果纳入重试；403 等权限错误立即返回。`write/add/update/destructive/unknown` Tool 可能包含 POST、上传、扣费或其他副作用，只有各自拥有幂等键或恢复协议时才可在工具内部重试。任意 Bash/`curl` 命令同样不透明重放；失败作为工具结果交回模型，由模型结合命令语义决定下一步。
+所有 manifest 声明为非流式 `effect: read` 的 Tool 都采用相同的 3 次瞬时网络失败重试边界，包括内置读取、公共 Web 工具和 MCP 只读工具。`web_fetch` 还把结构化的 408/409/429 和 5xx 结果纳入重试；403 等权限错误立即返回。`subagents` 是 streaming read tool，因此禁止从 manifest 外层重放整个工具；其 child loop 只恢复中断的 model call，已完成的 child Web tool 不会再次执行。`write/add/update/destructive/unknown` Tool 可能包含 POST、上传、扣费或其他副作用，只有各自拥有幂等键或恢复协议时才可在工具内部重试。任意 Bash/`curl` 命令同样不透明重放；失败作为工具结果交回模型，由模型结合命令语义决定下一步。
 
 ## 运行中输入与取消
 
@@ -77,13 +77,15 @@ PostgreSQL/SQLite journal 是唯一可重建的会话事实源。provider respon
 
 shared context manager 将完整 UIMessage journal 投影为 bounded ModelMessage：
 
-1. 有效输入窗口为 `max(512, contextWindow - maxOutputTokens - 8000)`；自动压缩水位取有效输入窗口、模型上下文窗口的 90% 和显式模型水位三者的最小值。stored lineage 到达水位时从 journal 重建。这个水位同时是 UI 的 `autoCompactAt` 和 context manager 开始拆分 prefix/tail 的依据，不能出现 lineage 已断开但投影仍不压缩的不同阈值。
-2. 近期 tail 保留原生消息，并在自动压缩水位内为 compacted prefix 预留 6000 tokens；只压缩旧前缀。单条超长 prefix 消息按连续 chunk 全量送给 compactor；工具与 `data-*` 的大 payload 可以有界截断，保留调用 ID、首尾内容和截断标记。最终 ModelMessage 投影若仍超过有效输入窗口就拒绝调用，不能依赖 provider 隐式截断。
+1. `contextWindow` 是 provider 的输入容量，`maxOutputTokens` 是独立输出上限，二者不得相减。统一 planner 先保留 8000 tokens 的 instructions/tools/runtime framing，得到 `inputCapacity = max(512, contextWindow - 8000)`；自动压缩水位 `compactAt` 取 `inputCapacity`、模型窗口 90% 和显式模型水位三者的最小值。stored lineage 到达同一水位时从 journal 重建。UI `autoCompactAt`、history projection 和轮内 step compaction 必须读取同一个 planner，不能各自维护公式。
+2. 近期 tail 保留原生消息，并在 `compactAt` 内最多为 compacted prefix 预留 6000 tokens；planner 同时给出 `summaryMaxTokens` 和 `recentTailTokens`。只压缩旧前缀，生成的摘要在安装 replacement/checkpoint 前必须截断到摘要预算，因此 summary 加 recent tail 必然重新收敛。单条超长 prefix 消息按连续 chunk 全量送给 compactor；工具与 `data-*` 的大 payload 可以有界截断，保留调用 ID、首尾内容和截断标记。最终 ModelMessage 投影若仍超过 `inputCapacity` 就拒绝调用，不能依赖 provider 隐式截断。
 3. Cloud 对 OpenAI 一方 Responses 端点使用 `compaction_trigger`，以 `store: false` 请求和重放加密的 `compaction` item。checkpoint 绑定 provider 和 model；切换后从完整 journal 投影。Ark stored Responses 只有在 `previous_response_id` 与 journal 直接相邻时才发送最后一个 assistant 之后的 user/tool suffix；lineage 缺失时移除旧 `itemId` 并物化完整本地 prompt，禁止发送悬空 `item_reference`。其他端点和 Desktop relay 采用 Codex 式普通文本摘要，不要求 provider 支持结构化输出或 JSON schema；压缩器增量合并旧摘要和新 prefix，持久化 `runtime-context-v1`。
 4. checkpoint 记录 `coveredThroughMessageId` 和 revision。两端先完成近期消息转换、输入窗口校验与取消检查，再由 PostgreSQL/SQLite 通过 CAS 安装；compaction 或 checkpoint 写入失败会终止本次主模型调用，不能假装压缩成功或推进 coverage。Cloud 和 Desktop 在 SDK 的 `finish-step` 将包含 artifacts 的消息 parts 写入当前助手消息。Cloud 以 turn 租约约束写入，终态复用同一 item 和 ordinal。轮内压缩覆盖完整工具步骤时，checkpoint 记录输入消息、助手消息和该步的工具调用 ID。恢复时校验所选分支、工具完成状态和远程模型绑定，随后重放保留的用户输入和剩余步骤。缺失或不匹配时重新投影原始 journal。
 5. 文件授权/字节加载是 host 的 `prepareRecent` adapter；shared manager 不访问 Storage、数据库或本地文件系统。持久 journal 从不因 projection/pruning/compaction 被改写。
 
-ContextUsage 表示最近一次活动模型上下文，不是会话累计花费：优先采用 provider 返回的 input usage，加上会留在后续上下文中的非 reasoning 输出；provider 尚未返回可靠 usage 时使用同一 portable estimator 并标记 `estimated`。分类始终是估算，分类和等于展示总量。Cloud 从 step snapshot 暴露该值，Desktop 在同一 model middleware/onStepEnd 边界持久化到 thread；两端都展示原始 model window、自动压缩水位和是否已有 checkpoint，且压缩不会删除原始 journal。
+压缩是可能持续数秒的可见 runtime item。history projection 和轮内 step compaction 都通过 transient `data-context-compaction` 发布 `started/completed` 及 `history|step` phase；UI 在 started 后立即显示状态，在 completed 后清除。Cloud 在主 SSE writer 建立前发生的 history 事件先按序缓冲，writer 建立后立即发送；Desktop 直接实时发送。失败不会伪造 completed，而是终止本次模型调用并保留原 journal/checkpoint。
+
+ContextUsage 表示最近一次活动模型上下文，不是会话累计花费：每个 model request 在 middleware 完成最终 prompt/tool 组装后立即通过 transient `data-context-usage` 发布 portable estimate；该 step 完成后再用 provider input usage 加上会留在后续上下文中的非 reasoning 输出发布 confirmed snapshot。它不按文本 delta/token 高频更新。分类始终是估算，分类和等于展示总量。Cloud 从两个 model-step 边界实时暴露该值；Desktop 使用相同边界，并在 step 完成时把 confirmed snapshot 持久化到 thread。两端都展示原始 model window、统一自动压缩水位和是否已有 checkpoint，且压缩不会删除原始 journal。
 
 Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和 checkpoint 机制。其 authority 是每个 identity scope 下的 `runtime.sqlite`，schema 为 `threads`、`turns`、`items`、`context_checkpoints`、`turn_plugin_snapshots`，`user_version=1`。旧 `runtime-v1.sqlite`、`sessions.sqlite` 和 Electron `userData` journal 不读取、不迁移、不覆盖；这是明确的零兼容切换。
 

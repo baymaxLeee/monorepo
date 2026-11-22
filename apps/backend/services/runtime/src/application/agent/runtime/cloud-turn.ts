@@ -11,6 +11,8 @@ import {
   MODEL_STREAM_RETRIES,
   createModelStreamRetryPolicy,
   retryableModelStreamMiddleware,
+  EMPTY_RUNTIME_TOKEN_USAGE,
+  finalizeSessionContext,
 } from "@repo/agent-runtime";
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
@@ -204,6 +206,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         toolSources,
       });
       contextEstimates.set(currentStepNumber, contextEstimate);
+      const contextSnapshot = finalizeSessionContext(contextEstimate, EMPTY_RUNTIME_TOKEN_USAGE);
+      if (contextSnapshot) input.onContextUsage?.({ snapshot: contextSnapshot, estimated: true });
       await observe(
         "capture model context",
         captureModelStepContext({
@@ -281,6 +285,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         ? JSON.stringify([provider.id, provider.model])
         : undefined,
     onCompactionUsage: input.onCompactionUsage,
+    onCompaction: input.onCompaction,
     onHistoryReplacement: () => {
       previousResponseId = null;
     },
@@ -319,6 +324,13 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     onStepEnd: (event) => {
       const contextEstimate = contextEstimates.get(currentStepNumber);
       contextEstimates.delete(currentStepNumber);
+      const contextUsage = extractUsageTokens(event.usage);
+      const contextSnapshot = finalizeSessionContext(contextEstimate, contextUsage);
+      if (contextSnapshot)
+        input.onContextUsage?.({
+          snapshot: contextSnapshot,
+          estimated: !(contextUsage.inputTokens != null && contextUsage.inputTokens > 0),
+        });
       const span = modelStepSpans.get(currentStepNumber);
       if (span) {
         modelStepSpans.delete(currentStepNumber);

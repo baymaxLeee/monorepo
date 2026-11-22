@@ -105,11 +105,28 @@ export function modelOptions(request: InferenceRequest): LanguageModelV4CallOpti
   return request.options;
 }
 
-export const inferenceRelayErrorSchema = z.strictObject({
-  code: z.enum(["model_connection_failed", "model_stream_interrupted"]),
-  message: z.string().min(1).max(200),
-  retryable: z.boolean(),
-});
+const modelNetworkFailureReasonSchema = z.enum([
+  "dns",
+  "timeout",
+  "connection_reset",
+  "incomplete_stream",
+  "provider_unavailable",
+]);
+
+export const inferenceRelayErrorSchema = z.discriminatedUnion("code", [
+  z.strictObject({
+    code: z.literal("model_connection_failed"),
+    message: z.string().min(1).max(200),
+    retryable: z.literal(true),
+    reason: modelNetworkFailureReasonSchema,
+  }),
+  z.strictObject({
+    code: z.literal("model_stream_interrupted"),
+    message: z.string().min(1).max(200),
+    retryable: z.literal(false),
+    reason: z.literal("protocol"),
+  }),
+]);
 export type InferenceRelayError = z.infer<typeof inferenceRelayErrorSchema>;
 
 export const inferenceConfigSchema = z.strictObject({

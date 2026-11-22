@@ -7,6 +7,7 @@ import { APICallError } from "ai";
 import { createAgentLoop } from "./loop.js";
 import {
   MODEL_STREAM_RETRIES,
+  classifyModelNetworkFailure,
   createRetryableModelStreamMiddleware,
   createModelStreamRetryPolicy,
   isRetryableNetworkError,
@@ -24,10 +25,19 @@ const finish: LanguageModelV4StreamPart = {
 };
 
 test("classifies transient network failures without replaying terminal HTTP failures", () => {
+  assert.equal(
+    classifyModelNetworkFailure(
+      Object.assign(new Error("getaddrinfo ENOTFOUND provider.example"), { code: "ENOTFOUND" }),
+    ),
+    "dns",
+  );
+  assert.equal(classifyModelNetworkFailure(new DOMException("Provider request timeout", "TimeoutError")), "timeout");
+  assert.equal(classifyModelNetworkFailure(new Error("ERR_INCOMPLETE_CHUNKED_ENCODING")), "incomplete_stream");
   assert.equal(isRetryableNetworkError(Object.assign(new Error("socket hang up"), { code: "ECONNRESET" })), true);
   assert.equal(isRetryableNetworkError({ retryable: true }), true);
   assert.equal(isRetryableNetworkError({ statusCode: 503 }), true);
   assert.equal(isRetryableNetworkError({ statusCode: 400, message: "input is invalid" }), false);
+  assert.equal(isRetryableNetworkError({ retryable: true, statusCode: 400, message: "input is invalid" }), false);
   assert.equal(isRetryableNetworkError({ retryable: false, statusCode: 503 }), false);
 });
 
@@ -84,17 +94,22 @@ test("retry policy reports three attempts, recovery and exhaustion", async () =>
   for (let attempt = 0; attempt < MODEL_STREAM_RETRIES; attempt++) await policy.onError({ error: { retryable: true } });
   policy.onChunk({ chunk: { type: "text-delta" } });
   assert.deepEqual(events, [
-    { state: "retrying", attempt: 1, maxAttempts: 3 },
-    { state: "retrying", attempt: 2, maxAttempts: 3 },
-    { state: "retrying", attempt: 3, maxAttempts: 3 },
-    { state: "recovered", attempt: 3, maxAttempts: 3 },
+    { state: "retrying", attempt: 1, maxAttempts: 3, reason: "provider_unavailable" },
+    { state: "retrying", attempt: 2, maxAttempts: 3, reason: "provider_unavailable" },
+    { state: "retrying", attempt: 3, maxAttempts: 3, reason: "provider_unavailable" },
+    { state: "recovered", attempt: 3, maxAttempts: 3, reason: "provider_unavailable" },
   ]);
 
   policy.reset();
   events.length = 0;
   for (let attempt = 0; attempt <= MODEL_STREAM_RETRIES; attempt++)
     await policy.onError({ error: { retryable: true } });
-  assert.deepEqual(events.at(-1), { state: "failed", attempt: 3, maxAttempts: 3 });
+  assert.deepEqual(events.at(-1), {
+    state: "failed",
+    attempt: 3,
+    maxAttempts: 3,
+    reason: "provider_unavailable",
+  });
 });
 
 test("the shared SDK loop retries only the current sample after partial output", async () => {
@@ -149,8 +164,8 @@ test("the shared SDK loop retries only the current sample after partial output",
   await result.consumeStream();
   assert.equal(calls, 2);
   assert.deepEqual(events, [
-    { state: "retrying", attempt: 1, maxAttempts: 3 },
-    { state: "recovered", attempt: 1, maxAttempts: 3 },
+    { state: "retrying", attempt: 1, maxAttempts: 3, reason: "connection_reset" },
+    { state: "recovered", attempt: 1, maxAttempts: 3, reason: "connection_reset" },
   ]);
 });
 
@@ -252,8 +267,8 @@ test("a provider stream idle timeout retries the current model step", async () =
   assert.equal(calls, 2);
   assert.equal(cancellations, 1);
   assert.deepEqual(events, [
-    { state: "retrying", attempt: 1, maxAttempts: 3 },
-    { state: "recovered", attempt: 1, maxAttempts: 3 },
+    { state: "retrying", attempt: 1, maxAttempts: 3, reason: "timeout" },
+    { state: "recovered", attempt: 1, maxAttempts: 3, reason: "timeout" },
   ]);
 });
 

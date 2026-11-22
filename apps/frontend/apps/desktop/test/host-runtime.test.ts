@@ -82,7 +82,12 @@ it("accepts a native model error part as a clean terminal event", async () => {
   electron.fork.mockReturnValue(child);
   const error = {
     type: "error",
-    error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+    error: {
+      code: "model_connection_failed",
+      message: "模型服务域名解析失败",
+      retryable: true,
+      reason: "dns",
+    },
   };
   new RuntimeHost("/app", vi.fn().mockResolvedValue(new Response(`${JSON.stringify(error)}\n`)), vi.fn());
 
@@ -114,7 +119,12 @@ it("converts a truncated HTTP model body into a safe native error part", async (
       id: "inference-2",
       part: {
         type: "error",
-        error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+        error: {
+          code: "model_connection_failed",
+          message: "模型响应流提前中断",
+          retryable: true,
+          reason: "incomplete_stream",
+        },
       },
     },
     { type: "inference-end", id: "inference-2" },

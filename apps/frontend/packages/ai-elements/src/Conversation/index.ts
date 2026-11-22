@@ -1,6 +1,7 @@
 export { ChatSession, type ExternalChatRequest } from "./pages/chat/Chat";
 export { ChatArtifactPanel } from "./components/ChatArtifactPanel";
 export { chatDataPartSchemas, type ChatUIDataTypes, type ChatUIMessage } from "./lib/chat-message";
+export { contextCompactionStatusText, modelRetryStatusText } from "./lib/runtime-status";
 export { ChatWorkspacePanel } from "./components/ChatWorkspacePanel";
 
 export { ChatStream } from "./components/ChatStream";

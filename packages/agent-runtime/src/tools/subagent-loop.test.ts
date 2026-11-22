@@ -140,3 +140,96 @@ void test("subagents continue stored Responses runs with only new tool results",
   assert.equal(streamError, undefined);
   assert.equal(call, 2);
 });
+
+void test("subagents retry only the interrupted model call without repeating completed tools", async () => {
+  let modelCalls = 0;
+  let toolExecutions = 0;
+  const retryingModel = new MockLanguageModelV4({
+    doStream: async () => {
+      modelCalls++;
+      if (modelCalls === 1) {
+        return {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: "stream-start" as const, warnings: [] },
+              {
+                type: "tool-call" as const,
+                toolCallId: "fetch-once",
+                toolName: "web_fetch",
+                input: JSON.stringify({ url: "https://example.com" }),
+              },
+              {
+                type: "finish" as const,
+                finishReason: { unified: "tool-calls" as const, raw: undefined },
+                usage: {
+                  inputTokens: { total: 4, noCache: 4, cacheRead: 0, cacheWrite: 0 },
+                  outputTokens: { total: 2, text: 2, reasoning: 0 },
+                },
+              },
+            ],
+          }),
+        };
+      }
+      if (modelCalls === 2) {
+        return {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: "stream-start" as const, warnings: [] },
+              {
+                type: "tool-call" as const,
+                toolCallId: "discarded-fetch",
+                toolName: "web_fetch",
+                input: JSON.stringify({ url: "https://discarded.example.com" }),
+              },
+              {
+                type: "error" as const,
+                error: Object.assign(new Error("connection reset"), { code: "ECONNRESET" }),
+              },
+            ],
+          }),
+        };
+      }
+      return {
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start" as const, warnings: [] },
+            { type: "text-start" as const, id: "report" },
+            { type: "text-delta" as const, id: "report", delta: "Recovered report" },
+            { type: "text-end" as const, id: "report" },
+            {
+              type: "finish" as const,
+              finishReason: { unified: "stop" as const, raw: undefined },
+              usage: {
+                inputTokens: { total: 6, noCache: 6, cacheRead: 0, cacheWrite: 0 },
+                outputTokens: { total: 3, text: 3, reasoning: 0 },
+              },
+            },
+          ],
+        }),
+      };
+    },
+  });
+  const child = createSubagent({
+    id: "retry-current-model-call",
+    model: retryingModel,
+    instructions: "Research and report.",
+    tools: {
+      web_fetch: tool({
+        description: "Fetch",
+        inputSchema: z.object({ url: z.string() }),
+        execute: async () => {
+          toolExecutions++;
+          return { content: "evidence" };
+        },
+      }),
+    },
+    toolsContext: {},
+    supportsStoredContinuation: false,
+  });
+
+  const result = await child.stream({ prompt: "Research this." });
+  await result.consumeStream();
+
+  assert.equal(modelCalls, 3);
+  assert.equal(toolExecutions, 1);
+});

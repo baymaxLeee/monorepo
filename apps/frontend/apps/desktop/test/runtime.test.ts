@@ -106,7 +106,7 @@ function reviewedBashCall(): DesktopSessionOptions["call"] {
           type: "tool-call",
           toolCallId: "reviewed",
           toolName: "bash",
-          input: JSON.stringify({ command: "rm -f temporary.txt && printf x >> marker.txt" }),
+          input: JSON.stringify({ command: "rm -rf temporary-dir && printf x >> marker.txt" }),
         },
       ]),
     )
@@ -178,7 +178,12 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
             controller.enqueue({ type: "stream-start", warnings: [] });
             controller.enqueue({
               type: "error",
-              error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+              error: {
+                code: "model_connection_failed",
+                message: "模型连接被重置",
+                retryable: true,
+                reason: "connection_reset",
+              },
             });
             controller.close();
           },
@@ -196,10 +201,10 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
         event.type === "stream" && event.chunk?.type === "data-model-retry" ? [event.chunk.data] : [],
       ),
     ).toEqual([
-      { state: "retrying", attempt: 1, maxAttempts: 3 },
-      { state: "retrying", attempt: 2, maxAttempts: 3 },
-      { state: "retrying", attempt: 3, maxAttempts: 3 },
-      { state: "recovered", attempt: 3, maxAttempts: 3 },
+      { state: "retrying", attempt: 1, maxAttempts: 3, reason: "connection_reset" },
+      { state: "retrying", attempt: 2, maxAttempts: 3, reason: "connection_reset" },
+      { state: "retrying", attempt: 3, maxAttempts: 3, reason: "connection_reset" },
+      { state: "recovered", attempt: 3, maxAttempts: 3, reason: "connection_reset" },
     ]);
   });
 
@@ -215,7 +220,12 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
             controller.enqueue({ type: "text-delta", id: "partial", delta: "partial" });
             controller.enqueue({
               type: "error",
-              error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+              error: {
+                code: "model_connection_failed",
+                message: "模型连接被重置",
+                retryable: true,
+                reason: "connection_reset",
+              },
             });
             controller.close();
           },
@@ -242,7 +252,12 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
           start(controller) {
             controller.enqueue({
               type: "error",
-              error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+              error: {
+                code: "model_connection_failed",
+                message: "模型连接被重置",
+                retryable: true,
+                reason: "connection_reset",
+              },
             });
             controller.close();
           },
@@ -282,8 +297,9 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
             type: "error",
             error: {
               code: "model_stream_interrupted",
-              message: "模型响应中断，请重新发送消息",
+              message: "模型响应协议错误，请重新发送消息",
               retryable: false,
+              reason: "protocol",
             },
           });
           controller.close();
@@ -294,7 +310,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     f.runtime.send(f.thread.id, user("first"), randomUUID());
     const failed = await done(f.runtime, f.thread.id);
     expect(failed.status).toBe("error");
-    expect(failed.error).toContain("模型响应中断");
+    expect(failed.error).toContain("模型响应协议错误");
     expect(calls).toBe(1);
   });
 
@@ -315,7 +331,12 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
               start(controller) {
                 controller.enqueue({
                   type: "error",
-                  error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+                  error: {
+                    code: "model_connection_failed",
+                    message: "模型连接被重置",
+                    retryable: true,
+                    reason: "connection_reset",
+                  },
                 });
                 controller.close();
               },
@@ -371,9 +392,18 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
         event.type === "stream" && event.chunk?.type === "data-model-retry" ? [event.chunk.data] : [],
       ),
     ).toEqual([
-      { state: "retrying", attempt: 1, maxAttempts: 3 },
-      { state: "recovered", attempt: 1, maxAttempts: 3 },
+      { state: "retrying", attempt: 1, maxAttempts: 3, reason: "connection_reset" },
+      { state: "recovered", attempt: 1, maxAttempts: 3, reason: "connection_reset" },
     ]);
+    expect(
+      events.flatMap((event) =>
+        event.type === "stream" && event.chunk?.type === "data-context-compaction" ? [event.chunk.data] : [],
+      ),
+    ).toEqual([
+      { state: "started", phase: "step" },
+      { state: "completed", phase: "step" },
+    ]);
+    expect(events.some((event) => event.type === "stream" && event.chunk?.type === "data-context-usage")).toBe(true);
   });
 
   it("persists model binding updates and freezes them for the active turn", async () => {
@@ -548,6 +578,43 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(JSON.stringify(requests[0].options.prompt)).toContain("external.txt");
     for (const request of requests.slice(1))
       expect(JSON.stringify(request.options.prompt)).not.toContain("工作区内容已变化");
+  });
+
+  it("keeps later tool calls valid after an earlier call mutates the same workspace", async () => {
+    const requests: InferenceRequest[] = [];
+    const f = await fixture(async (request) => {
+      requests.push(request);
+      return reply(
+        requests.length === 1
+          ? [
+              {
+                type: "tool-call",
+                toolCallId: "first-write",
+                toolName: "bash",
+                input: JSON.stringify({ command: "printf first > first.txt" }),
+              },
+              {
+                type: "tool-call",
+                toolCallId: "second-write",
+                toolName: "bash",
+                input: JSON.stringify({ command: "printf second > second.txt" }),
+              },
+            ]
+          : text(),
+      );
+    });
+
+    f.runtime.send(f.thread.id, user("write both files"), randomUUID());
+    const completed = await done(f.runtime, f.thread.id);
+
+    expect(completed.status).toBe("idle");
+    expect(await readFile(join(f.thread.workspace, "first.txt"), "utf8")).toBe("first");
+    expect(await readFile(join(f.thread.workspace, "second.txt"), "utf8")).toBe("second");
+    expect(JSON.stringify(completed.messages)).not.toContain("工作区在推理后发生变化");
+    const nextPrompt = JSON.stringify(requests[1]?.options.prompt);
+    expect(nextPrompt).toContain('runtime_context type=\\"workspace_changes\\"');
+    expect(nextPrompt).toContain("first.txt");
+    expect(nextPrompt).toContain("second.txt");
   });
 
   it("retains a real PTY between turns and isolates its handle from another thread sharing the workspace", async () => {

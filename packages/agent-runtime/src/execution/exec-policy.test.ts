@@ -80,6 +80,15 @@ test("never with full access ignores redundant sandbox escalation for non-danger
   );
   assert.deepEqual(
     policy.requirement({
+      command: "rm -f tests/test_ttl_cache.py.new",
+      approvalPolicy: "never",
+      permissionProfile: fullAccess,
+      sandboxPermissions: "use_default",
+    }),
+    { type: "skip", bypassSandbox: false, reason: null },
+  );
+  assert.deepEqual(
+    policy.requirement({
       command,
       approvalPolicy: "never",
       permissionProfile: fullAccess,

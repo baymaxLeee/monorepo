@@ -1,3 +1,4 @@
+import { retryTransientNetwork } from "@repo/agent-runtime";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 import { z } from "zod";
 
@@ -108,14 +109,21 @@ export async function extractMemoryCandidates(input: ExtractMemoryInput): Promis
 
   let candidates: z.infer<typeof extractionSchema>["candidates"];
   try {
-    const result = await generateText({
-      model: structuredModel,
-      output: Output.object({ schema: extractionSchema }),
-      instructions: extractionInstructions(),
-      prompt: buildExtractionPrompt({ sessionText, existingMemories: existingForPrompt }),
-      maxOutputTokens: 1200,
-      timeout: { totalMs: 60_000, stepMs: 60_000 },
-    });
+    const signal = AbortSignal.timeout(60_000);
+    const result = await retryTransientNetwork(
+      () =>
+        generateText({
+          model: structuredModel,
+          output: Output.object({ schema: extractionSchema }),
+          instructions: extractionInstructions(),
+          prompt: buildExtractionPrompt({ sessionText, existingMemories: existingForPrompt }),
+          maxOutputTokens: 1200,
+          maxRetries: 0,
+          abortSignal: signal,
+          timeout: { stepMs: 60_000 },
+        }),
+      { signal },
+    );
     candidates = result.output?.candidates ?? [];
   } catch (err) {
     logger.error({ err }, "memory extraction failed");
