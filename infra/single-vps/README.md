@@ -197,7 +197,7 @@ come down, but every first pull on a fresh VPS hurts.
 Solution: let `mirror-images` copy the atomic GHCR release to a domestic OCI
 registry after `build-images` completes. Changed components transfer their layers;
 unchanged components only receive the new release tag inside the target registry.
-Tencent TCR is the documented example, but `TCR_HOST` may point at another
+Tencent TCR is the documented example, but `MIRROR_HOST` may point at another
 OCI-compatible registry such as an Aliyun regional registry.
 
 The Python image (`knowledge`) exports the service's locked
@@ -227,8 +227,8 @@ GitHub repo → Settings → Secrets and variables → Actions:
 
 | Type | Name | Value |
 | --- | --- | --- |
-| Variable | `TCR_NAMESPACE` | `<your-tcr-namespace>` |
-| Variable | `TCR_HOST` _(optional)_ | `ccr.ccs.tencentyun.com` _(default is fine; only change if you're in a non-Shanghai TCR region)_ |
+| Variable | `MIRROR_NAMESPACE` | `<your-tcr-namespace>` |
+| Variable | `MIRROR_HOST` _(optional)_ | `ccr.ccs.tencentyun.com` _(default is fine; only change if you're in a non-Shanghai TCR region)_ |
 | Secret | `TCR_USERNAME` | Tencent Cloud account ID (digits) |
 | Secret | `TCR_PASSWORD` | TCR access credential from step 1.4 |
 
