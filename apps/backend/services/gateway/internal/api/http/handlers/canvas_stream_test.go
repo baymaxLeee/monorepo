@@ -34,3 +34,22 @@ func TestCanvasEventStreamClearsEdgeWriteDeadline(t *testing.T) {
 		}
 	}
 }
+
+func TestChatStreamsClearEdgeWriteDeadline(t *testing.T) {
+	for _, tc := range []struct {
+		method string
+		path   string
+		want   bool
+	}{
+		{http.MethodPost, "/api/chat-server/agents/run/stream", true},
+		{http.MethodPost, "/api/chat-server/local-inference/stream", true},
+		{http.MethodGet, "/api/chat-server/local-inference/config", false},
+	} {
+		proxy := &deadlineAwareProxy{service: "chat-server", externalPrefix: "/api/chat-server", inner: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })}
+		writer := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+		proxy.ServeHTTP(writer, httptest.NewRequest(tc.method, tc.path, nil))
+		if writer.cleared != tc.want {
+			t.Errorf("%s cleared deadline = %v, want %v", tc.path, writer.cleared, tc.want)
+		}
+	}
+}
