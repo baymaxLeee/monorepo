@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import {
   parseCheckpointState,
+  normalizePersistedTurnPluginSnapshot,
   type RuntimeContextCheckpoint,
   type RuntimeContextCheckpointWrite,
   toPersistedTurnPluginSnapshot,
@@ -252,7 +253,10 @@ export class LocalJournal {
     const value = JSON.stringify(persisted);
     const existing = this.db.prepare("SELECT value FROM turn_plugin_snapshots WHERE turn_id=?").get(turnId);
     if (existing) {
-      if (String(existing.value) !== value) throw new Error("local turn plugin snapshot is immutable");
+      const current = normalizePersistedTurnPluginSnapshot(
+        JSON.parse(String(existing.value)) as PersistedTurnPluginSnapshot,
+      );
+      if (JSON.stringify(current) !== value) throw new Error("local turn plugin snapshot is immutable");
       return;
     }
     this.db
@@ -265,7 +269,9 @@ export class LocalJournal {
 
   getPluginSnapshot(turnId: string): PersistedTurnPluginSnapshot | null {
     const row = this.db.prepare("SELECT value FROM turn_plugin_snapshots WHERE turn_id=?").get(turnId);
-    return row ? (JSON.parse(String(row.value)) as PersistedTurnPluginSnapshot) : null;
+    return row
+      ? normalizePersistedTurnPluginSnapshot(JSON.parse(String(row.value)) as PersistedTurnPluginSnapshot)
+      : null;
   }
 
   remove(id: string): void {

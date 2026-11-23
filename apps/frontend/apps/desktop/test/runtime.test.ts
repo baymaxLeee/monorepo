@@ -75,10 +75,6 @@ async function fixture(
       schemaVersion: 1,
       snapshotId: randomUUID(),
       snapshotDigest: `sha256:${"0".repeat(64)}`,
-      workspaceRevision: 1,
-      tenantId: "tenant",
-      workspaceId: "workspace",
-      resolvedAt: "2026-01-01T00:00:00.000Z",
       plugins: [],
       connectionGrants: [],
     }),
@@ -150,10 +146,6 @@ function docsSnapshot(): ResolvedTurnPluginSnapshot {
     schemaVersion: 1,
     snapshotId: "docs-snapshot",
     snapshotDigest: `sha256:${"b".repeat(64)}`,
-    workspaceRevision: 1,
-    tenantId: "tenant",
-    workspaceId: "workspace",
-    resolvedAt: "2026-01-01T00:00:00.000Z",
     plugins: [{ manifest, activation: { pluginId: manifest.id } }],
     connectionGrants: [
       {
@@ -658,6 +650,25 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     });
   });
 
+  it("runs independent sessions concurrently in the same workspace", async () => {
+    const releases: Array<() => void> = [];
+    const f = await fixture(
+      () =>
+        new Promise<ReadableStream<LanguageModelV4StreamPart>>((resolve) => {
+          releases.push(() => resolve(reply(text())));
+        }),
+    );
+    const other = await f.runtime.create(f.thread.workspace, "provider", "medium", "on-request", ":workspace", []);
+
+    f.runtime.send(f.thread.id, user("first"), randomUUID());
+    expect(() => f.runtime.send(other.id, user("second"), randomUUID())).not.toThrow();
+    await expect.poll(() => releases.length).toBe(2);
+
+    for (const release of releases) release();
+    expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
+    expect((await done(f.runtime, other.id)).status).toBe("idle");
+  });
+
   it("executes shared sandbox tools, persists history and supplies external changes to the next turn", async () => {
     const requests: InferenceRequest[] = [];
     const f = await fixture(async (request) => {
@@ -807,7 +818,12 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     const refreshed = structuredClone(original);
     refreshed.snapshotId = randomUUID();
     refreshed.connectionGrants = [{ ...original.connectionGrants[0], headers: { Authorization: "fresh grant" } }];
-    if (changed) refreshed.workspaceId = "another-workspace";
+    if (changed) {
+      refreshed.plugins = refreshed.plugins.map((plugin) => ({
+        ...plugin,
+        manifest: { ...plugin.manifest, digest: `sha256:${"c".repeat(64)}` },
+      }));
+    }
     const resolver = vi
       .fn<DesktopSessionOptions["resolvePlugins"]>()
       .mockResolvedValueOnce(original)

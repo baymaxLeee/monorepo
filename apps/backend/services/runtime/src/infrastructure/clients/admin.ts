@@ -340,14 +340,13 @@ export async function resolveAgentPlugins(
     if (!snapshot?.resolvedAt) {
       throw new AdminUnavailableError("admin returned no resolved plugin snapshot");
     }
+    if (snapshot.tenantId !== tenantId || snapshot.workspaceId !== workspaceId) {
+      throw new AdminUnavailableError("admin returned a plugin snapshot for another workspace");
+    }
     const resolvedSnapshot: ResolvedTurnPluginSnapshot = {
       schemaVersion: snapshot.schemaVersion as 1,
       snapshotId: snapshot.snapshotId,
       snapshotDigest: snapshot.snapshotDigest,
-      workspaceRevision: snapshot.workspaceRevision,
-      tenantId: snapshot.tenantId,
-      workspaceId: snapshot.workspaceId,
-      resolvedAt: snapshot.resolvedAt,
       plugins: snapshot.plugins.map((resolved) => {
         if (!resolved.manifest || !resolved.activation) {
           throw new AdminUnavailableError("admin returned an incomplete resolved plugin");

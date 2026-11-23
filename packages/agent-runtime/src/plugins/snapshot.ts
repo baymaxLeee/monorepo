@@ -107,18 +107,21 @@ function projectResolvedPlugin(resolved: ResolvedPluginActivation): ResolvedPlug
   };
 }
 
-/** Strip all ephemeral connection grants before a plugin snapshot crosses a persistence boundary. */
-export function toPersistedTurnPluginSnapshot(snapshot: ResolvedTurnPluginSnapshot): PersistedTurnPluginSnapshot {
+/** Canonicalize old and current persisted values without retaining host-owned authorization scope. */
+export function normalizePersistedTurnPluginSnapshot(
+  snapshot: PersistedTurnPluginSnapshot,
+): PersistedTurnPluginSnapshot {
   return {
     schemaVersion: 1,
     snapshotId: snapshot.snapshotId,
     snapshotDigest: snapshot.snapshotDigest,
-    workspaceRevision: snapshot.workspaceRevision,
-    tenantId: snapshot.tenantId,
-    workspaceId: snapshot.workspaceId,
-    resolvedAt: snapshot.resolvedAt,
     plugins: snapshot.plugins.map(projectResolvedPlugin),
   };
+}
+
+/** Strip all ephemeral connection grants before a plugin snapshot crosses a persistence boundary. */
+export function toPersistedTurnPluginSnapshot(snapshot: ResolvedTurnPluginSnapshot): PersistedTurnPluginSnapshot {
+  return normalizePersistedTurnPluginSnapshot(snapshot);
 }
 
 /** Resume the frozen release set with credentials authorized for the current attempt. */
@@ -128,18 +131,14 @@ export async function resolveTurnPluginSnapshot(
   resolve: (selection: readonly PluginActivation[]) => Promise<ResolvedTurnPluginSnapshot>,
 ): Promise<ResolvedTurnPluginSnapshot> {
   if (!frozen) return resolve(activations);
-  if (frozen.plugins.length === 0) {
-    return { ...frozen, connectionGrants: [] };
+  const canonical = normalizePersistedTurnPluginSnapshot(frozen);
+  if (canonical.plugins.length === 0) {
+    return { ...canonical, connectionGrants: [] };
   }
-  const fresh = await resolve(frozen.plugins.map(({ activation }) => activation));
+  const fresh = await resolve(canonical.plugins.map(({ activation }) => activation));
   const projected = toPersistedTurnPluginSnapshot(fresh);
-  if (
-    projected.tenantId !== frozen.tenantId ||
-    projected.workspaceId !== frozen.workspaceId ||
-    projected.workspaceRevision !== frozen.workspaceRevision ||
-    !isDeepStrictEqual(projected.plugins, frozen.plugins)
-  ) {
+  if (!isDeepStrictEqual(projected.plugins, canonical.plugins)) {
     throw new Error("插件配置已变更，请开始新一轮会话以使用最新配置");
   }
-  return { ...frozen, connectionGrants: fresh.connectionGrants };
+  return { ...canonical, connectionGrants: fresh.connectionGrants };
 }

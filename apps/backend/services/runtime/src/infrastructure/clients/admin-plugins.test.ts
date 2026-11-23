@@ -11,10 +11,6 @@ function snapshot(url = "http://knowledge:8010/mcp"): ResolvedTurnPluginSnapshot
     schemaVersion: 1,
     snapshotId: "snapshot",
     snapshotDigest: "a".repeat(64),
-    workspaceRevision: 1,
-    tenantId: "tenant",
-    workspaceId: "workspace",
-    resolvedAt: "2026-11-19T00:00:00Z",
     plugins: [
       {
         activation: { pluginId: "knowledge@platform" },

@@ -126,6 +126,12 @@ export const inferenceRelayErrorSchema = z.discriminatedUnion("code", [
     retryable: z.literal(false),
     reason: z.literal("protocol"),
   }),
+  z.strictObject({
+    code: z.literal("model_request_rejected"),
+    message: z.string().min(1).max(200),
+    retryable: z.literal(false),
+    reason: z.literal("request"),
+  }),
 ]);
 export type InferenceRelayError = z.infer<typeof inferenceRelayErrorSchema>;
 

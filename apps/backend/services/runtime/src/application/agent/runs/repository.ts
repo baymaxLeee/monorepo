@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import {
   classifyTurnRecovery,
+  normalizePersistedTurnPluginSnapshot,
   type TurnRecoveryDecision,
   toPersistedTurnPluginSnapshot,
   type PersistedTurnPluginSnapshot,
@@ -222,7 +223,7 @@ export async function readAgentRunPluginSnapshot(token: RunLeaseToken): Promise<
       .select({ snapshot: turnPluginSnapshots.snapshot })
       .from(turnPluginSnapshots)
       .where(eq(turnPluginSnapshots.turnId, token.runId));
-    return record?.snapshot ?? null;
+    return record?.snapshot ? normalizePersistedTurnPluginSnapshot(record.snapshot) : null;
   });
 }
 
@@ -246,10 +247,11 @@ export async function persistAgentRunPluginSnapshot(
       .from(turnPluginSnapshots)
       .where(eq(turnPluginSnapshots.turnId, token.runId));
     if (!existing) throw new Error(`agent run ${token.runId} plugin snapshot could not be persisted`);
-    if (!isDeepStrictEqual(existing.snapshot, snapshot)) {
+    const current = normalizePersistedTurnPluginSnapshot(existing.snapshot);
+    if (!isDeepStrictEqual(current, snapshot)) {
       throw new Error(`agent run ${token.runId} plugin snapshot is immutable`);
     }
-    return existing.snapshot;
+    return current;
   });
 }
 

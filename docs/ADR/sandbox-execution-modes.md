@@ -235,7 +235,7 @@ relay 必须满足以下边界：
 - 每次调用按真实 IAM 身份验证 tenant/workspace 成员资格、Agent 使用权、启用状态、允许的 provider/model 与额度。客户端传来的 ID、模型参数和已展示的模型列表都不能替代服务端授权；管理员变更配置后，后续调用重新校验。
 - 上游地址、dialect、认证和额外参数由服务端授权配置决定，并执行出站地址校验。拒绝客户端任意 URL、认证头、未授权模型、任意透传参数及绕过地址校验的重定向。多模态输入也不能让 relay 任意抓取客户端指定地址。
 - 只传递模型输入、输出、工具声明及工具结果数据；tool call 的审批与执行始终在本地。不得获得本地文件操作权、启动云端 sandbox，或接受上游托管的 shell/文件执行工具。relay 不接受远程控制本地工具的回调通道。
-- 用 AI SDK 的模型与流原语承载单次推理；跨进程模型调用契约归 `schemas/`，不把 Chat 的整轮 UIMessage 流当作模型传输协议。请求大小、输出、并发和预算由服务端约束；准入时预占预算，按结果结算，未确定结果不能当作零消耗无限重试。
+- 用 AI SDK 的模型与流原语承载单次推理；跨进程模型调用契约归 `schemas/`，不把 Chat 的整轮 UIMessage 流当作模型传输协议。请求大小、输出和预算由服务端约束；准入时预占预算，按结果结算，未确定结果不能当作零消耗无限重试。relay 不按 tenant、用户或 workspace 建立全局 active-request mutex：独立 Session 的模型调用可以并发；若产品套餐或 provider 需要限流，由上层以显式 rate limit/backpressure 策略实现并返回真实错误，不能伪装成模型协议失败。
 - 断连或取消须中止上游请求并释放请求资源。HTTP 200 与 NDJSON 已开始后，relay 把 provider error、缺失 finish 或 body 读取失败转换成脱敏的 AI SDK 原生 `error` part 并正常关闭响应；Desktop 把本机 body 截断转换为相同终态。不得用损坏 chunked framing 表达模型失败，也不得向会话暴露 `ERR_INCOMPLETE_CHUNKED_ENCODING` 等 Chromium 传输细节。
 - [Codex 会把缺少 `response.completed` 的 SSE 作为显式 stream error，并按配置重试，同时报告 `Reconnecting...` 状态](https://github.com/openai/codex/blob/1145028ae47e8119955323d38ce34122d418f951/codex-rs/core/tests/suite/stream_no_completed.rs#L26-L107)。本项目采用相同的显式终态和有界重连模式，但产品上限固定为 3 次：仅当失败发生在本次模型 attempt 尚未产出正文、推理或工具协议内容时，SDK 重跑当前 step；每次等待采用约 200/400/800 ms 的指数退避和小幅 jitter，并通过 transient `data-model-retry` 显示 1/3、2/3、3/3。成功后状态清除，第 4 次调用仍失败才结束 Turn；后续显式 Turn 仍可继续。
 - 每个 retry attempt 使用新的 relay request ID、独立准入和预留记录。输出一旦开始就绝不自动重放，避免重复可见内容和工具副作用。provider 请求当前没有供应商 exactly-once 或可查询结算保证，因此失败 attempt 的 unknown reservation 不能当作零消耗；无法证明上游未执行时保留该记录，而不是伪造成功或隐藏最终失败。
@@ -272,6 +272,7 @@ approval 与 sandbox 独立：普通批准仍在当前 OS 策略中执行；只�
 - 显式 Stop 取消本次执行并清理受管理的子孙进程；窗口关闭、应用退出和后台运行的产品行为须明确，不能让脱离父进程的任务成为无主进程。
 - 恢复会话时重新检查目录权限、存在性和文件现状。目录不可用则报告不可恢复，不切到云端；旧快照不得自动覆盖用户在停机期间的修改。
 - 外部编辑器和 shell 不受应用数据库锁控制。文件观察用于发现变化，受控编辑前重新读取并核对基线；不能宣称任意外部写入具有全目录事务或完全避免并发覆盖。
+- 多个本地 Session（包括不同 App/CLI）可以同时绑定并操作同一工作目录。Session 只串行自己的 active Turn；同目录写冲突依赖 CAS、变更观察和工具结果显式收口，不设置进程内目录排他锁。
 
 ## 云端实例生命周期
 

@@ -15,10 +15,12 @@
 | Installation | Admin workspace | 选定 release digest、enabled、普通 config、加密 secrets、单调 revision | 明文 secret 回显、Runtime 私有副本表 |
 | Personal installation | Desktop native | 当前登录身份的插件包副本、`name@local` ID | 云端分发、自动激活 |
 | Activation | Chat/产品宿主 | `pluginId` 与 manifest 声明的非秘密 resource bindings | URL、header、credential、tool policy |
-| Turn snapshot | Runtime/Desktop | workspace revision、不可变 release、activation 与 snapshot digest | connection grant、Authorization/token |
+| Turn snapshot | Runtime/Desktop | 不可变 release、activation 与 snapshot digest | tenant/workspace scope、workspace revision、connection grant、Authorization/token |
 | Connection | 执行宿主内存 | Admin 解析出的短生命周期 headers/grant、MCP client | Chat、renderer、日志、PostgreSQL/SQLite snapshot |
 
 Catalog 是全局可治理资源；installation 是 tenant/workspace 授权状态；activation 是某个会话选择；snapshot 是某个 Turn 的冻结执行事实。安装、启停或换 release 只影响后续 Turn，不能在执行中替换当前 tool schema。Admin revision 让 resolve 得到一致视图；Runtime 与 Desktop 都不复制 owner 表。
+
+tenant/workspace 只存在于 Admin 与宿主 resolver 的授权输入和返回校验中，不进入 shared agent runtime。宿主确认返回 scope 与当前认证上下文一致后，投影为 tenant-neutral 的冻结 snapshot；shared plugin manager 只验证 snapshot identity、manifest、activation、grant 与 live MCP inventory。恢复时重新经过同一宿主 resolver，并以规范化后的插件内容投影拒绝配置漂移。宿主生成的 snapshot digest 是不透明审计标识，不作为核心层的业务作用域或恢复策略。
 
 Release digest 覆盖 endpoint、贡献与策略。配置和 secret 属于 installation，不进入 release digest；resolved snapshot digest 刻意排除 connection grants。持久化 projection 使用逐字段白名单，因此未来给 resolve 结果增加敏感字段也不会默认落库。
 
@@ -44,7 +46,7 @@ Admin 随发行包提供 `knowledge@platform` 与 `canvas@platform` 两个系统
 
 1. 宿主按来源解析 activation。本机来源由 utility process 读取，平台来源交给受信 resolver。云端 Runtime 直接调用 Admin；Desktop utility process 经 Electron main、Chat BFF 和 Runtime 的 IAM-scoped native endpoint 到同一个 Admin resolve。resolve 本身不附加 Runtime workload identity；云 Runtime 随后只为验证过 endpoint/source/trust 的平台插件在进程内追加凭据。Desktop 位于服务信任域之外，当前拒绝所有 `system` 插件，绝不接收共享服务 token。
 2. Admin 在 actor 的 tenant/workspace/role 下检查 installation、enabled release 和 bindings，按 release 声明把 binding/config/secret 映射为 headers；保留的内部身份 headers不能被插件覆盖。Runtime 只对固定 endpoint 的 `system` release 注入 workload token，并以该 token 签名完整身份、资源 binding、Turn ID 与 attempt epoch。Canvas/Knowledge 在 dispatch 前验证 token、audience、scope 与 epoch；任一 header 替换都会 fail closed，connection grant 不能跨 lease owner 复用。
-3. 宿主先持久化去除 grants 的 immutable snapshot，再让 shared `PluginManager` 校验 workspace、release、tool policy 与每个 server 恰好一个 grant。
+3. 宿主先持久化去除 grants 的 immutable snapshot，再让 shared `PluginManager` 校验 release、tool policy 与每个 server 恰好一个 grant；workspace 归属已由宿主在投影前校验。
 4. MCP tool 以 `mcp__<server>__<tool>` 进入同一个 AI SDK `ToolLoopAgent`。定义默认 `deferLoading: true`，首个 model step 只看见原生 `tool_search`，命中后下一 step 才暴露完整 schema。
 5. 首次实际调用时用官方 `@ai-sdk/mcp` Streamable HTTP client 懒连接；远端 inventory、名称和 schema 必须与 immutable release 一致，否则 fail closed。连接与 inventory 握手上限为 10 秒，`maxRetries: 0`；工具执行不使用共享硬超时，只服从 Turn cancellation 和 lease ownership，具体工具若有业务 deadline 必须由其 contract 显式声明。
 6. Turn 完成、失败或取消后按逆序 dispose；部分加载失败也释放此前已取得的 client。普通 MCP `isError` 作为统一 `ToolOutcome` 回到唯一 loop，取消和协议损坏不伪装成业务结果。
@@ -55,7 +57,7 @@ Admin 随发行包提供 `knowledge@platform` 与 `canvas@platform` 两个系统
 
 ## 本地持久化与安全边界
 
-Desktop bridge 暴露原生安装与列表能力，返回 ID 和显示名。创建本地 Thread 时记录选中的 activation。Electron main 校验最多 16 个稳定 plugin IDs 及 bounded bindings；renderer 永远拿不到 manifest endpoint、headers 或 grants。utility process resolve 完成后，将去密 snapshot 写进 identity-scoped `runtime.sqlite` 的 `turn_plugin_snapshots`，再开始模型调用。相同 Turn 的 snapshot 只能幂等重复写入，内容变化会失败；旧 `runtime-v1.sqlite` 不读取或迁移。审批恢复（含应用重启后）沿用该 Turn 已保存的 snapshot。需要重建 MCP 连接时，宿主用原 activation 重新申请临时 grant，并核对 tenant、workspace、workspace revision 及完整的插件清单和绑定。任一项变化就结束本轮，用户可在新轮次使用最新配置。
+Desktop bridge 暴露原生安装与列表能力，返回 ID 和显示名。创建本地 Thread 时记录选中的 activation。Electron main 校验最多 16 个稳定 plugin IDs 及 bounded bindings；renderer 永远拿不到 manifest endpoint、headers 或 grants。utility process resolve 完成后，将 tenant-neutral 的去密 snapshot 写进 identity-scoped `runtime.sqlite` 的 `turn_plugin_snapshots`，再开始模型调用。相同 Turn 的 snapshot 只能幂等重复写入，内容变化会失败；旧 `runtime-v1.sqlite` 不读取或迁移。审批恢复（含应用重启后）沿用该 Turn 已保存的 snapshot。需要重建 MCP 连接时，宿主用原 activation 在当前认证 scope 下重新申请临时 grant，先核对 resolver 返回的 tenant/workspace，再由 shared runtime 比较完整插件清单与绑定；任一项变化就结束本轮，用户可在新轮次使用最新配置。
 
 云端审批或客户端工具续跑生成新 run ID 时，在创建 run 的事务中从原 assistant item 所属 run 复制快照。新 attempt 必须持有效 lease 才能读取快照，并针对冻结的 activation 重新取得 grant。
 

@@ -20,9 +20,6 @@ export async function reserveInference(auth: AuthContext, requestId: string, mod
     const previous = await tx.execute(query`SELECT id FROM local_inference_requests WHERE id=${requestId}`);
     if (previous.length)
       throw new ConflictError("Inference request already admitted; output is never replayed by the server");
-    const active = await tx.execute(query`SELECT id FROM local_inference_requests WHERE tenant_id=${auth.tenantId}
-      AND workspace_id=${auth.workspaceId} AND user_id=${auth.userId} AND status='admitted' AND deadline>now()`);
-    if (active.length) throw new ConflictError("Another local inference request is active");
     await tx.execute(query`UPDATE local_inference_budgets SET used_tokens=used_tokens+${tokens} WHERE tenant_id=${auth.tenantId}
       AND workspace_id=${auth.workspaceId} AND user_id=${auth.userId} AND day=${day}`);
     await tx.execute(query`INSERT INTO local_inference_requests (id,tenant_id,workspace_id,user_id,day,model,reserved_tokens,charged_tokens,status,deadline)
@@ -32,7 +29,7 @@ export async function reserveInference(auth: AuthContext, requestId: string, mod
     async settle(actual: number | null) {
       await db.transaction(async (tx) => {
         // Same lock order as admission. On crash/unknown outcome the maximum
-        // reservation remains charged; the deadline only releases concurrency.
+        // reservation remains charged; no later request depends on its lifecycle.
         await tx.execute(query`SELECT used_tokens FROM local_inference_budgets WHERE tenant_id=${auth.tenantId}
           AND workspace_id=${auth.workspaceId} AND user_id=${auth.userId} AND day=${day} FOR UPDATE`);
         const charged = actual == null ? tokens : Math.max(0, Math.ceil(actual));

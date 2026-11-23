@@ -28,6 +28,25 @@ function safeInferenceError(reason: ModelNetworkFailureReason | null): Inference
       };
 }
 
+async function rejectedInferenceError(response: Response): Promise<InferenceRelayError> {
+  let message = `模型请求失败（HTTP ${response.status}）`;
+  try {
+    const body: unknown = await response.json();
+    if (
+      body &&
+      typeof body === "object" &&
+      !Array.isArray(body) &&
+      typeof (body as { message?: unknown }).message === "string"
+    ) {
+      const candidate = (body as { message: string }).message.trim();
+      if (candidate && candidate.length <= 200) message = candidate;
+    }
+  } catch {
+    // The status remains authoritative when a proxy returns a non-JSON error body.
+  }
+  return { code: "model_request_rejected", message, retryable: false, reason: "request" };
+}
+
 export class RuntimeHost {
   private child: UtilityProcess | null = null;
   private pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>();
@@ -187,6 +206,14 @@ export class RuntimeHost {
         body: JSON.stringify(body),
         signal: abort.signal,
       });
+      if (!response.ok) {
+        const error = await rejectedInferenceError(response);
+        if (this.child === child) {
+          child.postMessage({ type: "inference-part", id, part: { type: "error", error } });
+          child.postMessage({ type: "inference-end", id });
+        }
+        return;
+      }
       if (!response.body) throw new IncompleteRelayStreamError("模型响应没有内容");
       reader = response.body.getReader();
       const decoder = new TextDecoder();

@@ -18,10 +18,6 @@ const empty: ResolvedTurnPluginSnapshot = {
   schemaVersion: 1,
   snapshotId: "platform",
   snapshotDigest: `sha256:${"0".repeat(64)}`,
-  workspaceRevision: 1,
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  resolvedAt: "2026-01-01T00:00:00Z",
   plugins: [],
   connectionGrants: [],
 };

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 
-import type { AgentPluginContext, ResolvedPluginSkillContribution } from "@repo/agent-runtime";
+import type { ResolvedPluginSkillContribution } from "@repo/agent-runtime";
 
 import { storageClient } from "../../../infrastructure/clients/storage.js";
+import type { HostPluginContext } from "../tools/catalog.js";
 
 export interface PluginSkillContentSource {
   content(input: {
@@ -22,7 +23,7 @@ export class RuntimePluginSkillAssetLoader {
     this.#source = source;
   }
 
-  async loadBody(skill: ResolvedPluginSkillContribution, context: AgentPluginContext): Promise<string> {
+  async loadBody(skill: ResolvedPluginSkillContribution, context: HostPluginContext): Promise<string> {
     const stream = await (this.#source ?? storageClient()).content({
       tenantId: context.tenantId,
       workspaceId: context.workspaceId,

@@ -9,9 +9,9 @@ test("persisted plugin snapshot strips grants and unknown secret-bearing fields"
     schemaVersion: 1,
     snapshotId: "snapshot-1",
     snapshotDigest: `sha256:${"a".repeat(64)}`,
+    tenantId: "host-owned-tenant",
+    workspaceId: "host-owned-workspace",
     workspaceRevision: 7,
-    tenantId: "tenant-1",
-    workspaceId: "workspace-1",
     resolvedAt: "2026-11-19T00:00:00.000Z",
     plugins: [
       {
@@ -65,6 +65,7 @@ test("persisted plugin snapshot strips grants and unknown secret-bearing fields"
   const serialized = JSON.stringify(persisted);
 
   assert.equal("connectionGrants" in persisted, false);
+  assert.equal(serialized.includes("host-owned"), false);
   assert.equal(serialized.includes("must-not-persist"), false);
   assert.deepEqual(persisted.plugins[0]?.activation.bindings, { project_id: "project-1" });
   assert.deepEqual(

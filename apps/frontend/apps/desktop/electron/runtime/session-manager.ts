@@ -211,8 +211,6 @@ export class DesktopSessionManager {
   send(id: string, parts: LocalUserMessagePart[], messageId: string) {
     if (this.active.has(id)) throw new Error("当前会话仍在执行");
     if (this.closed) throw new Error("本地运行时正在关闭");
-    for (const activeId of this.active.keys())
-      if (this.get(activeId).workspace === this.get(id).workspace) throw new Error("同一个工作目录已有会话正在执行");
     const thread = this.get(id);
     if (thread.status === "waiting") throw new Error("请先处理待审批的命令，或停止当前轮次");
     thread.turnId = randomUUID();
@@ -301,8 +299,6 @@ export class DesktopSessionManager {
   }
   private start(thread: LocalThread) {
     if (this.closed) throw new Error("本地运行时正在关闭");
-    for (const id of this.active.keys())
-      if (this.get(id).workspace === thread.workspace) throw new Error("同一个工作目录已有会话正在执行");
     this.segments.set(thread.id, {
       id: randomUUID(),
       messages: structuredClone(thread.messages),
@@ -344,12 +340,6 @@ export class DesktopSessionManager {
     );
     this.journal.savePluginSnapshot(turnId, pluginSnapshot);
     const pluginContext: AgentPluginContext = {
-      turnId,
-      threadId: thread.id,
-      userId: "desktop-host",
-      tenantId: pluginSnapshot.tenantId,
-      workspaceId: pluginSnapshot.workspaceId,
-      workspaceRole: "",
       signal,
     };
     const pluginSet = await this.plugins.load(pluginSnapshot, pluginContext);

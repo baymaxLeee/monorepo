@@ -34,6 +34,10 @@ packages/agent-runtime/
 
 Backend 和 Desktop 只能准备 model、tools、environment、sandbox、persistence 与 observation capability；不得再实现 `ToolLoopAgent`、input queue、context budget/compaction、tool batch planner 或另一套 approval/message protocol。浏览器、Redis 和 provider cursor 都不是 Session authority。
 
+`apps/backend/services/runtime` 是多租户产品宿主，不等同于 shared runtime kernel。它的 Session、Run、消息和用量表保留 `tenant_id`/IAM workspace 作为授权、数据归属与计量隔离键；这些字段只能停留在 HTTP/auth、application service 与 repository 边界，不得投影进 `@repo/agent-runtime` 的 Session/Turn、插件上下文或并发策略。若未来要把 Runtime 服务本身做成租户无关的通用进程，应先把产品持久化与鉴权整体上移，并改用宿主签发的 opaque capability；不能仅删除数据库隔离列。
+
+shared kernel 不认识 tenant、IAM workspace、用户角色、套餐或产品额度。这些是宿主的授权与计量概念：Backend/Desktop 在进入 kernel 前解析并验证 scope，只把已授权且冻结的 model、plugin、tool、permission 与 execution capability 投影进 Turn。插件 snapshot 在 shared package 中只保留内容身份、digest、manifest/activation 与瞬时 connection grant；宿主负责验证 Admin 返回的 tenant/workspace scope。执行环境中的 `workspaceRoot` 是文件系统能力事实，与 IAM workspace ID 无关。
+
 ### 证据优先级
 
 本文不是旧方案的兼容说明。设计判断按以下顺序取证：
@@ -71,6 +75,8 @@ Backend 和 Desktop 只能准备 model、tools、environment、sandbox、persist
 | tool runtime   | manifest 元数据、approval policy 与公平、可取消的执行 admission              |
 
 `new RuntimeTurn(parentSignal?)` 在任何异步准备前同步创建 input queue，因此 run-input admission 不依赖 sandbox/provider 初始化是否已经完成。一个 `RuntimeTurn` 只能 `start()` 一次；prepare 之后由 kernel 创建唯一 AI SDK loop，宿主消费其原生 stream；turn 结束、失败或取消后，宿主必须调用 `dispose()`，而 kernel 保证已取得的 host resource 只释放一次。Session lease、stream journal finalizer 和进程级 recovery 仍由宿主拥有。前端 transport 持有自己的流订阅，页面切换或重新连接会释放此前已交给 renderer 的订阅。显式 Stop 才向宿主请求取消执行。
+
+one-active-Turn 只约束同一个 Session，不是进程、账号或目录级全局锁。多个 Session 可以并发运行，也可以绑定同一文件系统 workspace；这与 Codex `ThreadManager` 管理多个 Session、每个 Session 独立持有 `active_turn` 的边界一致。共享目录的写冲突通过工具 CAS、文件现状重读、workspace change observation 和真实文件系统结果暴露；内存中的目录锁既不能覆盖其他 App/CLI，也不能充当事务隔离。
 
 两个宿主都在 `start(prepare)` 中通过 `scope.defer()` 登记每项已取得的资源。准备中途失败或正常结束时按获取的逆序释放。云端 Sandbox 使用本次执行的取消信号并先于工具 catalog 完成释放。任一释放动作失败时仍继续释放其余资源，并将失败交给 journal finalizer。
 

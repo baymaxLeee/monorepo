@@ -51,10 +51,6 @@ function pluginSnapshot(): ResolvedTurnPluginSnapshot {
     schemaVersion: 1,
     snapshotId: "snapshot-1",
     snapshotDigest: `sha256:${"1".repeat(64)}`,
-    workspaceRevision: 1,
-    tenantId: "tenant",
-    workspaceId: "workspace",
-    resolvedAt: "2026-01-01T00:00:00.000Z",
     plugins: [],
     connectionGrants: [
       {

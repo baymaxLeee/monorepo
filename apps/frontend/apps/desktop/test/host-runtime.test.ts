@@ -100,6 +100,36 @@ it("accepts a native model error part as a clean terminal event", async () => {
   ]);
 });
 
+it("preserves a rejected inference response instead of reporting a model protocol error", async () => {
+  const child = new FakeUtilityProcess();
+  electron.fork.mockReturnValue(child);
+  const response = Response.json(
+    { code: "conflict", message: "Another local inference request is active", details: {} },
+    { status: 409 },
+  );
+  new RuntimeHost("/app", vi.fn().mockResolvedValue(response), vi.fn());
+
+  child.emit("message", { type: "inference", id: "inference-rejected", body: {} });
+
+  await vi.waitFor(() => expect(child.messages).toHaveLength(2));
+  expect(child.messages).toEqual([
+    {
+      type: "inference-part",
+      id: "inference-rejected",
+      part: {
+        type: "error",
+        error: {
+          code: "model_request_rejected",
+          message: "Another local inference request is active",
+          retryable: false,
+          reason: "request",
+        },
+      },
+    },
+    { type: "inference-end", id: "inference-rejected" },
+  ]);
+});
+
 it("converts a truncated HTTP model body into a safe native error part", async () => {
   const child = new FakeUtilityProcess();
   electron.fork.mockReturnValue(child);

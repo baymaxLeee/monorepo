@@ -14,12 +14,6 @@ export interface PluginActivation {
 }
 
 export interface AgentPluginContext {
-  turnId: string;
-  threadId: string;
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
-  workspaceRole: string;
   signal?: AbortSignal;
 }
 
@@ -94,10 +88,6 @@ export interface ResolvedTurnPluginSnapshot {
   schemaVersion: 1;
   snapshotId: string;
   snapshotDigest: string;
-  workspaceRevision: number;
-  tenantId: string;
-  workspaceId: string;
-  resolvedAt: string;
   plugins: readonly ResolvedPluginActivation[];
   connectionGrants: readonly McpConnectionGrant[];
 }
@@ -113,10 +103,6 @@ export interface PersistedTurnPluginSnapshot {
   schemaVersion: 1;
   snapshotId: string;
   snapshotDigest: string;
-  workspaceRevision: number;
-  tenantId: string;
-  workspaceId: string;
-  resolvedAt: string;
   plugins: readonly ResolvedPluginActivation[];
 }
 

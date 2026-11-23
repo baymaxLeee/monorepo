@@ -7,14 +7,7 @@ import type { JSONSchema7 } from "@ai-sdk/provider";
 import { loadMcpServer } from "./mcp.js";
 import type { AgentPluginContext, AgentPluginManifest, PluginRuntimeEvent } from "./types.js";
 
-const context: AgentPluginContext = {
-  turnId: "turn",
-  threadId: "thread",
-  userId: "user",
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  workspaceRole: "member",
-};
+const context: AgentPluginContext = {};
 
 const inputSchema = {
   type: "object" as const,

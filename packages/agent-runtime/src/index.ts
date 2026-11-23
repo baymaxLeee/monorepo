@@ -161,7 +161,11 @@ export { bashArgs, commandForPolicy, type BashArgs, type BashCommandArgs } from 
 
 export { PluginManager } from "./plugins/manager.js";
 export { discoverInstalledMcpServer, loadMcpServer, type ResolvedMcpServer } from "./plugins/mcp.js";
-export { resolveTurnPluginSnapshot, toPersistedTurnPluginSnapshot } from "./plugins/snapshot.js";
+export {
+  normalizePersistedTurnPluginSnapshot,
+  resolveTurnPluginSnapshot,
+  toPersistedTurnPluginSnapshot,
+} from "./plugins/snapshot.js";
 export { assertPluginId, validateResolvedSnapshot } from "./plugins/validation.js";
 export type * from "./plugins/types.js";
 

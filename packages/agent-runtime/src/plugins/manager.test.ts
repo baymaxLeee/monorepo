@@ -4,14 +4,7 @@ import test from "node:test";
 import { PluginManager } from "./manager.js";
 import type { AgentPluginContext, AgentPluginManifest, ResolvedTurnPluginSnapshot } from "./types.js";
 
-const context: AgentPluginContext = {
-  turnId: "turn",
-  threadId: "thread",
-  userId: "user",
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  workspaceRole: "member",
-};
+const context: AgentPluginContext = {};
 
 function manifest(id = "knowledge@platform"): AgentPluginManifest {
   return {
@@ -58,10 +51,6 @@ function snapshot(
     schemaVersion: 1,
     snapshotId: "snapshot",
     snapshotDigest: `sha256:${"b".repeat(64)}`,
-    workspaceRevision: 1,
-    tenantId: "tenant",
-    workspaceId: "workspace",
-    resolvedAt: "2026-11-19T00:00:00Z",
     plugins: [{ manifest: plugin, activation: { pluginId: plugin.id } }],
     connectionGrants: [
       {
@@ -89,12 +78,8 @@ void test("plugin manager freezes trusted snapshot ownership without connecting 
   await loaded.dispose();
 });
 
-void test("plugin manager rejects cross-workspace, duplicate and ungranted snapshots", async () => {
+void test("plugin manager rejects duplicate and ungranted snapshots", async () => {
   const manager = new PluginManager();
-  await assert.rejects(
-    () => manager.load(snapshot(manifest(), { workspaceId: "other" }), context),
-    /does not belong to the active workspace/,
-  );
   const plugin = manifest();
   await assert.rejects(
     () =>

@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
-import type { AgentPluginContext, ResolvedPluginSkillContribution } from "@repo/agent-runtime";
+import type { ResolvedPluginSkillContribution } from "@repo/agent-runtime";
 
+import type { HostPluginContext } from "../tools/catalog.js";
 import { RuntimePluginSkillAssetLoader, type PluginSkillContentSource } from "./plugin-skills.js";
 
-const context: AgentPluginContext = {
+const context: HostPluginContext = {
   turnId: "turn",
   threadId: "thread",
   userId: "user",

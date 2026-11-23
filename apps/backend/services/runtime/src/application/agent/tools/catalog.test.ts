@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
-import type { AgentPluginContext, ResolvedPluginSet, ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
+import type { ResolvedPluginSet, ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
-import { ToolCatalog, type PluginSkillAssetLoader, type TurnPluginLoader } from "./catalog.js";
+import { ToolCatalog, type HostPluginContext, type PluginSkillAssetLoader, type TurnPluginLoader } from "./catalog.js";
 
 const textProvider: LanguageProviderSnapshot = {
   id: "provider",
@@ -19,7 +19,7 @@ const textProvider: LanguageProviderSnapshot = {
   maxOutputTokens: 4_096,
 };
 
-const context: AgentPluginContext = {
+const context: HostPluginContext = {
   turnId: "turn",
   threadId: "thread",
   userId: "user",
@@ -32,10 +32,6 @@ const snapshot: ResolvedTurnPluginSnapshot = {
   schemaVersion: 1,
   snapshotId: "snapshot",
   snapshotDigest: `sha256:${"a".repeat(64)}`,
-  workspaceRevision: 1,
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  resolvedAt: "2026-11-19T00:00:00Z",
   plugins: [],
   connectionGrants: [],
 };

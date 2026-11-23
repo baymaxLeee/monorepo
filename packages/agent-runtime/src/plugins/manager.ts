@@ -29,7 +29,7 @@ export class PluginManager {
   }
 
   async load(snapshot: ResolvedTurnPluginSnapshot, context: AgentPluginContext): Promise<ResolvedPluginSet> {
-    validateResolvedSnapshot(snapshot, context);
+    validateResolvedSnapshot(snapshot);
     await using acquired = new AsyncDisposableStack();
     const activePlugins = [];
     const manifests = [];

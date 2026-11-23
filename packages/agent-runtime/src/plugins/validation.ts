@@ -1,5 +1,4 @@
 import type {
-  AgentPluginContext,
   AgentPluginManifest,
   McpServerContribution,
   PluginActivation,
@@ -134,18 +133,9 @@ function validateManifest(manifest: AgentPluginManifest, activation: PluginActiv
   }
 }
 
-export function validateResolvedSnapshot(snapshot: ResolvedTurnPluginSnapshot, context: AgentPluginContext): void {
-  if (
-    snapshot.schemaVersion !== 1 ||
-    !snapshot.snapshotId ||
-    !DIGEST_PATTERN.test(snapshot.snapshotDigest) ||
-    !Number.isSafeInteger(snapshot.workspaceRevision) ||
-    snapshot.workspaceRevision < 1
-  ) {
-    throw new Error("resolved plugin snapshot has an invalid identity or revision");
-  }
-  if (snapshot.tenantId !== context.tenantId || snapshot.workspaceId !== context.workspaceId) {
-    throw new Error("resolved plugin snapshot does not belong to the active workspace");
+export function validateResolvedSnapshot(snapshot: ResolvedTurnPluginSnapshot): void {
+  if (snapshot.schemaVersion !== 1 || !snapshot.snapshotId || !DIGEST_PATTERN.test(snapshot.snapshotDigest)) {
+    throw new Error("resolved plugin snapshot has an invalid identity");
   }
   const pluginIds = snapshot.plugins.map((plugin) => plugin.manifest.id);
   unique(pluginIds, "plugin identities");

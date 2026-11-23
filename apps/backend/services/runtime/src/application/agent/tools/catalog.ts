@@ -30,12 +30,22 @@ export interface AgentToolProviders {
   textProvider: LanguageProviderSnapshot;
 }
 
+/** Product authorization stays in the Runtime host; the portable plugin runtime sees only cancellation. */
+export interface HostPluginContext extends AgentPluginContext {
+  turnId: string;
+  threadId: string;
+  userId: string;
+  tenantId: string;
+  workspaceId: string;
+  workspaceRole: string;
+}
+
 export interface TurnPluginLoader {
   load(snapshot: ResolvedTurnPluginSnapshot, context: AgentPluginContext): Promise<ResolvedPluginSet>;
 }
 
 export interface PluginSkillAssetLoader {
-  loadBody(skill: ResolvedPluginSkillContribution, context: AgentPluginContext): Promise<string>;
+  loadBody(skill: ResolvedPluginSkillContribution, context: HostPluginContext): Promise<string>;
 }
 
 function domainManifests(): AgentToolManifest[] {
@@ -70,7 +80,7 @@ export class ToolCatalog {
   }
 
   async resolve(
-    context: AgentPluginContext,
+    context: HostPluginContext,
     providers: AgentToolProviders,
     pluginSnapshot: ResolvedTurnPluginSnapshot,
     skillSource?: SkillSource | null,
