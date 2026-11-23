@@ -48,14 +48,10 @@ export interface AssetReviews {
   Reviews: Array<AssetReview>;
 }
 
-/** AssetReviewUpload 描述送审时需要物化为项目素材的平台 Asset revision。 */
+/** AssetReviewUpload 描述送审时由 Canvas 按业务身份接纳的上传凭据。 */
 export interface AssetReviewUpload {
-  /** ClientID 是调用方为本地草稿分配的稳定标识，用于幂等物化。 */
-  ClientID: string;
-  SourceAssetID: string;
-  SourceRevisionID: string;
-  /** FileName 是用户上传时提供的文件名。 */
-  FileName: string;
+  ClientRef: string;
+  UploadSessionID: string;
 }
 
 export interface BatchGetAssetReviewsRequest {

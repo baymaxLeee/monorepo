@@ -1,6 +1,5 @@
 import datetime
 
-from common.v1 import context_pb2 as _context_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -51,18 +50,14 @@ UPLOAD_SESSION_STATE_FAILED: UploadSessionState
 UPLOAD_SESSION_STATE_ABORTED: UploadSessionState
 
 class UploadMetadata(_message.Message):
-    __slots__ = ("actor", "filename", "media_type", "category", "idempotency_key")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("filename", "media_type", "idempotency_key")
     FILENAME_FIELD_NUMBER: _ClassVar[int]
     MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
-    CATEGORY_FIELD_NUMBER: _ClassVar[int]
     IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     filename: str
     media_type: str
-    category: str
     idempotency_key: str
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., category: _Optional[str] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
+    def __init__(self, filename: _Optional[str] = ..., media_type: _Optional[str] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
 
 class UploadRequest(_message.Message):
     __slots__ = ("metadata", "chunk")
@@ -73,8 +68,7 @@ class UploadRequest(_message.Message):
     def __init__(self, metadata: _Optional[_Union[UploadMetadata, _Mapping]] = ..., chunk: _Optional[bytes] = ...) -> None: ...
 
 class AppendRevisionMetadata(_message.Message):
-    __slots__ = ("actor", "asset_id", "filename", "media_type", "idempotency_key", "base_revision_id", "owner_type", "owner_id", "slot", "generation")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("asset_id", "filename", "media_type", "idempotency_key", "base_revision_id", "owner_type", "owner_id", "slot", "generation")
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     FILENAME_FIELD_NUMBER: _ClassVar[int]
     MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
@@ -84,7 +78,6 @@ class AppendRevisionMetadata(_message.Message):
     OWNER_ID_FIELD_NUMBER: _ClassVar[int]
     SLOT_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     asset_id: str
     filename: str
     media_type: str
@@ -94,7 +87,7 @@ class AppendRevisionMetadata(_message.Message):
     owner_id: str
     slot: str
     generation: int
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., asset_id: _Optional[str] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., idempotency_key: _Optional[str] = ..., base_revision_id: _Optional[str] = ..., owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, asset_id: _Optional[str] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., idempotency_key: _Optional[str] = ..., base_revision_id: _Optional[str] = ..., owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class AppendRevisionRequest(_message.Message):
     __slots__ = ("metadata", "chunk")
@@ -133,34 +126,28 @@ class AppendRevisionResponse(_message.Message):
     def __init__(self, result: _Optional[_Union[UploadResult, _Mapping]] = ...) -> None: ...
 
 class DescribeRevisionRequest(_message.Message):
-    __slots__ = ("actor", "asset_id", "revision_id")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("asset_id", "revision_id")
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_ID_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     asset_id: str
     revision_id: str
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ...) -> None: ...
 
 class RevisionMetadata(_message.Message):
-    __slots__ = ("asset_id", "revision_id", "category", "filename", "media_type", "size_bytes", "sha256", "created_by")
+    __slots__ = ("asset_id", "revision_id", "filename", "media_type", "size_bytes", "sha256")
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_ID_FIELD_NUMBER: _ClassVar[int]
-    CATEGORY_FIELD_NUMBER: _ClassVar[int]
     FILENAME_FIELD_NUMBER: _ClassVar[int]
     MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
-    CREATED_BY_FIELD_NUMBER: _ClassVar[int]
     asset_id: str
     revision_id: str
-    category: str
     filename: str
     media_type: str
     size_bytes: int
     sha256: str
-    created_by: str
-    def __init__(self, asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., category: _Optional[str] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ..., created_by: _Optional[str] = ...) -> None: ...
+    def __init__(self, asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ...) -> None: ...
 
 class DescribeRevisionResponse(_message.Message):
     __slots__ = ("revision",)
@@ -169,30 +156,26 @@ class DescribeRevisionResponse(_message.Message):
     def __init__(self, revision: _Optional[_Union[RevisionMetadata, _Mapping]] = ...) -> None: ...
 
 class ReadContentRequest(_message.Message):
-    __slots__ = ("actor", "asset_id", "revision_id", "offset", "limit")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("asset_id", "revision_id", "offset", "limit")
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_ID_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     LIMIT_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     asset_id: str
     revision_id: str
     offset: int
     limit: int
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ...) -> None: ...
+    def __init__(self, asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ...) -> None: ...
 
 class ReadImageVariantRequest(_message.Message):
-    __slots__ = ("actor", "asset_id", "revision_id", "max_dimension")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("asset_id", "revision_id", "max_dimension")
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_ID_FIELD_NUMBER: _ClassVar[int]
     MAX_DIMENSION_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     asset_id: str
     revision_id: str
     max_dimension: int
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., max_dimension: _Optional[int] = ...) -> None: ...
+    def __init__(self, asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., max_dimension: _Optional[int] = ...) -> None: ...
 
 class ContentMetadata(_message.Message):
     __slots__ = ("filename", "media_type", "size_bytes", "sha256")
@@ -245,8 +228,7 @@ class Claim(_message.Message):
     def __init__(self, claim_id: _Optional[str] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., kind: _Optional[_Union[ClaimKind, str]] = ..., status: _Optional[_Union[ClaimStatus, str]] = ..., generation: _Optional[int] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class PrepareClaimRequest(_message.Message):
-    __slots__ = ("actor", "owner_type", "owner_id", "slot", "generation", "asset_id", "revision_id", "kind", "expires_at")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("owner_type", "owner_id", "slot", "generation", "asset_id", "revision_id", "kind", "expires_at")
     OWNER_TYPE_FIELD_NUMBER: _ClassVar[int]
     OWNER_ID_FIELD_NUMBER: _ClassVar[int]
     SLOT_FIELD_NUMBER: _ClassVar[int]
@@ -255,7 +237,6 @@ class PrepareClaimRequest(_message.Message):
     REVISION_ID_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     owner_type: str
     owner_id: str
     slot: str
@@ -264,35 +245,31 @@ class PrepareClaimRequest(_message.Message):
     revision_id: str
     kind: ClaimKind
     expires_at: _timestamp_pb2.Timestamp
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., kind: _Optional[_Union[ClaimKind, str]] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., kind: _Optional[_Union[ClaimKind, str]] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ActivateClaimRequest(_message.Message):
-    __slots__ = ("actor", "owner_type", "owner_id", "slot", "generation")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("owner_type", "owner_id", "slot", "generation")
     OWNER_TYPE_FIELD_NUMBER: _ClassVar[int]
     OWNER_ID_FIELD_NUMBER: _ClassVar[int]
     SLOT_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     owner_type: str
     owner_id: str
     slot: str
     generation: int
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class ReleaseClaimRequest(_message.Message):
-    __slots__ = ("actor", "owner_type", "owner_id", "slot", "generation")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("owner_type", "owner_id", "slot", "generation")
     OWNER_TYPE_FIELD_NUMBER: _ClassVar[int]
     OWNER_ID_FIELD_NUMBER: _ClassVar[int]
     SLOT_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     owner_type: str
     owner_id: str
     slot: str
     generation: int
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., slot: _Optional[str] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class PrepareClaimResponse(_message.Message):
     __slots__ = ("claim",)
@@ -313,36 +290,28 @@ class ReleaseClaimResponse(_message.Message):
     def __init__(self, claim: _Optional[_Union[Claim, _Mapping]] = ...) -> None: ...
 
 class CreateUploadSessionRequest(_message.Message):
-    __slots__ = ("actor", "intent_id", "filename", "media_type", "category", "size_bytes")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("intent_id", "filename", "media_type", "size_bytes")
     INTENT_ID_FIELD_NUMBER: _ClassVar[int]
     FILENAME_FIELD_NUMBER: _ClassVar[int]
     MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
-    CATEGORY_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     intent_id: str
     filename: str
     media_type: str
-    category: str
     size_bytes: int
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., intent_id: _Optional[str] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., category: _Optional[str] = ..., size_bytes: _Optional[int] = ...) -> None: ...
+    def __init__(self, intent_id: _Optional[str] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ...) -> None: ...
 
 class DescribeUploadSessionRequest(_message.Message):
-    __slots__ = ("actor", "upload_session_id")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("upload_session_id",)
     UPLOAD_SESSION_ID_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     upload_session_id: str
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., upload_session_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, upload_session_id: _Optional[str] = ...) -> None: ...
 
 class UploadSession(_message.Message):
-    __slots__ = ("upload_session_id", "intent_id", "state", "user_id", "category", "filename", "media_type", "size_bytes", "expires_at", "upload_url", "asset_id", "revision_id")
+    __slots__ = ("upload_session_id", "intent_id", "state", "filename", "media_type", "size_bytes", "expires_at", "upload_url", "asset_id", "revision_id")
     UPLOAD_SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     INTENT_ID_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
-    USER_ID_FIELD_NUMBER: _ClassVar[int]
-    CATEGORY_FIELD_NUMBER: _ClassVar[int]
     FILENAME_FIELD_NUMBER: _ClassVar[int]
     MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -353,8 +322,6 @@ class UploadSession(_message.Message):
     upload_session_id: str
     intent_id: str
     state: UploadSessionState
-    user_id: str
-    category: str
     filename: str
     media_type: str
     size_bytes: int
@@ -362,7 +329,7 @@ class UploadSession(_message.Message):
     upload_url: str
     asset_id: str
     revision_id: str
-    def __init__(self, upload_session_id: _Optional[str] = ..., intent_id: _Optional[str] = ..., state: _Optional[_Union[UploadSessionState, str]] = ..., user_id: _Optional[str] = ..., category: _Optional[str] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., upload_url: _Optional[str] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, upload_session_id: _Optional[str] = ..., intent_id: _Optional[str] = ..., state: _Optional[_Union[UploadSessionState, str]] = ..., filename: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., upload_url: _Optional[str] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ...) -> None: ...
 
 class CreateUploadSessionResponse(_message.Message):
     __slots__ = ("session",)
@@ -377,16 +344,14 @@ class DescribeUploadSessionResponse(_message.Message):
     def __init__(self, session: _Optional[_Union[UploadSession, _Mapping]] = ...) -> None: ...
 
 class DeliveryCapabilityItem(_message.Message):
-    __slots__ = ("actor", "asset_id", "revision_id", "max_dimension")
-    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("asset_id", "revision_id", "max_dimension")
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_ID_FIELD_NUMBER: _ClassVar[int]
     MAX_DIMENSION_FIELD_NUMBER: _ClassVar[int]
-    actor: _context_pb2.ActorContext
     asset_id: str
     revision_id: str
     max_dimension: int
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., max_dimension: _Optional[int] = ...) -> None: ...
+    def __init__(self, asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., max_dimension: _Optional[int] = ...) -> None: ...
 
 class MintCapabilitiesRequest(_message.Message):
     __slots__ = ("items",)

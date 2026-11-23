@@ -41,9 +41,7 @@ func TestSignedDeliveryRanges(t *testing.T) {
 	// URL encoding is exercised by the normal mint endpoint in the other tests.
 	req := httptest.NewRequest("GET", "/media/asset/revisions/revision/content", nil)
 	query := req.URL.Query()
-	query.Set("tenant_id", "tenant/a")
-	query.Set("workspace_id", "workspace b")
-	query.Set("signature", router.signDelivery("tenant/a", "workspace b", "asset", "revision", expires))
+	query.Set("signature", router.signDelivery("asset", "revision", expires))
 	query.Set("expires", fmt.Sprint(expires))
 	req.URL.RawQuery = query.Encode()
 	for _, tc := range []struct {

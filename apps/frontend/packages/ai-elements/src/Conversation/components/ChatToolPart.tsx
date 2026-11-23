@@ -25,14 +25,12 @@ import { ChatVideoCard } from "./ChatVideoCard";
 
 export function ChatToolPart({
   part,
-  conversationId,
-  onOpenArtifact,
+  onOpenFile,
   onAnswerClientTool,
   onToolApproval,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
-  conversationId: string;
-  onOpenArtifact?: (documentId: string) => void;
+  onOpenFile?: (fileId: string) => void;
   onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval?: (approvalId: string, approved: boolean) => void;
 }) {
@@ -102,43 +100,12 @@ export function ChatToolPart({
     );
   }
 
-  if (kind === "image-gallery" && onOpenArtifact) {
-    return <ChatImageCard conversationId={conversationId} output={output} state={part.state} errorText={errorText} />;
+  if (kind === "image-gallery" && onOpenFile) {
+    return <ChatImageCard output={output} state={part.state} errorText={errorText} onOpen={onOpenFile} />;
   }
 
-  if (
-    kind === "video" &&
-    part.toolMetadata?.agent &&
-    typeof part.toolMetadata.agent === "object" &&
-    "historical" in part.toolMetadata.agent &&
-    part.toolMetadata.agent.historical
-  ) {
-    return (
-      <Tool>
-        <ToolHeader
-          type={part.type}
-          toolName={part.type === "dynamic-tool" ? toolName : undefined}
-          state={part.state}
-          preliminary={part.state === "output-available" && part.preliminary}
-          title="原会话的视频任务"
-        />
-        <ToolContent>
-          <p className="text-sm text-muted-foreground">这是历史任务记录。审批和发布请返回原会话操作。</p>
-          <ToolJsonBlock value={output} />
-        </ToolContent>
-      </Tool>
-    );
-  }
-  if (kind === "video" && onOpenArtifact) {
-    return (
-      <ChatVideoCard
-        conversationId={conversationId}
-        output={output}
-        state={part.state}
-        errorText={errorText}
-        onOpen={onOpenArtifact}
-      />
-    );
+  if (kind === "video" && onOpenFile) {
+    return <ChatVideoCard output={output} state={part.state} errorText={errorText} onOpen={onOpenFile} />;
   }
 
   if (kind === "terminal") {

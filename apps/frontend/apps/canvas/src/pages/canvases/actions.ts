@@ -1,10 +1,11 @@
 import { canvasCreateCanvas, canvasDeleteCanvas, canvasGetCanvas, canvasUpdateCanvas } from "@repo/api/canvas";
 
+import type { CoverUploadReceipt } from "@/components/CoverImageUploader";
 import type { canvas } from "@/domain";
 
 export interface CanvasFormValues {
   Name: string;
-  CoverImage?: { assetId: string; revisionId: string };
+  CoverImage?: CoverUploadReceipt | null;
 }
 
 export type CanvasDialogState = { mode: "create" } | { mode: "edit"; canvas: canvas.ProjectCanvasSummary };
@@ -42,8 +43,13 @@ export async function saveCanvas(projectId: string, state: CanvasDialogState, va
       (
         await canvasUpdateCanvas(projectId, state.canvas.CanvasID, {
           name: values.Name,
-          cover_image_asset_id: values.CoverImage?.assetId,
-          cover_image_revision_id: values.CoverImage?.revisionId,
+          cover_upload: values.CoverImage
+            ? {
+                upload_session_id: values.CoverImage.uploadSessionId,
+                client_ref: values.CoverImage.clientRef,
+              }
+            : undefined,
+          clear_cover_image: values.CoverImage === null,
         })
       ).canvas,
     );
@@ -52,8 +58,12 @@ export async function saveCanvas(projectId: string, state: CanvasDialogState, va
     (
       await canvasCreateCanvas(projectId, {
         name: values.Name,
-        cover_image_asset_id: values.CoverImage?.assetId || undefined,
-        cover_image_revision_id: values.CoverImage?.revisionId || undefined,
+        cover_upload: values.CoverImage
+          ? {
+              upload_session_id: values.CoverImage.uploadSessionId,
+              client_ref: values.CoverImage.clientRef,
+            }
+          : undefined,
       })
     ).canvas,
   );

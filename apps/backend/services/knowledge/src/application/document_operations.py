@@ -209,13 +209,9 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: Asyn
         if existing is not None:
             return document_to_schema(existing, include_content=True)
     asset = await get_storage_client().describe(
-        tenant_id=payload.tenant_id,
-        workspace_id=payload.workspace_id,
         asset_id=payload.asset_id,
         revision_id=payload.revision_id,
     )
-    if asset.created_by != payload.user_id:
-        raise RequestError("asset was not created for the requested user")
     if not asset.media_type.startswith(("image/", "audio/", "video/")):
         raise RequestError("media documents accept only image, audio, or video revisions")
     storage_document_id = document_id or document_crud.new_document_id()
@@ -276,13 +272,9 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: AsyncSes
         if existing is not None:
             return staged_media_to_schema(existing)
     asset = await get_storage_client().describe(
-        tenant_id=payload.tenant_id,
-        workspace_id=payload.workspace_id,
         asset_id=payload.asset_id,
         revision_id=payload.revision_id,
     )
-    if asset.created_by != payload.user_id:
-        raise RequestError("asset was not created for the requested user")
     staged_id = document_crud.new_document_id()
     try:
         async with write_tx(session):

@@ -1,5 +1,6 @@
 import { createStorageDownloadUrl, fetchAssetText } from "@repo/api";
-import { getConversationDocument, getConversationFile } from "@repo/api/chat";
+import { getConversationFile } from "@repo/api/chat";
+import { getMyDocument } from "@repo/api/knowledge";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -26,17 +27,6 @@ vi.mock("@repo/api", () => ({
   fetchAssetText: vi.fn(async () => "<h1>Stored page</h1>"),
 }));
 vi.mock("@repo/api/chat", () => ({
-  getConversationDocument: vi.fn(async () => ({
-    id: "document",
-    title: "Generated page",
-    filename: "page.html",
-    mime_type: "text/html",
-    content_md: "<h1>Generated page</h1>",
-    kind: "artifact",
-    asset_id: "asset",
-    source_revision_id: "revision",
-    updated_at: "2026-11-05T00:00:00Z",
-  })),
   getConversationFile: vi.fn(async () => ({
     id: "file",
     conversation_id: "conversation",
@@ -53,7 +43,20 @@ vi.mock("@repo/api/chat", () => ({
     created_at: "2026-11-05T00:00:00Z",
     updated_at: "2026-11-05T00:00:00Z",
   })),
-  updateConversationDocument: vi.fn(),
+}));
+vi.mock("@repo/api/knowledge", () => ({
+  getMyDocument: vi.fn(async () => ({
+    id: "document",
+    title: "Generated page",
+    filename: "page.html",
+    mime_type: "text/html",
+    content_md: "<h1>Generated page</h1>",
+    kind: "artifact",
+    asset_id: "asset",
+    source_revision_id: "revision",
+    updated_at: "2026-11-05T00:00:00Z",
+  })),
+  updateMyDocument: vi.fn(),
 }));
 
 vi.mock("../store/useChatStore", () => ({
@@ -82,12 +85,7 @@ it("loads metadata then previews HTML from srcDoc with the Asset URL as its base
   expect(frame.getAttribute("srcdoc")).toContain(`<base href="${resourceUrl.replaceAll("&", "&amp;")}">`);
   expect(frame.getAttribute("srcdoc")).toContain("data-artifact-hidden-scrollbars");
   expect(frame.getAttribute("srcdoc")).toContain("Stored page");
-  expect(getConversationDocument).toHaveBeenCalledWith(
-    "conversation",
-    "document",
-    { include_content: false },
-    expect.objectContaining({ signal: expect.any(AbortSignal) }),
-  );
+  expect(getMyDocument).toHaveBeenCalledWith("document", expect.objectContaining({ signal: expect.any(AbortSignal) }));
   expect(createStorageDownloadUrl).toHaveBeenCalled();
   expect(screen.queryByText("HTML 预览地址不可用，请重新打开预览。")).toBeNull();
 });
@@ -109,7 +107,7 @@ it("renders Runtime-owned HTML files with hidden scrollbars and preserved relati
 
 it("loads an editable Markdown revision from Storage before opening the editor", async () => {
   vi.mocked(fetchAssetText).mockResolvedValueOnce("# Editable plan");
-  vi.mocked(getConversationDocument).mockResolvedValueOnce({
+  vi.mocked(getMyDocument).mockResolvedValueOnce({
     id: "plan",
     title: "Plan",
     filename: "plan.md",
@@ -119,7 +117,7 @@ it("loads an editable Markdown revision from Storage before opening the editor",
     asset_id: "asset",
     source_revision_id: "revision",
     editable_source: true,
-  } as Awaited<ReturnType<typeof getConversationDocument>>);
+  } as Awaited<ReturnType<typeof getMyDocument>>);
   render(<ChatDocumentArtifactPanel />);
   expect(await screen.findByText("Editable plan", undefined, { timeout: 10_000 })).toBeTruthy();
   expect(fetchAssetText).toHaveBeenCalled();

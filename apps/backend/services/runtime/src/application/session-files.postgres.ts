@@ -29,7 +29,7 @@ Object.assign(process.env, {
   POSTGRES_DATABASE: connection.pathname.slice(1),
 });
 
-const scope = { userId: "file-save-test", tenantId: "tenant", workspaceId: "workspace" };
+const writerId = "file-save-test";
 const id = () => randomBytes(16).toString("hex");
 const etag = (token: string) => `"${token.padStart(32, "0")}"`;
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -54,21 +54,17 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     const now = new Date("2026-01-01T00:00:00.000Z");
     const assetId = randomUUID();
     const revisionId = randomUUID();
-    await getDb()
-      .insert(sessions)
-      .values({
-        id: sessionId,
-        ...scope,
-        createRequestId: id(),
-        createdAt: now,
-        updatedAt: now,
-      });
+    await getDb().insert(sessions).values({
+      id: sessionId,
+      createRequestId: id(),
+      createdAt: now,
+      updatedAt: now,
+    });
     await getDb()
       .insert(sessionFiles)
       .values({
         id: fileId,
         threadId: sessionId,
-        ...scope,
         assetId,
         revisionId,
         title: "Notes",
@@ -86,8 +82,6 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
         lastWriterId: null,
       });
     await getDb().insert(assetClaimIntents).values({
-      tenantId: scope.tenantId,
-      workspaceId: scope.workspaceId,
       ownerType: "session_file",
       ownerId: fileId,
       slot: "source",
@@ -108,14 +102,13 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     const next = candidate("new\n", seeded.assetId);
     let uploads = 0;
     const input = {
-      ...scope,
       sessionId: seeded.sessionId,
       fileId: seeded.fileId,
       expectedEtag: etag("1"),
       contentSha256: next.sha256,
       operationId: "save-1",
       writerType: "user" as const,
-      writerId: scope.userId,
+      writerId,
     };
     const first = await saveSessionFile(input, async () => {
       uploads++;
@@ -134,7 +127,7 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     const [row] = await getDb().select().from(sessionFiles).where(eq(sessionFiles.id, seeded.fileId));
     assert.equal(row.contentGeneration, 2n);
     assert.equal(row.lastWriterType, "user");
-    assert.equal(row.lastWriterId, scope.userId);
+    assert.equal(row.lastWriterId, writerId);
     const [claim] = await getDb().select().from(assetClaimIntents).where(eq(assetClaimIntents.ownerId, seeded.fileId));
     assert.equal(claim.assetId, seeded.assetId);
     assert.equal(claim.revisionId, next.revisionId);
@@ -151,14 +144,13 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     let uploads = 0;
     const noChange = await saveSessionFile(
       {
-        ...scope,
         sessionId: seeded.sessionId,
         fileId: seeded.fileId,
         expectedEtag: etag("1"),
         contentSha256: sha("old\n"),
         operationId: "no-change",
         writerType: "user",
-        writerId: scope.userId,
+        writerId,
       },
       async () => {
         uploads++;
@@ -170,7 +162,6 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     const changed = candidate("changed\n", seeded.assetId);
     await saveSessionFile(
       {
-        ...scope,
         sessionId: seeded.sessionId,
         fileId: seeded.fileId,
         expectedEtag: etag("1"),
@@ -184,14 +175,13 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     await assert.rejects(
       saveSessionFile(
         {
-          ...scope,
           sessionId: seeded.sessionId,
           fileId: seeded.fileId,
           expectedEtag: etag("1"),
           contentSha256: changed.sha256,
           operationId: "stale-equal",
           writerType: "user",
-          writerId: scope.userId,
+          writerId,
         },
         async () => {
           uploads++;
@@ -215,14 +205,13 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     const save = (operationId: string, next: SessionFileSaveCandidate) =>
       saveSessionFile(
         {
-          ...scope,
           sessionId: seeded.sessionId,
           fileId: seeded.fileId,
           expectedEtag: etag("1"),
           contentSha256: next.sha256,
           operationId,
           writerType: "user",
-          writerId: scope.userId,
+          writerId,
         },
         async () => {
           ready++;
@@ -255,7 +244,6 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
       id: turnId,
       threadId: seeded.sessionId,
       ordinal: 1n,
-      userId: scope.userId,
       status: "running",
       createdAt: new Date(),
       startedAt: new Date(),
@@ -280,14 +268,13 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     let uploaded = false;
     const saved = await saveSessionFile(
       {
-        ...scope,
         sessionId: seeded.sessionId,
         fileId: seeded.fileId,
         expectedEtag: etag("1"),
         contentSha256: sha("user draft\n"),
         operationId: "active-run-edit",
         writerType: "user",
-        writerId: scope.userId,
+        writerId,
       },
       async () => {
         uploaded = true;
@@ -296,7 +283,7 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
     );
     assert.equal(saved.sha256, sha("user draft\n"));
     assert.equal(saved.last_writer.type, "user");
-    assert.equal(saved.last_writer.id, scope.userId);
+    assert.equal(saved.last_writer.id, writerId);
     assert.equal(uploaded, true);
   });
 });

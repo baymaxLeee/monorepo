@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -38,8 +37,7 @@ func (s *Service) Upload(ctx context.Context, input CreateUploadInput, body io.R
 	filename := strings.TrimSpace(input.Filename)
 	input.CallerService = strings.TrimSpace(input.CallerService)
 	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
-	if input.TenantID == "" || input.UserID == "" || filename == "" || input.Category == "" || input.CallerService == "" ||
-		(input.CallerService != "browser" && input.IdempotencyKey == "") || len(input.IdempotencyKey) > 255 || body == nil {
+	if filename == "" || input.CallerService == "" || input.IdempotencyKey == "" || len(input.IdempotencyKey) > 255 || body == nil {
 		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
 	}
 	input.Filename = filepath.Base(filename)
@@ -53,26 +51,16 @@ func (s *Service) Upload(ctx context.Context, input CreateUploadInput, body io.R
 		return domain.Asset{}, domain.Revision{}, err
 	}
 	if started.Completed {
-		asset, revision, _, lookupErr := s.repository.GetRevision(
-			ctx,
-			input.TenantID,
-			input.WorkspaceID,
-			started.AssetID,
-			started.RevisionID,
-		)
+		asset, revision, _, lookupErr := s.repository.GetRevision(ctx, started.AssetID, started.RevisionID)
 		return asset, revision, lookupErr
 	}
 	return s.persistUpload(ctx, UploadSession{
-		ID: started.UploadID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
-		CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Category: input.Category,
+		ID: started.UploadID, CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey,
 		Filename: input.Filename, MediaType: input.MediaType, SizeBytes: -1, State: "uploading",
 	}, body)
 }
 
 func (s *Service) AppendRevision(ctx context.Context, input AppendRevisionInput, body io.Reader) (domain.Asset, domain.Revision, error) {
-	input.TenantID = strings.TrimSpace(input.TenantID)
-	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
-	input.UserID = strings.TrimSpace(input.UserID)
 	input.CallerService = strings.TrimSpace(input.CallerService)
 	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
 	input.AssetID = strings.TrimSpace(input.AssetID)
@@ -81,7 +69,7 @@ func (s *Service) AppendRevision(ctx context.Context, input AppendRevisionInput,
 	input.OwnerID = strings.TrimSpace(input.OwnerID)
 	input.Slot = strings.TrimSpace(input.Slot)
 	filename := strings.TrimSpace(input.Filename)
-	if input.TenantID == "" || input.UserID == "" || input.CallerService == "" || input.IdempotencyKey == "" ||
+	if input.CallerService == "" || input.IdempotencyKey == "" ||
 		len(input.IdempotencyKey) > 255 || input.AssetID == "" || input.BaseRevisionID == "" || input.OwnerType == "" ||
 		input.OwnerID == "" || input.Slot == "" || input.Generation < 1 || filename == "" || body == nil {
 		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
@@ -90,7 +78,8 @@ func (s *Service) AppendRevision(ctx context.Context, input AppendRevisionInput,
 	if input.Filename == "." {
 		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
 	}
-	// Match the Chat save execution lease; completed uploads retain the normal 24h retry window.
+	// An append attempt holds a short execution lease; completed uploads retain
+	// the normal 24-hour adoption and idempotency window.
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	now := s.clock.Now()
@@ -99,12 +88,11 @@ func (s *Service) AppendRevision(ctx context.Context, input AppendRevisionInput,
 		return domain.Asset{}, domain.Revision{}, err
 	}
 	if started.Completed {
-		asset, revision, _, lookupErr := s.repository.GetRevision(ctx, input.TenantID, input.WorkspaceID, started.AssetID, started.RevisionID)
+		asset, revision, _, lookupErr := s.repository.GetRevision(ctx, started.AssetID, started.RevisionID)
 		return asset, revision, lookupErr
 	}
 	return s.persistUpload(ctx, UploadSession{
-		ID: started.UploadID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
-		CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Filename: input.Filename,
+		ID: started.UploadID, CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Filename: input.Filename,
 		MediaType: input.MediaType, SizeBytes: -1, State: "uploading", TargetAssetID: input.AssetID,
 		BaseRevisionID: input.BaseRevisionID, OwnerType: input.OwnerType, OwnerID: input.OwnerID, Slot: input.Slot,
 		Generation: input.Generation,
@@ -112,16 +100,12 @@ func (s *Service) AppendRevision(ctx context.Context, input AppendRevisionInput,
 }
 
 func (s *Service) CreateUploadSession(ctx context.Context, input CreateUploadSessionInput) (UploadSession, error) {
-	input.TenantID = strings.TrimSpace(input.TenantID)
-	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
-	input.UserID = strings.TrimSpace(input.UserID)
 	input.CallerService = strings.TrimSpace(input.CallerService)
 	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
-	input.Category = strings.TrimSpace(input.Category)
 	input.MediaType = strings.TrimSpace(input.MediaType)
 	filename := strings.TrimSpace(input.Filename)
-	if input.TenantID == "" || input.UserID == "" || input.CallerService == "" || input.IdempotencyKey == "" ||
-		input.Category == "" || input.MediaType == "" || filename == "" || len(input.IdempotencyKey) > 255 ||
+	if input.CallerService == "" || input.IdempotencyKey == "" ||
+		input.MediaType == "" || filename == "" || len(input.IdempotencyKey) > 255 ||
 		input.SizeBytes < 0 || input.SizeBytes > s.maxBytes {
 		return UploadSession{}, ErrInvalidInput
 	}
@@ -149,9 +133,7 @@ func (s *Service) UploadSession(ctx context.Context, sessionID string, body io.R
 		return domain.Asset{}, domain.Revision{}, err
 	}
 	if session.State == "completed" {
-		asset, revision, _, lookupErr := s.repository.GetRevision(
-			ctx, session.TenantID, session.WorkspaceID, session.AssetID, session.RevisionID,
-		)
+		asset, revision, _, lookupErr := s.repository.GetRevision(ctx, session.AssetID, session.RevisionID)
 		return asset, revision, lookupErr
 	}
 	return s.persistUpload(ctx, session, body)
@@ -159,12 +141,12 @@ func (s *Service) UploadSession(ctx context.Context, sessionID string, body io.R
 
 func (s *Service) DescribeUploadSession(
 	ctx context.Context,
-	callerService, tenantID, workspaceID, sessionID string,
+	callerService, sessionID string,
 ) (UploadSession, error) {
-	if strings.TrimSpace(callerService) == "" || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(sessionID) == "" {
+	if strings.TrimSpace(callerService) == "" || strings.TrimSpace(sessionID) == "" {
 		return UploadSession{}, ErrInvalidInput
 	}
-	session, err := s.repository.GetUploadSession(ctx, callerService, tenantID, workspaceID, sessionID)
+	session, err := s.repository.GetUploadSession(ctx, callerService, sessionID)
 	if err != nil {
 		return UploadSession{}, err
 	}
@@ -204,8 +186,7 @@ func (s *Service) persistUpload(ctx context.Context, session UploadSession, body
 	}
 	revisionID := uuid.Must(uuid.NewV7()).String()
 	blobID := uuid.Must(uuid.NewV7()).String()
-	tenantDigest := sha256.Sum256([]byte(session.TenantID))
-	storageKey := fmt.Sprintf("blobs/%s/%s/%s/%s/%s", hex.EncodeToString(tenantDigest[:8]), staged.SHA256[:2], staged.SHA256[2:4], staged.SHA256, blobID)
+	storageKey := fmt.Sprintf("blobs/%s/%s/%s/%s", staged.SHA256[:2], staged.SHA256[2:4], staged.SHA256, blobID)
 	if err = s.storage.Commit(ctx, staged, storageKey); err != nil {
 		_ = s.storage.Abort(context.WithoutCancel(ctx), staged)
 		_ = s.repository.FailUpload(context.WithoutCancel(ctx), uploadID, "storage_commit_failed", s.clock.Now())
@@ -218,10 +199,10 @@ func (s *Service) persistUpload(ctx context.Context, session UploadSession, body
 	completedAt := s.clock.Now()
 	completeInput := CompleteUploadInput{
 		UploadID: uploadID, AssetID: assetID, RevisionID: revisionID, BlobID: blobID, StorageKey: storageKey,
-		UploadClaimID: uuid.Must(uuid.NewV7()).String(),
-		SHA256:        staged.SHA256, Filename: session.Filename, MediaType: mediaType, Category: session.Category,
-		TenantID: session.TenantID, WorkspaceID: session.WorkspaceID, UserID: session.UserID, SizeBytes: staged.SizeBytes,
-		Now: completedAt, UploadLeaseExpiresAt: completedAt.Add(24 * time.Hour),
+		UploadClaimID: uuid.Must(uuid.NewV7()).String(), UploadLeaseOwnerService: session.CallerService,
+		SHA256: staged.SHA256, Filename: session.Filename, MediaType: mediaType,
+		SizeBytes: staged.SizeBytes,
+		Now:       completedAt, UploadLeaseExpiresAt: completedAt.Add(24 * time.Hour),
 	}
 	var result CompleteUploadResult
 	if session.TargetAssetID != "" {
@@ -247,8 +228,8 @@ func (s *Service) persistUpload(ctx context.Context, session UploadSession, body
 	return result.Asset, result.Revision, nil
 }
 
-func (s *Service) Open(ctx context.Context, tenantID, workspaceID, assetID, revisionID string) (domain.Revision, BlobReader, error) {
-	_, revision, key, err := s.repository.GetRevision(ctx, tenantID, workspaceID, assetID, revisionID)
+func (s *Service) Open(ctx context.Context, assetID, revisionID string) (domain.Revision, BlobReader, error) {
+	_, revision, key, err := s.repository.GetRevision(ctx, assetID, revisionID)
 	if err != nil {
 		return domain.Revision{}, BlobReader{}, err
 	}
@@ -256,16 +237,16 @@ func (s *Service) Open(ctx context.Context, tenantID, workspaceID, assetID, revi
 	return revision, reader, err
 }
 
-func (s *Service) Describe(ctx context.Context, tenantID, workspaceID, assetID, revisionID string) (domain.Asset, domain.Revision, error) {
-	if tenantID == "" || assetID == "" || revisionID == "" {
+func (s *Service) Describe(ctx context.Context, assetID, revisionID string) (domain.Asset, domain.Revision, error) {
+	if assetID == "" || revisionID == "" {
 		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
 	}
-	asset, revision, _, err := s.repository.GetRevision(ctx, tenantID, workspaceID, assetID, revisionID)
+	asset, revision, _, err := s.repository.GetRevision(ctx, assetID, revisionID)
 	return asset, revision, err
 }
 
 func (s *Service) PrepareClaim(ctx context.Context, input PrepareClaimInput) (domain.Claim, error) {
-	if input.TenantID == "" || input.OwnerService == "" || input.OwnerType == "" || input.OwnerID == "" || input.Slot == "" || input.AssetID == "" || input.Generation < 1 {
+	if input.OwnerService == "" || input.OwnerType == "" || input.OwnerID == "" || input.Slot == "" || input.AssetID == "" || input.RevisionID == "" || input.Generation < 1 {
 		return domain.Claim{}, ErrInvalidInput
 	}
 	if input.Kind != domain.ClaimStrong && input.Kind != domain.ClaimSnapshot && input.Kind != domain.ClaimLease && input.Kind != domain.ClaimWeak {
@@ -292,5 +273,22 @@ func (s *Service) ReleaseClaim(ctx context.Context, input ClaimMutationInput) (d
 }
 
 func validClaimMutation(input ClaimMutationInput) bool {
-	return input.TenantID != "" && input.OwnerService != "" && input.OwnerType != "" && input.OwnerID != "" && input.Slot != "" && input.Generation > 0
+	return input.OwnerService != "" && input.OwnerType != "" && input.OwnerID != "" && input.Slot != "" && input.Generation > 0
+}
+
+func (s *Service) AuthorizeRevision(ctx context.Context, input ClaimAuthorizationInput) error {
+	if input.OwnerService == "" || input.AssetID == "" || input.RevisionID == "" {
+		return ErrInvalidInput
+	}
+	if input.ValidUntil.IsZero() {
+		input.ValidUntil = s.clock.Now()
+	}
+	allowed, err := s.repository.ClaimAuthorizesRevision(ctx, input)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return ErrNotFound
+	}
+	return nil
 }

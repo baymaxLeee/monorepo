@@ -27,9 +27,6 @@ async def apply_document_edit(
         if not snapshot.tenant_id or not snapshot.workspace_id:
             raise ConflictError("document ownership must be resolved before publishing content")
         revision = await store_document_text(
-            tenant_id=snapshot.tenant_id,
-            workspace_id=snapshot.workspace_id,
-            user_id=snapshot.user_id,
             filename=values.get("filename", snapshot.filename),
             media_type=values.get("mime_type", snapshot.mime_type),
             content=values["content_md"],

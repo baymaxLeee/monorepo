@@ -6,7 +6,7 @@ import { getRun, start } from "workflow/api";
 import { WorkflowRunCancelledError } from "workflow/errors";
 
 import { getDb } from "../../infrastructure/persistence/index.js";
-import { tasks } from "../../infrastructure/persistence/media-schema.js";
+import { tasks } from "../../infrastructure/persistence/task-schema.js";
 import { ConflictError, NotFoundError, RequestError } from "../errors.js";
 import { cleanupCancelledTask } from "./cleanup.js";
 import { getTaskType } from "./registry.js";

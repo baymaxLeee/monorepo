@@ -24,8 +24,7 @@ func (router *Router) imageVariantRoute() http.HandlerFunc {
 			writeProblem(w, 400, "invalid_request", "max_dim must be between 1 and 4096")
 			return
 		}
-		query := request.URL.Query()
-		revision, blob, err := router.service.Open(request.Context(), query.Get("tenant_id"), query.Get("workspace_id"), chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"))
+		revision, blob, err := router.service.Open(request.Context(), chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"))
 		if err != nil {
 			writeServiceError(w, err)
 			return

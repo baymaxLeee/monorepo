@@ -15,7 +15,6 @@ it("every mutually exclusive workspace respects a dirty file guard", async () =>
     () => useChatStore.getState().setMemoryPanelOpen(true),
     () => useChatStore.getState().openTracePanel("c"),
     () => useChatStore.getState().setTracePanelOpen(true),
-    () => useChatStore.getState().openVideoProductionWorkspace("c", "p"),
   ];
   for (const action of actions) {
     useChatStore.setState({

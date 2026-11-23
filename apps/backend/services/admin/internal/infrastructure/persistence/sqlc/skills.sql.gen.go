@@ -32,6 +32,85 @@ func (q *Queries) BulkDeleteSkills(ctx context.Context, arg BulkDeleteSkillsPara
 	return result.RowsAffected(), nil
 }
 
+const claimDueAssetClaims = `-- name: ClaimDueAssetClaims :many
+WITH due AS (
+    SELECT tenant_id, workspace_id, owner_type, owner_id, slot
+    FROM asset_claim_intents
+    WHERE delivered_at IS NULL
+      AND next_attempt_at <= $1::pg_catalog.timestamptz
+      AND (lease_until IS NULL OR lease_until <= $1)
+    ORDER BY next_attempt_at, updated_at, tenant_id, workspace_id, owner_type, owner_id, slot
+    LIMIT $2::bigint
+    FOR UPDATE SKIP LOCKED
+), claimed AS (
+    UPDATE asset_claim_intents i
+    SET lease_until = $3::pg_catalog.timestamptz,
+        state_version = i.state_version + 1
+    FROM due
+    WHERE (i.tenant_id, i.workspace_id, i.owner_type, i.owner_id, i.slot) =
+          (due.tenant_id, due.workspace_id, due.owner_type, due.owner_id, due.slot)
+    RETURNING i.tenant_id, i.workspace_id, i.owner_type, i.owner_id, i.slot,
+              i.asset_id, i.revision_id, i.kind, i.generation, i.desired_state,
+              i.state_version, i.attempt_count
+)
+SELECT tenant_id, workspace_id, owner_type, owner_id, slot, asset_id, revision_id, kind, generation, desired_state, state_version, attempt_count FROM claimed
+ORDER BY tenant_id, workspace_id, owner_type, owner_id, slot
+`
+
+type ClaimDueAssetClaimsParams struct {
+	Now      time.Time
+	PageSize int64
+	Lease    time.Time
+}
+
+type ClaimDueAssetClaimsRow struct {
+	TenantID     string
+	WorkspaceID  string
+	OwnerType    string
+	OwnerID      string
+	Slot         string
+	AssetID      string
+	RevisionID   string
+	Kind         string
+	Generation   int64
+	DesiredState string
+	StateVersion int64
+	AttemptCount int32
+}
+
+func (q *Queries) ClaimDueAssetClaims(ctx context.Context, arg ClaimDueAssetClaimsParams) ([]ClaimDueAssetClaimsRow, error) {
+	rows, err := q.db.Query(ctx, claimDueAssetClaims, arg.Now, arg.PageSize, arg.Lease)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimDueAssetClaimsRow{}
+	for rows.Next() {
+		var i ClaimDueAssetClaimsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.WorkspaceID,
+			&i.OwnerType,
+			&i.OwnerID,
+			&i.Slot,
+			&i.AssetID,
+			&i.RevisionID,
+			&i.Kind,
+			&i.Generation,
+			&i.DesiredState,
+			&i.StateVersion,
+			&i.AttemptCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearPublishedSkillNodes = `-- name: ClearPublishedSkillNodes :exec
 DELETE FROM skill_published_nodes
 WHERE
@@ -946,6 +1025,109 @@ func (q *Queries) ListSkillsByIDs(ctx context.Context, arg ListSkillsByIDsParams
 	return items, nil
 }
 
+const markAssetClaimDelivered = `-- name: MarkAssetClaimDelivered :execrows
+UPDATE asset_claim_intents
+SET delivered_at = $1::pg_catalog.timestamptz,
+    lease_until = NULL,
+    state_version = state_version + 1,
+    last_error = NULL,
+    updated_at = $1
+WHERE tenant_id = $2
+  AND workspace_id = $3
+  AND owner_type = $4
+  AND owner_id = $5
+  AND slot = $6
+  AND generation = $7
+  AND desired_state = $8
+  AND state_version = $9
+  AND delivered_at IS NULL
+  AND lease_until > $1
+`
+
+type MarkAssetClaimDeliveredParams struct {
+	Now          time.Time
+	TenantID     string
+	WorkspaceID  string
+	OwnerType    string
+	OwnerID      string
+	Slot         string
+	Generation   int64
+	DesiredState string
+	StateVersion int64
+}
+
+func (q *Queries) MarkAssetClaimDelivered(ctx context.Context, arg MarkAssetClaimDeliveredParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markAssetClaimDelivered,
+		arg.Now,
+		arg.TenantID,
+		arg.WorkspaceID,
+		arg.OwnerType,
+		arg.OwnerID,
+		arg.Slot,
+		arg.Generation,
+		arg.DesiredState,
+		arg.StateVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const rescheduleAssetClaim = `-- name: RescheduleAssetClaim :execrows
+UPDATE asset_claim_intents
+SET next_attempt_at = $1,
+    lease_until = NULL,
+    state_version = state_version + 1,
+    attempt_count = attempt_count + 1,
+    last_error = $2,
+    updated_at = $3
+WHERE tenant_id = $4
+  AND workspace_id = $5
+  AND owner_type = $6
+  AND owner_id = $7
+  AND slot = $8
+  AND generation = $9
+  AND desired_state = $10
+  AND state_version = $11
+  AND delivered_at IS NULL
+  AND lease_until > $3
+`
+
+type RescheduleAssetClaimParams struct {
+	NextAttemptAt time.Time
+	Message       *string
+	Now           time.Time
+	TenantID      string
+	WorkspaceID   string
+	OwnerType     string
+	OwnerID       string
+	Slot          string
+	Generation    int64
+	DesiredState  string
+	StateVersion  int64
+}
+
+func (q *Queries) RescheduleAssetClaim(ctx context.Context, arg RescheduleAssetClaimParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rescheduleAssetClaim,
+		arg.NextAttemptAt,
+		arg.Message,
+		arg.Now,
+		arg.TenantID,
+		arg.WorkspaceID,
+		arg.OwnerType,
+		arg.OwnerID,
+		arg.Slot,
+		arg.Generation,
+		arg.DesiredState,
+		arg.StateVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const saveSkill = `-- name: SaveSkill :exec
 UPDATE skills
 SET
@@ -1122,7 +1304,14 @@ SET
     asset_id = EXCLUDED.asset_id,
     revision_id = EXCLUDED.revision_id,
     kind = EXCLUDED.kind,
-    generation = asset_claim_intents.generation + 1,
+    generation = CASE
+        WHEN asset_claim_intents.asset_id IS DISTINCT FROM EXCLUDED.asset_id
+          OR asset_claim_intents.revision_id IS DISTINCT FROM EXCLUDED.revision_id
+          OR asset_claim_intents.kind IS DISTINCT FROM EXCLUDED.kind
+          OR (asset_claim_intents.desired_state = 'released' AND EXCLUDED.desired_state = 'active')
+        THEN asset_claim_intents.generation + 1
+        ELSE asset_claim_intents.generation
+    END,
     desired_state = EXCLUDED.desired_state,
     delivered_at = NULL,
     attempt_count = 0,
@@ -1131,6 +1320,10 @@ SET
     state_version = asset_claim_intents.state_version + 1,
     last_error = NULL,
     updated_at = EXCLUDED.updated_at
+WHERE asset_claim_intents.asset_id IS DISTINCT FROM EXCLUDED.asset_id
+   OR asset_claim_intents.revision_id IS DISTINCT FROM EXCLUDED.revision_id
+   OR asset_claim_intents.kind IS DISTINCT FROM EXCLUDED.kind
+   OR asset_claim_intents.desired_state IS DISTINCT FROM EXCLUDED.desired_state
 `
 
 type UpsertAssetClaimParams struct {

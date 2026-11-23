@@ -2,7 +2,6 @@ import { InnerApiError } from "@backend/inner-api/client";
 import { escapeXmlText } from "@repo/agent-runtime";
 import { isFileUIPart, isReasoningFileUIPart, type UIMessage } from "ai";
 
-import { getDocumentSource } from "../../../infrastructure/clients/knowledge.js";
 import { storageClient } from "../../../infrastructure/clients/storage.js";
 import { RequestError } from "../../errors.js";
 import { getSessionFile, getSessionAttachment, type SessionFile } from "../../session-files.js";
@@ -11,13 +10,11 @@ import { sessionFileIdFromUrl, documentIdFromFilePart, isImageMediaType } from "
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
 async function getSessionFileSource(
-  context: { userId: string; tenantId: string; workspaceId: string; sessionId: string; signal: AbortSignal },
+  context: { sessionId: string; signal: AbortSignal },
   file: SessionFile,
   maxDim?: number,
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
   const stream = await storageClient().content({
-    tenantId: context.tenantId,
-    workspaceId: context.workspaceId,
     assetId: file.asset_id,
     revisionId: file.revision_id,
     maxDim,
@@ -41,19 +38,15 @@ function workspaceFileReference(file: SessionFile) {
 export async function transformFilePartsForModel(
   messages: AnyUIMessage[],
   context: {
-    userId: string;
-    tenantId: string;
-    workspaceId: string;
     sessionId: string;
     supportsImageInput: boolean;
     signal: AbortSignal;
   },
-  readSource = getDocumentSource,
   readFileSource = getSessionFileSource,
   resolveFile = getSessionFile,
   resolveAttachment = getSessionAttachment,
 ): Promise<AnyUIMessage[]> {
-  const sources = new Map<string, ReturnType<typeof getDocumentSource>>();
+  const sources = new Map<string, Promise<{ bytes: Uint8Array; mimeType: string }>>();
   return Promise.all(
     messages.map(async (message) => ({
       ...message,
@@ -69,10 +62,12 @@ export async function transformFilePartsForModel(
           const documentId = documentIdFromFilePart(part);
           const fileId = sessionFileIdFromUrl(part.url, context.sessionId);
           context.signal.throwIfAborted();
-          if (!fileId && (message.role === "user" || !documentId))
-            throw new RequestError("model file is missing its authorized resource reference");
+          if (documentId) {
+            throw new RequestError("business document references must be projected by the upper host");
+          }
+          if (!fileId) throw new RequestError("model file is missing its authorized resource reference");
           const file = fileId
-            ? await (message.role === "user" ? resolveAttachment : resolveFile)(context, context.sessionId, fileId)
+            ? await (message.role === "user" ? resolveAttachment : resolveFile)(context.sessionId, fileId)
             : null;
           const mediaType = file?.mime_type ?? part.mediaType;
           if (message.role === "user" && file && (!isImageMediaType(mediaType) || !context.supportsImageInput)) {
@@ -80,17 +75,11 @@ export async function transformFilePartsForModel(
           }
           context.signal.throwIfAborted();
           const maxDim = isImageMediaType(mediaType) ? 1536 : undefined;
-          const sourceKey = `${documentId ? `document:${documentId}` : `file:${fileId}`}:${maxDim ?? "original"}`;
+          const sourceKey = `file:${fileId}:${maxDim ?? "original"}`;
           // Coalesce repeated references inside one projection without retaining bytes across runs.
           let source = sources.get(sourceKey);
           if (!source) {
-            source = documentId
-              ? readSource(context.userId, documentId, {
-                  maxDim,
-                  sessionId: context.sessionId,
-                  signal: context.signal,
-                })
-              : readFileSource(context, file!, maxDim);
+            source = readFileSource(context, file!, maxDim);
             sources.set(sourceKey, source);
           }
           try {

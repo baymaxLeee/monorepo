@@ -1,23 +1,6 @@
 import { z } from "zod";
 
-export const fileToolContextSchema = z.object({
-  userId: z.string(),
-  sessionId: z.string(),
-});
-export type FileToolContext = z.infer<typeof fileToolContextSchema>;
-
-export const knowledgeSearchToolContextSchema = z.object({
-  userId: z.string(),
-  tenantId: z.string(),
-  workspaceId: z.string(),
-});
-export type KnowledgeSearchToolContext = z.infer<typeof knowledgeSearchToolContextSchema>;
-
-export const memoryToolContextSchema = z.object({
-  runId: z.string(),
-  userId: z.string(),
-});
-export type MemoryToolContext = z.infer<typeof memoryToolContextSchema>;
+import { mediaCapabilitiesSchema } from "../../../infrastructure/provider/capability.js";
 
 export const subagentToolContextSchema = z.object({
   runId: z.string(),
@@ -26,18 +9,13 @@ export type SubagentToolContext = z.infer<typeof subagentToolContextSchema>;
 
 export const artifactToolContextSchema = z.object({
   runId: z.string(),
-  userId: z.string(),
-  tenantId: z.string(),
-  workspaceId: z.string(),
   sessionId: z.string(),
 });
 export type ArtifactToolContext = z.infer<typeof artifactToolContextSchema>;
 
 export const mediaToolContextSchema = z.object({
   runId: z.string(),
-  userId: z.string(),
-  tenantId: z.string(),
-  workspaceId: z.string(),
   sessionId: z.string(),
+  media: mediaCapabilitiesSchema,
 });
 export type MediaToolContext = z.infer<typeof mediaToolContextSchema>;

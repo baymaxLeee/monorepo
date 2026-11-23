@@ -154,7 +154,7 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request *thriftres
 			return nil, errno.New(errno.ErrInvalidArgument)
 		}
 		initialAssets = append(initialAssets, applicationresource.InitialAssetInput{
-			SourceAssetID: item.SourceAssetID, SourceRevisionID: item.SourceRevisionID, FileName: item.FileName, Name: item.Name,
+			UploadSessionID: item.UploadSessionID, ClientRef: item.ClientRef, Name: item.Name,
 		})
 	}
 	result, err := h.service.Create(ctx, applicationresource.CreateInput{
@@ -365,7 +365,7 @@ func (h *ResourceHandler) CreateResourceAsset(ctx context.Context, request *thri
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, err := h.service.CreateResourceAsset(ctx, applicationresource.CreateResourceAssetInput{
 		Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID,
-		AssetID: stringValue(request.AssetID), SourceAssetID: stringValue(request.SourceAssetID), SourceRevisionID: stringValue(request.SourceRevisionID), FileName: stringValue(request.FileName),
+		AssetID: stringValue(request.AssetID), UploadSessionID: stringValue(request.UploadSessionID), ClientRef: stringValue(request.ClientRef),
 		Name: request.Name, ExpectedResourceRevision: request.ExpectedResourceRevision,
 	})
 	if err != nil {
@@ -408,7 +408,7 @@ func (h *ResourceHandler) ReplaceUploadedResourceAsset(ctx context.Context, requ
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, err := h.service.ReplaceUploadedResourceAsset(ctx, applicationresource.ReplaceUploadedResourceAssetInput{
 		Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID, ResourceAssetID: request.ResourceAssetID,
-		SourceAssetID: request.SourceAssetID, SourceRevisionID: request.SourceRevisionID, FileName: request.FileName,
+		UploadSessionID: request.UploadSessionID, ClientRef: request.ClientRef,
 		ExpectedResourceRevision: request.ExpectedResourceRevision, ExpectedResourceAssetRevision: request.ExpectedResourceAssetRevision,
 	})
 	if err != nil {
@@ -737,15 +737,14 @@ func resourceAssetGenerationPatch(patch *thriftresource.ResourceAssetGenerationP
 				return applicationresourceassetgeneration.GenerationPatch{}, errno.New(errno.ErrInvalidArgument)
 			}
 			assetID := strings.TrimSpace(reference.GetAssetID())
-			sourceAssetID := strings.TrimSpace(reference.GetSourceAssetID())
-			sourceRevisionID := strings.TrimSpace(reference.GetSourceRevisionID())
-			fileName := strings.TrimSpace(reference.GetFileName())
-			hasRevision := sourceAssetID != "" && sourceRevisionID != ""
-			if (sourceAssetID != "") != (sourceRevisionID != "") || (assetID == "") == !hasRevision || (hasRevision && fileName == "") || (assetID != "" && fileName != "") {
+			uploadSessionID := strings.TrimSpace(reference.GetUploadSessionID())
+			clientRef := strings.TrimSpace(reference.GetClientRef())
+			hasUpload := uploadSessionID != "" && clientRef != ""
+			if (uploadSessionID != "") != (clientRef != "") || (assetID == "") == !hasUpload {
 				return applicationresourceassetgeneration.GenerationPatch{}, errno.New(errno.ErrInvalidArgument)
 			}
 			references = append(references, applicationresourceassetgeneration.UploadedReferenceInput{
-				AssetID: assetID, SourceAssetID: sourceAssetID, SourceRevisionID: sourceRevisionID, FileName: fileName,
+				AssetID: assetID, UploadSessionID: uploadSessionID, ClientRef: clientRef,
 			})
 		}
 		result.UploadedReferences = &references

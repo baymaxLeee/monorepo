@@ -54,11 +54,10 @@ type Store struct {
 }
 
 func (store *Store) UploadPlatformRevision(
-	ctx context.Context, tenantID string, workspaceID *string, userID, filename, mediaType, idempotencyKey string, body io.Reader,
+	ctx context.Context, filename, mediaType, idempotencyKey string, body io.Reader,
 ) (applicationasset.ResolvedRevision, error) {
 	revision, err := store.client.Upload(ctx, storageclient.UploadInput{
-		TenantID: tenantID, WorkspaceID: workspaceValue(workspaceID), UserID: userID, Filename: filename,
-		MediaType: mediaType, Category: "official_asset", IdempotencyKey: idempotencyKey, Body: body,
+		Filename: filename, MediaType: mediaType, IdempotencyKey: idempotencyKey, Body: body,
 	})
 	if err != nil {
 		return applicationasset.ResolvedRevision{}, err
@@ -78,9 +77,9 @@ func New(client *storageclient.Client, publicGatewayURL string) Service {
 }
 
 func (store *Store) Resolve(
-	ctx context.Context, tenantID, workspaceID string, ref applicationasset.RevisionRef,
+	ctx context.Context, ref applicationasset.RevisionRef,
 ) (applicationasset.ResolvedRevision, error) {
-	revision, err := store.client.Describe(ctx, tenantID, workspaceID, storageclient.RevisionRef{
+	revision, err := store.client.Describe(ctx, storageclient.RevisionRef{
 		AssetID: ref.SourceAssetID, RevisionID: ref.SourceRevisionID,
 	})
 	if err != nil {
@@ -92,13 +91,12 @@ func (store *Store) Resolve(
 	}
 	return applicationasset.ResolvedRevision{
 		SourceAssetID: revision.AssetID, SourceRevisionID: revision.RevisionID,
-		Category: revision.Category, CreatedBy: revision.CreatedBy,
 		MediaType: mediaType, ContentType: revision.MediaType, SizeBytes: revision.SizeBytes,
 	}, nil
 }
 
 func (store *Store) BatchDeliveryURLs(
-	ctx context.Context, tenantID, workspaceID string, refs []applicationasset.RevisionRef,
+	ctx context.Context, refs []applicationasset.RevisionRef,
 ) (map[string]applicationasset.PresignedArtifact, error) {
 	if len(refs) == 0 {
 		return map[string]applicationasset.PresignedArtifact{}, nil
@@ -106,7 +104,6 @@ func (store *Store) BatchDeliveryURLs(
 	inputs := make([]storageclient.DeliveryCapabilityInput, len(refs))
 	for index, ref := range refs {
 		inputs[index] = storageclient.DeliveryCapabilityInput{
-			TenantID: tenantID, WorkspaceID: workspaceID,
 			RevisionRef: storageclient.RevisionRef{AssetID: ref.SourceAssetID, RevisionID: ref.SourceRevisionID},
 		}
 	}
@@ -138,7 +135,7 @@ func (store *Store) ProviderReference(ctx context.Context, _, _ string, asset do
 	if !strings.HasPrefix(contentType, "image/") {
 		return "", errors.New("provider reference image has an invalid content type")
 	}
-	reader, err := store.client.Open(ctx, asset.TenantID, workspaceValue(asset.WorkspaceID), platformRef(asset))
+	reader, err := store.client.Open(ctx, platformRef(asset))
 	if err != nil {
 		return "", fmt.Errorf("read provider reference image: %w", err)
 	}
@@ -154,11 +151,7 @@ func (store *Store) ProviderReference(ctx context.Context, _, _ string, asset do
 }
 
 func (store *Store) referenceURL(ctx context.Context, asset domainasset.Asset) (string, error) {
-	workspaceID := workspaceValue(asset.WorkspaceID)
-	if workspaceID == "" {
-		return "", errors.New("platform asset delivery requires a workspace scope")
-	}
-	values, err := store.BatchDeliveryURLs(ctx, asset.TenantID, workspaceID, []applicationasset.RevisionRef{{
+	values, err := store.BatchDeliveryURLs(ctx, []applicationasset.RevisionRef{{
 		SourceAssetID: asset.SourceAssetID, SourceRevisionID: asset.SourceRevisionID,
 	}})
 	if err != nil {
@@ -172,7 +165,7 @@ func (store *Store) referenceURL(ctx context.Context, asset domainasset.Asset) (
 }
 
 func (store *Store) Persist(ctx context.Context, input applicationvideogeneration.CanvasNodeVideoResultInput) (applicationvideogeneration.PersistedCanvasNodeVideo, error) {
-	revision, err := store.persistRemote(ctx, input.TenantID, workspaceValue(input.WorkspaceID), input.CallerID, input.TaskRunID+".mp4", "generated_video", "video-generation:"+input.TaskRunID, input.SourceURL)
+	revision, err := store.persistRemote(ctx, input.TaskRunID+".mp4", "video-generation:"+input.TaskRunID, input.SourceURL)
 	if err != nil {
 		return applicationvideogeneration.PersistedCanvasNodeVideo{}, err
 	}
@@ -180,7 +173,7 @@ func (store *Store) Persist(ctx context.Context, input applicationvideogeneratio
 }
 
 func (store *Store) PersistImage(ctx context.Context, input applicationimagegeneration.PersistImageInput) (applicationimagegeneration.PersistedImage, error) {
-	revision, err := store.persistRemote(ctx, input.TenantID, workspaceValue(input.WorkspaceID), input.CallerID, input.TaskRunID+".png", "generated_image", "image-generation:"+input.TaskRunID, input.SourceURL)
+	revision, err := store.persistRemote(ctx, input.TaskRunID+".png", "image-generation:"+input.TaskRunID, input.SourceURL)
 	if err != nil {
 		return applicationimagegeneration.PersistedImage{}, err
 	}
@@ -189,9 +182,8 @@ func (store *Store) PersistImage(ctx context.Context, input applicationimagegene
 
 func (store *Store) UploadTemporary(ctx context.Context, input applicationprojectusage.TemporaryFileUpload) (applicationprojectusage.TemporaryFile, error) {
 	revision, err := store.client.Upload(ctx, storageclient.UploadInput{
-		TenantID: input.TenantID, WorkspaceID: workspaceValue(input.WorkspaceID), UserID: input.CallerID,
 		Filename: input.InternalFileName, MediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-		Category: "project_usage_export", IdempotencyKey: "project-usage-export:" + input.ExportID, Body: input.Reader,
+		IdempotencyKey: "project-usage-export:" + input.ExportID, Body: input.Reader,
 	})
 	if err != nil {
 		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("upload project usage workbook: %w", err)
@@ -200,7 +192,7 @@ func (store *Store) UploadTemporary(ctx context.Context, input applicationprojec
 		return applicationprojectusage.TemporaryFile{}, errors.New("uploaded project usage workbook integrity mismatch")
 	}
 	capabilities, err := store.client.MintDeliveryCapabilities(ctx, []storageclient.DeliveryCapabilityInput{{
-		TenantID: input.TenantID, WorkspaceID: workspaceValue(input.WorkspaceID), RevisionRef: revision.RevisionRef,
+		RevisionRef: revision.RevisionRef,
 	}})
 	if err != nil || len(capabilities) != 1 {
 		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("mint project usage workbook capability: %w", err)
@@ -210,7 +202,7 @@ func (store *Store) UploadTemporary(ctx context.Context, input applicationprojec
 	}, nil
 }
 
-func (store *Store) persistRemote(ctx context.Context, tenantID, workspaceID, userID, filename, category, idempotencyKey, sourceURL string) (storageclient.Revision, error) {
+func (store *Store) persistRemote(ctx context.Context, filename, idempotencyKey, sourceURL string) (storageclient.Revision, error) {
 	parsed, err := url.Parse(strings.TrimSpace(sourceURL))
 	if err != nil || validatePublicRemoteURL(parsed) != nil {
 		return storageclient.Revision{}, errors.New("generated media URL must be an absolute HTTP(S) URL")
@@ -232,8 +224,7 @@ func (store *Store) persistRemote(ctx context.Context, tenantID, workspaceID, us
 	}
 	limited := &io.LimitedReader{R: response.Body, N: maxGeneratedMediaBytes + 1}
 	revision, err := store.client.Upload(ctx, storageclient.UploadInput{
-		TenantID: tenantID, WorkspaceID: workspaceID, UserID: userID, Filename: filename,
-		MediaType: response.Header.Get("Content-Type"), Category: category, IdempotencyKey: idempotencyKey, Body: limited,
+		Filename: filename, MediaType: response.Header.Get("Content-Type"), IdempotencyKey: idempotencyKey, Body: limited,
 	})
 	if err != nil {
 		return storageclient.Revision{}, fmt.Errorf("persist generated media: %w", err)
@@ -249,13 +240,6 @@ func platformRef(asset domainasset.Asset) storageclient.RevisionRef {
 }
 
 func revisionRefKey(assetID, revisionID string) string { return assetID + "\x00" + revisionID }
-
-func workspaceValue(workspaceID *string) string {
-	if workspaceID == nil {
-		return ""
-	}
-	return strings.TrimSpace(*workspaceID)
-}
 
 func (store *Store) absoluteURL(raw string) string {
 	if parsed, err := url.Parse(raw); err == nil && parsed.IsAbs() {

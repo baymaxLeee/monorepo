@@ -12,13 +12,6 @@ var forwardedHeaders = []string{
 	"traceparent",
 	"tracestate",
 	"X-Trace-Id",
-	"X-Auth-User-ID",
-	"X-Auth-Name",
-	"X-Auth-Email",
-	"X-Auth-Tenant-ID",
-	"X-Auth-Workspace-ID",
-	"X-Auth-Workspace-Role",
-	"X-Auth-Roles",
 }
 
 type Client struct {

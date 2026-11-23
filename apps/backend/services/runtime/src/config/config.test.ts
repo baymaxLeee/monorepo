@@ -72,10 +72,6 @@ test("invalid numeric configuration fails instead of silently selecting a defaul
     /CANVAS_SERVICE_URL must be an absolute HTTP URL/,
   );
   assert.throws(
-    () => parseWorkerSettings({ ...worker, VIDEO_SEGMENT_CONCURRENCY: "1.5" }),
-    /VIDEO_SEGMENT_CONCURRENCY must be a positive integer/,
-  );
-  assert.throws(
     () => parseWorkerSettings({ ...worker, WORKFLOW_POSTGRES_WORKER_CONCURRENCY: "invalid" }),
     /WORKFLOW_POSTGRES_WORKER_CONCURRENCY must be a positive integer/,
   );

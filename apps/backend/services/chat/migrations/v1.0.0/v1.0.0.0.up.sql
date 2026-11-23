@@ -47,3 +47,31 @@ CREATE INDEX ix_conversations_reconcile
 
 CREATE UNIQUE INDEX ux_conversations_create_request
     ON conversations (tenant_id, workspace_id, user_id, create_request_id);
+
+-- Product memory belongs to Chat's authenticated business scope. Runtime only
+-- receives the selected memory content in a frozen Turn capability.
+CREATE TABLE user_memories (
+    id varchar(32) PRIMARY KEY,
+    tenant_id varchar(128) NOT NULL,
+    workspace_id varchar(128) NOT NULL,
+    user_id varchar(128) NOT NULL,
+    category varchar(40) NOT NULL,
+    content text NOT NULL,
+    source varchar(80) NOT NULL DEFAULT 'agent',
+    confidence integer NOT NULL DEFAULT 80 CHECK (confidence BETWEEN 0 AND 100),
+    status varchar(20) NOT NULL DEFAULT 'active',
+    reason text,
+    origin_turn_id varchar(32),
+    supersedes_id varchar(32),
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    CONSTRAINT user_memories_category_check CHECK (
+        category IN ('preference', 'profile', 'project', 'instruction')
+    ),
+    CONSTRAINT user_memories_status_check CHECK (
+        status IN ('pending', 'active', 'rejected', 'superseded')
+    )
+);
+
+CREATE INDEX ix_user_memories_scope_status
+    ON user_memories (tenant_id, workspace_id, user_id, status, created_at);

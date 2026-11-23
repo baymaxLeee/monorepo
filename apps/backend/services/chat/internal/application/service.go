@@ -27,12 +27,17 @@ var (
 )
 
 type Service struct {
-	repository Repository
-	runtime    RuntimeClient
+	repository   Repository
+	runtime      RuntimeClient
+	capabilities TurnCapabilityResolver
 }
 
-func NewService(repository Repository, runtime RuntimeClient) *Service {
-	return &Service{repository: repository, runtime: runtime}
+func NewService(repository Repository, runtime RuntimeClient, capabilities ...TurnCapabilityResolver) *Service {
+	var resolver TurnCapabilityResolver
+	if len(capabilities) > 0 {
+		resolver = capabilities[0]
+	}
+	return &Service{repository: repository, runtime: runtime, capabilities: resolver}
 }
 
 func (service *Service) Ping(ctx context.Context) error { return service.repository.Ping(ctx) }
@@ -207,11 +212,50 @@ func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext
 		if err := decoder.Decode(&input); err != nil {
 			return nil, BadRequest("request body must be valid JSON")
 		}
-		projected, err := RuntimeRunBody(*product, input)
+		if service.capabilities == nil {
+			return nil, errors.New("Runtime Turn capability resolver is not configured")
+		}
+		providerID, err := service.runtimeProviderSelection(ctx, headers, *product)
+		if err != nil {
+			return nil, err
+		}
+		capabilities, err := service.capabilities.ResolveTurn(ctx, scope, providerID, product.PluginSelections)
+		if err != nil {
+			return nil, err
+		}
+		if memories, ok := service.repository.(MemoryRepository); ok {
+			capabilities.Memories, err = memories.ListActiveMemories(ctx, scope)
+			if err != nil {
+				return nil, err
+			}
+		}
+		projected, err := RuntimeRunBody(*product, input, capabilities)
 		if err != nil {
 			return nil, err
 		}
 		encoded, err := json.Marshal(projected)
+		if err != nil {
+			return nil, err
+		}
+		requestBody = bytes.NewReader(encoded)
+	} else if suffix == "/model" && method == http.MethodPatch {
+		if service.capabilities == nil {
+			return nil, errors.New("Runtime provider capability resolver is not configured")
+		}
+		var input struct {
+			ProviderID      string `json:"provider_id"`
+			ReasoningEffort string `json:"reasoning_effort"`
+		}
+		if err := json.NewDecoder(body).Decode(&input); err != nil || input.ProviderID == "" || input.ReasoningEffort == "" {
+			return nil, BadRequest("provider_id and reasoning_effort are required")
+		}
+		provider, err := service.capabilities.ResolveProvider(ctx, scope, &input.ProviderID)
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := json.Marshal(map[string]any{
+			"provider_id": provider.ID, "model": provider.Model, "reasoning_effort": input.ReasoningEffort,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -233,8 +277,132 @@ func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext
 	return projected, nil
 }
 
-func (service *Service) ProxyRuntime(ctx context.Context, headers http.Header, method, path, rawQuery string, body io.Reader) (*http.Response, error) {
-	return service.runtime.Do(ctx, RuntimeRequest{Method: method, Path: path + querySuffix(rawQuery), Headers: headers, Body: body})
+func (service *Service) runtimeProviderSelection(ctx context.Context, headers http.Header, product Conversation) (*string, error) {
+	response, err := service.runtime.Do(ctx, RuntimeRequest{Method: http.MethodGet, Path: runtimePath(product, ""), Headers: headers})
+	if err != nil {
+		return nil, err
+	}
+	value, err := requireRuntimeJSON(response)
+	if err != nil {
+		return nil, err
+	}
+	providerID, _ := value["provider_id"].(string)
+	if providerID == "" {
+		return nil, nil
+	}
+	return &providerID, nil
+}
+
+func (service *Service) ProxyRuntime(ctx context.Context, scope AuthContext, headers http.Header, method, path, rawQuery string, body io.Reader) (*http.Response, error) {
+	if service.capabilities == nil {
+		return nil, errors.New("Runtime capability resolver is not configured")
+	}
+	switch path {
+	case "/local-inference/config":
+		if method != http.MethodGet {
+			return nil, BadRequest("local inference config requires GET")
+		}
+		query, err := url.ParseQuery(rawQuery)
+		if err != nil {
+			return nil, BadRequest("invalid local inference query")
+		}
+		providerID := strings.TrimSpace(query.Get("provider_id"))
+		reasoningEffort := strings.TrimSpace(query.Get("reasoning_effort"))
+		if providerID == "" || reasoningEffort == "" {
+			return nil, BadRequest("provider_id and reasoning_effort are required")
+		}
+		provider, err := service.capabilities.ResolveProvider(ctx, scope, &providerID)
+		if err != nil {
+			return nil, err
+		}
+		return service.runtimeJSON(ctx, headers, "/local-inference/config", map[string]any{
+			"provider": provider, "reasoningEffort": reasoningEffort,
+		})
+	case "/local-inference/plugins/resolve":
+		if method != http.MethodPost {
+			return nil, BadRequest("local plugin resolution requires POST")
+		}
+		var input struct {
+			Activations []struct {
+				PluginID string            `json:"pluginId"`
+				Bindings map[string]string `json:"bindings,omitempty"`
+			} `json:"activations"`
+		}
+		if err := json.NewDecoder(body).Decode(&input); err != nil {
+			return nil, BadRequest("invalid plugin activation request")
+		}
+		selections := make([]ConversationPluginSelection, 0, len(input.Activations))
+		for _, activation := range input.Activations {
+			selections = append(selections, ConversationPluginSelection{PluginID: activation.PluginID, Bindings: activation.Bindings})
+		}
+		selections, err := normalizePluginSelections(selections)
+		if err != nil {
+			return nil, BadRequest(err.Error())
+		}
+		plugins, err := service.capabilities.ResolvePlugins(ctx, scope, selections)
+		if err != nil {
+			return nil, err
+		}
+		if localSnapshotContainsSystemPlugin(plugins) {
+			return nil, BadRequest("system plugins require cloud Runtime execution")
+		}
+		return jsonResponse(http.StatusOK, plugins)
+	case "/local-inference/stream":
+		if method != http.MethodPost {
+			return nil, BadRequest("local inference stream requires POST")
+		}
+		var request map[string]any
+		decoder := json.NewDecoder(body)
+		decoder.UseNumber()
+		if err := decoder.Decode(&request); err != nil {
+			return nil, BadRequest("invalid local inference request")
+		}
+		providerID, _ := request["providerId"].(string)
+		if providerID == "" {
+			return nil, BadRequest("local inference providerId is required")
+		}
+		provider, err := service.capabilities.ResolveProvider(ctx, scope, &providerID)
+		if err != nil {
+			return nil, err
+		}
+		return service.runtimeJSON(ctx, headers, path, map[string]any{"provider": provider, "request": request})
+	default:
+		return service.runtime.Do(ctx, RuntimeRequest{Method: method, Path: path + querySuffix(rawQuery), Headers: headers, Body: body})
+	}
+}
+
+func (service *Service) runtimeJSON(ctx context.Context, headers http.Header, path string, value any) (*http.Response, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	nextHeaders := headers.Clone()
+	nextHeaders.Set("Content-Type", "application/json")
+	return service.runtime.Do(ctx, RuntimeRequest{Method: http.MethodPost, Path: path, Headers: nextHeaders, Body: bytes.NewReader(encoded)})
+}
+
+func localSnapshotContainsSystemPlugin(snapshot map[string]any) bool {
+	plugins, _ := snapshot["plugins"].([]any)
+	for _, value := range plugins {
+		plugin, _ := value.(map[string]any)
+		manifest, _ := plugin["manifest"].(map[string]any)
+		if manifest["source"] == "system" || manifest["trust"] == "system" {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonResponse(status int, value any) (*http.Response, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "Cache-Control": []string{"no-store"}},
+		Body:       io.NopCloser(bytes.NewReader(encoded)),
+	}, nil
 }
 
 type durableRuntimeRequest struct {

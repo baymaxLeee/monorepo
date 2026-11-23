@@ -4,7 +4,6 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { TransportError } from "#runtime/transport";
 
-import type { AuthContext } from "../api/http/middleware/auth.js";
 import { sandboxClient } from "../infrastructure/clients/sandbox.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import { turnLeases, turnSandboxExecutions as sandboxExecutions } from "../infrastructure/persistence/schema.js";
@@ -12,7 +11,7 @@ import { ConflictError, RequestError } from "./errors.js";
 import { editableFileByteLimit } from "./file-edit-limits.js";
 import { getSessionFile, type SessionFile } from "./session-files.js";
 
-type UserFileScope = Pick<AuthContext, "userId" | "tenantId" | "workspaceId"> & {
+type UserFileScope = {
   sessionId: string;
   fileId: string;
 };
@@ -21,9 +20,6 @@ interface ActiveWorkspace {
   sandboxId: string | null;
   state: string;
   scope: {
-    tenant_id: string;
-    workspace_id: string;
-    user_id: string;
     session_id: string;
     run_id: string;
     attempt_epoch: string;
@@ -60,9 +56,6 @@ const defaults: CloudWorkspaceEditDependencies = {
       .where(
         and(
           eq(sandboxExecutions.threadId, input.sessionId),
-          eq(sandboxExecutions.userId, input.userId),
-          eq(sandboxExecutions.tenantId, input.tenantId),
-          eq(sandboxExecutions.workspaceId, input.workspaceId),
           inArray(sandboxExecutions.state, ["restoring", "active", "finalizing"]),
         ),
       )
@@ -72,16 +65,13 @@ const defaults: CloudWorkspaceEditDependencies = {
       sandboxId: row.execution.sandboxId,
       state: row.execution.state,
       scope: {
-        tenant_id: row.execution.tenantId,
-        workspace_id: row.execution.workspaceId,
-        user_id: row.execution.userId,
         session_id: row.execution.threadId,
         run_id: row.execution.turnId,
         attempt_epoch: row.execution.attemptEpoch.toString(),
       },
     };
   },
-  file: (input) => getSessionFile(input, input.sessionId, input.fileId),
+  file: (input) => getSessionFile(input.sessionId, input.fileId),
   async acquire(workspace, token) {
     if (!workspace.sandboxId) throw new Error("active cloud workspace has no sandbox resource");
     try {

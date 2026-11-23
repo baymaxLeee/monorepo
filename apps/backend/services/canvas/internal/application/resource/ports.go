@@ -119,6 +119,7 @@ type AssetCreator interface {
 	Create(context.Context, applicationasset.CreateInput) (domainasset.Asset, error)
 	CompensateCreated(context.Context, domainasset.Asset) error
 	PrepareResourceOwnedCreates(context.Context, applicationasset.Scope, *string, string, []applicationasset.PrepareCreateItem) ([]applicationasset.PreparedCreate, error)
+	PrepareResourceOwnedCreatesFromArtifacts(context.Context, applicationasset.Scope, *string, string, []applicationasset.ArtifactPrepareCreateItem) ([]applicationasset.PreparedCreate, error)
 	RegisterPreparedCreates(context.Context, []applicationasset.PreparedCreate) ([]domainasset.Asset, error)
 	PersistPreparedCreates(context.Context, []domainasset.Asset) error
 	CompensateCreatedMany(context.Context, []domainasset.Asset, error) error

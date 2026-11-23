@@ -43,8 +43,8 @@ func (q *Queries) AdvanceRevision(ctx context.Context, arg AdvanceRevisionParams
 
 const appendRevision = `-- name: AppendRevision :exec
 INSERT INTO asset_revisions
-(id,asset_id,blob_id,revision_number,filename,media_type,size_bytes,sha256,created_by,created_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+(id,asset_id,blob_id,revision_number,filename,media_type,size_bytes,sha256,created_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 `
 
 type AppendRevisionParams struct {
@@ -56,7 +56,6 @@ type AppendRevisionParams struct {
 	MediaType      string
 	SizeBytes      int64
 	Sha256         string
-	CreatedBy      string
 	CreatedAt      time.Time
 }
 
@@ -70,7 +69,6 @@ func (q *Queries) AppendRevision(ctx context.Context, arg AppendRevisionParams) 
 		arg.MediaType,
 		arg.SizeBytes,
 		arg.Sha256,
-		arg.CreatedBy,
 		arg.CreatedAt,
 	)
 	return err
@@ -78,35 +76,24 @@ func (q *Queries) AppendRevision(ctx context.Context, arg AppendRevisionParams) 
 
 const createAsset = `-- name: CreateAsset :exec
 INSERT INTO assets
-(id,tenant_id,workspace_id,category,state,blocking_claim_count,state_version,created_by,created_at,updated_at)
-VALUES ($1,$2,$3,$4,'active',1,1,$5,$6,$6)
+(id,state,blocking_claim_count,state_version,created_at,updated_at)
+VALUES ($1,'active',1,1,$2,$2)
 `
 
 type CreateAssetParams struct {
-	ID          string
-	TenantID    string
-	WorkspaceID string
-	Category    string
-	CreatedBy   string
-	CreatedAt   time.Time
+	ID        string
+	CreatedAt time.Time
 }
 
 func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) error {
-	_, err := q.db.Exec(ctx, createAsset,
-		arg.ID,
-		arg.TenantID,
-		arg.WorkspaceID,
-		arg.Category,
-		arg.CreatedBy,
-		arg.CreatedAt,
-	)
+	_, err := q.db.Exec(ctx, createAsset, arg.ID, arg.CreatedAt)
 	return err
 }
 
 const createFirstRevision = `-- name: CreateFirstRevision :exec
 INSERT INTO asset_revisions
-(id,asset_id,blob_id,revision_number,filename,media_type,size_bytes,sha256,created_by,created_at)
-VALUES ($1,$2,$3,1,$4,$5,$6,$7,$8,$9)
+(id,asset_id,blob_id,revision_number,filename,media_type,size_bytes,sha256,created_at)
+VALUES ($1,$2,$3,1,$4,$5,$6,$7,$8)
 `
 
 type CreateFirstRevisionParams struct {
@@ -117,7 +104,6 @@ type CreateFirstRevisionParams struct {
 	MediaType string
 	SizeBytes int64
 	Sha256    string
-	CreatedBy string
 	CreatedAt time.Time
 }
 
@@ -130,7 +116,6 @@ func (q *Queries) CreateFirstRevision(ctx context.Context, arg CreateFirstRevisi
 		arg.MediaType,
 		arg.SizeBytes,
 		arg.Sha256,
-		arg.CreatedBy,
 		arg.CreatedAt,
 	)
 	return err
@@ -138,26 +123,24 @@ func (q *Queries) CreateFirstRevision(ctx context.Context, arg CreateFirstRevisi
 
 const createUploadLease = `-- name: CreateUploadLease :exec
 INSERT INTO asset_claims
-(id,tenant_id,workspace_id,owner_service,owner_type,owner_id,slot,asset_id,revision_id,kind,status,generation,expires_at,created_at,updated_at)
-VALUES ($1,$2,$3,'asset','upload_session',$4,'uploaded-bytes',$5,$6,'lease','active',1,$7,$8,$8)
+(id,owner_service,owner_type,owner_id,slot,asset_id,revision_id,kind,status,generation,expires_at,created_at,updated_at)
+VALUES ($1,$2,'upload_session',$3,'uploaded-bytes',$4,$5,'lease','active',1,$6,$7,$7)
 `
 
 type CreateUploadLeaseParams struct {
-	ID          string
-	TenantID    string
-	WorkspaceID string
-	OwnerID     string
-	AssetID     string
-	RevisionID  *string
-	ExpiresAt   *time.Time
-	CreatedAt   time.Time
+	ID           string
+	OwnerService string
+	OwnerID      string
+	AssetID      string
+	RevisionID   string
+	ExpiresAt    *time.Time
+	CreatedAt    time.Time
 }
 
 func (q *Queries) CreateUploadLease(ctx context.Context, arg CreateUploadLeaseParams) error {
 	_, err := q.db.Exec(ctx, createUploadLease,
 		arg.ID,
-		arg.TenantID,
-		arg.WorkspaceID,
+		arg.OwnerService,
 		arg.OwnerID,
 		arg.AssetID,
 		arg.RevisionID,
@@ -168,29 +151,23 @@ func (q *Queries) CreateUploadLease(ctx context.Context, arg CreateUploadLeasePa
 }
 
 const getRevision = `-- name: GetRevision :one
-SELECT a.id,a.tenant_id,a.workspace_id,a.category,a.state,COALESCE(a.current_revision_id::text,'')::text AS current_revision_id,a.blocking_claim_count,a.state_version,a.created_by,a.created_at,a.updated_at,
-r.id AS revision_id,r.blob_id,r.revision_number,r.filename,r.media_type,r.size_bytes,r.sha256,r.created_by AS revision_creator,r.created_at AS revision_created_at,b.storage_key
+SELECT a.id,a.state,COALESCE(a.current_revision_id::text,'')::text AS current_revision_id,a.blocking_claim_count,a.state_version,a.created_at,a.updated_at,
+r.id AS revision_id,r.blob_id,r.revision_number,r.filename,r.media_type,r.size_bytes,r.sha256,r.created_at AS revision_created_at,b.storage_key
 FROM assets a JOIN asset_revisions r ON r.asset_id=a.id JOIN blobs b ON b.id=r.blob_id
-WHERE a.id=$1 AND r.id=$2 AND a.tenant_id=$3 AND a.workspace_id=$4 AND a.state IN ('active','candidate') AND b.state='active'
+WHERE a.id=$1 AND r.id=$2 AND a.state IN ('active','candidate') AND b.state='active'
 `
 
 type GetRevisionParams struct {
-	AssetID     string
-	RevisionID  string
-	TenantID    string
-	WorkspaceID string
+	AssetID    string
+	RevisionID string
 }
 
 type GetRevisionRow struct {
 	ID                 string
-	TenantID           string
-	WorkspaceID        string
-	Category           string
 	State              string
 	CurrentRevisionID  string
 	BlockingClaimCount int64
 	StateVersion       int64
-	CreatedBy          string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	RevisionID         string
@@ -200,29 +177,19 @@ type GetRevisionRow struct {
 	MediaType          string
 	SizeBytes          int64
 	Sha256             string
-	RevisionCreator    string
 	RevisionCreatedAt  time.Time
 	StorageKey         string
 }
 
 func (q *Queries) GetRevision(ctx context.Context, arg GetRevisionParams) (GetRevisionRow, error) {
-	row := q.db.QueryRow(ctx, getRevision,
-		arg.AssetID,
-		arg.RevisionID,
-		arg.TenantID,
-		arg.WorkspaceID,
-	)
+	row := q.db.QueryRow(ctx, getRevision, arg.AssetID, arg.RevisionID)
 	var i GetRevisionRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
-		&i.WorkspaceID,
-		&i.Category,
 		&i.State,
 		&i.CurrentRevisionID,
 		&i.BlockingClaimCount,
 		&i.StateVersion,
-		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RevisionID,
@@ -232,7 +199,6 @@ func (q *Queries) GetRevision(ctx context.Context, arg GetRevisionParams) (GetRe
 		&i.MediaType,
 		&i.SizeBytes,
 		&i.Sha256,
-		&i.RevisionCreator,
 		&i.RevisionCreatedAt,
 		&i.StorageKey,
 	)
@@ -270,44 +236,30 @@ func (q *Queries) LockAppendUpload(ctx context.Context, id string) (LockAppendUp
 }
 
 const lockAsset = `-- name: LockAsset :one
-SELECT id,tenant_id,workspace_id,category,state,COALESCE(current_revision_id::text,'')::text AS current_revision_id,
-blocking_claim_count,state_version,created_by,created_at,updated_at
-FROM assets WHERE id=$1 AND tenant_id=$2 AND workspace_id=$3 FOR UPDATE
+SELECT id,state,COALESCE(current_revision_id::text,'')::text AS current_revision_id,
+blocking_claim_count,state_version,created_at,updated_at
+FROM assets WHERE id=$1 FOR UPDATE
 `
-
-type LockAssetParams struct {
-	ID          string
-	TenantID    string
-	WorkspaceID string
-}
 
 type LockAssetRow struct {
 	ID                 string
-	TenantID           string
-	WorkspaceID        string
-	Category           string
 	State              string
 	CurrentRevisionID  string
 	BlockingClaimCount int64
 	StateVersion       int64
-	CreatedBy          string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
 
-func (q *Queries) LockAsset(ctx context.Context, arg LockAssetParams) (LockAssetRow, error) {
-	row := q.db.QueryRow(ctx, lockAsset, arg.ID, arg.TenantID, arg.WorkspaceID)
+func (q *Queries) LockAsset(ctx context.Context, id string) (LockAssetRow, error) {
+	row := q.db.QueryRow(ctx, lockAsset, id)
 	var i LockAssetRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
-		&i.WorkspaceID,
-		&i.Category,
 		&i.State,
 		&i.CurrentRevisionID,
 		&i.BlockingClaimCount,
 		&i.StateVersion,
-		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -352,16 +304,15 @@ func (q *Queries) SetCurrentRevision(ctx context.Context, arg SetCurrentRevision
 
 const upsertBlob = `-- name: UpsertBlob :one
 INSERT INTO blobs
-(id,tenant_id,sha256,size_bytes,storage_key,state,created_at)
-VALUES ($1,$2,$3,$4,$5,'active',$6)
-ON CONFLICT (tenant_id,sha256,size_bytes) WHERE state='active'
+(id,sha256,size_bytes,storage_key,state,created_at)
+VALUES ($1,$2,$3,$4,'active',$5)
+ON CONFLICT (sha256,size_bytes) WHERE state='active'
 DO UPDATE SET state=blobs.state
 RETURNING id,storage_key
 `
 
 type UpsertBlobParams struct {
 	ID         string
-	TenantID   string
 	Sha256     string
 	SizeBytes  int64
 	StorageKey string
@@ -376,7 +327,6 @@ type UpsertBlobRow struct {
 func (q *Queries) UpsertBlob(ctx context.Context, arg UpsertBlobParams) (UpsertBlobRow, error) {
 	row := q.db.QueryRow(ctx, upsertBlob,
 		arg.ID,
-		arg.TenantID,
 		arg.Sha256,
 		arg.SizeBytes,
 		arg.StorageKey,

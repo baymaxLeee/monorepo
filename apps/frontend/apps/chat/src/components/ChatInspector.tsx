@@ -1,18 +1,10 @@
-import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import { Spinner } from "@repo/design-system";
 import { lazy, memo, Suspense } from "react";
 
 const Artifact = lazy(() =>
   import("@repo/ai-elements/conversation/components/ChatArtifactPanel").then((m) => ({ default: m.ChatArtifactPanel })),
 );
-const Video = lazy(() =>
-  import("@repo/ai-elements/conversation/components/VideoProductionWorkspace").then((m) => ({
-    default: m.VideoProductionWorkspace,
-  })),
-);
 export const ChatInspector = memo(function ChatInspector() {
-  const video = useChatStore((s) => s.videoProductionWorkspace);
-  const closeVideo = useChatStore((s) => s.closeVideoProductionWorkspace);
   return (
     <Suspense
       fallback={
@@ -22,11 +14,7 @@ export const ChatInspector = memo(function ChatInspector() {
         </div>
       }
     >
-      {video.open && video.conversationId && video.productionId ? (
-        <Video conversationId={video.conversationId} productionId={video.productionId} onClose={closeVideo} />
-      ) : (
-        <Artifact />
-      )}
+      <Artifact />
     </Suspense>
   );
 });

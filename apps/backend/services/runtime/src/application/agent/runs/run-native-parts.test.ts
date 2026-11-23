@@ -31,9 +31,6 @@ const publicationContext: NativeFilePublicationContext = {
   runId: "run",
   attemptEpoch: "1",
   sessionId: "session",
-  userId: "user",
-  tenantId: "tenant",
-  workspaceId: "workspace",
   signal: new AbortController().signal,
 };
 
@@ -115,20 +112,11 @@ function dependencies(overrides: Partial<NativePartDependencies> = {}): NativePa
         revision_id: input.revisionId,
         sha256: input.sha256,
       }),
-    getSessionFile: async (_auth, sessionId, fileId) =>
+    getSessionFile: async (sessionId, fileId) =>
       sessionFile({
         id: fileId,
         session_id: sessionId,
       }),
-    getDocument: async (_userId, documentId) =>
-      ({
-        id: documentId,
-        conversation_id: publicationContext.sessionId,
-        title: "Source",
-        filename: "source.pdf",
-        mime_type: "application/pdf",
-        source_mime_type: "application/pdf",
-      }) as unknown as Awaited<ReturnType<NativePartDependencies["getDocument"]>>,
     ...overrides,
   };
 }
@@ -409,7 +397,7 @@ test("a journaled session file rechecks ownership and reuses its canonical refer
   };
   const deps = dependencies({
     fetchDataUrl: async () => assert.fail("a registered file must not be reuploaded"),
-    getSessionFile: async (_auth, sessionId, fileId) => {
+    getSessionFile: async (sessionId, fileId) => {
       assert.equal(sessionId, publicationContext.sessionId);
       assert.equal(fileId, "file");
       return sessionFile();
@@ -431,6 +419,23 @@ test("native model file publication rejects arbitrary remote URLs", async () => 
   await assert.rejects(
     publishNativeFileParts(
       [{ type: "file", mediaType: "image/png", url: "http://127.0.0.1/private" }],
+      publicationContext,
+      dependencies(),
+    ),
+    /SDK data URLs or an authorized session resource/,
+  );
+});
+
+test("native model file publication rejects upper-app document URLs", async () => {
+  await assert.rejects(
+    publishNativeFileParts(
+      [
+        {
+          type: "file",
+          mediaType: "application/pdf",
+          url: "/api/chat-server/sessions/session/documents/document/content?document_id=document",
+        },
+      ],
       publicationContext,
       dependencies(),
     ),

@@ -28,7 +28,7 @@ function safeInferenceError(reason: ModelNetworkFailureReason | null): Inference
       };
 }
 
-async function rejectedInferenceError(response: Response): Promise<InferenceRelayError> {
+async function rejectedResponseMessage(response: Response) {
   let message = `模型请求失败（HTTP ${response.status}）`;
   try {
     const body: unknown = await response.json();
@@ -44,7 +44,16 @@ async function rejectedInferenceError(response: Response): Promise<InferenceRela
   } catch {
     // The status remains authoritative when a proxy returns a non-JSON error body.
   }
-  return { code: "model_request_rejected", message, retryable: false, reason: "request" };
+  return message;
+}
+
+async function rejectedInferenceError(response: Response): Promise<InferenceRelayError> {
+  return {
+    code: "model_request_rejected",
+    message: await rejectedResponseMessage(response),
+    retryable: false,
+    reason: "request",
+  };
 }
 
 export class RuntimeHost {
@@ -137,7 +146,10 @@ export class RuntimeHost {
                 )
               : Promise.reject(new Error("未知本地运行时请求"));
         void request
-          .then((response) => response.json())
+          .then(async (response) => {
+            if (!response.ok) throw new Error(await rejectedResponseMessage(response));
+            return response.json();
+          })
           .then((result) => {
             if (this.child === child) child.postMessage({ type: "response", id, result });
           })

@@ -33,7 +33,6 @@ function view(row: typeof turnInputs.$inferSelect): AgentRunInputView {
 export async function acceptAgentRunInput(input: {
   sessionId: string;
   runId: string;
-  userId: string;
   clientMessageId: string;
   mode: RuntimeInputMode;
   text: string;
@@ -42,11 +41,11 @@ export async function acceptAgentRunInput(input: {
     const [session] = await tx
       .select({ id: threads.id })
       .from(threads)
-      .where(and(eq(threads.id, input.sessionId), eq(threads.userId, input.userId)))
+      .where(eq(threads.id, input.sessionId))
       .for("update");
     if (!session) throw new NotFoundError("session not found");
     const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
-    if (!run || run.threadId !== input.sessionId || run.userId !== input.userId) {
+    if (!run || run.threadId !== input.sessionId) {
       throw new NotFoundError("agent run not found");
     }
     const [existing] = await tx
@@ -89,7 +88,6 @@ export async function acceptAgentRunInput(input: {
 export async function getAgentRunInput(input: {
   sessionId: string;
   runId: string;
-  userId: string;
   clientMessageId: string;
 }): Promise<AgentRunInputView> {
   const [row] = await getDb()
@@ -101,31 +99,24 @@ export async function getAgentRunInput(input: {
         eq(turnInputs.turnId, input.runId),
         eq(turnInputs.id, input.clientMessageId),
         eq(turnInputs.threadId, input.sessionId),
-        eq(turns.userId, input.userId),
       ),
     );
   if (!row) throw new NotFoundError("run input not found");
   return view(row.input);
 }
 
-export async function listAgentRunInputs(input: {
-  sessionId: string;
-  runId: string;
-  userId: string;
-}): Promise<AgentRunInputView[]> {
+export async function listAgentRunInputs(input: { sessionId: string; runId: string }): Promise<AgentRunInputView[]> {
   const rows = await getDb()
     .select({ input: turnInputs })
     .from(turnInputs)
     .innerJoin(turns, eq(turns.id, turnInputs.turnId))
-    .where(
-      and(eq(turnInputs.turnId, input.runId), eq(turnInputs.threadId, input.sessionId), eq(turns.userId, input.userId)),
-    )
+    .where(and(eq(turnInputs.turnId, input.runId), eq(turnInputs.threadId, input.sessionId)))
     .orderBy(turnInputs.createdAt);
   if (rows.length === 0) {
     const [run] = await getDb()
       .select({ id: turns.id })
       .from(turns)
-      .where(and(eq(turns.id, input.runId), eq(turns.threadId, input.sessionId), eq(turns.userId, input.userId)));
+      .where(and(eq(turns.id, input.runId), eq(turns.threadId, input.sessionId)));
     if (!run) throw new NotFoundError("agent run not found");
   }
   return rows.map((row) => view(row.input));

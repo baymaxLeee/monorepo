@@ -146,14 +146,11 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     {
       turnId: input.runId,
       threadId: input.sessionId,
-      userId: input.userId,
-      tenantId: input.tenantId,
-      workspaceId: input.workspaceId,
-      workspaceRole: input.workspaceRole ?? "",
       signal: input.signal,
     },
     {
       textProvider: provider,
+      media: input.media,
     },
     input.pluginSnapshot,
     skillSource,
@@ -163,13 +160,10 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   scope.defer(resolvedTools.dispose);
   const { tools } = resolvedTools;
   const toolContext = {
-    workspaceRole: input.workspaceRole ?? "",
     runId: input.runId,
     attemptEpoch: input.attemptEpoch.toString(),
-    userId: input.userId,
-    tenantId: input.tenantId,
-    workspaceId: input.workspaceId,
     sessionId: input.sessionId,
+    media: input.media,
   };
   const toolsContext = Object.fromEntries(
     Object.entries(tools)
@@ -197,8 +191,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
     attemptEpoch: input.attemptEpoch,
-    userId: input.userId,
     sessionId: input.sessionId,
+    media: input.media,
   };
   const instructions = attachExecutionEnvironment(
     assembleInstructions(

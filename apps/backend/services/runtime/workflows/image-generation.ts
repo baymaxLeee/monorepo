@@ -2,28 +2,37 @@ import { generateImage, NoImageGeneratedError, type JSONValue } from "ai";
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
-import { createProviderImageModel } from "#runtime/provider-model";
-
-import { claimTaskStep } from "../src/application/tasks/binding.js";
-import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
-import { recordExternalTask, reportTaskProgress } from "../src/application/tasks/notify.js";
-import { getImageProvider } from "../src/infrastructure/clients/admin-media.js";
-import { createMediaDocument } from "../src/infrastructure/clients/knowledge-media.js";
-import { uploadAsset } from "../src/infrastructure/clients/storage-media.js";
+import { mediaProviderCapabilitySchema } from "../src/infrastructure/provider/capability.js";
 
 export const imageGenerationInputSchema = z.object({
-  tenantId: z.string().min(1),
-  workspaceId: z.string().min(1),
-  userId: z.string().min(1),
   sessionId: z.string().optional(),
-  providerId: z.string().min(1),
+  provider: mediaProviderCapabilitySchema.refine((provider) => provider.providerKind === "image", {
+    message: "image provider capability is required",
+  }),
   prompts: z.array(z.string().min(1).max(4_000)).min(1).max(6),
+  references: z
+    .array(
+      z.object({
+        assetId: z.string().uuid(),
+        revisionId: z.string().uuid(),
+        mediaType: z.string().regex(/^image\//),
+      }),
+    )
+    .max(5)
+    .default([]),
   idempotencyKey: z.string().min(1).max(120),
 });
 
 export type ImageGenerationInput = z.infer<typeof imageGenerationInputSchema>;
 
-type GeneratedImage = { documentId: string; filename: string; mediaType: string };
+type GeneratedImage = {
+  assetId: string;
+  revisionId: string;
+  filename: string;
+  mediaType: string;
+  sizeBytes: number;
+  sha256: string;
+};
 type FailedImage = { index: number; message: string };
 
 const IMAGE_OWNED_KEYS = new Set(["response_format", "prompt", "model", "n", "test_prompt"]);
@@ -90,17 +99,34 @@ function errorMessage(error: unknown): string {
 }
 
 async function generateOneImageStep(
-  input: ImageGenerationInput & { prompt: string; index: number },
+  input: ImageGenerationInput & { taskId: string; prompt: string; index: number },
 ): Promise<{ ok: true; image: GeneratedImage } | { ok: false; failure: FailedImage }> {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
+  const [cancellationModule, taskModule, storageModule] = await Promise.all([
+    import("../src/application/tasks/cancellation.js"),
+    import("../src/application/tasks/notify.js"),
+    import("../src/infrastructure/clients/storage-media.js"),
+  ]);
+  const { observeTaskCancellation } = cancellationModule;
+  const { recordExternalTask } = taskModule;
+  const { claimTaskAsset, readAsset, uploadAsset } = storageModule;
   const cancellation = observeTaskCancellation(workflowRunId);
   try {
-    const provider = await getImageProvider(input.providerId, input.tenantId, input.workspaceId, true);
+    const [{ validateMediaProviderCapability }, { createProviderImageModel }] = await Promise.all([
+      import("../src/infrastructure/provider/capability-validation.js"),
+      import("../src/infrastructure/provider/provider-model.js"),
+    ]);
+    const provider = await validateMediaProviderCapability(input.provider, "image");
     const configured = createProviderImageModel(provider);
+    const referenceImages = await Promise.all(
+      input.references.map((reference) =>
+        readAsset({ assetId: reference.assetId, revisionId: reference.revisionId, signal: cancellation.signal }),
+      ),
+    );
     const generated = await generateImage({
       model: configured.model,
-      prompt: input.prompt,
+      prompt: referenceImages.length > 0 ? { text: input.prompt, images: referenceImages } : input.prompt,
       n: 1,
       abortSignal: cancellation.signal,
       providerOptions: { [configured.providerOptionsKey]: providerOptions(provider.extraBody) },
@@ -109,9 +135,6 @@ async function generateOneImageStep(
     const contentType = mediaType(file.mediaType, file.uint8Array);
     const outputFilename = filename(input.prompt, IMAGE_EXTENSIONS[contentType] ?? "png", input.index);
     const asset = await uploadAsset({
-      tenantId: input.tenantId,
-      workspaceId: input.workspaceId,
-      userId: input.userId,
       filename: outputFilename,
       mediaType: contentType,
       category: "generated-image",
@@ -120,18 +143,25 @@ async function generateOneImageStep(
       idempotencyKey: `${input.idempotencyKey}-${input.index}`,
       signal: cancellation.signal,
     });
-    const document = await createMediaDocument({
-      userId: input.userId,
-      tenantId: input.tenantId,
-      workspaceId: input.workspaceId,
-      sessionId: input.sessionId,
-      title: input.prompt.slice(0, 80),
+    const slot = `image:${input.index}`;
+    await claimTaskAsset({
+      taskId: input.taskId,
+      slot,
       assetId: asset.assetId,
       revisionId: asset.revisionId,
-      idempotencyKey: `${input.idempotencyKey}-${input.index}`,
     });
-    await recordExternalTask(workflowRunId, document.id);
-    return { ok: true, image: { documentId: document.id, filename: document.filename, mediaType: contentType } };
+    await recordExternalTask(workflowRunId, slot);
+    return {
+      ok: true,
+      image: {
+        assetId: asset.assetId,
+        revisionId: asset.revisionId,
+        filename: asset.filename,
+        mediaType: contentType,
+        sizeBytes: asset.sizeBytes,
+        sha256: asset.sha256,
+      },
+    };
   } catch (error) {
     if (cancellation.signal.aborted) throw error;
     return { ok: false, failure: { index: input.index, message: errorMessage(error) } };
@@ -147,17 +177,24 @@ generateOneImageStep.maxRetries = 0;
 async function reportProgressStep(done: number, total: number): Promise<void> {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
+  const { reportTaskProgress } = await import("../src/application/tasks/notify.js");
   await reportTaskProgress(workflowRunId, { done, total });
+}
+
+async function claimTask(taskId: string): Promise<void> {
+  "use step";
+  const { claimTaskStep } = await import("../src/application/tasks/binding.js");
+  await claimTaskStep(taskId);
 }
 
 export async function imageGenerationWorkflow(input: ImageGenerationInput, taskId: string) {
   "use workflow";
-  await claimTaskStep(taskId);
+  await claimTask(taskId);
   const images: GeneratedImage[] = [];
   const failedItems: FailedImage[] = [];
   await reportProgressStep(0, input.prompts.length);
   for (const [index, prompt] of input.prompts.entries()) {
-    const result = await generateOneImageStep({ ...input, prompt, index });
+    const result = await generateOneImageStep({ ...input, taskId, prompt, index });
     if (result.ok) images.push(result.image);
     else failedItems.push(result.failure);
     await reportProgressStep(index + 1, input.prompts.length);

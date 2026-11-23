@@ -136,7 +136,7 @@ func (h *CanvasNodeHandler) CreateCanvasAsset(
 	}
 	item, err := h.assets.CreateCanvasAsset(ctx, applicationcanvasnode.CreateCanvasAssetInput{
 		Scope: canvasnodeScope(ctx, r.WorkspaceID), ProjectID: r.ProjectID, CanvasID: r.CanvasID,
-		SourceAssetID: r.SourceAssetID, SourceRevisionID: r.SourceRevisionID, FileName: r.FileName,
+		UploadSessionID: r.UploadSessionID, ClientRef: r.ClientRef,
 	})
 	if err != nil {
 		return nil, err
@@ -356,7 +356,7 @@ func uploadedAssetInput(value *thriftcanvasnode.CanvasUploadedAsset) *applicatio
 	if value == nil {
 		return nil
 	}
-	return &applicationcanvasnode.UploadedAssetInput{SourceAssetID: value.SourceAssetID, SourceRevisionID: value.SourceRevisionID, FileName: value.FileName}
+	return &applicationcanvasnode.UploadedAssetInput{UploadSessionID: value.UploadSessionID, ClientRef: value.ClientRef}
 }
 
 func (h *CanvasNodeHandler) CopyCanvasNode(ctx context.Context, r *thriftcanvasnode.CopyCanvasNodeRequest) (*thriftcanvasnode.CopyCanvasNodeResponse, error) {

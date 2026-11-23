@@ -125,8 +125,7 @@ func (h *CanvasHandler) CreateProjectCanvas(
 	}
 	item, err := h.service.Create(ctx, applicationcanvas.CreateInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID,
-		CoverImageAssetID: request.CoverImageAssetID,
-		Name:              request.Name, CoverImageRevisionID: request.CoverImageRevisionID,
+		Name: request.Name, CoverUpload: canvasCoverUpload(request.CoverUpload),
 	})
 	if err != nil {
 		return nil, err
@@ -143,13 +142,22 @@ func (h *CanvasHandler) UpdateProjectCanvas(
 	}
 	item, err := h.service.Update(ctx, applicationcanvas.UpdateInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, CanvasID: request.CanvasID,
-		CoverImageAssetID: request.CoverImageAssetID,
-		Name:              request.Name, CoverImageRevisionID: request.CoverImageRevisionID,
+		Name: request.Name, CoverUpload: canvasCoverUpload(request.CoverUpload), ClearCoverImage: request.ClearCoverImage,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &thriftcanvas.UpdateProjectCanvasResponse{Canvas: canvasSummary(item)}, nil
+}
+
+func canvasCoverUpload(upload *thriftcanvas.CoverUpload) *applicationcanvas.CoverUpload {
+	if upload == nil {
+		return nil
+	}
+	return &applicationcanvas.CoverUpload{
+		UploadSessionID: upload.UploadSessionID,
+		ClientRef:       upload.ClientRef,
+	}
 }
 
 func (h *CanvasHandler) UpdateCanvasView(

@@ -7,7 +7,6 @@ import {
   type TurnRecoveryDecision,
   toPersistedTurnPluginSnapshot,
   type PersistedTurnPluginSnapshot,
-  type PluginActivation,
   type ResolvedTurnPluginSnapshot,
   isToolOutcome,
 } from "@repo/agent-runtime";
@@ -188,7 +187,6 @@ function errorText(error: unknown): string {
 
 export async function createAgentRun(input: {
   sessionId: string;
-  userId: string;
   providerId: string;
   model: string;
   inputMessageId?: string | null;
@@ -203,7 +201,6 @@ export async function createAgentRun(input: {
       id: runId,
       threadId: input.sessionId,
       ordinal,
-      userId: input.userId,
       providerId: input.providerId,
       model: input.model,
       status: "running",
@@ -283,7 +280,7 @@ export async function persistTurnResumeEnvelope(
   for (const digest of [input.historyDigest, input.instructionDigest, input.toolCatalogDigest, input.workspaceDigest]) {
     if (!SHA256_PATTERN.test(digest)) throw new Error("turn resume envelope contains an invalid digest");
   }
-  if (input.snapshot.schemaVersion !== 1 || input.snapshot.auth.userId === "") {
+  if (input.snapshot.schemaVersion !== 2) {
     throw new Error("turn resume envelope contains an invalid snapshot");
   }
   return getDb().transaction(async (tx) => {
@@ -297,8 +294,7 @@ export async function persistTurnResumeEnvelope(
       attempt.threadId !== input.sessionId ||
       attempt.historyItemId !== input.historyMessageId ||
       attempt.historyRevision !== BigInt(input.historyRevision) ||
-      run.threadId !== input.sessionId ||
-      run.userId !== input.snapshot.auth.userId
+      run.threadId !== input.sessionId
     ) {
       throw new ConflictError("turn resume envelope does not match its journal binding", "resume_envelope_conflict");
     }
@@ -342,7 +338,6 @@ export async function persistTurnResumeEnvelope(
 
 export async function claimAgentRunOperation(input: {
   sessionId: string;
-  userId: string;
   providerId: string;
   model: string;
   requestId: string;
@@ -350,7 +345,7 @@ export async function claimAgentRunOperation(input: {
   operation: AgentRunOperation;
   targetMessageId?: string | null;
   continuationMessage?: UIMessage<unknown, any, any>;
-  requestContext?: { reasoningEffort?: string; pluginActivations?: PluginActivation[] };
+  requestContext?: { reasoningEffort?: string; capabilitiesDigest?: string };
   inputMessage?: {
     id: string;
     role: "user";
@@ -382,7 +377,6 @@ export async function claimAgentRunOperation(input: {
         .limit(1);
       if (!existing) return null;
       if (
-        existing.run.userId !== input.userId ||
         existing.attempt.requestFingerprint !== requestFingerprint ||
         existing.attempt.operation !== input.operation ||
         (existing.attempt.targetItemId ?? null) !== (input.targetMessageId ?? null)
@@ -406,31 +400,10 @@ export async function claimAgentRunOperation(input: {
     if (beforeLock) return beforeLock;
 
     const [session] = await tx.select().from(threads).where(eq(threads.id, input.sessionId)).for("update");
-    if (!session || session.userId !== input.userId) {
-      throw new RequestError("session does not belong to this user");
-    }
+    if (!session) throw new RequestError("session does not exist");
 
     const afterLock = await findExisting();
     if (afterLock) return afterLock;
-    if (session.historyRevision !== BigInt(input.expectedRevision)) {
-      throw new ConflictError("session history revision is stale", "history_revision_conflict", {
-        expected_revision: input.expectedRevision,
-        current_revision: Number(session.historyRevision),
-      });
-    }
-
-    const rows = await tx
-      .select({
-        id: threadItems.id,
-        turnId: threadItems.turnId,
-        parentMessageId: threadItems.parentItemId,
-        role: threadItems.role,
-        branchIndex: threadItems.branchIndex,
-        content: threadItems.content,
-        status: threadItems.status,
-      })
-      .from(threadItems)
-      .where(eq(threadItems.threadId, input.sessionId));
     const now = new Date();
     const [activeLease] = await tx
       .select()
@@ -459,6 +432,25 @@ export async function claimAgentRunOperation(input: {
           ),
         );
     }
+    if (session.historyRevision !== BigInt(input.expectedRevision)) {
+      throw new ConflictError("session history revision is stale", "history_revision_conflict", {
+        expected_revision: input.expectedRevision,
+        current_revision: Number(session.historyRevision),
+      });
+    }
+
+    const rows = await tx
+      .select({
+        id: threadItems.id,
+        turnId: threadItems.turnId,
+        parentMessageId: threadItems.parentItemId,
+        role: threadItems.role,
+        branchIndex: threadItems.branchIndex,
+        content: threadItems.content,
+        status: threadItems.status,
+      })
+      .from(threadItems)
+      .where(eq(threadItems.threadId, input.sessionId));
     const byId = new Map(rows.map((row) => [row.id, row] as const));
     const selectedIds = new Set<string>();
     let selected = session.selectedItemId ? byId.get(session.selectedItemId) : undefined;
@@ -595,7 +587,6 @@ export async function claimAgentRunOperation(input: {
         id: runId,
         threadId: input.sessionId,
         ordinal: turnOrdinal,
-        userId: input.userId,
         providerId: input.providerId,
         model: input.model,
         status: "running",
@@ -641,7 +632,6 @@ export async function claimAgentRunOperation(input: {
 export async function getAgentRunById(runId: string): Promise<{
   id: string;
   sessionId: string;
-  userId: string;
   providerId: string;
   status: AgentRunStatus;
   requestId: string | null;
@@ -665,7 +655,6 @@ export async function getAgentRunById(runId: string): Promise<{
   return {
     id: row.id,
     sessionId: row.threadId,
-    userId: row.userId,
     providerId: row.providerId,
     status: row.status as AgentRunStatus,
     requestId: attempt?.requestId ?? null,
@@ -1092,10 +1081,7 @@ export async function claimOrphanedTurnRecovery(runId: string, now = new Date())
       envelope.historyItemId === attempt.historyItemId &&
       envelope.historyRevision === attempt.historyRevision &&
       envelope.compactorVersion !== "" &&
-      envelope.snapshot.schemaVersion === 1 &&
-      envelope.snapshot.auth.userId === run.userId &&
-      envelope.snapshot.auth.tenantId === thread.tenantId &&
-      envelope.snapshot.auth.workspaceId === thread.workspaceId &&
+      envelope.snapshot.schemaVersion === 2 &&
       envelope.snapshot.execution.providerBinding.id === run.providerId &&
       envelope.snapshot.execution.providerBinding.model === run.model &&
       (run.outputItemId === null || envelope.snapshot.execution.assistantMessageId === run.outputItemId);

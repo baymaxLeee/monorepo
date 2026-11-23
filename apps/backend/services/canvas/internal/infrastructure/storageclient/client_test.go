@@ -19,10 +19,10 @@ type uploadSessionServer struct {
 }
 
 func (server *uploadSessionServer) CreateUploadSession(_ context.Context, request *storagev1.CreateUploadSessionRequest) (*storagev1.CreateUploadSessionResponse, error) {
-	if request.GetIntentId() != "intent" || request.GetActor().GetTenantId() != "tenant" || request.GetActor().GetWorkspaceId() != "workspace" {
+	if request.GetIntentId() != "intent" {
 		server.t.Fatalf("request = %#v", request)
 	}
-	return &storagev1.CreateUploadSessionResponse{Session: &storagev1.UploadSession{UploadSessionId: "019d0000-0000-7000-8000-000000000001", IntentId: "intent", State: storagev1.UploadSessionState_UPLOAD_SESSION_STATE_PENDING, UserId: "user", Category: "canvas-cover", Filename: "cover.png", MediaType: "image/png", SizeBytes: 128, ExpiresAt: timestamppb.New(time.Now().UTC().Add(time.Hour)), UploadUrl: "/api/storage-server/upload-sessions/session/content"}}, nil
+	return &storagev1.CreateUploadSessionResponse{Session: &storagev1.UploadSession{UploadSessionId: "019d0000-0000-7000-8000-000000000001", IntentId: "intent", State: storagev1.UploadSessionState_UPLOAD_SESSION_STATE_PENDING, Filename: "cover.png", MediaType: "image/png", SizeBytes: 128, ExpiresAt: timestamppb.New(time.Now().UTC().Add(time.Hour)), UploadUrl: "/api/storage-server/upload-sessions/session/content"}}, nil
 }
 
 func TestCreateUploadSessionUsesAssetIntentContract(t *testing.T) {
@@ -38,7 +38,7 @@ func TestCreateUploadSessionUsesAssetIntentContract(t *testing.T) {
 	t.Cleanup(func() { _ = connection.Close(); server.Stop(); _ = listener.Close() })
 
 	client := New(connection)
-	session, err := client.CreateUploadSession(context.Background(), CreateUploadSessionInput{TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "cover.png", MediaType: "image/png", Category: "canvas-cover", IdempotencyKey: "intent", SizeBytes: 128})
+	session, err := client.CreateUploadSession(context.Background(), CreateUploadSessionInput{Filename: "cover.png", MediaType: "image/png", IdempotencyKey: "intent", SizeBytes: 128})
 	if err != nil {
 		t.Fatalf("CreateUploadSession() error = %v", err)
 	}

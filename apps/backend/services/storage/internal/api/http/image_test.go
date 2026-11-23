@@ -47,9 +47,9 @@ func TestImageVariantPreservesOriginalAndFlattensTransparency(t *testing.T) {
 
 func TestVariantSignatureCannotBeUsedForOriginalOrDifferentSize(t *testing.T) {
 	router := &Router{signingKey: []byte("secret")}
-	original := router.signDeliveryVariant("t", "w", "a", "r", 1234, 0)
-	thumbnail := router.signDeliveryVariant("t", "w", "a", "r", 1234, 512)
-	if original == thumbnail || thumbnail == router.signDeliveryVariant("t", "w", "a", "r", 1234, 1024) {
+	original := router.signDeliveryVariant("a", "r", 1234, 0)
+	thumbnail := router.signDeliveryVariant("a", "r", 1234, 512)
+	if original == thumbnail || thumbnail == router.signDeliveryVariant("a", "r", 1234, 1024) {
 		t.Fatal("transformation parameters must be signed")
 	}
 }

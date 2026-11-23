@@ -12,9 +12,6 @@ import {
 import { getServerSettings } from "../../config/server.js";
 
 export interface SandboxScope {
-  tenant_id: string;
-  workspace_id: string;
-  user_id: string;
   session_id: string;
   run_id: string;
   attempt_epoch: string;
@@ -22,10 +19,7 @@ export interface SandboxScope {
 
 function transportScope(scope: SandboxScope): TransportSandboxScope {
   return {
-    tenant_id: scope.tenant_id,
-    workspace_id: scope.workspace_id,
-    user_id: scope.user_id,
-    conversation_id: scope.session_id,
+    session_id: scope.session_id,
     run_id: scope.run_id,
     attempt_epoch: scope.attempt_epoch,
   };

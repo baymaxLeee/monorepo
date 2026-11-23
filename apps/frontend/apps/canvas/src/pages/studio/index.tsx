@@ -613,7 +613,7 @@ function StudioContent() {
           .getForShot(shotId)
           .find((item) => item.id === candidate.id || item.draftId === candidate.id);
         if (!local) throw new Error("local asset is not available");
-        if (!local.sourceAssetId || !local.sourceRevisionId) {
+        if (!local.uploadSessionId || !local.uploadClientRef) {
           const task = assetTaskRef.current.get(candidate.id);
           if (!task) throw new Error("local asset upload is not available");
           await task;
@@ -621,13 +621,12 @@ function StudioContent() {
             .getForShot(shotId)
             .find((item) => item.id === candidate.id || item.draftId === candidate.id);
         }
-        if (!local?.sourceAssetId || !local.sourceRevisionId) {
-          throw new Error("local Asset revision is not available");
+        if (!local?.uploadSessionId || !local.uploadClientRef) {
+          throw new Error("local upload receipt is not available");
         }
         uploadedAsset = {
-          SourceAssetID: local.sourceAssetId,
-          SourceRevisionID: local.sourceRevisionId,
-          FileName: local.title,
+          UploadSessionID: local.uploadSessionId,
+          ClientRef: local.uploadClientRef,
         };
         resolvedCandidate = {
           ...candidate,
@@ -766,7 +765,7 @@ function StudioContent() {
           await task;
           current = assetStore.getForShot(shotId).find((item) => item.id === draftId || item.draftId === draftId);
         }
-        if (!current?.sourceAssetId || !current.sourceRevisionId) {
+        if (!current?.uploadSessionId || !current.uploadClientRef) {
           throw new Error(t("素材尚未就绪，请稍后重试"));
         }
         if (requestID !== reviewRequestIDRef.current) return;
@@ -776,10 +775,8 @@ function StudioContent() {
           onUpdated,
           shotId,
           upload: {
-            SourceAssetID: current.sourceAssetId,
-            SourceRevisionID: current.sourceRevisionId,
-            ClientID: draftId,
-            FileName: current.title,
+            UploadSessionID: current.uploadSessionId,
+            ClientRef: current.uploadClientRef,
           },
         });
       } catch (reason) {
@@ -856,6 +853,8 @@ function StudioContent() {
           ...releaseAssetLocalFile(item),
           sourceAssetId: uploaded.SourceAssetID,
           sourceRevisionId: uploaded.SourceRevisionID,
+          uploadSessionId: uploaded.UploadSessionID,
+          uploadClientRef: uploaded.ClientRef,
           syncStatus: "uploaded",
         }));
         return uploaded;
@@ -1652,7 +1651,7 @@ function StudioContent() {
         onProgress: () => undefined,
         onSuccess: (response) => {
           const uploaded = response as UploadAssetResult | undefined;
-          if (uploaded?.SourceAssetID && uploaded.SourceRevisionID) {
+          if (uploaded?.UploadSessionID && uploaded.ClientRef) {
             resolve(uploaded);
             return;
           }
@@ -1796,7 +1795,7 @@ function StudioContent() {
       (current, result) => [...current.filter((review) => review.PackageID !== result.Review.PackageID), result.Review],
       reviewRequest.item.reviews ?? [],
     );
-    const draftId = reviewRequest.upload?.ClientID;
+    const draftId = reviewRequest.upload ? (reviewRequest.item.draftId ?? reviewRequest.item.id) : undefined;
     const requestedAssetId = reviewRequest.item.assetId ?? reviewRequest.item.id;
     assetStore.updateDraft(reviewRequest.shotId, (current) =>
       current.map((item) => {
@@ -1809,6 +1808,8 @@ function StudioContent() {
               assetId: latest.AssetID,
               sourceAssetId: draftId ? undefined : item.sourceAssetId,
               sourceRevisionId: draftId ? undefined : item.sourceRevisionId,
+              uploadSessionId: draftId ? undefined : item.uploadSessionId,
+              uploadClientRef: draftId ? undefined : item.uploadClientRef,
               draftId: draftId ?? item.draftId,
               // 已持久化素材的 id 是 CanvasNodeID；只有本地草稿送审后才切到 AssetID。
               id: draftId ? latest.AssetID : item.id,

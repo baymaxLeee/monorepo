@@ -7,8 +7,56 @@ import (
 
 	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
+	applicationuploadintent "github.com/example/monorepo/canvas/internal/application/uploadintent"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 )
+
+func TestCreateRequiresScopeBoundUploadReceipt(t *testing.T) {
+	t.Parallel()
+
+	sessions := &assetUploadSessionStub{}
+	uploads := applicationuploadintent.New(sessions)
+	scope := Scope{TenantID: "tenant", CallerID: "user"}
+	plan, err := uploads.Prepare(context.Background(), applicationuploadintent.PrepareInput{
+		Scope: applicationuploadintent.Scope{TenantID: "tenant", UserID: "user"}, ClientRef: "client-ref",
+		Purpose: applicationuploadintent.PurposeSource, Filename: "clip.mp4", MediaType: "video/mp4", SizeBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+	sessions.session.State = "completed"
+	sessions.session.AssetID = "storage-asset"
+	sessions.session.RevisionID = "storage-revision"
+
+	repository := &persistRepositoryStub{}
+	revisions := &revisionStoreStub{}
+	service := NewService(
+		repository, ownerResolverStub{}, revisions, idGeneratorStub{}, clockStub{now: time.Unix(100, 0)},
+		WithClaimIntents(&claimIntentStub{}, transactionStub{}), WithUploadIntents(uploads),
+	)
+	item, created, err := service.CreateIdempotent(context.Background(), CreateInput{
+		Scope: scope, OwnerType: domainasset.OwnerProject, OwnerID: "project",
+		UploadSessionID: plan.UploadSessionID, ClientRef: "client-ref",
+	})
+	if err != nil {
+		t.Fatalf("CreateIdempotent() error = %v", err)
+	}
+	if !created || item.SourceAssetID != "storage-asset" || item.SourceRevisionID != "storage-revision" || item.FileName != "clip.mp4" {
+		t.Fatalf("CreateIdempotent() = %#v, created = %v", item, created)
+	}
+	if revisions.ref != (RevisionRef{SourceAssetID: "storage-asset", SourceRevisionID: "storage-revision"}) {
+		t.Fatalf("Resolve() ref = %#v", revisions.ref)
+	}
+
+	foreign := scope
+	foreign.CallerID = "other-user"
+	if _, _, err = service.CreateIdempotent(context.Background(), CreateInput{
+		Scope: foreign, OwnerType: domainasset.OwnerProject, OwnerID: "project",
+		UploadSessionID: plan.UploadSessionID, ClientRef: "client-ref",
+	}); err == nil {
+		t.Fatal("CreateIdempotent() accepted another user's upload receipt")
+	}
+}
 
 func TestPersistPreparedCreatesUsesCanvasAttachmentQuotaIdentity(t *testing.T) {
 	t.Parallel()
@@ -64,6 +112,10 @@ func (stub *persistRepositoryStub) Create(_ context.Context, item domainasset.As
 
 type ownerResolverStub struct{ OwnerResolver }
 
+func (ownerResolverStub) Validate(context.Context, Scope, domainasset.OwnerType, string) error {
+	return nil
+}
+
 func (ownerResolverStub) ValidateForUpdate(context.Context, Scope, domainasset.OwnerType, string) error {
 	return nil
 }
@@ -114,3 +166,36 @@ func (stub *claimIntentStub) EnsureActive(_ context.Context, intent applicationa
 type clockStub struct{ now time.Time }
 
 func (stub clockStub) Now() time.Time { return stub.now }
+
+type idGeneratorStub struct{}
+
+func (idGeneratorStub) NewID() (string, error) { return "canvas-asset", nil }
+
+type revisionStoreStub struct {
+	RevisionStore
+	ref RevisionRef
+}
+
+func (stub *revisionStoreStub) Resolve(_ context.Context, ref RevisionRef) (ResolvedRevision, error) {
+	stub.ref = ref
+	return ResolvedRevision{
+		SourceAssetID: ref.SourceAssetID, SourceRevisionID: ref.SourceRevisionID,
+		MediaType: domainasset.MediaVideo, ContentType: "video/mp4", SizeBytes: 1024,
+	}, nil
+}
+
+type assetUploadSessionStub struct {
+	session applicationuploadintent.UploadSession
+}
+
+func (stub *assetUploadSessionStub) CreateUploadSession(_ context.Context, input applicationuploadintent.CreateUploadSessionInput) (applicationuploadintent.UploadSession, error) {
+	stub.session = applicationuploadintent.UploadSession{
+		UploadSessionID: "upload-session", IntentID: input.IdempotencyKey, State: "pending",
+		Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes,
+	}
+	return stub.session, nil
+}
+
+func (stub *assetUploadSessionStub) GetUploadSession(context.Context, string) (applicationuploadintent.UploadSession, error) {
+	return stub.session, nil
+}

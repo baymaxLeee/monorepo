@@ -9,6 +9,11 @@ import {
 
 import type * as common from "./common";
 
+export interface CoverUpload {
+  UploadSessionID: string;
+  ClientRef: string;
+}
+
 export {
   CanvasVideoArchiveExportStatus,
   CanvasViewMode,
@@ -58,8 +63,7 @@ export interface CreateProjectCanvasRequest {
   ProjectID: string;
   /** Name 是剧集名称，在所属项目内唯一。 */
   Name: string;
-  CoverImageAssetID?: string;
-  CoverImageRevisionID?: string;
+  CoverUpload?: CoverUpload;
 }
 
 export interface CreateProjectCanvasResponse {
@@ -234,8 +238,8 @@ export interface UpdateProjectCanvasRequest {
   CanvasID: string;
   /** Name 是更新后的剧集名称，在所属项目内唯一。 */
   Name: string;
-  CoverImageAssetID?: string;
-  CoverImageRevisionID?: string;
+  CoverUpload?: CoverUpload;
+  ClearCoverImage?: boolean;
 }
 
 export interface UpdateProjectCanvasResponse {

@@ -1,20 +1,16 @@
 import { assembleInstructions } from "@repo/agent-runtime";
 
-import type { AuthContext } from "../../api/http/middleware/auth.js";
-import { getProvider } from "../../infrastructure/clients/admin.js";
 import type { ReasoningEffort } from "../../infrastructure/provider/provider-model.js";
+import type { RuntimeProviderCapability } from "../agent/runtime/types.js";
 import { ForbiddenError } from "../errors.js";
-import { reserveInference } from "./admission.js";
 import type { RelayProvider } from "./policy.js";
 import { createInferenceModel } from "./provider.js";
 
 export async function resolveInferenceProvider(
-  auth: AuthContext,
-  providerId: string,
+  provider: RuntimeProviderCapability,
   reasoningEffort: ReasoningEffort,
 ): Promise<RelayProvider> {
-  const provider = await getProvider(auth.tenantId, auth.workspaceId, providerId);
-  if (!provider.isEnabled) throw new ForbiddenError("Model provider is disabled");
+  if ((provider.providerKind ?? "chat") !== "chat") throw new ForbiddenError("Model provider is not a chat provider");
   return {
     config: {
       providerId: provider.id,
@@ -28,4 +24,3 @@ export async function resolveInferenceProvider(
     model: createInferenceModel(provider, reasoningEffort),
   };
 }
-export const inferenceDependencies = { resolve: resolveInferenceProvider, reserve: reserveInference };

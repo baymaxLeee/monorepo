@@ -2,8 +2,6 @@ import { randomBytes } from "node:crypto";
 
 import { and, eq } from "drizzle-orm";
 
-import type { AuthContext } from "../api/http/middleware/auth.js";
-import { forkSessionDocuments } from "../infrastructure/clients/knowledge.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import { threadArtifactCleanupOutbox, threadItems, threads, turnLeases } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
@@ -22,31 +20,21 @@ export function selectForkMessages(history: Message[], messageId: string): Messa
 export const sessionForkDependencies = {
   getSessionRow,
   listMessages,
-  forkSessionDocuments,
   async hasActiveRun(id: string) {
     const rows = await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, id));
     return rows.length > 0;
   },
-  async reserve(auth: AuthContext, id: string, now: Date) {
+  async reserve(id: string, now: Date) {
     // The existing cleanup relay leases this compensation intent. If the
     // process dies before publication, it releases the orphaned file claims.
     await getDb().insert(threadArtifactCleanupOutbox).values({
       threadId: id,
-      userId: auth.userId,
-      tenantId: auth.tenantId,
-      workspaceId: auth.workspaceId,
       createdAt: now,
       availableAt: now,
       claimedAt: now,
     });
   },
-  async publish(
-    source: Awaited<ReturnType<typeof getSessionRow>>,
-    id: string,
-    now: Date,
-    history: Message[],
-    documentIds: Record<string, string>,
-  ) {
+  async publish(source: Awaited<ReturnType<typeof getSessionRow>>, id: string, now: Date, history: Message[]) {
     await getDb().transaction(async (tx) => {
       // Turn admission advances turnSequence under the same Thread row lock.
       // A Turn that starts AND ends during the external copy still invalidates it.
@@ -76,9 +64,6 @@ export const sessionForkDependencies = {
       const copiedIds = history.map(() => randomBytes(16).toString("hex"));
       await tx.insert(threads).values({
         id,
-        userId: source.userId,
-        tenantId: source.tenantId,
-        workspaceId: source.workspaceId,
         createRequestId: `fork:${id}`,
         model: source.model,
         providerId: source.providerId,
@@ -90,9 +75,6 @@ export const sessionForkDependencies = {
       const fileIds = await forkSessionFileRows(tx, {
         sourceSessionId: source.id,
         sessionId: id,
-        userId: source.userId,
-        tenantId: source.tenantId,
-        workspaceId: source.workspaceId,
         now,
       });
       await tx.insert(threadItems).values(
@@ -107,7 +89,6 @@ export const sessionForkDependencies = {
             sourceId: source.id,
             sessionId: id,
             messageId: message.id,
-            documentIds,
             fileIds,
           }),
           status: message.status === "streaming" ? "failed" : message.status,
@@ -120,33 +101,20 @@ export const sessionForkDependencies = {
   },
   async release(id: string, now: Date) {
     await getDb()
-      .update(threadArtifactCleanupOutbox)
-      .set({ claimedAt: null })
+      .delete(threadArtifactCleanupOutbox)
       .where(and(eq(threadArtifactCleanupOutbox.threadId, id), eq(threadArtifactCleanupOutbox.claimedAt, now)));
   },
 };
 
-export async function forkSession(
-  auth: AuthContext,
-  sourceId: string,
-  messageId: string,
-  deps = sessionForkDependencies,
-) {
-  const source = await deps.getSessionRow(auth, sourceId);
+export async function forkSession(sourceId: string, messageId: string, deps = sessionForkDependencies) {
+  const source = await deps.getSessionRow(sourceId);
   if (await deps.hasActiveRun(sourceId)) throw new ConflictError("请先停止当前生成，再创建分支");
   const history = selectForkMessages(await deps.listMessages(sourceId), messageId);
   const id = randomBytes(16).toString("hex");
   const now = new Date();
-  await deps.reserve(auth, id, now);
+  await deps.reserve(id, now);
   try {
-    const snapshot = await deps.forkSessionDocuments({
-      sourceSessionId: sourceId,
-      sessionId: id,
-      userId: auth.userId,
-      tenantId: auth.tenantId,
-      workspaceId: auth.workspaceId,
-    });
-    await deps.publish(source, id, now, history, snapshot.document_ids);
+    await deps.publish(source, id, now, history);
     return { id, source_session_id: sourceId, source_message_id: messageId };
   } catch (error) {
     // Failure leaves the durable intent for the relay; source data is untouched.

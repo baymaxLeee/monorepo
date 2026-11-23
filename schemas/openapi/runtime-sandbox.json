@@ -673,22 +673,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "tenant_id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "workspace_id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "user_id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "conversation_id": {
+          "session_id": {
             "type": "string",
             "minLength": 1,
             "maxLength": 128
@@ -705,10 +690,7 @@
           }
         },
         "required": [
-          "tenant_id",
-          "workspace_id",
-          "user_id",
-          "conversation_id",
+          "session_id",
           "run_id",
           "attempt_epoch"
         ],
@@ -721,22 +703,7 @@
           "scope": {
             "type": "object",
             "properties": {
-              "tenant_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "workspace_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "user_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "conversation_id": {
+              "session_id": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 128
@@ -753,10 +720,7 @@
               }
             },
             "required": [
-              "tenant_id",
-              "workspace_id",
-              "user_id",
-              "conversation_id",
+              "session_id",
               "run_id",
               "attempt_epoch"
             ],
@@ -1125,22 +1089,7 @@
           "scope": {
             "type": "object",
             "properties": {
-              "tenant_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "workspace_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "user_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "conversation_id": {
+              "session_id": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 128
@@ -1157,10 +1106,7 @@
               }
             },
             "required": [
-              "tenant_id",
-              "workspace_id",
-              "user_id",
-              "conversation_id",
+              "session_id",
               "run_id",
               "attempt_epoch"
             ],

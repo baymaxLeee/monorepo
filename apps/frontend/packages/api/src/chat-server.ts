@@ -71,7 +71,170 @@ export const AgentRunRequestTrigger = {
   "regenerate-message": "regenerate-message",
 } as const;
 
+export type RuntimeMediaProviderCapabilityProviderKind =
+  (typeof RuntimeMediaProviderCapabilityProviderKind)[keyof typeof RuntimeMediaProviderCapabilityProviderKind];
+
+export const RuntimeMediaProviderCapabilityProviderKind = {
+  image: "image",
+  video: "video",
+} as const;
+
+export type RuntimeMediaProviderCapabilityExtraBody = { [key: string]: unknown };
+
+/**
+ * @nullable
+ */
+export type RuntimeMediaProviderCapabilityPricing = {
+  currency: string;
+  unit: "generated_item" | "generated_second";
+  /** @minimum 0 */
+  unitPriceMicros: number;
+} | null;
+
+export interface RuntimeMediaProviderCapability {
+  apiKey: string;
+  baseUrl: string;
+  /** @minimum 0 */
+  contextWindow: number;
+  extraBody: RuntimeMediaProviderCapabilityExtraBody;
+  id: string;
+  isDefault: boolean;
+  /** @minimum 0 */
+  maxOutputTokens: number;
+  model: string;
+  name: string;
+  /** @nullable */
+  pricing: RuntimeMediaProviderCapabilityPricing;
+  providerKind: RuntimeMediaProviderCapabilityProviderKind;
+}
+
+export interface RuntimeMediaCapabilities {
+  /** @maxItems 32 */
+  providers: RuntimeMediaProviderCapability[];
+}
+
+export interface MemoryDatum {
+  /**
+   * @minLength 1
+   * @maxLength 40
+   */
+  category: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  confidence: number;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  content: string;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  id: string;
+}
+
+export type RuntimeProviderCapabilityExtraBody = { [key: string]: unknown };
+
+export interface RuntimeProviderCapability {
+  /**
+   * @minLength 1
+   * @maxLength 16384
+   */
+  apiKey: string;
+  /** @maxLength 2048 */
+  baseUrl: string;
+  /** @minimum 1 */
+  contextWindow: number;
+  extraBody: RuntimeProviderCapabilityExtraBody;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  id: string;
+  /** @minimum 0 */
+  maxOutputTokens: number;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  model: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  /** @maxLength 64 */
+  providerKind?: string;
+  supportsImageInput: boolean;
+}
+
+export type FrozenSkillFile =
+  | {
+      content: string;
+      /** @nullable */
+      mimeType: string | null;
+      storageKind: "inline";
+    }
+  | {
+      /** @minLength 1 */
+      assetId: string;
+      /** @nullable */
+      mimeType: string | null;
+      /** @minLength 1 */
+      revisionId: string;
+      /** @pattern ^[a-f0-9]{64}$ */
+      sha256: string;
+      /** @minimum 0 */
+      sizeBytes: number;
+      storageKind: "asset";
+      /** @minLength 1 */
+      url: string;
+    };
+
+export type FrozenSkillSnapshotFiles = { [key: string]: FrozenSkillFile };
+
+export interface FrozenSkillSnapshot {
+  /**
+   * @minLength 1
+   * @maxLength 1048576
+   */
+  body: string;
+  /** @maxLength 4096 */
+  description: string;
+  files: FrozenSkillSnapshotFiles;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  id: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+}
+
+/**
+ * Validated immutable plugin snapshot with ephemeral opaque connection grants
+ */
+export type TurnCapabilitiesPlugins = { [key: string]: unknown };
+
+export interface TurnCapabilities {
+  media: RuntimeMediaCapabilities;
+  /** @maxItems 64 */
+  memories: MemoryDatum[];
+  /** Validated immutable plugin snapshot with ephemeral opaque connection grants */
+  plugins: TurnCapabilitiesPlugins;
+  provider: RuntimeProviderCapability;
+  /** @maxItems 64 */
+  skills: FrozenSkillSnapshot[];
+}
+
 export interface AgentRunRequest {
+  capabilities: TurnCapabilities;
   /** @minimum 0 */
   expected_revision: number;
   id?: string;
@@ -392,67 +555,9 @@ export interface ConversationDetail {
   revision: number;
   /** @nullable */
   selected_message_id: string | null;
-  tenant_id: string;
-  title: string;
-  updated_at: string;
-  user_id: string;
-  workspace_id: string;
-}
-
-export type ConversationDocumentIngestStatus =
-  (typeof ConversationDocumentIngestStatus)[keyof typeof ConversationDocumentIngestStatus];
-
-export const ConversationDocumentIngestStatus = {
-  uploading: "uploading",
-  processing: "processing",
-  completed: "completed",
-  failed: "failed",
-  cancelled: "cancelled",
-  pending: "pending",
-} as const;
-
-export type ConversationDocumentKind = (typeof ConversationDocumentKind)[keyof typeof ConversationDocumentKind];
-
-export const ConversationDocumentKind = {
-  source: "source",
-  artifact: "artifact",
-} as const;
-
-export interface ConversationDocument {
-  /** @nullable */
-  asset_id: string | null;
-  conversation_id: string;
-  created_at: string;
-  editable_source: boolean;
-  filename: string;
-  id: string;
-  /** @nullable */
-  ingest_error: string | null;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  ingest_progress: number;
-  ingest_status: ConversationDocumentIngestStatus;
-  kind: ConversationDocumentKind;
-  mime_type: string;
-  /** @nullable */
-  source_filename: string | null;
-  /** @nullable */
-  source_mime_type: string | null;
-  /** @nullable */
-  source_revision_id: string | null;
-  /** @nullable */
-  source_sha256: string | null;
-  /** @minimum 0 */
-  source_size: number;
   title: string;
   updated_at: string;
 }
-
-export type ConversationDocumentDetail = ConversationDocument & {
-  content_md: string;
-};
 
 export interface CreateCanvasConversationInput {
   /**
@@ -510,6 +615,11 @@ export interface DeletedMemory {
   deleted: boolean;
 }
 
+export interface LocalInferenceConfigRequest {
+  provider: RuntimeProviderCapability;
+  reasoningEffort: ReasoningEffort;
+}
+
 export type LocalInferenceSchema0 =
   | string
   | number
@@ -526,13 +636,188 @@ export type LocalInferenceSchema1 =
   | (LocalInferenceSchema1 | null)[]
   | { [key: string]: LocalInferenceSchema1 | null };
 
-export type LocalInferenceSchema2 =
-  | string
-  | number
-  | boolean
-  | null
-  | (LocalInferenceSchema2 | null)[]
-  | { [key: string]: LocalInferenceSchema2 | null };
+export type LocalInferenceStreamRequestRequestOptionsPromptItem =
+  | {
+      content: string;
+      role: "system";
+    }
+  | {
+      content: (
+        | {
+            text: string;
+            type: "text";
+          }
+        | {
+            data:
+              | {
+                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                  data: string;
+                  type: "data";
+                }
+              | {
+                  text: string;
+                  type: "text";
+                };
+            /** @maxLength 255 */
+            filename?: string;
+            /** @maxLength 200 */
+            mediaType: string;
+            type: "file";
+          }
+      )[];
+      role: "user";
+    }
+  | {
+      content: (
+        | {
+            text: string;
+            type: "text";
+          }
+        | {
+            text: string;
+            type: "reasoning";
+          }
+        | {
+            data:
+              | {
+                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                  data: string;
+                  type: "data";
+                }
+              | {
+                  text: string;
+                  type: "text";
+                };
+            /** @maxLength 255 */
+            filename?: string;
+            /** @maxLength 200 */
+            mediaType: string;
+            type: "file";
+          }
+        | {
+            input: LocalInferenceSchema0 | null;
+            providerExecuted?: false;
+            toolCallId: string;
+            toolName: string;
+            type: "tool-call";
+          }
+        | {
+            output:
+              | {
+                  type: "text" | "error-text";
+                  value: string;
+                }
+              | {
+                  type: "json" | "error-json";
+                  value: LocalInferenceSchema1 | null;
+                }
+              | {
+                  reason?: string;
+                  type: "execution-denied";
+                }
+              | {
+                  type: "content";
+                  value: (
+                    | {
+                        text: string;
+                        type: "text";
+                      }
+                    | {
+                        data:
+                          | {
+                              /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                              data: string;
+                              type: "data";
+                            }
+                          | {
+                              text: string;
+                              type: "text";
+                            };
+                        /** @maxLength 255 */
+                        filename?: string;
+                        /** @maxLength 200 */
+                        mediaType: string;
+                        type: "file";
+                      }
+                  )[];
+                };
+            toolCallId: string;
+            toolName: string;
+            type: "tool-result";
+          }
+      )[];
+      role: "assistant";
+    }
+  | {
+      content: {
+        output:
+          | {
+              type: "text" | "error-text";
+              value: string;
+            }
+          | {
+              type: "json" | "error-json";
+              value: LocalInferenceSchema1 | null;
+            }
+          | {
+              reason?: string;
+              type: "execution-denied";
+            }
+          | {
+              type: "content";
+              value: (
+                | {
+                    text: string;
+                    type: "text";
+                  }
+                | {
+                    data:
+                      | {
+                          /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                          data: string;
+                          type: "data";
+                        }
+                      | {
+                          text: string;
+                          type: "text";
+                        };
+                    /** @maxLength 255 */
+                    filename?: string;
+                    /** @maxLength 200 */
+                    mediaType: string;
+                    type: "file";
+                  }
+              )[];
+            };
+        toolCallId: string;
+        toolName: string;
+        type: "tool-result";
+      }[];
+      role: "tool";
+    };
+
+export type LocalInferenceStreamRequestRequestOptionsReasoning =
+  (typeof LocalInferenceStreamRequestRequestOptionsReasoning)[keyof typeof LocalInferenceStreamRequestRequestOptionsReasoning];
+
+export const LocalInferenceStreamRequestRequestOptionsReasoning = {
+  "provider-default": "provider-default",
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export type LocalInferenceStreamRequestRequestOptionsToolChoice =
+  | {
+      type: "auto" | "none" | "required";
+    }
+  | {
+      toolName: string;
+      type: "tool";
+    };
 
 export type LocalInferenceSchema3 =
   | string
@@ -541,6 +826,103 @@ export type LocalInferenceSchema3 =
   | null
   | (LocalInferenceSchema3 | null)[]
   | { [key: string]: LocalInferenceSchema3 | null };
+
+export type LocalInferenceSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | (LocalInferenceSchema2 | null)[]
+  | { [key: string]: LocalInferenceSchema2 | null };
+
+export type LocalInferenceStreamRequestRequestOptionsToolsItem =
+  | {
+      description?: string;
+      inputExamples?: {
+        input: { [key: string]: LocalInferenceSchema3 | null };
+      }[];
+      inputSchema: { [key: string]: LocalInferenceSchema2 | null };
+      /**
+       * @maxLength 128
+       * @pattern ^[a-zA-Z0-9_-]+$
+       */
+      name: string;
+      strict?: boolean;
+      type: "function";
+    }
+  | {
+      args: {
+        description: string;
+        format: {
+          /** @maxLength 4096 */
+          definition: string;
+          syntax: "lark";
+          type: "grammar";
+        };
+      };
+      id: "openai.custom";
+      name: "apply_patch";
+      type: "provider";
+    };
+
+export type LocalInferenceStreamRequestRequestOptions = {
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  maxOutputTokens: number;
+  /** @minItems 1 */
+  prompt: LocalInferenceStreamRequestRequestOptionsPromptItem[];
+  reasoning?: LocalInferenceStreamRequestRequestOptionsReasoning;
+  /**
+   * @minimum 0
+   * @maximum 2
+   */
+  temperature?: number;
+  toolChoice?: LocalInferenceStreamRequestRequestOptionsToolChoice;
+  /** @maxItems 128 */
+  tools?: LocalInferenceStreamRequestRequestOptionsToolsItem[];
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  topP?: number;
+};
+
+export type LocalInferenceStreamRequestRequestReasoningEffort =
+  (typeof LocalInferenceStreamRequestRequestReasoningEffort)[keyof typeof LocalInferenceStreamRequestRequestReasoningEffort];
+
+export const LocalInferenceStreamRequestRequestReasoningEffort = {
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export type LocalInferenceStreamRequestRequest = {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  model: string;
+  options: LocalInferenceStreamRequestRequestOptions;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  providerId: string;
+  reasoningEffort: LocalInferenceStreamRequestRequestReasoningEffort;
+  /** @pattern ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$ */
+  requestId: string;
+};
+
+export interface LocalInferenceStreamRequest {
+  provider: RuntimeProviderCapability;
+  request: LocalInferenceStreamRequestRequest;
+}
 
 export interface MemoryCandidate {
   category: MemoryCategory;
@@ -584,15 +966,6 @@ export interface StorageDelivery {
   revision_id: string;
   size_bytes: number;
   url: string;
-}
-
-export interface UpdateConversationDocumentInput {
-  content_md?: string;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  title?: string;
 }
 
 export interface UpdateConversationExecutionPolicyInput {
@@ -645,183 +1018,6 @@ export interface UserMemoryList {
   memories: UserMemory[];
 }
 
-export type VideoProductionCost = {
-  /** @nullable */
-  budgetLimitMicros: number | null;
-  /** @nullable */
-  currency: string | null;
-  /** @nullable */
-  estimatedMicros: number | null;
-  reconciledMicros: number;
-  releasedMicros: number;
-  reservedMicros: number;
-  /** @nullable */
-  unitPriceMicros: number | null;
-};
-
-/**
- * @nullable
- */
-export type VideoProductionQaReport = { [key: string]: unknown } | null;
-
-export type VideoTakeStatus = (typeof VideoTakeStatus)[keyof typeof VideoTakeStatus];
-
-export const VideoTakeStatus = {
-  generating: "generating",
-  succeeded: "succeeded",
-  failed: "failed",
-} as const;
-
-export interface VideoTake {
-  error?: string;
-  id: string;
-  number: number;
-  providerTaskId?: string;
-  seed: number;
-  shotId: string;
-  stagedMediaId?: string;
-  status: VideoTakeStatus;
-}
-
-export type VideoProductionShotReviewsItem = {
-  /** @nullable */
-  selectedTakeId: string | null;
-  shotId: string;
-  takes: VideoTake[];
-};
-
-export type VideoProductionStatus = (typeof VideoProductionStatus)[keyof typeof VideoProductionStatus];
-
-export const VideoProductionStatus = {
-  running: "running",
-  awaiting_approval: "awaiting_approval",
-  completed: "completed",
-  failed: "failed",
-  cancelled: "cancelled",
-} as const;
-
-export type VideoShotCamera = {
-  focus?: string;
-  movement: string;
-  shotSize: string;
-};
-
-export type VideoShotReferencesItem = { [key: string]: unknown };
-
-export interface VideoShot {
-  acceptanceCriteria: string[];
-  action: string;
-  audioDirection: string;
-  camera: VideoShotCamera;
-  continuityContract: string[];
-  environment: string;
-  id: string;
-  lightingPalette: string;
-  narrativeBeat: string;
-  order: number;
-  references: VideoShotReferencesItem[];
-  seconds: number;
-  subjectAnchors: string[];
-}
-
-export interface VideoShotPlan {
-  shots: VideoShot[];
-  version: number;
-}
-
-export interface VideoProduction {
-  /** @nullable */
-  awaitingAction?: string | null;
-  /** @nullable */
-  conversationId?: string | null;
-  cost: VideoProductionCost;
-  createdAt: string;
-  /** @nullable */
-  documentId?: string | null;
-  /** @nullable */
-  error?: string | null;
-  id: string;
-  /** @nullable */
-  qaReport?: VideoProductionQaReport;
-  shotPlan?: VideoShotPlan | null;
-  shotReviews: VideoProductionShotReviewsItem[];
-  stage: string;
-  /** @nullable */
-  stagedMediaId?: string | null;
-  status: VideoProductionStatus;
-  taskId: string;
-  tenantId: string;
-  title: string;
-  updatedAt: string;
-  userId: string;
-  version: number;
-  workspaceId: string;
-}
-
-export type VideoProductionDecision =
-  | {
-      action: "revise_storyboard";
-      action_id: string;
-      expected_version: number;
-      shot_plan: VideoShotPlan;
-    }
-  | {
-      action: "approve_storyboard";
-      action_id: string;
-      /** @minimum 0 */
-      budget_limit_micros: number;
-      /**
-       * @minLength 3
-       * @maxLength 3
-       */
-      currency: string;
-      expected_version: number;
-    }
-  | {
-      action: "request_take";
-      action_id: string;
-      expected_version: number;
-      shot_id: string;
-    }
-  | {
-      action: "approve_takes";
-      action_id: string;
-      expected_version: number;
-      selections: {
-        shot_id: string;
-        take_id: string;
-      }[];
-    }
-  | {
-      action: "approve_publish";
-      action_id: string;
-      expected_version: number;
-      /**
-       * @minLength 1
-       * @maxLength 1000
-       */
-      waiver_reason?: string;
-    }
-  | {
-      action: "reject_publish";
-      action_id: string;
-      expected_version: number;
-      reason: string;
-    }
-  | {
-      action: "reject_storyboard";
-      action_id: string;
-      expected_version: number;
-      reason: string;
-    };
-
-export type VideoProductionDetailEventsItem = { [key: string]: unknown };
-
-export interface VideoProductionDetail {
-  events: VideoProductionDetailEventsItem[];
-  production: VideoProduction;
-}
-
 export type CompleteConversationAttachmentBody = {
   /**
    * @minLength 1
@@ -861,18 +1057,6 @@ export type PrepareConversationAttachment200 = {
   upload_url: string;
 };
 
-export type GetConversationDocumentParams = {
-  include_content?: boolean;
-};
-
-export type AuthorizeConversationDocumentDeliveryParams = {
-  /**
-   * @minimum 1
-   * @maximum 4096
-   */
-  max_dim?: number;
-};
-
 export type AuthorizeConversationFileDeliveryParams = {
   /**
    * @minimum 1
@@ -896,33 +1080,10 @@ export type ForkConversation201 = {
   source_message_id: string;
 };
 
-export type GetVideoProductionPreviewUrl200 = {
-  expires_at: string;
-  url: string;
-};
-
-export type GetVideoTakePreviewUrl200 = {
-  expires_at: string;
-  url: string;
-};
-
 export type GetLocalInferenceConfigParams = {
   provider_id: string;
-  reasoning_effort: GetLocalInferenceConfigReasoningEffort;
+  reasoning_effort: ReasoningEffort;
 };
-
-export type GetLocalInferenceConfigReasoningEffort =
-  (typeof GetLocalInferenceConfigReasoningEffort)[keyof typeof GetLocalInferenceConfigReasoningEffort];
-
-export const GetLocalInferenceConfigReasoningEffort = {
-  none: "none",
-  minimal: "minimal",
-  low: "low",
-  medium: "medium",
-  high: "high",
-  xhigh: "xhigh",
-  max: "max",
-} as const;
 
 export type GetLocalInferenceConfig200ReasoningEffort =
   (typeof GetLocalInferenceConfig200ReasoningEffort)[keyof typeof GetLocalInferenceConfig200ReasoningEffort];
@@ -954,21 +1115,6 @@ export type GetLocalInferenceConfig200 = {
   providerName: string;
   reasoningEffort: GetLocalInferenceConfig200ReasoningEffort;
 };
-
-export type ResolveLocalInferencePluginsBodyActivationsItemBindings = { [key: string]: string };
-
-export type ResolveLocalInferencePluginsBodyActivationsItem = {
-  bindings?: ResolveLocalInferencePluginsBodyActivationsItemBindings;
-  /** @pattern ^[a-z0-9._-]+@[a-z0-9._-]+$ */
-  pluginId: string;
-};
-
-export type ResolveLocalInferencePluginsBody = {
-  /** @maxItems 16 */
-  activations: ResolveLocalInferencePluginsBodyActivationsItem[];
-};
-
-export type ResolveLocalInferencePlugins200 = { [key: string]: unknown };
 
 export type StreamLocalInferenceBodyOptionsPromptItem =
   | {
@@ -1436,62 +1582,6 @@ export const getConversationContext = (
   );
 };
 
-export const getConversationDocument = (
-  conversationId: string,
-  documentId: string,
-  params?: GetConversationDocumentParams,
-  options?: SecondParameter<typeof apiMutator<ConversationDocumentDetail>>,
-) => {
-  return apiMutator<ConversationDocumentDetail>(
-    { url: `/api/chat-server/conversations/${conversationId}/documents/${documentId}`, method: "GET", params },
-    options,
-  );
-};
-
-export const updateConversationDocument = (
-  conversationId: string,
-  documentId: string,
-  updateConversationDocumentInput: UpdateConversationDocumentInput,
-  options?: SecondParameter<typeof apiMutator<ConversationDocumentDetail>>,
-) => {
-  return apiMutator<ConversationDocumentDetail>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/documents/${documentId}`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: updateConversationDocumentInput,
-    },
-    options,
-  );
-};
-
-export const redirectConversationDocumentContent = (
-  conversationId: string,
-  documentId: string,
-  options?: SecondParameter<typeof apiMutator<unknown>>,
-) => {
-  return apiMutator<unknown>(
-    { url: `/api/chat-server/conversations/${conversationId}/documents/${documentId}/content`, method: "GET" },
-    options,
-  );
-};
-
-export const authorizeConversationDocumentDelivery = (
-  conversationId: string,
-  documentId: string,
-  params?: AuthorizeConversationDocumentDeliveryParams,
-  options?: SecondParameter<typeof apiMutator<StorageDelivery>>,
-) => {
-  return apiMutator<StorageDelivery>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/documents/${documentId}/delivery`,
-      method: "POST",
-      params,
-    },
-    options,
-  );
-};
-
 export const updateConversationExecutionPolicy = (
   conversationId: string,
   updateConversationExecutionPolicyInput: UpdateConversationExecutionPolicyInput,
@@ -1607,75 +1697,6 @@ export const updateConversationModel = (
   );
 };
 
-export const authorizeConversationSourceDelivery = (
-  conversationId: string,
-  sourceId: string,
-  options?: SecondParameter<typeof apiMutator<StorageDelivery>>,
-) => {
-  return apiMutator<StorageDelivery>(
-    { url: `/api/chat-server/conversations/${conversationId}/sources/${sourceId}/delivery`, method: "POST" },
-    options,
-  );
-};
-
-export const getVideoProduction = (
-  conversationId: string,
-  productionId: string,
-  options?: SecondParameter<typeof apiMutator<VideoProductionDetail>>,
-) => {
-  return apiMutator<VideoProductionDetail>(
-    { url: `/api/chat-server/conversations/${conversationId}/video-productions/${productionId}`, method: "GET" },
-    options,
-  );
-};
-
-export const decideVideoProduction = (
-  conversationId: string,
-  productionId: string,
-  videoProductionDecision: VideoProductionDecision,
-  options?: SecondParameter<typeof apiMutator<VideoProduction>>,
-) => {
-  return apiMutator<VideoProduction>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/video-productions/${productionId}/decisions`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: videoProductionDecision,
-    },
-    options,
-  );
-};
-
-export const getVideoProductionPreviewUrl = (
-  conversationId: string,
-  productionId: string,
-  options?: SecondParameter<typeof apiMutator<GetVideoProductionPreviewUrl200>>,
-) => {
-  return apiMutator<GetVideoProductionPreviewUrl200>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/video-productions/${productionId}/preview-url`,
-      method: "GET",
-    },
-    options,
-  );
-};
-
-export const getVideoTakePreviewUrl = (
-  conversationId: string,
-  productionId: string,
-  shotId: string,
-  takeId: string,
-  options?: SecondParameter<typeof apiMutator<GetVideoTakePreviewUrl200>>,
-) => {
-  return apiMutator<GetVideoTakePreviewUrl200>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/video-productions/${productionId}/shots/${shotId}/takes/${takeId}/preview-url`,
-      method: "GET",
-    },
-    options,
-  );
-};
-
 export const chatHealthz = (options?: SecondParameter<typeof apiMutator<void>>) => {
   return apiMutator<void>({ url: `/api/chat-server/healthz`, method: "GET" }, options);
 };
@@ -1686,24 +1707,6 @@ export const getLocalInferenceConfig = (
 ) => {
   return apiMutator<GetLocalInferenceConfig200>(
     { url: `/api/chat-server/local-inference/config`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * Resolve the immutable plugin release snapshot and ephemeral connection grants for one native Desktop turn. Grants are held only in the utility process and must not cross the preload bridge or persistence boundary.
- */
-export const resolveLocalInferencePlugins = (
-  resolveLocalInferencePluginsBody: ResolveLocalInferencePluginsBody,
-  options?: SecondParameter<typeof apiMutator<ResolveLocalInferencePlugins200>>,
-) => {
-  return apiMutator<ResolveLocalInferencePlugins200>(
-    {
-      url: `/api/chat-server/local-inference/plugins/resolve`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: resolveLocalInferencePluginsBody,
-    },
     options,
   );
 };
@@ -1794,14 +1797,6 @@ export type PrepareConversationAttachmentResult = NonNullable<
   Awaited<ReturnType<typeof prepareConversationAttachment>>
 >;
 export type GetConversationContextResult = NonNullable<Awaited<ReturnType<typeof getConversationContext>>>;
-export type GetConversationDocumentResult = NonNullable<Awaited<ReturnType<typeof getConversationDocument>>>;
-export type UpdateConversationDocumentResult = NonNullable<Awaited<ReturnType<typeof updateConversationDocument>>>;
-export type RedirectConversationDocumentContentResult = NonNullable<
-  Awaited<ReturnType<typeof redirectConversationDocumentContent>>
->;
-export type AuthorizeConversationDocumentDeliveryResult = NonNullable<
-  Awaited<ReturnType<typeof authorizeConversationDocumentDelivery>>
->;
 export type UpdateConversationExecutionPolicyResult = NonNullable<
   Awaited<ReturnType<typeof updateConversationExecutionPolicy>>
 >;
@@ -1818,16 +1813,8 @@ export type AuthorizeConversationFileDeliveryResult = NonNullable<
 export type ForkConversationResult = NonNullable<Awaited<ReturnType<typeof forkConversation>>>;
 export type SelectConversationHistoryResult = NonNullable<Awaited<ReturnType<typeof selectConversationHistory>>>;
 export type UpdateConversationModelResult = NonNullable<Awaited<ReturnType<typeof updateConversationModel>>>;
-export type AuthorizeConversationSourceDeliveryResult = NonNullable<
-  Awaited<ReturnType<typeof authorizeConversationSourceDelivery>>
->;
-export type GetVideoProductionResult = NonNullable<Awaited<ReturnType<typeof getVideoProduction>>>;
-export type DecideVideoProductionResult = NonNullable<Awaited<ReturnType<typeof decideVideoProduction>>>;
-export type GetVideoProductionPreviewUrlResult = NonNullable<Awaited<ReturnType<typeof getVideoProductionPreviewUrl>>>;
-export type GetVideoTakePreviewUrlResult = NonNullable<Awaited<ReturnType<typeof getVideoTakePreviewUrl>>>;
 export type ChatHealthzResult = NonNullable<Awaited<ReturnType<typeof chatHealthz>>>;
 export type GetLocalInferenceConfigResult = NonNullable<Awaited<ReturnType<typeof getLocalInferenceConfig>>>;
-export type ResolveLocalInferencePluginsResult = NonNullable<Awaited<ReturnType<typeof resolveLocalInferencePlugins>>>;
 export type StreamLocalInferenceResult = NonNullable<Awaited<ReturnType<typeof streamLocalInference>>>;
 export type ListActiveMemoriesResult = NonNullable<Awaited<ReturnType<typeof listActiveMemories>>>;
 export type ListMemoryCandidatesResult = NonNullable<Awaited<ReturnType<typeof listMemoryCandidates>>>;

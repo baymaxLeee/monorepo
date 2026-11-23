@@ -16,11 +16,6 @@ import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "a
 
 import type { SandboxProcess } from "#runtime/transport";
 
-import {
-  knowledgeDocumentSessionId,
-  listDocuments,
-  type KnowledgeDocument,
-} from "../../../infrastructure/clients/knowledge.js";
 import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { storageClient, type StorageClient } from "../../../infrastructure/clients/storage.js";
@@ -48,7 +43,6 @@ export interface SandboxDependencies {
     "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download" | "deleteFile" | "snapshot"
   >;
   asset: () => Pick<StorageClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
-  documents: typeof listDocuments;
   files: typeof listSessionFiles;
   checkout: typeof readWorkspaceCheckout;
   recordCheckout: typeof recordWorkspaceCheckout;
@@ -61,7 +55,6 @@ export interface SandboxDependencies {
 const defaults: SandboxDependencies = {
   sandbox: sandboxClient,
   asset: storageClient,
-  documents: listDocuments,
   files: listSessionFiles,
   checkout: readWorkspaceCheckout,
   recordCheckout: recordWorkspaceCheckout,
@@ -70,12 +63,6 @@ const defaults: SandboxDependencies = {
   delete: deleteWorkspaceSessionFile,
   execution: sandboxExecutionLifecycle,
 };
-
-export function documentSandboxPath(document: Pick<KnowledgeDocument, "id" | "filename" | "source_filename">) {
-  const name =
-    (document.source_filename || document.filename).replace(/[^\p{L}\p{N}._-]/gu, "-").replace(/^\.+/, "") || "file";
-  return `sources/documents/${encodeURIComponent(document.id)}/${name}`;
-}
 
 function appendProcessOutput(
   target: { stdout: string; stderr: string; outputMetadata: CommandOutputMetadata },
@@ -177,7 +164,6 @@ export class RunSandbox implements Experimental_SandboxSession {
   private readonly observedFileEtags = new Map<string, string>();
   private fileObservationInitialized = false;
   private sourceManifest = "";
-  private includeKnowledgeSources = false;
   private readonly scope: SandboxScope;
   constructor(
     private readonly context: ArtifactToolContext & { attemptEpoch: string },
@@ -189,9 +175,6 @@ export class RunSandbox implements Experimental_SandboxSession {
     private readonly helperProcesses: ProcessManager = new ProcessManager(),
   ) {
     this.scope = {
-      tenant_id: context.tenantId,
-      workspace_id: context.workspaceId,
-      user_id: context.userId,
       session_id: context.sessionId,
       run_id: context.runId,
       attempt_epoch: context.attemptEpoch,
@@ -219,45 +202,7 @@ export class RunSandbox implements Experimental_SandboxSession {
     const signal = this.lease.signal;
     const client = this.deps.sandbox();
     const imported: Array<{ path: string; document_id?: string; file_id?: string }> = [];
-    const documents = this.includeKnowledgeSources
-      ? await this.deps.documents(this.context.userId, this.context.sessionId)
-      : [];
-    for (const document of documents) {
-      signal.throwIfAborted();
-      if (
-        document.user_id !== this.context.userId ||
-        knowledgeDocumentSessionId(document) !== this.context.sessionId ||
-        (document.tenant_id != null && document.tenant_id !== this.context.tenantId) ||
-        (document.workspace_id != null && document.workspace_id !== this.context.workspaceId)
-      ) {
-        throw new Error("session attachment scope mismatch");
-      }
-      if (!document.asset_id || !document.source_revision_id) throw new Error("attachment has no Storage revision");
-      const path = documentSandboxPath(document);
-      const source = { path: `/workspace/${path}`, document_id: document.id };
-      const key = `document:${document.id}`;
-      const fingerprint = `${document.asset_id}:${document.source_revision_id}:${path}`;
-      if (this.sources.get(key)?.fingerprint === fingerprint) continue;
-      const body = await this.deps.asset().content({
-        tenantId: this.context.tenantId,
-        workspaceId: this.context.workspaceId,
-        assetId: document.asset_id,
-        revisionId: document.source_revision_id,
-        signal,
-      });
-      try {
-        await client.upload(id, this.scope, path, body, signal);
-      } finally {
-        if (!body.locked) await body.cancel().catch(() => {});
-      }
-      this.sources.set(key, { fingerprint, source });
-      imported.push(source);
-    }
-
     const files = await this.deps.files({
-      userId: this.context.userId,
-      tenantId: this.context.tenantId,
-      workspaceId: this.context.workspaceId,
       sessionId: this.context.sessionId,
     });
     for (const file of files) {
@@ -268,8 +213,6 @@ export class RunSandbox implements Experimental_SandboxSession {
       const fingerprint = `${file.asset_id}:${file.revision_id}:${path}`;
       if (this.sources.get(key)?.fingerprint === fingerprint) continue;
       const body = await this.deps.asset().content({
-        tenantId: this.context.tenantId,
-        workspaceId: this.context.workspaceId,
         assetId: file.asset_id,
         revisionId: file.revision_id,
         signal,
@@ -307,7 +250,6 @@ export class RunSandbox implements Experimental_SandboxSession {
   }
 
   async refresh(signal?: AbortSignal) {
-    this.includeKnowledgeSources = true;
     const existed = this.lease.started;
     const session = await this.ensure(signal);
     const sources = existed
@@ -320,9 +262,6 @@ export class RunSandbox implements Experimental_SandboxSession {
 
   async observeWorkspaceBaseline(): Promise<void> {
     const files = await this.deps.files({
-      userId: this.context.userId,
-      tenantId: this.context.tenantId,
-      workspaceId: this.context.workspaceId,
       sessionId: this.context.sessionId,
     });
     this.observedFileEtags.clear();
@@ -332,9 +271,6 @@ export class RunSandbox implements Experimental_SandboxSession {
 
   async consumeExternalFileChanges(): Promise<Array<{ path: string; writer: string | null }>> {
     const files = await this.deps.files({
-      userId: this.context.userId,
-      tenantId: this.context.tenantId,
-      workspaceId: this.context.workspaceId,
       sessionId: this.context.sessionId,
     });
     if (!this.fileObservationInitialized) {
@@ -917,9 +853,6 @@ rm -- ${shellQuote(absolute)}`,
       const digest = await this.fileDigest(session.id, path, this.operationSignal(signal));
       const file = await this.deps.update(
         {
-          userId: this.context.userId,
-          tenantId: this.context.tenantId,
-          workspaceId: this.context.workspaceId,
           sessionId: this.context.sessionId,
           fileId: baseline.id,
           expectedEtag: baseline.etag,
@@ -933,11 +866,7 @@ rm -- ${shellQuote(absolute)}`,
         },
         async (idempotencyKey, current, claim) => {
           const storage = this.deps.asset();
-          const claimInput = {
-            tenantId: this.context.tenantId,
-            workspaceId: this.context.workspaceId,
-            ...claim,
-          };
+          const claimInput = claim;
           await storage.prepareClaim({
             ...claimInput,
             assetId: current.asset_id,
@@ -948,7 +877,6 @@ rm -- ${shellQuote(absolute)}`,
           const body = await this.deps.sandbox().download(session.id, this.scope, path, this.operationSignal(signal));
           try {
             return await storage.appendRevision({
-              ...this.context,
               assetId: current.asset_id,
               baseRevisionId: current.revision_id,
               ...claim,
@@ -987,9 +915,6 @@ rm -- ${shellQuote(absolute)}`,
       });
       signal?.throwIfAborted();
       const file = await this.deps.publish({
-        userId: this.context.userId,
-        tenantId: this.context.tenantId,
-        workspaceId: this.context.workspaceId,
         sessionId: this.context.sessionId,
         title: filename,
         assetId: asset.assetId,

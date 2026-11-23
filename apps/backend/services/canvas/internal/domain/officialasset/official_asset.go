@@ -4,7 +4,7 @@
 // 三者 1:1。对账以清单自带的 slug 为匹配键——它与音色名称、blob 都解耦，因此改名与换内容
 // 都不会被误判成「旧条目下线 + 新条目上线」。
 //
-// Official content is uploaded to the platform Asset service as an immutable
+// Official content is uploaded to Storage as an immutable
 // revision. Canvas stores the explicit Asset/revision pair and keeps only its
 // domain mapping and materialized Resource identities.
 package officialasset

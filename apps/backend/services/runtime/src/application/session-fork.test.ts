@@ -5,15 +5,6 @@ import { forkMessageContent } from "./session-fork-content.js";
 import { forkSession, selectForkMessages } from "./session-fork.js";
 import type { Message } from "./sessions.js";
 
-const auth = {
-  userId: "user",
-  username: "user",
-  email: "",
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  workspaceRole: "member",
-  roles: [],
-};
 const history: Message[] = ["user", "assistant", "user"].map((role, index) => ({
   id: String(index),
   session_id: "source",
@@ -26,18 +17,13 @@ const history: Message[] = ["user", "assistant", "user"].map((role, index) => ({
 }));
 function setup() {
   const calls: string[] = [];
-  const deps: NonNullable<Parameters<typeof forkSession>[3]> = {
-    getSessionRow: async (scope, id) => {
-      assert.equal(scope, auth);
+  const deps: NonNullable<Parameters<typeof forkSession>[2]> = {
+    getSessionRow: async (id) => {
       assert.equal(id, "source");
-      calls.push("authorize");
+      calls.push("get");
       return {
         id: "source",
-        userId: "user",
-        tenantId: "tenant",
-        workspaceId: "workspace",
         createRequestId: "create-source",
-        title: "原会话",
         model: "model",
         providerId: "provider",
         reasoningEffort: "medium",
@@ -57,18 +43,10 @@ function setup() {
     reserve: async () => {
       calls.push("reserve");
     },
-    forkSessionDocuments: async (input) => {
-      assert.equal(input.sourceSessionId, "source");
-      assert.notEqual(input.sessionId, "source");
-      assert.equal(input.workspaceId, "workspace");
-      calls.push("documents");
-      return { document_ids: {} };
-    },
-    publish: async (_source, _id, _now, messages, documentIds) => {
+    publish: async (_source, _id, _now, messages) => {
       calls.push("publish");
       assert.equal(messages.length, 2);
       assert.equal(messages[1]?.id, "1");
-      assert.deepEqual(documentIds, {});
     },
     release: async () => {
       calls.push("release");
@@ -80,35 +58,35 @@ function setup() {
 test("fork publishes only through the selected reply after files are ready", async () => {
   const { calls, deps } = setup();
   const original = structuredClone(history);
-  const branch = await forkSession(auth, "source", "1", deps);
+  const branch = await forkSession("source", "1", deps);
   assert.notEqual(branch.id, "source");
-  assert.deepEqual(calls, ["authorize", "reserve", "documents", "publish"]);
+  assert.deepEqual(calls, ["get", "reserve", "publish"]);
   assert.deepEqual(history, original);
 });
-test("authorization failure and live runs cannot create orphan copies", async () => {
+test("missing Sessions and live runs cannot create orphan copies", async () => {
   const { calls, deps } = setup();
   deps.getSessionRow = async () => {
     throw new Error("not found");
   };
-  await assert.rejects(forkSession(auth, "source", "1", deps), /not found/);
+  await assert.rejects(forkSession("source", "1", deps), /not found/);
   assert.deepEqual(calls, []);
   const active = setup();
   active.deps.hasActiveRun = async () => true;
-  await assert.rejects(forkSession(auth, "source", "1", active.deps), /停止/);
-  assert.deepEqual(active.calls, ["authorize"]);
+  await assert.rejects(forkSession("source", "1", active.deps), /停止/);
+  assert.deepEqual(active.calls, ["get"]);
 });
 test("invalid checkpoint does not copy documents or files", () => {
   assert.throws(() => selectForkMessages(history, "outside"), /不存在/);
   assert.throws(() => selectForkMessages(history, "0"), /完成/);
   assert.throws(() => selectForkMessages([{ ...history[1], status: "streaming" }], "1"), /完成/);
 });
-for (const step of ["forkSessionDocuments", "publish"] as const) {
+for (const step of ["publish"] as const) {
   test(`failed ${step} releases durable compensation and never mutates source`, async () => {
     const { calls, deps } = setup();
     deps[step] = async () => {
       throw new Error("failed");
     };
-    await assert.rejects(forkSession(auth, "source", "1", deps), /failed/);
+    await assert.rejects(forkSession("source", "1", deps), /failed/);
     assert.equal(calls.at(-1), "release");
     assert.ok(!calls.includes("publish"));
   });
@@ -119,7 +97,6 @@ test("forked attachment points at the file owned by the child session", () => {
     sourceId: "source",
     sessionId: "branch",
     messageId: "reply",
-    documentIds: {},
     fileIds: { input: "copy" },
   };
   const content = { version: 1, parts: [part] };
@@ -137,7 +114,7 @@ test("file references remap while completed results remain history and unfinishe
       {
         type: "file",
         mediaType: "image/png",
-        url: "/api/chat-server/sessions/source/documents/doc/content?document_id=doc",
+        url: "https://upper-app.example/document/doc",
       },
       {
         type: "tool-upload_artifacts",
@@ -158,11 +135,10 @@ test("file references remap while completed results remain history and unfinishe
     sourceId: "source",
     sessionId: "branch",
     messageId: "reply",
-    documentIds: { doc: "copy" },
     fileIds: { file: "file-copy" },
   });
   const parts = clone.parts as Record<string, unknown>[];
-  assert.equal(parts[0].url, "/api/chat-server/sessions/branch/documents/copy/content?document_id=copy");
+  assert.equal(parts[0].url, "https://upper-app.example/document/doc");
   assert.deepEqual(parts[1].output, { files: [{ file_id: "file-copy", filename: "report.md" }] });
   assert.equal(parts[1].state, "output-available");
   assert.equal(parts[2].state, "output-error");
@@ -200,7 +176,7 @@ test("preliminary output and unfinished todo state are frozen without replay", (
         },
       ],
     },
-    { sourceId: "source", sessionId: "branch", messageId: "failed-reply", documentIds: {}, fileIds: {} },
+    { sourceId: "source", sessionId: "branch", messageId: "failed-reply", fileIds: {} },
   );
   const parts = result.parts as Record<string, unknown>[];
   assert.equal(parts[0].state, "output-error");

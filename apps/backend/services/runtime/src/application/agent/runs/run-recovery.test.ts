@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { LanguageProviderSnapshot } from "#runtime/provider-model";
-
-import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
+import type { TurnCapabilities } from "../runtime/types.js";
 import type { ToolCatalog } from "../tools/catalog.js";
 import type { OrphanedTurnRecovery, TurnResumeEnvelope } from "./repository.js";
 import { resumeClaimedAgentRun, type ClaimedRecoveryDependencies, type RunAgentInput } from "./run.js";
@@ -32,13 +30,7 @@ const envelope: TurnResumeEnvelope = {
   compactorVersion: "runtime-context-projection-v1",
   remoteBinding: "remote",
   snapshot: {
-    schemaVersion: 1,
-    auth: {
-      userId: "user",
-      tenantId: "tenant",
-      workspaceId: "workspace",
-      workspaceRole: "member",
-    },
+    schemaVersion: 2,
     execution: {
       operation: "submit-message",
       assistantMessageId: "assistant-message",
@@ -71,15 +63,26 @@ function dependencies(overrides: Partial<ClaimedRecoveryDependencies> = {}) {
   let drained = 0;
   let executionInput: RunAgentInput | undefined;
   let resumeLeaf: string | undefined;
-  const provider = { ...providerBinding, apiKey: "secret" } as unknown as ProviderSnapshot & LanguageProviderSnapshot;
+  const capabilities: TurnCapabilities = {
+    provider: { ...providerBinding, name: "Provider", apiKey: "secret" },
+    plugins: {
+      schemaVersion: 1,
+      snapshotId: "snapshot",
+      snapshotDigest: "0".repeat(64),
+      plugins: [],
+      connectionGrants: [],
+    },
+    skills: [],
+    media: { providers: [] },
+    memories: [],
+  };
   const deps: ClaimedRecoveryDependencies = {
     getSession: async () => ({ id: envelope.sessionId }) as never,
-    getProvider: async () => provider,
+    renewCapabilities: async () => capabilities,
     getRun: async () =>
       ({
         id: envelope.runId,
         sessionId: envelope.sessionId,
-        userId: envelope.snapshot.auth.userId,
         outputMessageId: envelope.snapshot.execution.assistantMessageId,
       }) as never,
     execute: async (execution) => {
@@ -118,8 +121,19 @@ test("claimed recovery reacquires authority, resumes the selected boundary, and 
     drained: 1,
     executionInput: {
       reasoningEffort: "medium",
-      skills: [],
-      pluginActivations: [],
+      capabilities: {
+        provider: { ...providerBinding, name: "Provider", apiKey: "secret" },
+        plugins: {
+          schemaVersion: 1,
+          snapshotId: "snapshot",
+          snapshotDigest: "0".repeat(64),
+          plugins: [],
+          connectionGrants: [],
+        },
+        skills: [],
+        media: { providers: [] },
+        memories: [],
+      },
       trigger: "submit-message",
       expectedRevision: 7,
       requestId: "recovery-run-2",
@@ -131,7 +145,19 @@ test("claimed recovery reacquires authority, resumes the selected boundary, and 
 
 test("provider generation drift fails before SDK re-entry and releases the claimed attempt", async () => {
   const { deps, state } = dependencies({
-    getProvider: async () => ({ ...providerBinding, baseUrl: "https://changed.example/v1" }) as never,
+    renewCapabilities: async () => ({
+      provider: { ...providerBinding, name: "Provider", apiKey: "secret", baseUrl: "https://changed.example/v1" },
+      plugins: {
+        schemaVersion: 1,
+        snapshotId: "snapshot",
+        snapshotDigest: "0".repeat(64),
+        plugins: [],
+        connectionGrants: [],
+      },
+      skills: [],
+      media: { providers: [] },
+      memories: [],
+    }),
   });
 
   await assert.rejects(
@@ -146,6 +172,21 @@ test("provider generation drift fails before SDK re-entry and releases the claim
     executionInput: undefined,
     resumeLeaf: undefined,
   });
+});
+
+test("production recovery fails closed without a renewed upper-host capability", async () => {
+  const { deps, state } = dependencies({
+    renewCapabilities: async () => {
+      throw new Error("turn recovery requires a renewed upper-host capability");
+    },
+  });
+  await assert.rejects(
+    resumeClaimedAgentRun(recovery("regenerate-model"), {} as ToolCatalog, deps),
+    /renewed upper-host capability/,
+  );
+  assert.equal(state().failed, 1);
+  assert.equal(state().released, 1);
+  assert.equal(state().executed, 0);
 });
 
 test("response drain failure terminalizes and releases the recovered attempt", async () => {

@@ -5,7 +5,6 @@ import { requestLogger, traceMiddleware } from "#runtime/foundation";
 import { internalAuthMiddleware } from "../api/http/middleware/worker-auth.js";
 import { problemJson } from "../api/http/problem.js";
 import { tasksRoutes } from "../api/http/routes/tasks.js";
-import { videoProductionRoutes } from "../api/http/routes/video-productions.js";
 import { checkReadiness, currentBootState, isBootReady } from "../infrastructure/health/worker-readiness.js";
 import { logger } from "../infrastructure/observability/worker-logger.js";
 
@@ -47,7 +46,6 @@ export function createApp() {
   });
   api.use("*", internalAuthMiddleware);
   api.route("/tasks", tasksRoutes);
-  api.route("/video-productions", videoProductionRoutes);
   app.route("/", api);
 
   return app;

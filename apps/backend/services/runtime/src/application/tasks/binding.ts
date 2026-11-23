@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { FatalError, getWorkflowMetadata } from "workflow";
 
 import { getDb } from "../../infrastructure/persistence/index.js";
-import { tasks } from "../../infrastructure/persistence/media-schema.js";
+import { tasks } from "../../infrastructure/persistence/task-schema.js";
 
 // Claim before any paid side effect, including after a crash between start() and linkage.
 export async function claimTaskStep(taskId: string): Promise<void> {

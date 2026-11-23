@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,11 +21,15 @@ import (
 
 type deliveryRepository struct{ application.Repository }
 
-func (deliveryRepository) GetRevision(_ context.Context, tenantID, workspaceID, assetID, revisionID string) (domain.Asset, domain.Revision, string, error) {
-	if tenantID != "tenant/a" || workspaceID != "workspace b" || assetID != "asset" || revisionID != "revision" {
+func (deliveryRepository) GetRevision(_ context.Context, assetID, revisionID string) (domain.Asset, domain.Revision, string, error) {
+	if assetID != "asset" || revisionID != "revision" {
 		return domain.Asset{}, domain.Revision{}, "", application.ErrNotFound
 	}
 	return domain.Asset{ID: assetID}, domain.Revision{ID: revisionID, AssetID: assetID, Filename: "sample.txt", MediaType: "text/plain", SHA256: strings.Repeat("a", 64), SizeBytes: 7, CreatedAt: time.Unix(1, 0)}, "blob-key", nil
+}
+
+func (deliveryRepository) ClaimAuthorizesRevision(_ context.Context, input application.ClaimAuthorizationInput) (bool, error) {
+	return input.OwnerService == "chat" && input.AssetID == "asset" && input.RevisionID == "revision", nil
 }
 
 type deliveryBlobStore struct{ application.BlobStore }
@@ -89,7 +94,7 @@ func (uploadBlobStore) Delete(context.Context, string) error                    
 func TestDeliveryCapabilitySupportsGetAndHeadAndRejectsTampering(t *testing.T) {
 	service := application.NewService(deliveryRepository{}, deliveryBlobStore{}, deliveryClock{}, 1024)
 	handler := NewRouter(service, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
-	minted, err := application.NewDeliveryService(service, "signing-secret", time.Minute, nil).Mint(context.Background(), application.DeliveryItem{TenantID: "tenant/a", WorkspaceID: "workspace b", AssetID: "asset", RevisionID: "revision"})
+	minted, err := application.NewDeliveryService(service, "signing-secret", time.Minute, nil).Mint(context.Background(), application.DeliveryItem{OwnerService: "chat", AssetID: "asset", RevisionID: "revision"})
 	if err != nil {
 		t.Fatalf("Mint() error = %v", err)
 	}
@@ -130,7 +135,7 @@ func TestDeliveryCapabilitySupportsGetAndHeadAndRejectsTampering(t *testing.T) {
 	}
 	tampered := *capabilityURL
 	query := tampered.Query()
-	query.Set("workspace_id", "other")
+	query.Set("signature", "00"+query.Get("signature"))
 	tampered.RawQuery = query.Encode()
 	req := httptest.NewRequest(http.MethodGet, tampered.String(), nil)
 	res := httptest.NewRecorder()
@@ -140,17 +145,46 @@ func TestDeliveryCapabilitySupportsGetAndHeadAndRejectsTampering(t *testing.T) {
 	}
 }
 
+func TestDeliveryCapabilityRequiresCallerOwnedClaim(t *testing.T) {
+	t.Parallel()
+	service := application.NewService(deliveryRepository{}, deliveryBlobStore{}, deliveryClock{}, 1024)
+	_, err := application.NewDeliveryService(service, "signing-secret", time.Minute, nil).Mint(
+		context.Background(),
+		application.DeliveryItem{OwnerService: "runtime", AssetID: "asset", RevisionID: "revision"},
+	)
+	if !errors.Is(err, application.ErrNotFound) {
+		t.Fatalf("Mint() error = %v, want %v", err, application.ErrNotFound)
+	}
+}
+
 func TestDeliveryCapabilityRejectsExpiredSignature(t *testing.T) {
 	router := &Router{signingKey: []byte("signing-secret")}
 	expires := time.Now().Add(-time.Second).Unix()
-	signature := router.signDelivery("tenant", "workspace", "asset", "revision", expires)
+	signature := router.signDelivery("asset", "revision", expires)
 	handler := NewRouter(nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
 	request := httptest.NewRequest(http.MethodGet, "/media/asset/revisions/revision/content", nil)
-	request.URL.RawQuery = url.Values{"tenant_id": {"tenant"}, "workspace_id": {"workspace"}, "expires": {fmt.Sprint(expires)}, "signature": {signature}}.Encode()
+	request.URL.RawQuery = url.Values{"expires": {fmt.Sprint(expires)}, "signature": {signature}}.Encode()
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("status = %d", response.Code)
+	}
+}
+
+func TestBareResourceIDsDoNotAuthorizePublicAccess(t *testing.T) {
+	t.Parallel()
+	handler := NewRouter(nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
+	for name, request := range map[string]*http.Request{
+		"delivery": httptest.NewRequest(http.MethodGet, "/media/asset/revisions/revision/content", nil),
+		"upload":   httptest.NewRequest(http.MethodPut, "/upload-sessions/upload/content", strings.NewReader("payload")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d", response.Code, http.StatusForbidden)
+			}
+		})
 	}
 }
 
@@ -189,8 +223,8 @@ func TestUploadCapabilityStreamsAnAuthorizedExactFile(t *testing.T) {
 	t.Parallel()
 	expiresAt := time.Now().Add(time.Hour).UTC()
 	repository := &uploadRepository{session: application.UploadSession{
-		ID: "upload", TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
-		IdempotencyKey: "intent", Category: "knowledge-source", Filename: "note.txt", MediaType: "text/plain",
+		ID: "upload", CallerService: "knowledge",
+		IdempotencyKey: "intent", Filename: "note.txt", MediaType: "text/plain",
 		SizeBytes: 7, State: "pending", ExpiresAt: expiresAt,
 	}}
 	service := application.NewService(repository, uploadBlobStore{}, deliveryClock{}, 1024)

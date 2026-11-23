@@ -107,7 +107,7 @@ function projectResolvedPlugin(resolved: ResolvedPluginActivation): ResolvedPlug
   };
 }
 
-/** Canonicalize old and current persisted values without retaining host-owned authorization scope. */
+/** Canonicalize the persisted projection without retaining host-owned capability context. */
 export function normalizePersistedTurnPluginSnapshot(
   snapshot: PersistedTurnPluginSnapshot,
 ): PersistedTurnPluginSnapshot {

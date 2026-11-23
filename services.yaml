@@ -52,6 +52,7 @@ services:
     publicRoutes:
       - /api/chat-server/*
     bindings:
+      admin: [rpc]
       runtime: [http]
     databases:
       - chat
@@ -64,8 +65,7 @@ services:
     port: 8015
     publicRoutes: []
     bindings:
-      admin: [rpc]
-      knowledge: [rpc, http]
+      knowledge: [http]
       canvas: [http]
       storage: [rpc]
     databases:

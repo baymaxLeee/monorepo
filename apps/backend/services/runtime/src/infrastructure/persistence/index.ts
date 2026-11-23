@@ -2,10 +2,10 @@ import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { getDatabaseSettings } from "../../config/database.js";
-import * as mediaSchema from "./media-schema.js";
 import * as runtimeSchema from "./schema.js";
+import * as taskSchema from "./task-schema.js";
 
-const schema = { ...runtimeSchema, ...mediaSchema };
+const schema = { ...runtimeSchema, ...taskSchema };
 type RuntimeDb = PostgresJsDatabase<typeof schema>;
 
 let sql: postgres.Sql | null = null;

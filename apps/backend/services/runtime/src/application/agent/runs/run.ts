@@ -5,7 +5,6 @@ import {
   resolveContextWindow,
   shouldResetStoredResponseLineage,
   resolveTurnPluginSnapshot,
-  type PluginActivation,
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
   type ContextCompactionEvent,
@@ -20,20 +19,13 @@ import {
   validateUIMessages,
 } from "ai";
 
-import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
+import type { ReasoningEffort } from "#runtime/provider-model";
 
-import type { AuthContext } from "../../../api/http/middleware/auth.js";
 import { getServerSettings } from "../../../config/server.js";
-import type { ProviderSnapshot, SkillSummary } from "../../../infrastructure/clients/admin.js";
 import {
   attachPlatformMcpCredential,
   bindTurnPluginGrants,
-  getProvider,
-  getProviderLimits,
-  getSkillBody,
-  getSkillFile,
-  resolveAgentPlugins,
-} from "../../../infrastructure/clients/admin.js";
+} from "../../../infrastructure/clients/plugin-capabilities.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedThreadItemContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
@@ -44,7 +36,6 @@ import type { ContextCategoryId } from "../context/context-snapshot.js";
 import { activatedSkillNameFromParts, sessionFileIdFromUrl } from "../context/file-parts.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
 import { CONTEXT_COMPACTOR_VERSION, projectModelContext } from "../context/model-context.js";
-import { extractMemoryCandidates } from "../memory/extractor.js";
 import {
   addUsage,
   EMPTY_USAGE,
@@ -53,6 +44,7 @@ import {
   type UsageTokens,
 } from "../observability/lifecycle.js";
 import { prepareCloudTurn } from "../runtime/cloud-turn.js";
+import type { RuntimeProviderCapability, TurnCapabilities } from "../runtime/types.js";
 import { createPublishedAgentPartStream } from "../streams/native-parts.js";
 import {
   AgentStreamCapacityError,
@@ -95,9 +87,8 @@ import { terminalStreamError } from "./stream-outcome.js";
 
 export interface RunAgentInput {
   reasoningEffort: ReasoningEffort;
-  /** Enabled published workspace skills advertised to the model via `<available_skills>`. */
-  skills?: SkillSummary[];
-  pluginActivations?: PluginActivation[];
+  /** Frozen upper-host capabilities for exactly this admitted Turn. */
+  capabilities: TurnCapabilities;
   trigger: "submit-message" | "regenerate-message";
   messageId?: string;
   expectedRevision: number;
@@ -154,15 +145,8 @@ function describeStreamError(error: unknown): string {
   return "模型调用失败，请稍后重试。";
 }
 
-function assertRunAccess(
-  auth: AuthContext,
-  sessionId: string,
-  run: {
-    sessionId: string;
-    userId: string;
-  },
-): void {
-  if (run.sessionId !== sessionId || run.userId !== auth.userId) {
+function assertRunAccess(sessionId: string, run: { sessionId: string }): void {
+  if (run.sessionId !== sessionId) {
     throw new NotFoundError("agent run not found");
   }
 }
@@ -266,18 +250,17 @@ export async function finalizeAfterAgentDisposal<T>(input: {
 }
 
 export async function createAgentRunResponse(
-  auth: AuthContext,
   sessionId: string,
-  provider: ProviderSnapshot & LanguageProviderSnapshot,
   uiMessagesInput: unknown[],
   input: RunAgentInput,
   toolCatalog: ToolCatalog,
 ): Promise<Response> {
+  const provider = input.capabilities.provider;
   if ((provider.providerKind ?? "chat") !== "chat") {
     throw new RequestError("selected provider is not a chat model provider");
   }
 
-  const session = await getSessionRow(auth, sessionId);
+  const session = await getSessionRow(sessionId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({
     messages: uiMessagesInput,
     metadataSchema: chatMessageMetadataSchema.optional(),
@@ -309,7 +292,7 @@ export async function createAgentRunResponse(
         if (part.type !== "file") return part;
         const fileId = sessionFileIdFromUrl(part.url, session.id);
         if (!fileId || part.providerReference != null) throw new RequestError("invalid session attachment reference");
-        const file = await getSessionAttachment(auth, session.id, fileId);
+        const file = await getSessionAttachment(session.id, fileId);
         return { type: "file" as const, url: part.url, filename: file.filename, mediaType: file.mime_type };
       }),
     );
@@ -317,14 +300,22 @@ export async function createAgentRunResponse(
   const claimedUserMessage = submittedUser;
   const claim = await claimAgentRunOperation({
     sessionId: session.id,
-    userId: session.userId,
     providerId: provider.id,
     model: provider.model,
     requestId: input.requestId,
     expectedRevision: input.expectedRevision,
     operation,
     targetMessageId: input.messageId ?? null,
-    requestContext: { reasoningEffort: input.reasoningEffort, pluginActivations: input.pluginActivations ?? [] },
+    requestContext: {
+      reasoningEffort: input.reasoningEffort,
+      capabilitiesDigest: stableDigest({
+        provider: providerResumeBinding(provider),
+        media: input.capabilities.media,
+        plugins: input.capabilities.plugins,
+        skills: input.capabilities.skills,
+        memories: input.capabilities.memories,
+      }),
+    },
     ...(operation === "tool-continuation" ? { continuationMessage: latestMessage } : {}),
     ...(claimedUserMessage
       ? {
@@ -340,7 +331,6 @@ export async function createAgentRunResponse(
     return createAgentReplayResponse(session.id, claim.runId, { isRunLive: isRunActive });
   }
   return executeClaimedAgentRunResponse({
-    auth,
     session,
     provider,
     claim,
@@ -353,9 +343,8 @@ export async function createAgentRunResponse(
 }
 
 interface ClaimedAgentRunExecution {
-  auth: AuthContext;
   session: Awaited<ReturnType<typeof getSessionRow>>;
-  provider: ProviderSnapshot & LanguageProviderSnapshot;
+  provider: RuntimeProviderCapability;
   claim: ClaimedAgentRun;
   operation: AgentRunOperation;
   input: RunAgentInput;
@@ -370,7 +359,7 @@ interface ClaimedAgentRunExecution {
 }
 
 async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecution): Promise<Response> {
-  const { auth, session, provider, claim, operation, input, toolCatalog, approvalPolicy, permissionProfile, resume } =
+  const { session, provider, claim, operation, input, toolCatalog, approvalPolicy, permissionProfile, resume } =
     execution;
   const startedAt = performance.now();
   const runId = claim.runId;
@@ -389,9 +378,7 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
   try {
     const [persistedMessages, instructionInput] = await Promise.all([
       listMessages(session.id, resume?.leafMessageId ?? claim.historyMessageId),
-      loadInstructionContext({
-        userId: session.userId,
-      }),
+      loadInstructionContext(input.capabilities.memories),
     ]);
 
     if (resume) {
@@ -429,7 +416,6 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
     }
 
     const latestUser = [...modelUiMessages].reverse().find((message) => message.role === "user");
-    const memorySourceText = latestUser ? textFromUiMessage(latestUser) : "";
 
     const assistantMessageId =
       resume?.envelope.snapshot.execution.assistantMessageId ??
@@ -470,9 +456,8 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
       scope.defer(() => inbox.close());
       const resolvedPlugins = await resolveTurnPluginSnapshot(
         await readAgentRunPluginSnapshot(leaseToken),
-        input.pluginActivations ?? [],
-        (selection) =>
-          resolveAgentPlugins(session.userId, auth.tenantId, auth.workspaceId, auth.workspaceRole, selection),
+        input.capabilities.plugins.plugins.map(({ activation }) => activation),
+        async () => input.capabilities.plugins,
       );
       const pluginSnapshot = bindTurnPluginGrants(
         attachPlatformMcpCredential(resolvedPlugins, getServerSettings()),
@@ -503,23 +488,22 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
         );
       }
       const projectionUiMessages = removeStoredResponseReferences(modelUiMessages.map(compactHistoricalSkillOutputs));
-      const skills = input.skills ?? [];
+      const frozenSkills = input.capabilities.skills;
+      const skills = frozenSkills.map(({ id, name, description }) => ({ id, name, description }));
+      const skillById = new Map(frozenSkills.map((skill) => [skill.id, skill] as const));
 
       const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
       const currentSkillName = continuedSkill?.name ?? activatedSkillName;
       const prepared = await prepareCloudTurn(
         {
-          workspaceRole: auth.workspaceRole,
           runId,
           attemptEpoch: claim.attemptEpoch,
-          userId: session.userId,
-          tenantId: auth.tenantId,
-          workspaceId: auth.workspaceId,
           sessionId: session.id,
           signal: scope.signal,
           pluginSnapshot,
           continuation: persistedContinuation,
           provider,
+          media: input.capabilities.media,
           reasoningEffort: input.reasoningEffort,
           approvalPolicy,
           permissionProfile,
@@ -534,13 +518,16 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
           activeSkillName: currentSkillName,
           skills,
           loadSkillBody: async (skillId: string) => {
-            const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
-            return skill.files.length
-              ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
-              : skill.body;
+            const skill = skillById.get(skillId);
+            if (!skill) throw new RequestError(`skill ${skillId} is not available in this Turn`);
+            const files = Object.keys(skill.files).sort();
+            return files.length ? `${skill.body}\n\nAvailable skill files:\n${files.join("\n")}` : skill.body;
           },
-          loadSkillFile: (skillId: string, path: string) =>
-            getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
+          loadSkillFile: async (skillId: string, path: string) => {
+            const file = skillById.get(skillId)?.files[path];
+            if (!file) throw new RequestError(`skill ${skillId} file ${path} is not available in this Turn`);
+            return file;
+          },
         },
         toolCatalog,
         scope,
@@ -548,9 +535,6 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
       const projected = await projectModelContext({
         owner: leaseToken,
         sessionId: session.id,
-        userId: session.userId,
-        tenantId: session.tenantId,
-        workspaceId: session.workspaceId,
         provider,
         historyRevision: claim.historyRevision,
         historyDigest: stableDigest(modelUiMessages),
@@ -599,20 +583,14 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
           compactorVersion: projected.binding.compactorVersion,
           remoteBinding: projected.binding.remoteBinding,
           snapshot: {
-            schemaVersion: 1,
-            auth: {
-              userId: session.userId,
-              tenantId: auth.tenantId,
-              workspaceId: auth.workspaceId,
-              workspaceRole: auth.workspaceRole,
-            },
+            schemaVersion: 2,
             execution: {
               operation,
               assistantMessageId,
               reasoningEffort: input.reasoningEffort,
               approvalPolicy,
               permissionProfile,
-              pluginActivations: input.pluginActivations ?? [],
+              pluginActivations: input.capabilities.plugins.plugins.map(({ activation }) => activation),
               skills,
               generateTitle: input.generateTitle === true,
               activeSkillName: currentSkillName,
@@ -655,9 +633,6 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
         runId,
         attemptEpoch: claim.attemptEpoch.toString(),
         sessionId: session.id,
-        userId: session.userId,
-        tenantId: auth.tenantId,
-        workspaceId: auth.workspaceId,
         signal: runSignal,
         stageWorkspaceFile: (file, content, signal) => turn.host.sandbox.stagePublishedFile(file, content, signal),
       },
@@ -806,14 +781,6 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
           const finalized = settled.finalized;
           await releaseRun(leaseToken);
           if (settled.disposalError) throw settled.disposalError;
-          if (finalized.status === "completed") {
-            void extractMemoryCandidates({
-              userId: session.userId,
-              runId,
-              provider,
-              userText: memorySourceText,
-            }).catch((error) => logger.error({ err: error }, "memory extraction failed (non-fatal)"));
-          }
         } catch (error) {
           logger.error({ err: error }, "stream completion persistence failed");
           await failAgentRun({ ...leaseToken, error }).catch((finishError) =>
@@ -877,7 +844,7 @@ const REASONING_EFFORTS = new Set<ReasoningEffort>(["none", "minimal", "low", "m
 const APPROVAL_POLICIES = new Set<ApprovalPolicy>(["never", "on-request", "unless-trusted", "granular"]);
 const PERMISSION_PROFILES = new Set<BuiltInPermissionProfileId>([":read-only", ":workspace", ":danger-full-access"]);
 
-function providerResumeBinding(provider: ProviderSnapshot & LanguageProviderSnapshot) {
+function providerResumeBinding(provider: RuntimeProviderCapability) {
   return {
     id: provider.id,
     model: provider.model,
@@ -892,8 +859,8 @@ function providerResumeBinding(provider: ProviderSnapshot & LanguageProviderSnap
 
 export interface ClaimedRecoveryDependencies {
   getSession: typeof getSessionRow;
-  getProvider: typeof getProvider;
   getRun: typeof getAgentRunById;
+  renewCapabilities(envelope: TurnResumeEnvelope, token: RunLeaseToken): Promise<TurnCapabilities>;
   execute(execution: ClaimedAgentRunExecution): Promise<Pick<Response, "arrayBuffer">>;
   fail(token: RunLeaseToken, error: unknown): Promise<void>;
   release(token: RunLeaseToken): Promise<void>;
@@ -901,8 +868,10 @@ export interface ClaimedRecoveryDependencies {
 
 const claimedRecoveryDefaults: ClaimedRecoveryDependencies = {
   getSession: getSessionRow,
-  getProvider,
   getRun: getAgentRunById,
+  renewCapabilities: async () => {
+    throw new Error("turn recovery requires a renewed upper-host capability");
+  },
   execute: executeClaimedAgentRunResponse,
   fail: async (token, error) => {
     await failAgentRun({ ...token, error });
@@ -910,9 +879,8 @@ const claimedRecoveryDefaults: ClaimedRecoveryDependencies = {
   release: releaseRun,
 };
 
-/** Re-enter only a transactionally claimed physical attempt. The provider secret
- * and plugin grants are reacquired, while every non-secret generation must still
- * match the frozen envelope before the SDK or a host effect can run. */
+/** Re-enter only a transactionally claimed physical attempt. Production recovery
+ * fails closed until the upper host renews the secret-bearing capability. */
 export async function resumeClaimedAgentRun(
   recovery: Extract<OrphanedTurnRecovery, { state: "claimed" }>,
   toolCatalog: ToolCatalog,
@@ -933,21 +901,13 @@ export async function resumeClaimedAgentRun(
     if (!PERMISSION_PROFILES.has(execution.permissionProfile as BuiltInPermissionProfileId)) {
       throw new Error("turn recovery contains an invalid permission profile");
     }
-    const auth: AuthContext = {
-      userId: envelope.snapshot.auth.userId,
-      username: envelope.snapshot.auth.userId,
-      email: "",
-      tenantId: envelope.snapshot.auth.tenantId,
-      workspaceId: envelope.snapshot.auth.workspaceId,
-      workspaceRole: envelope.snapshot.auth.workspaceRole,
-      roles: [],
-    };
-    const [session, provider, run] = await Promise.all([
-      deps.getSession(auth, envelope.sessionId),
-      deps.getProvider(auth.tenantId, auth.workspaceId, execution.providerBinding.id),
+    const [session, capabilities, run] = await Promise.all([
+      deps.getSession(envelope.sessionId),
+      deps.renewCapabilities(envelope, token),
       deps.getRun(token.runId),
     ]);
-    if (!run || run.sessionId !== envelope.sessionId || run.userId !== auth.userId) {
+    const provider = capabilities.provider;
+    if (!run || run.sessionId !== envelope.sessionId) {
       throw new Error("turn recovery run no longer matches its resume envelope");
     }
     if (stableDigest(providerResumeBinding(provider)) !== stableDigest(execution.providerBinding)) {
@@ -956,7 +916,6 @@ export async function resumeClaimedAgentRun(
     const leafMessageId = decision === "resume-next-step" ? run.outputMessageId : envelope.historyMessageId;
     if (!leafMessageId) throw new Error("turn recovery has no committed journal boundary");
     const response = await deps.execute({
-      auth,
       session,
       provider,
       claim: {
@@ -970,8 +929,7 @@ export async function resumeClaimedAgentRun(
       operation: execution.operation,
       input: {
         reasoningEffort: execution.reasoningEffort as ReasoningEffort,
-        skills: execution.skills,
-        pluginActivations: execution.pluginActivations,
+        capabilities,
         trigger: execution.operation === "regenerate-message" ? "regenerate-message" : "submit-message",
         ...(execution.operation === "tool-continuation" || execution.operation === "edit-message"
           ? { messageId: envelope.historyMessageId }
@@ -997,20 +955,17 @@ export async function resumeClaimedAgentRun(
   }
 }
 
-export async function getAgentRunTrace(auth: AuthContext, sessionId: string, runId: string): Promise<AgentRunTrace> {
+export async function getAgentRunTrace(sessionId: string, runId: string): Promise<AgentRunTrace> {
   const businessRun = await getAgentRunById(runId);
   if (!businessRun) {
     throw new NotFoundError("agent run not found");
   }
-  assertRunAccess(auth, sessionId, businessRun);
+  assertRunAccess(sessionId, businessRun);
   const trace = await getRunTrace(businessRun.id);
   if (!trace) {
     throw new NotFoundError("agent run trace not found");
   }
-  const contextWindow = await getProviderLimits(auth.tenantId, auth.workspaceId, businessRun.providerId)
-    .then((limits) => limits.contextWindow)
-    .catch(() => null);
-  return { ...trace, contextWindow };
+  return trace;
 }
 
 export interface SessionContextView {
@@ -1025,11 +980,8 @@ export interface SessionContextView {
   }>;
 }
 
-export async function getSessionContext(
-  auth: AuthContext,
-  sessionId: string,
-): Promise<{ context: SessionContextView | null }> {
-  const session = await getSessionRow(auth, sessionId);
+export async function getSessionContext(sessionId: string): Promise<{ context: SessionContextView | null }> {
+  const session = await getSessionRow(sessionId);
   const [record, compacted] = await Promise.all([
     getLatestSessionContextRecord(sessionId),
     hasSessionContextCheckpoint(sessionId),
@@ -1037,12 +989,11 @@ export async function getSessionContext(
   if (!record || record.providerId !== session.providerId || record.model !== session.model) {
     return { context: null };
   }
-  const limits = await getProviderLimits(auth.tenantId, auth.workspaceId, record.providerId).catch(() => null);
   const { snapshot } = record;
   return {
     context: {
-      contextWindow: limits?.contextWindow ?? null,
-      autoCompactAt: limits ? resolveContextWindow(limits).compactAt : null,
+      contextWindow: null,
+      autoCompactAt: null,
       usedTokens: snapshot.usedTokens,
       estimated: record.totalEstimated,
       compacted,

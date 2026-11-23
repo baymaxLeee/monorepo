@@ -9,6 +9,11 @@ export { ProjectSortField };
 
 export type Int64 = number;
 
+export interface CoverUpload {
+  UploadSessionID: string;
+  ClientRef: string;
+}
+
 export interface BatchGetProjectsByMemberRequest {
   WorkspaceID?: string;
   ProjectIDs: Array<string>;
@@ -37,8 +42,7 @@ export interface CreateProjectRequest {
   Name: string;
   /** MemberUserIDs 是项目成员用户 ID 列表。 */
   MemberUserIDs: Array<string>;
-  CoverImageAssetID?: string;
-  CoverImageRevisionID?: string;
+  CoverUpload?: CoverUpload;
   /** UsageLimit 是项目总金额限额，单位元；未传表示无上限。 */
   UsageLimit?: Int64;
 }
@@ -332,8 +336,8 @@ export interface UpdateProjectByMemberRequest {
   WorkspaceID?: string;
   /** ProjectID 是待更新的项目唯一标识。 */
   ProjectID: string;
-  CoverImageAssetID?: string;
-  CoverImageRevisionID?: string;
+  CoverUpload?: CoverUpload;
+  ClearCoverImage?: boolean;
 }
 
 export interface UpdateProjectByMemberResponse {
@@ -350,8 +354,8 @@ export interface UpdateProjectRequest {
   Name: string;
   /** MemberUserIDs 是更新后的项目成员用户 ID 列表。 */
   MemberUserIDs: Array<string>;
-  CoverImageAssetID?: string;
-  CoverImageRevisionID?: string;
+  CoverUpload?: CoverUpload;
+  ClearCoverImage?: boolean;
   /** UsageLimit 是项目总金额限额，单位元；未传表示取消限制。 */
   UsageLimit?: Int64;
 }

@@ -12,6 +12,7 @@ type Config struct {
 	Port             int
 	DatabaseURL      string
 	RuntimeURL       string
+	AdminRPCTarget   string
 	InternalAPIToken string
 	ShutdownTimeout  time.Duration
 }
@@ -25,6 +26,7 @@ func LoadConfig() (Config, error) {
 		PostgresPassword string        `env:"POSTGRES_PASSWORD" envDefault:"chat"`
 		PostgresDatabase string        `env:"POSTGRES_DATABASE" envDefault:"chat"`
 		RuntimeURL       string        `env:"RUNTIME_SERVICE_URL" envDefault:"http://localhost:8015"`
+		AdminRPCTarget   string        `env:"ADMIN_RPC_TARGET" envDefault:"localhost:9001"`
 		InternalAPIToken string        `env:"INTERNAL_API_TOKEN" envDefault:"dev-chat-internal-token"`
 		ShutdownTimeout  time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 	}]()
@@ -36,6 +38,7 @@ func LoadConfig() (Config, error) {
 		DatabaseURL: fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
 			url.QueryEscape(raw.PostgresUser), url.QueryEscape(raw.PostgresPassword), raw.PostgresHost,
 			raw.PostgresPort, url.PathEscape(raw.PostgresDatabase)),
-		RuntimeURL: raw.RuntimeURL, InternalAPIToken: raw.InternalAPIToken, ShutdownTimeout: raw.ShutdownTimeout,
+		RuntimeURL: raw.RuntimeURL, AdminRPCTarget: raw.AdminRPCTarget,
+		InternalAPIToken: raw.InternalAPIToken, ShutdownTimeout: raw.ShutdownTimeout,
 	}, nil
 }

@@ -53,10 +53,7 @@ const processTerminationSchema = z.discriminatedUnion("type", [
 ]);
 export const scopeSchema = z
   .object({
-    tenant_id: identity,
-    workspace_id: identity,
-    user_id: identity,
-    conversation_id: identity,
+    session_id: identity,
     run_id: identity,
     attempt_epoch: z
       .string()

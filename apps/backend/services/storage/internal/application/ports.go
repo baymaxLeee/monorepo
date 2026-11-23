@@ -33,14 +33,15 @@ type Repository interface {
 	BeginRevisionAppend(context.Context, AppendRevisionInput, string, time.Time, time.Time) (BeginUploadResult, error)
 	CreateUploadSession(context.Context, CreateUploadSessionInput, string, time.Time, time.Time) (UploadSession, error)
 	ClaimUploadSession(context.Context, string, time.Time) (UploadSession, error)
-	GetUploadSession(context.Context, string, string, string, string) (UploadSession, error)
+	GetUploadSession(context.Context, string, string) (UploadSession, error)
 	FailUpload(context.Context, string, string, time.Time) error
 	CompleteUpload(context.Context, CompleteUploadInput) (CompleteUploadResult, error)
 	CompleteRevisionAppend(context.Context, CompleteRevisionAppendInput) (CompleteUploadResult, error)
-	GetRevision(context.Context, string, string, string, string) (domain.Asset, domain.Revision, string, error)
+	GetRevision(context.Context, string, string) (domain.Asset, domain.Revision, string, error)
 	PrepareClaim(context.Context, PrepareClaimInput, string, time.Time) (domain.Claim, error)
 	ActivateClaim(context.Context, ClaimMutationInput, time.Time) (domain.Claim, error)
 	ReleaseClaim(context.Context, ClaimMutationInput, time.Time) (domain.Claim, error)
+	ClaimAuthorizesRevision(context.Context, ClaimAuthorizationInput) (bool, error)
 	ExpireLeases(context.Context, time.Time, int) (int, error)
 	ReconcileBlockingClaimCounts(context.Context, time.Time, int) (int, error)
 	ClaimExpiredUploads(context.Context, time.Time, time.Time, int) ([]ExpiredUpload, error)
@@ -53,12 +54,12 @@ type Repository interface {
 }
 
 type CreateUploadInput struct {
-	TenantID, WorkspaceID, UserID, Filename, MediaType, Category string
-	CallerService, IdempotencyKey                                string
+	Filename, MediaType           string
+	CallerService, IdempotencyKey string
 }
 
 type AppendRevisionInput struct {
-	TenantID, WorkspaceID, UserID, Filename, MediaType     string
+	Filename, MediaType                                    string
 	CallerService, IdempotencyKey, AssetID, BaseRevisionID string
 	OwnerType, OwnerID, Slot                               string
 	Generation                                             int64
@@ -70,27 +71,27 @@ type BeginUploadResult struct {
 }
 
 type CreateUploadSessionInput struct {
-	TenantID, WorkspaceID, UserID, Filename, MediaType, Category string
-	CallerService, IdempotencyKey                                string
-	SizeBytes                                                    int64
+	Filename, MediaType           string
+	CallerService, IdempotencyKey string
+	SizeBytes                     int64
 }
 
 type UploadSession struct {
-	ID, TenantID, WorkspaceID, UserID, Filename, MediaType, Category string
-	CallerService, IdempotencyKey, State, AssetID, RevisionID        string
-	SizeBytes                                                        int64
-	ExpiresAt                                                        time.Time
-	TargetAssetID, BaseRevisionID, OwnerType, OwnerID, Slot          string
-	Generation                                                       int64
+	ID, Filename, MediaType                                   string
+	CallerService, IdempotencyKey, State, AssetID, RevisionID string
+	SizeBytes                                                 int64
+	ExpiresAt                                                 time.Time
+	TargetAssetID, BaseRevisionID, OwnerType, OwnerID, Slot   string
+	Generation                                                int64
 }
 
 type CompleteUploadInput struct {
-	UploadID, AssetID, RevisionID, BlobID, StorageKey, SHA256    string
-	UploadClaimID                                                string
-	Filename, MediaType, Category, TenantID, WorkspaceID, UserID string
-	SizeBytes                                                    int64
-	Now                                                          time.Time
-	UploadLeaseExpiresAt                                         time.Time
+	UploadID, AssetID, RevisionID, BlobID, StorageKey, SHA256 string
+	UploadClaimID, UploadLeaseOwnerService                    string
+	Filename, MediaType                                       string
+	SizeBytes                                                 int64
+	Now                                                       time.Time
+	UploadLeaseExpiresAt                                      time.Time
 }
 
 type CompleteRevisionAppendInput struct {
@@ -106,22 +107,28 @@ type CompleteUploadResult struct {
 }
 
 type PrepareClaimInput struct {
-	TenantID, WorkspaceID, OwnerService, OwnerType, OwnerID, Slot string
-	AssetID, RevisionID                                           string
-	Kind                                                          domain.ClaimKind
-	Generation                                                    int64
-	ExpiresAt                                                     *time.Time
+	OwnerService, OwnerType, OwnerID, Slot string
+	AssetID, RevisionID                    string
+	Kind                                   domain.ClaimKind
+	Generation                             int64
+	ExpiresAt                              *time.Time
 }
 
 type ClaimMutationInput struct {
-	TenantID, WorkspaceID, OwnerService, OwnerType, OwnerID, Slot string
-	Generation                                                    int64
+	OwnerService, OwnerType, OwnerID, Slot string
+	Generation                             int64
+}
+
+type ClaimAuthorizationInput struct {
+	OwnerService        string
+	AssetID, RevisionID string
+	ValidUntil          time.Time
 }
 
 type DeletionCandidate struct {
-	AssetID, TenantID string
-	StateVersion      int64
-	Blobs             []DeletionBlob
+	AssetID      string
+	StateVersion int64
+	Blobs        []DeletionBlob
 }
 
 type ExpiredUpload struct {

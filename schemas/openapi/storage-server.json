@@ -222,22 +222,6 @@
         },
         {
           "in": "query",
-          "name": "tenant_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "in": "query",
-          "name": "workspace_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "in": "query",
           "name": "expires",
           "required": true,
           "schema": {

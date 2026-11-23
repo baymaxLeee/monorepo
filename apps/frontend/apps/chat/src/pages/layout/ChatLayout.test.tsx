@@ -78,7 +78,6 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1280, 800));
   useChatStore.setState({ tracePanelOpen: false, memoryPanelOpen: false });
   useChatStore.getState().closeArtifactPreview();
-  useChatStore.getState().closeVideoProductionWorkspace();
 });
 afterEach(() => {
   vi.unstubAllGlobals();

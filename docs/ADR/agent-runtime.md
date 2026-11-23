@@ -34,9 +34,11 @@ packages/agent-runtime/
 
 Backend 和 Desktop 只能准备 model、tools、environment、sandbox、persistence 与 observation capability；不得再实现 `ToolLoopAgent`、input queue、context budget/compaction、tool batch planner 或另一套 approval/message protocol。浏览器、Redis 和 provider cursor 都不是 Session authority。
 
-`apps/backend/services/runtime` 是多租户产品宿主，不等同于 shared runtime kernel。它的 Session、Run、消息和用量表保留 `tenant_id`/IAM workspace 作为授权、数据归属与计量隔离键；这些字段只能停留在 HTTP/auth、application service 与 repository 边界，不得投影进 `@repo/agent-runtime` 的 Session/Turn、插件上下文或并发策略。若未来要把 Runtime 服务本身做成租户无关的通用进程，应先把产品持久化与鉴权整体上移，并改用宿主签发的 opaque capability；不能仅删除数据库隔离列。
+`apps/backend/services/runtime` 与 shared runtime kernel 属于同一 tenant-neutral scope：前者只是把 Session/Turn 持久化、恢复和共享执行能力暴露为内部服务，不是多租户产品宿主。Runtime Server 的 API、数据库、恢复 envelope、插件上下文和并发策略都不认识 tenant、IAM workspace、用户角色、套餐或产品额度；Web Chat、Canvas 等上层 App 拥有业务映射、membership、配额和逻辑隔离。
 
-shared kernel 不认识 tenant、IAM workspace、用户角色、套餐或产品额度。这些是宿主的授权与计量概念：Backend/Desktop 在进入 kernel 前解析并验证 scope，只把已授权且冻结的 model、plugin、tool、permission 与 execution capability 投影进 Turn。插件 snapshot 在 shared package 中只保留内容身份、digest、manifest/activation 与瞬时 connection grant；宿主负责验证 Admin 返回的 tenant/workspace scope。执行环境中的 `workspaceRoot` 是文件系统能力事实，与 IAM workspace ID 无关。
+上层 App 在进入 Runtime 前完成业务授权，只投影已授权且冻结的 model、plugin、tool、permission 与 execution capability。跨进程时使用 workload identity 与短期、受 audience/operation/resource/expiry 约束的 opaque capability，不能把 `tenantId`/`workspaceId` 换个字段名继续下沉，也不能把可猜测的 Session/Asset ID 当作授权。插件 snapshot 只保留内容身份、digest、manifest/activation 与瞬时 connection grant。执行环境中的 `workspaceRoot` 是文件系统能力事实，与 IAM workspace ID 无关。
+
+本次绿地切换不保留旧 Runtime Session 数据或旧 API 兼容层。Runtime Server 的 Session/Turn schema、HTTP admission、恢复 envelope 和 Storage 调用只使用 Runtime 自有身份；Chat/Desktop 在调用前完成产品授权、Admin 解析和业务资源映射，并把冻结的 `TurnCapabilities` 交给 Runtime。裸 Session/Asset ID 仍不是授权凭据，跨进程访问必须同时满足 workload identity 与对应 capability。
 
 ### 证据优先级
 
@@ -67,7 +69,7 @@ shared kernel 不认识 tenant、IAM workspace、用户角色、套餐或产品�
 
 | Codex 概念     | 本项目语义                                                                   |
 | -------------- | ---------------------------------------------------------------------------- |
-| Thread/Session | 宿主持久化的会话及其 workspace 绑定                                          |
+| Thread/Session | 宿主持久化的执行会话及其 canonical journal                                  |
 | Turn           | 一次用户任务；可包含多个 model step 和 tool call                             |
 | Item/rollout   | journal 中可恢复的原生 UIMessage/工具状态与 runtime fact                     |
 | TurnContext    | turn 开始时冻结的 model、tools、instructions、environment 和 host capability |
@@ -92,7 +94,7 @@ Cloud 与 Desktop 可以使用不同 schema，却必须得到同样的恢复判�
 
 Cloud 已把该判定接入 orphan recovery。每个 physical attempt 在模型请求或 host effect 前冻结一份不可变、无 secret 的 `turn_resume_envelopes`；它绑定 Session、history item/revision/digest、instructions、resolved tool catalog、workspace、compactor version、remote/provider binding 和执行 snapshot。reconciler 在同一事务锁定权威行并分类：`resume-waiting` 不创建 invocation；`resume-next-step` 与 `regenerate-model` 才递增 epoch、复制 envelope、领取新 lease；取消、缺 envelope、unconfirmed effect，以及 committed effect 没有 journaled SDK step 都转为 `interrupted`。旧 attempt 的 Sandbox 先完成 finalization/release，才把新 attempt 交给 recovery runner。
 
-runner 重新取得 provider secret 和当前 plugin grants，验证 provider binding 以及 instruction/tool/workspace/compactor/remote generation 完全一致，再构造新的 `RuntimeTurn` 进入同一个 AI SDK boundary，并主动消费 response 直至终态。它不恢复旧 JavaScript 指令位置、stream、Sandbox、PID 或终端；纯模型重生成也是显式的新 attempt。Desktop restart 仍把残留 running Turn 标记为 `interrupted`，尚无等价的 physical-attempt envelope 和自动 SDK 重入。完整边界见 [Session Runtime](session-runtime.md#messages-查询与交互恢复)。
+runner 必须取得上层宿主为该 recovery attempt 续期的 `TurnCapabilities`，并验证其中 provider binding、plugin/skill snapshot 与 instruction/tool/workspace/compactor/remote generation 完全一致；Runtime 不凭 Session 中的业务身份回查 Admin，也不自行恢复产品授权。没有续期 capability 时 fail closed。验证通过后才构造新的 `RuntimeTurn` 进入同一个 AI SDK boundary，并主动消费 response 直至终态。它不恢复旧 JavaScript 指令位置、stream、Sandbox、PID 或终端；纯模型重生成也是显式的新 attempt。Desktop restart 仍把残留 running Turn 标记为 `interrupted`，尚无等价的 physical-attempt envelope 和自动 SDK 重入。完整边界见 [Session Runtime](session-runtime.md#messages-查询与交互恢复)。
 
 ### 网络故障恢复
 
@@ -132,13 +134,13 @@ Codex 的 replacement generation 校验是必须保留的语义，而不是必�
 
 ContextUsage 表示最近一次活动模型上下文，不是会话累计花费：每个 model request 在 middleware 完成最终 prompt/tool 组装后立即通过 transient `data-context-usage` 发布 portable estimate；该 step 完成后再用 provider input usage 加上会留在后续上下文中的非 reasoning 输出发布 confirmed snapshot。它不按文本 delta/token 高频更新。分类始终是估算，分类和等于展示总量。Cloud 从两个 model-step 边界实时暴露该值；Desktop 使用相同边界，并在 step 完成时把 confirmed snapshot 持久化到 thread。两端都展示原始 model window、统一自动压缩水位和是否已有 checkpoint，且压缩不会删除原始 journal。
 
-Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和 checkpoint 机制。其 authority 是每个 identity scope 下的 `runtime.sqlite`，schema 为 `threads`、`turns`、`items`、`context_checkpoints`、`turn_plugin_snapshots`，`user_version=1`。旧 `runtime-v1.sqlite`、`sessions.sqlite` 和 Electron `userData` journal 不读取、不迁移、不覆盖；这是明确的零兼容切换。
+Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和 checkpoint 机制。其 authority 是 Desktop 宿主数据目录中的 `runtime.sqlite`，schema 为 `threads`、`turns`、`items`、`context_checkpoints`、`turn_plugin_snapshots`，`user_version=1`。上层应用可以为不同登录态选择隔离的数据目录，但 shared runtime schema 不保存 tenant/workspace/user identity。旧 `runtime-v1.sqlite`、`sessions.sqlite` 和 Electron `userData` journal 不读取、不迁移、不覆盖；这是明确的零兼容切换。
 
 ## 工具 runtime
 
 工具 schema/description 是输入和局部规划约束的事实源。前置条件与限制附着在对应 manifest，core instructions 不复制一套工具路由或产品工作流。`ToolOutcome`、native approval、UI metadata 和 streaming semantics 保持 AI SDK 原语。
 
-模型初始步骤保持小而稳定的热工具面：执行环境始终直接提供 `bash`、`read_file`、 `apply_patch`、`write_file`，公共 registry 直接提供单次 `web_search`/`web_fetch`、 `tool_search`、`ask_user` 与 `update_plan`，宿主保留明确的 artifact publication。Code Mode、subagents、Runtime Media/Memory、source refresh 和 plugin/MCP 等低频或大 schema 能力标记 `deferLoading`，由 AI SDK 原生 `tool_search` 在需要时激活；它们仍属于同一个冻结 catalog，不是第二套 capability profile。Skill loader 因 `<available_skills>` 会直接要求它而保持可见。延迟加载只减少无关 schema 和选择歧义，不改变授权、审批、执行或可用能力。
+模型初始步骤保持小而稳定的热工具面：执行环境始终直接提供 `bash`、`read_file`、 `apply_patch`、`write_file`，公共 registry 直接提供单次 `web_search`/`web_fetch`、 `tool_search`、`ask_user` 与 `update_plan`，宿主保留明确的 artifact publication。Code Mode、subagents、Runtime Media、source refresh 和 plugin/MCP 等低频或大 schema 能力标记 `deferLoading`，由 AI SDK 原生 `tool_search` 在需要时激活；它们仍属于同一个冻结 catalog，不是第二套 capability profile。产品 memory 只由上层宿主投影为 context data，Runtime 不拥有按用户身份读写 memory 的工具。Skill loader 因 `<available_skills>` 会直接要求它而保持可见。延迟加载只减少无关 schema 和选择歧义，不改变授权、审批、执行或可用能力。
 
 Pi 的“小核心”在这里是 exposure contract，不是照抄四个工具名。完整 catalog 在 Turn 开始时冻结并持久化 digest，initial exposure 只保留能完成常见闭环的工具，其余通过同一 AI SDK `tool_search` 激活。当前代码已有 `deferLoading`，但尚未为初始 tool schema tokens、激活命中率和无效工具选择建立观测/SLO；因此“小而稳定”目前是 **partial**。后续应按真实 token/调用数据调整 exposure，不能用产品偏好硬编码一个未经测量的数量，也不能借此移除用户已获授权的能力。
 
@@ -156,7 +158,7 @@ SDK 可以并发发出 tool call，但实际执行必须经过每个 catalog 实
 - async iterable 工具必须声明 `policy.streaming`，scheduler 持有 admission 直到 terminal yield；
 - duplicate tool name 启动即失败，不允许宿主静默替换 shared capability。
 
-ToolLoop 中间件不通过删除 provider tool call 来制造串行；并发、权限和副作用边界在 executor admission 执行。Portable registry 只含已证明跨 Backend/Desktop 共用的基础能力。Runtime 自有的 Media、Memory 作为 host manifest；Knowledge、Canvas 和外部 MCP 都通过同一套 catalog/release/ installation/activation/Turn snapshot/connection lifecycle 注入，Runtime 不再持有固定服务 tool client 或第二套插件 adapter。完整 ownership、去密持久化、lazy discovery、MCP fail-closed 与当前仅 `knowledge_search`/`get_canvas_context` 的能力面见 [Agent plugins](agent-plugins.md)。
+ToolLoop 中间件不通过删除 provider tool call 来制造串行；并发、权限和副作用边界在 executor admission 执行。Portable registry 只含已证明跨 Backend/Desktop 共用的基础能力。Runtime 自有的 Media 作为 host manifest；它把图片/视频 provider 的长任务包装成幂等 durable operation，但 `generate_images` / `generate_video` 始终阻塞当前 tool call 直到终态 Session file 已发布，不暴露 production/workbench 投影。Knowledge、Canvas 和外部 MCP 都通过同一套 catalog/release/installation/activation/Turn snapshot/connection lifecycle 注入，Runtime 不再持有固定服务 tool client 或第二套插件 adapter。产品 memory 由上层宿主投影。完整 ownership、去密持久化、lazy discovery、MCP fail-closed 与当前仅 `knowledge_search`/`get_canvas_context` 的能力面见 [Agent plugins](agent-plugins.md)。
 
 ## Instructions 与 runtime facts
 
@@ -181,7 +183,7 @@ system instructions 在一个 turn 内固定。核心基座采用 Codex 式执�
 | logical Turn 与 invocation/attempt 分离 | implemented in Cloud; partial cross-host | Cloud continuation 复用 `turns.id`、追加 attempt 并结算 `waiting`；Desktop 保留 waiting Turn identity，但尚无可恢复 physical-attempt envelope |
 | tool effect consistency | implemented in Cloud | execute wrapper 在进入 host code 前原子 claim；`(turn_id, tool_call_id)` 在逻辑 Turn 内稳定，完整 canonical input digest 判等、redacted input 仅供观察；completed 可跨 attempt replay，重复 claim、异参或 unconfirmed 一律 fail closed |
 | journal → bounded model context、双层 compaction、checkpoint CAS | implemented with limits | 两端能 fail closed 重建上下文；Cloud checkpoint 已绑定 history/instruction/catalog/workspace/compactor/remote generation，并参与 recovery 校验 |
-| 冻结 model/tool/plugin/permission snapshot | implemented in Cloud; partial cross-host | Cloud 使用 attempt-scoped immutable resume envelope 并在恢复时重取 secret/grants；Desktop 尚无等价 envelope |
+| 冻结 model/tool/plugin/permission snapshot | implemented in Cloud; partial cross-host | Cloud 使用 attempt-scoped immutable resume envelope；恢复必须由上层宿主续期 `TurnCapabilities`，缺失时 fail closed；Desktop 尚无等价 envelope |
 | Pi 式小热工具面 | partial | 已有 `deferLoading + tool_search`；缺少初始 schema token 与激活质量观测，不能证明当前固定列表已经最小 |
 | Sandbox 进程、取消、工作区 finalizer | implemented with environment gaps | 代码路径已存在；真实 macOS 签名包、gVisor/Kubernetes 和网络 broker 仍按 Sandbox ADR 验收 |
 | 五类 recovery boundary classifier | implemented; host-specific execution | shared 只从持久事实判定；Cloud 原子 claim 并执行安全的 model-boundary 恢复，Desktop restart 仍 fail closed |

@@ -21,7 +21,7 @@ type AssetBytesSource interface {
 // PlatformAssetUploader streams official content into the platform Asset
 // control plane. Physical dedupe and upload leases belong to that service.
 type PlatformAssetUploader interface {
-	UploadPlatformRevision(context.Context, string, *string, string, string, string, string, io.Reader) (applicationasset.ResolvedRevision, error)
+	UploadPlatformRevision(context.Context, string, string, string, io.Reader) (applicationasset.ResolvedRevision, error)
 }
 
 type AssetStore interface {
@@ -82,8 +82,7 @@ func (p *Provisioner) Provision(
 		return item, fmt.Errorf("save registering scope for %q: %w", entry.Slug, err)
 	}
 	revision, err := p.uploader.UploadPlatformRevision(
-		ctx, scope.TenantID, scope.WorkspaceID, officialCreatedBy, entry.FileName, entry.ContentType,
-		"official-resource:"+entry.Slug+":"+fileSHA256, bytes.NewReader(data),
+		ctx, entry.FileName, entry.ContentType, "official-resource:"+entry.Slug+":"+fileSHA256, bytes.NewReader(data),
 	)
 	if err != nil {
 		return p.markFailed(ctx, registering, fmt.Errorf("upload preset asset %q: %w", entry.Slug, err))

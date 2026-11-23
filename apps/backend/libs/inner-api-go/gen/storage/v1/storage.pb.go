@@ -7,7 +7,6 @@
 package storagev1
 
 import (
-	v1 "github.com/example/monorepo/inner-api-go/gen/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -190,11 +189,9 @@ func (UploadSessionState) EnumDescriptor() ([]byte, []int) {
 
 type UploadMetadata struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Actor          *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	Filename       string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
-	MediaType      string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
-	Category       string                 `protobuf:"bytes,4,opt,name=category,proto3" json:"category,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	Filename       string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
+	MediaType      string                 `protobuf:"bytes,2,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -229,13 +226,6 @@ func (*UploadMetadata) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *UploadMetadata) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
-}
-
 func (x *UploadMetadata) GetFilename() string {
 	if x != nil {
 		return x.Filename
@@ -246,13 +236,6 @@ func (x *UploadMetadata) GetFilename() string {
 func (x *UploadMetadata) GetMediaType() string {
 	if x != nil {
 		return x.MediaType
-	}
-	return ""
-}
-
-func (x *UploadMetadata) GetCategory() string {
-	if x != nil {
-		return x.Category
 	}
 	return ""
 }
@@ -348,16 +331,15 @@ func (*UploadRequest_Chunk) isUploadRequest_Value() {}
 
 type AppendRevisionMetadata struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Actor          *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	AssetId        string                 `protobuf:"bytes,2,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
-	Filename       string                 `protobuf:"bytes,3,opt,name=filename,proto3" json:"filename,omitempty"`
-	MediaType      string                 `protobuf:"bytes,4,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	BaseRevisionId string                 `protobuf:"bytes,6,opt,name=base_revision_id,json=baseRevisionId,proto3" json:"base_revision_id,omitempty"`
-	OwnerType      string                 `protobuf:"bytes,7,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
-	OwnerId        string                 `protobuf:"bytes,8,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	Slot           string                 `protobuf:"bytes,9,opt,name=slot,proto3" json:"slot,omitempty"`
-	Generation     int64                  `protobuf:"varint,10,opt,name=generation,proto3" json:"generation,omitempty"`
+	AssetId        string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	Filename       string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	MediaType      string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	BaseRevisionId string                 `protobuf:"bytes,5,opt,name=base_revision_id,json=baseRevisionId,proto3" json:"base_revision_id,omitempty"`
+	OwnerType      string                 `protobuf:"bytes,6,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
+	OwnerId        string                 `protobuf:"bytes,7,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	Slot           string                 `protobuf:"bytes,8,opt,name=slot,proto3" json:"slot,omitempty"`
+	Generation     int64                  `protobuf:"varint,9,opt,name=generation,proto3" json:"generation,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -390,13 +372,6 @@ func (x *AppendRevisionMetadata) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AppendRevisionMetadata.ProtoReflect.Descriptor instead.
 func (*AppendRevisionMetadata) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *AppendRevisionMetadata) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
 }
 
 func (x *AppendRevisionMetadata) GetAssetId() string {
@@ -718,9 +693,8 @@ func (x *AppendRevisionResponse) GetResult() *UploadResult {
 
 type DescribeRevisionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	AssetId       string                 `protobuf:"bytes,2,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
-	RevisionId    string                 `protobuf:"bytes,3,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
+	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	RevisionId    string                 `protobuf:"bytes,2,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -755,13 +729,6 @@ func (*DescribeRevisionRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *DescribeRevisionRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
-}
-
 func (x *DescribeRevisionRequest) GetAssetId() string {
 	if x != nil {
 		return x.AssetId
@@ -780,12 +747,10 @@ type RevisionMetadata struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
 	RevisionId    string                 `protobuf:"bytes,2,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
-	Category      string                 `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`
-	Filename      string                 `protobuf:"bytes,4,opt,name=filename,proto3" json:"filename,omitempty"`
-	MediaType     string                 `protobuf:"bytes,5,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
-	SizeBytes     int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	Sha256        string                 `protobuf:"bytes,7,opt,name=sha256,proto3" json:"sha256,omitempty"`
-	CreatedBy     string                 `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	Filename      string                 `protobuf:"bytes,3,opt,name=filename,proto3" json:"filename,omitempty"`
+	MediaType     string                 `protobuf:"bytes,4,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Sha256        string                 `protobuf:"bytes,6,opt,name=sha256,proto3" json:"sha256,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -834,13 +799,6 @@ func (x *RevisionMetadata) GetRevisionId() string {
 	return ""
 }
 
-func (x *RevisionMetadata) GetCategory() string {
-	if x != nil {
-		return x.Category
-	}
-	return ""
-}
-
 func (x *RevisionMetadata) GetFilename() string {
 	if x != nil {
 		return x.Filename
@@ -865,13 +823,6 @@ func (x *RevisionMetadata) GetSizeBytes() int64 {
 func (x *RevisionMetadata) GetSha256() string {
 	if x != nil {
 		return x.Sha256
-	}
-	return ""
-}
-
-func (x *RevisionMetadata) GetCreatedBy() string {
-	if x != nil {
-		return x.CreatedBy
 	}
 	return ""
 }
@@ -922,11 +873,10 @@ func (x *DescribeRevisionResponse) GetRevision() *RevisionMetadata {
 
 type ReadContentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	AssetId       string                 `protobuf:"bytes,2,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
-	RevisionId    string                 `protobuf:"bytes,3,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
-	Offset        *int64                 `protobuf:"varint,4,opt,name=offset,proto3,oneof" json:"offset,omitempty"`
-	Limit         *int64                 `protobuf:"varint,5,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
+	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	RevisionId    string                 `protobuf:"bytes,2,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
+	Offset        *int64                 `protobuf:"varint,3,opt,name=offset,proto3,oneof" json:"offset,omitempty"`
+	Limit         *int64                 `protobuf:"varint,4,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -961,13 +911,6 @@ func (*ReadContentRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ReadContentRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
-}
-
 func (x *ReadContentRequest) GetAssetId() string {
 	if x != nil {
 		return x.AssetId
@@ -998,10 +941,9 @@ func (x *ReadContentRequest) GetLimit() int64 {
 
 type ReadImageVariantRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	AssetId       string                 `protobuf:"bytes,2,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
-	RevisionId    string                 `protobuf:"bytes,3,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
-	MaxDimension  *int32                 `protobuf:"varint,4,opt,name=max_dimension,json=maxDimension,proto3,oneof" json:"max_dimension,omitempty"`
+	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	RevisionId    string                 `protobuf:"bytes,2,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
+	MaxDimension  *int32                 `protobuf:"varint,3,opt,name=max_dimension,json=maxDimension,proto3,oneof" json:"max_dimension,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1034,13 +976,6 @@ func (x *ReadImageVariantRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ReadImageVariantRequest.ProtoReflect.Descriptor instead.
 func (*ReadImageVariantRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ReadImageVariantRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
 }
 
 func (x *ReadImageVariantRequest) GetAssetId() string {
@@ -1306,7 +1241,7 @@ type Claim struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClaimId       string                 `protobuf:"bytes,1,opt,name=claim_id,json=claimId,proto3" json:"claim_id,omitempty"`
 	AssetId       string                 `protobuf:"bytes,2,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
-	RevisionId    *string                `protobuf:"bytes,3,opt,name=revision_id,json=revisionId,proto3,oneof" json:"revision_id,omitempty"`
+	RevisionId    string                 `protobuf:"bytes,3,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
 	Kind          ClaimKind              `protobuf:"varint,4,opt,name=kind,proto3,enum=storage.v1.ClaimKind" json:"kind,omitempty"`
 	Status        ClaimStatus            `protobuf:"varint,5,opt,name=status,proto3,enum=storage.v1.ClaimStatus" json:"status,omitempty"`
 	Generation    int64                  `protobuf:"varint,6,opt,name=generation,proto3" json:"generation,omitempty"`
@@ -1360,8 +1295,8 @@ func (x *Claim) GetAssetId() string {
 }
 
 func (x *Claim) GetRevisionId() string {
-	if x != nil && x.RevisionId != nil {
-		return *x.RevisionId
+	if x != nil {
+		return x.RevisionId
 	}
 	return ""
 }
@@ -1396,15 +1331,14 @@ func (x *Claim) GetExpiresAt() *timestamppb.Timestamp {
 
 type PrepareClaimRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	OwnerType     string                 `protobuf:"bytes,2,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
-	OwnerId       string                 `protobuf:"bytes,3,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	Slot          string                 `protobuf:"bytes,4,opt,name=slot,proto3" json:"slot,omitempty"`
-	Generation    int64                  `protobuf:"varint,5,opt,name=generation,proto3" json:"generation,omitempty"`
-	AssetId       string                 `protobuf:"bytes,6,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
-	RevisionId    *string                `protobuf:"bytes,7,opt,name=revision_id,json=revisionId,proto3,oneof" json:"revision_id,omitempty"`
-	Kind          ClaimKind              `protobuf:"varint,8,opt,name=kind,proto3,enum=storage.v1.ClaimKind" json:"kind,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=expires_at,json=expiresAt,proto3,oneof" json:"expires_at,omitempty"`
+	OwnerType     string                 `protobuf:"bytes,1,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	Slot          string                 `protobuf:"bytes,3,opt,name=slot,proto3" json:"slot,omitempty"`
+	Generation    int64                  `protobuf:"varint,4,opt,name=generation,proto3" json:"generation,omitempty"`
+	AssetId       string                 `protobuf:"bytes,5,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	RevisionId    string                 `protobuf:"bytes,6,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
+	Kind          ClaimKind              `protobuf:"varint,7,opt,name=kind,proto3,enum=storage.v1.ClaimKind" json:"kind,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=expires_at,json=expiresAt,proto3,oneof" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1437,13 +1371,6 @@ func (x *PrepareClaimRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use PrepareClaimRequest.ProtoReflect.Descriptor instead.
 func (*PrepareClaimRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *PrepareClaimRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
 }
 
 func (x *PrepareClaimRequest) GetOwnerType() string {
@@ -1482,8 +1409,8 @@ func (x *PrepareClaimRequest) GetAssetId() string {
 }
 
 func (x *PrepareClaimRequest) GetRevisionId() string {
-	if x != nil && x.RevisionId != nil {
-		return *x.RevisionId
+	if x != nil {
+		return x.RevisionId
 	}
 	return ""
 }
@@ -1504,11 +1431,10 @@ func (x *PrepareClaimRequest) GetExpiresAt() *timestamppb.Timestamp {
 
 type ActivateClaimRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	OwnerType     string                 `protobuf:"bytes,2,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
-	OwnerId       string                 `protobuf:"bytes,3,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	Slot          string                 `protobuf:"bytes,4,opt,name=slot,proto3" json:"slot,omitempty"`
-	Generation    int64                  `protobuf:"varint,5,opt,name=generation,proto3" json:"generation,omitempty"`
+	OwnerType     string                 `protobuf:"bytes,1,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	Slot          string                 `protobuf:"bytes,3,opt,name=slot,proto3" json:"slot,omitempty"`
+	Generation    int64                  `protobuf:"varint,4,opt,name=generation,proto3" json:"generation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1543,13 +1469,6 @@ func (*ActivateClaimRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{18}
 }
 
-func (x *ActivateClaimRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
-}
-
 func (x *ActivateClaimRequest) GetOwnerType() string {
 	if x != nil {
 		return x.OwnerType
@@ -1580,11 +1499,10 @@ func (x *ActivateClaimRequest) GetGeneration() int64 {
 
 type ReleaseClaimRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	OwnerType     string                 `protobuf:"bytes,2,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
-	OwnerId       string                 `protobuf:"bytes,3,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	Slot          string                 `protobuf:"bytes,4,opt,name=slot,proto3" json:"slot,omitempty"`
-	Generation    int64                  `protobuf:"varint,5,opt,name=generation,proto3" json:"generation,omitempty"`
+	OwnerType     string                 `protobuf:"bytes,1,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	Slot          string                 `protobuf:"bytes,3,opt,name=slot,proto3" json:"slot,omitempty"`
+	Generation    int64                  `protobuf:"varint,4,opt,name=generation,proto3" json:"generation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1617,13 +1535,6 @@ func (x *ReleaseClaimRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ReleaseClaimRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseClaimRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{19}
-}
-
-func (x *ReleaseClaimRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
 }
 
 func (x *ReleaseClaimRequest) GetOwnerType() string {
@@ -1788,12 +1699,10 @@ func (x *ReleaseClaimResponse) GetClaim() *Claim {
 
 type CreateUploadSessionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	IntentId      string                 `protobuf:"bytes,2,opt,name=intent_id,json=intentId,proto3" json:"intent_id,omitempty"`
-	Filename      string                 `protobuf:"bytes,3,opt,name=filename,proto3" json:"filename,omitempty"`
-	MediaType     string                 `protobuf:"bytes,4,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
-	Category      string                 `protobuf:"bytes,5,opt,name=category,proto3" json:"category,omitempty"`
-	SizeBytes     int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	IntentId      string                 `protobuf:"bytes,1,opt,name=intent_id,json=intentId,proto3" json:"intent_id,omitempty"`
+	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	MediaType     string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1828,13 +1737,6 @@ func (*CreateUploadSessionRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{23}
 }
 
-func (x *CreateUploadSessionRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
-}
-
 func (x *CreateUploadSessionRequest) GetIntentId() string {
 	if x != nil {
 		return x.IntentId
@@ -1856,13 +1758,6 @@ func (x *CreateUploadSessionRequest) GetMediaType() string {
 	return ""
 }
 
-func (x *CreateUploadSessionRequest) GetCategory() string {
-	if x != nil {
-		return x.Category
-	}
-	return ""
-}
-
 func (x *CreateUploadSessionRequest) GetSizeBytes() int64 {
 	if x != nil {
 		return x.SizeBytes
@@ -1872,8 +1767,7 @@ func (x *CreateUploadSessionRequest) GetSizeBytes() int64 {
 
 type DescribeUploadSessionRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	Actor           *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	UploadSessionId string                 `protobuf:"bytes,2,opt,name=upload_session_id,json=uploadSessionId,proto3" json:"upload_session_id,omitempty"`
+	UploadSessionId string                 `protobuf:"bytes,1,opt,name=upload_session_id,json=uploadSessionId,proto3" json:"upload_session_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1908,13 +1802,6 @@ func (*DescribeUploadSessionRequest) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *DescribeUploadSessionRequest) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
-}
-
 func (x *DescribeUploadSessionRequest) GetUploadSessionId() string {
 	if x != nil {
 		return x.UploadSessionId
@@ -1927,15 +1814,13 @@ type UploadSession struct {
 	UploadSessionId string                 `protobuf:"bytes,1,opt,name=upload_session_id,json=uploadSessionId,proto3" json:"upload_session_id,omitempty"`
 	IntentId        string                 `protobuf:"bytes,2,opt,name=intent_id,json=intentId,proto3" json:"intent_id,omitempty"`
 	State           UploadSessionState     `protobuf:"varint,3,opt,name=state,proto3,enum=storage.v1.UploadSessionState" json:"state,omitempty"`
-	UserId          string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Category        string                 `protobuf:"bytes,5,opt,name=category,proto3" json:"category,omitempty"`
-	Filename        string                 `protobuf:"bytes,6,opt,name=filename,proto3" json:"filename,omitempty"`
-	MediaType       string                 `protobuf:"bytes,7,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
-	SizeBytes       int64                  `protobuf:"varint,8,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	ExpiresAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	UploadUrl       string                 `protobuf:"bytes,10,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
-	AssetId         *string                `protobuf:"bytes,11,opt,name=asset_id,json=assetId,proto3,oneof" json:"asset_id,omitempty"`
-	RevisionId      *string                `protobuf:"bytes,12,opt,name=revision_id,json=revisionId,proto3,oneof" json:"revision_id,omitempty"`
+	Filename        string                 `protobuf:"bytes,4,opt,name=filename,proto3" json:"filename,omitempty"`
+	MediaType       string                 `protobuf:"bytes,5,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	SizeBytes       int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ExpiresAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	UploadUrl       string                 `protobuf:"bytes,8,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
+	AssetId         *string                `protobuf:"bytes,9,opt,name=asset_id,json=assetId,proto3,oneof" json:"asset_id,omitempty"`
+	RevisionId      *string                `protobuf:"bytes,10,opt,name=revision_id,json=revisionId,proto3,oneof" json:"revision_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1989,20 +1874,6 @@ func (x *UploadSession) GetState() UploadSessionState {
 		return x.State
 	}
 	return UploadSessionState_UPLOAD_SESSION_STATE_UNSPECIFIED
-}
-
-func (x *UploadSession) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *UploadSession) GetCategory() string {
-	if x != nil {
-		return x.Category
-	}
-	return ""
 }
 
 func (x *UploadSession) GetFilename() string {
@@ -2144,10 +2015,9 @@ func (x *DescribeUploadSessionResponse) GetSession() *UploadSession {
 
 type DeliveryCapabilityItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	AssetId       string                 `protobuf:"bytes,2,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
-	RevisionId    string                 `protobuf:"bytes,3,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
-	MaxDimension  *int32                 `protobuf:"varint,4,opt,name=max_dimension,json=maxDimension,proto3,oneof" json:"max_dimension,omitempty"`
+	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	RevisionId    string                 `protobuf:"bytes,2,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
+	MaxDimension  *int32                 `protobuf:"varint,3,opt,name=max_dimension,json=maxDimension,proto3,oneof" json:"max_dimension,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2180,13 +2050,6 @@ func (x *DeliveryCapabilityItem) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DeliveryCapabilityItem.ProtoReflect.Descriptor instead.
 func (*DeliveryCapabilityItem) Descriptor() ([]byte, []int) {
 	return file_storage_v1_storage_proto_rawDescGZIP(), []int{28}
-}
-
-func (x *DeliveryCapabilityItem) GetActor() *v1.ActorContext {
-	if x != nil {
-		return x.Actor
-	}
-	return nil
 }
 
 func (x *DeliveryCapabilityItem) GetAssetId() string {
@@ -2395,33 +2258,29 @@ var File_storage_v1_storage_proto protoreflect.FileDescriptor
 const file_storage_v1_storage_proto_rawDesc = "" +
 	"\n" +
 	"\x18storage/v1/storage.proto\x12\n" +
-	"storage.v1\x1a\x17common/v1/context.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbf\x01\n" +
-	"\x0eUploadMetadata\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x1a\n" +
-	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x1d\n" +
+	"storage.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"t\n" +
+	"\x0eUploadMetadata\x12\x1a\n" +
+	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\x03 \x01(\tR\tmediaType\x12\x1a\n" +
-	"\bcategory\x18\x04 \x01(\tR\bcategory\x12'\n" +
-	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"j\n" +
+	"media_type\x18\x02 \x01(\tR\tmediaType\x12'\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"j\n" +
 	"\rUploadRequest\x128\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x1a.storage.v1.UploadMetadataH\x00R\bmetadata\x12\x16\n" +
 	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunkB\a\n" +
-	"\x05value\"\xde\x02\n" +
-	"\x16AppendRevisionMetadata\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x19\n" +
-	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x1a\n" +
-	"\bfilename\x18\x03 \x01(\tR\bfilename\x12\x1d\n" +
+	"\x05value\"\xaf\x02\n" +
+	"\x16AppendRevisionMetadata\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1a\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\x04 \x01(\tR\tmediaType\x12'\n" +
-	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\x12(\n" +
-	"\x10base_revision_id\x18\x06 \x01(\tR\x0ebaseRevisionId\x12\x1d\n" +
+	"media_type\x18\x03 \x01(\tR\tmediaType\x12'\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\x12(\n" +
+	"\x10base_revision_id\x18\x05 \x01(\tR\x0ebaseRevisionId\x12\x1d\n" +
 	"\n" +
-	"owner_type\x18\a \x01(\tR\townerType\x12\x19\n" +
-	"\bowner_id\x18\b \x01(\tR\aownerId\x12\x12\n" +
-	"\x04slot\x18\t \x01(\tR\x04slot\x12\x1e\n" +
+	"owner_type\x18\x06 \x01(\tR\townerType\x12\x19\n" +
+	"\bowner_id\x18\a \x01(\tR\aownerId\x12\x12\n" +
+	"\x04slot\x18\b \x01(\tR\x04slot\x12\x1e\n" +
 	"\n" +
-	"generation\x18\n" +
-	" \x01(\x03R\n" +
+	"generation\x18\t \x01(\x03R\n" +
 	"generation\"z\n" +
 	"\x15AppendRevisionRequest\x12@\n" +
 	"\bmetadata\x18\x01 \x01(\v2\".storage.v1.AppendRevisionMetadataH\x00R\bmetadata\x12\x16\n" +
@@ -2440,42 +2299,36 @@ const file_storage_v1_storage_proto_rawDesc = "" +
 	"\x0eUploadResponse\x120\n" +
 	"\x06result\x18\x01 \x01(\v2\x18.storage.v1.UploadResultR\x06result\"J\n" +
 	"\x16AppendRevisionResponse\x120\n" +
-	"\x06result\x18\x01 \x01(\v2\x18.storage.v1.UploadResultR\x06result\"\x84\x01\n" +
-	"\x17DescribeRevisionRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x19\n" +
-	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x1f\n" +
-	"\vrevision_id\x18\x03 \x01(\tR\n" +
-	"revisionId\"\xfb\x01\n" +
+	"\x06result\x18\x01 \x01(\v2\x18.storage.v1.UploadResultR\x06result\"U\n" +
+	"\x17DescribeRevisionRequest\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1f\n" +
+	"\vrevision_id\x18\x02 \x01(\tR\n" +
+	"revisionId\"\xc0\x01\n" +
 	"\x10RevisionMetadata\x12\x19\n" +
 	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1f\n" +
 	"\vrevision_id\x18\x02 \x01(\tR\n" +
 	"revisionId\x12\x1a\n" +
-	"\bcategory\x18\x03 \x01(\tR\bcategory\x12\x1a\n" +
-	"\bfilename\x18\x04 \x01(\tR\bfilename\x12\x1d\n" +
+	"\bfilename\x18\x03 \x01(\tR\bfilename\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\x05 \x01(\tR\tmediaType\x12\x1d\n" +
+	"media_type\x18\x04 \x01(\tR\tmediaType\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12\x16\n" +
-	"\x06sha256\x18\a \x01(\tR\x06sha256\x12\x1d\n" +
-	"\n" +
-	"created_by\x18\b \x01(\tR\tcreatedBy\"T\n" +
+	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12\x16\n" +
+	"\x06sha256\x18\x06 \x01(\tR\x06sha256\"T\n" +
 	"\x18DescribeRevisionResponse\x128\n" +
-	"\brevision\x18\x01 \x01(\v2\x1c.storage.v1.RevisionMetadataR\brevision\"\xcc\x01\n" +
-	"\x12ReadContentRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x19\n" +
-	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x1f\n" +
-	"\vrevision_id\x18\x03 \x01(\tR\n" +
+	"\brevision\x18\x01 \x01(\v2\x1c.storage.v1.RevisionMetadataR\brevision\"\x9d\x01\n" +
+	"\x12ReadContentRequest\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1f\n" +
+	"\vrevision_id\x18\x02 \x01(\tR\n" +
 	"revisionId\x12\x1b\n" +
-	"\x06offset\x18\x04 \x01(\x03H\x00R\x06offset\x88\x01\x01\x12\x19\n" +
-	"\x05limit\x18\x05 \x01(\x03H\x01R\x05limit\x88\x01\x01B\t\n" +
+	"\x06offset\x18\x03 \x01(\x03H\x00R\x06offset\x88\x01\x01\x12\x19\n" +
+	"\x05limit\x18\x04 \x01(\x03H\x01R\x05limit\x88\x01\x01B\t\n" +
 	"\a_offsetB\b\n" +
-	"\x06_limit\"\xc0\x01\n" +
-	"\x17ReadImageVariantRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x19\n" +
-	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x1f\n" +
-	"\vrevision_id\x18\x03 \x01(\tR\n" +
+	"\x06_limit\"\x91\x01\n" +
+	"\x17ReadImageVariantRequest\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1f\n" +
+	"\vrevision_id\x18\x02 \x01(\tR\n" +
 	"revisionId\x12(\n" +
-	"\rmax_dimension\x18\x04 \x01(\x05H\x00R\fmaxDimension\x88\x01\x01B\x10\n" +
+	"\rmax_dimension\x18\x03 \x01(\x05H\x00R\fmaxDimension\x88\x01\x01B\x10\n" +
 	"\x0e_max_dimension\"\x83\x01\n" +
 	"\x0fContentMetadata\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x1d\n" +
@@ -2491,105 +2344,94 @@ const file_storage_v1_storage_proto_rawDesc = "" +
 	"\x13ReadContentResponse\x12.\n" +
 	"\x05value\x18\x01 \x01(\v2\x18.storage.v1.ContentChunkR\x05value\"J\n" +
 	"\x18ReadImageVariantResponse\x12.\n" +
-	"\x05value\x18\x01 \x01(\v2\x18.storage.v1.ContentChunkR\x05value\"\xbe\x02\n" +
+	"\x05value\x18\x01 \x01(\v2\x18.storage.v1.ContentChunkR\x05value\"\xa9\x02\n" +
 	"\x05Claim\x12\x19\n" +
 	"\bclaim_id\x18\x01 \x01(\tR\aclaimId\x12\x19\n" +
-	"\basset_id\x18\x02 \x01(\tR\aassetId\x12$\n" +
-	"\vrevision_id\x18\x03 \x01(\tH\x00R\n" +
-	"revisionId\x88\x01\x01\x12)\n" +
+	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x1f\n" +
+	"\vrevision_id\x18\x03 \x01(\tR\n" +
+	"revisionId\x12)\n" +
 	"\x04kind\x18\x04 \x01(\x0e2\x15.storage.v1.ClaimKindR\x04kind\x12/\n" +
 	"\x06status\x18\x05 \x01(\x0e2\x17.storage.v1.ClaimStatusR\x06status\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x06 \x01(\x03R\n" +
 	"generation\x12>\n" +
 	"\n" +
-	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x01R\texpiresAt\x88\x01\x01B\x0e\n" +
-	"\f_revision_idB\r\n" +
-	"\v_expires_at\"\xfd\x02\n" +
-	"\x13PrepareClaimRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x1d\n" +
+	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x00R\texpiresAt\x88\x01\x01B\r\n" +
+	"\v_expires_at\"\xb9\x02\n" +
+	"\x13PrepareClaimRequest\x12\x1d\n" +
 	"\n" +
-	"owner_type\x18\x02 \x01(\tR\townerType\x12\x19\n" +
-	"\bowner_id\x18\x03 \x01(\tR\aownerId\x12\x12\n" +
-	"\x04slot\x18\x04 \x01(\tR\x04slot\x12\x1e\n" +
+	"owner_type\x18\x01 \x01(\tR\townerType\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x12\n" +
+	"\x04slot\x18\x03 \x01(\tR\x04slot\x12\x1e\n" +
 	"\n" +
-	"generation\x18\x05 \x01(\x03R\n" +
+	"generation\x18\x04 \x01(\x03R\n" +
 	"generation\x12\x19\n" +
-	"\basset_id\x18\x06 \x01(\tR\aassetId\x12$\n" +
-	"\vrevision_id\x18\a \x01(\tH\x00R\n" +
-	"revisionId\x88\x01\x01\x12)\n" +
-	"\x04kind\x18\b \x01(\x0e2\x15.storage.v1.ClaimKindR\x04kind\x12>\n" +
+	"\basset_id\x18\x05 \x01(\tR\aassetId\x12\x1f\n" +
+	"\vrevision_id\x18\x06 \x01(\tR\n" +
+	"revisionId\x12)\n" +
+	"\x04kind\x18\a \x01(\x0e2\x15.storage.v1.ClaimKindR\x04kind\x12>\n" +
 	"\n" +
-	"expires_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampH\x01R\texpiresAt\x88\x01\x01B\x0e\n" +
-	"\f_revision_idB\r\n" +
-	"\v_expires_at\"\xb3\x01\n" +
-	"\x14ActivateClaimRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x1d\n" +
+	"expires_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x00R\texpiresAt\x88\x01\x01B\r\n" +
+	"\v_expires_at\"\x84\x01\n" +
+	"\x14ActivateClaimRequest\x12\x1d\n" +
 	"\n" +
-	"owner_type\x18\x02 \x01(\tR\townerType\x12\x19\n" +
-	"\bowner_id\x18\x03 \x01(\tR\aownerId\x12\x12\n" +
-	"\x04slot\x18\x04 \x01(\tR\x04slot\x12\x1e\n" +
+	"owner_type\x18\x01 \x01(\tR\townerType\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x12\n" +
+	"\x04slot\x18\x03 \x01(\tR\x04slot\x12\x1e\n" +
 	"\n" +
-	"generation\x18\x05 \x01(\x03R\n" +
-	"generation\"\xb2\x01\n" +
-	"\x13ReleaseClaimRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x1d\n" +
+	"generation\x18\x04 \x01(\x03R\n" +
+	"generation\"\x83\x01\n" +
+	"\x13ReleaseClaimRequest\x12\x1d\n" +
 	"\n" +
-	"owner_type\x18\x02 \x01(\tR\townerType\x12\x19\n" +
-	"\bowner_id\x18\x03 \x01(\tR\aownerId\x12\x12\n" +
-	"\x04slot\x18\x04 \x01(\tR\x04slot\x12\x1e\n" +
+	"owner_type\x18\x01 \x01(\tR\townerType\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x12\n" +
+	"\x04slot\x18\x03 \x01(\tR\x04slot\x12\x1e\n" +
 	"\n" +
-	"generation\x18\x05 \x01(\x03R\n" +
+	"generation\x18\x04 \x01(\x03R\n" +
 	"generation\"?\n" +
 	"\x14PrepareClaimResponse\x12'\n" +
 	"\x05claim\x18\x01 \x01(\v2\x11.storage.v1.ClaimR\x05claim\"@\n" +
 	"\x15ActivateClaimResponse\x12'\n" +
 	"\x05claim\x18\x01 \x01(\v2\x11.storage.v1.ClaimR\x05claim\"?\n" +
 	"\x14ReleaseClaimResponse\x12'\n" +
-	"\x05claim\x18\x01 \x01(\v2\x11.storage.v1.ClaimR\x05claim\"\xde\x01\n" +
-	"\x1aCreateUploadSessionRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x1b\n" +
-	"\tintent_id\x18\x02 \x01(\tR\bintentId\x12\x1a\n" +
-	"\bfilename\x18\x03 \x01(\tR\bfilename\x12\x1d\n" +
+	"\x05claim\x18\x01 \x01(\v2\x11.storage.v1.ClaimR\x05claim\"\x93\x01\n" +
+	"\x1aCreateUploadSessionRequest\x12\x1b\n" +
+	"\tintent_id\x18\x01 \x01(\tR\bintentId\x12\x1a\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\x04 \x01(\tR\tmediaType\x12\x1a\n" +
-	"\bcategory\x18\x05 \x01(\tR\bcategory\x12\x1d\n" +
+	"media_type\x18\x03 \x01(\tR\tmediaType\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\"y\n" +
-	"\x1cDescribeUploadSessionRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12*\n" +
-	"\x11upload_session_id\x18\x02 \x01(\tR\x0fuploadSessionId\"\xda\x03\n" +
+	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\"J\n" +
+	"\x1cDescribeUploadSessionRequest\x12*\n" +
+	"\x11upload_session_id\x18\x01 \x01(\tR\x0fuploadSessionId\"\xa5\x03\n" +
 	"\rUploadSession\x12*\n" +
 	"\x11upload_session_id\x18\x01 \x01(\tR\x0fuploadSessionId\x12\x1b\n" +
 	"\tintent_id\x18\x02 \x01(\tR\bintentId\x124\n" +
-	"\x05state\x18\x03 \x01(\x0e2\x1e.storage.v1.UploadSessionStateR\x05state\x12\x17\n" +
-	"\auser_id\x18\x04 \x01(\tR\x06userId\x12\x1a\n" +
-	"\bcategory\x18\x05 \x01(\tR\bcategory\x12\x1a\n" +
-	"\bfilename\x18\x06 \x01(\tR\bfilename\x12\x1d\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x1e.storage.v1.UploadSessionStateR\x05state\x12\x1a\n" +
+	"\bfilename\x18\x04 \x01(\tR\bfilename\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\a \x01(\tR\tmediaType\x12\x1d\n" +
+	"media_type\x18\x05 \x01(\tR\tmediaType\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\b \x01(\x03R\tsizeBytes\x129\n" +
+	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x129\n" +
 	"\n" +
-	"expires_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1d\n" +
+	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1d\n" +
 	"\n" +
-	"upload_url\x18\n" +
-	" \x01(\tR\tuploadUrl\x12\x1e\n" +
-	"\basset_id\x18\v \x01(\tH\x00R\aassetId\x88\x01\x01\x12$\n" +
-	"\vrevision_id\x18\f \x01(\tH\x01R\n" +
+	"upload_url\x18\b \x01(\tR\tuploadUrl\x12\x1e\n" +
+	"\basset_id\x18\t \x01(\tH\x00R\aassetId\x88\x01\x01\x12$\n" +
+	"\vrevision_id\x18\n" +
+	" \x01(\tH\x01R\n" +
 	"revisionId\x88\x01\x01B\v\n" +
 	"\t_asset_idB\x0e\n" +
 	"\f_revision_id\"R\n" +
 	"\x1bCreateUploadSessionResponse\x123\n" +
 	"\asession\x18\x01 \x01(\v2\x19.storage.v1.UploadSessionR\asession\"T\n" +
 	"\x1dDescribeUploadSessionResponse\x123\n" +
-	"\asession\x18\x01 \x01(\v2\x19.storage.v1.UploadSessionR\asession\"\xbf\x01\n" +
-	"\x16DeliveryCapabilityItem\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x19\n" +
-	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x1f\n" +
-	"\vrevision_id\x18\x03 \x01(\tR\n" +
+	"\asession\x18\x01 \x01(\v2\x19.storage.v1.UploadSessionR\asession\"\x90\x01\n" +
+	"\x16DeliveryCapabilityItem\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1f\n" +
+	"\vrevision_id\x18\x02 \x01(\tR\n" +
 	"revisionId\x12(\n" +
-	"\rmax_dimension\x18\x04 \x01(\x05H\x00R\fmaxDimension\x88\x01\x01B\x10\n" +
+	"\rmax_dimension\x18\x03 \x01(\x05H\x00R\fmaxDimension\x88\x01\x01B\x10\n" +
 	"\x0e_max_dimension\"S\n" +
 	"\x17MintCapabilitiesRequest\x128\n" +
 	"\x05items\x18\x01 \x03(\v2\".storage.v1.DeliveryCapabilityItemR\x05items\"\xf7\x01\n" +
@@ -2691,71 +2533,59 @@ var file_storage_v1_storage_proto_goTypes = []any{
 	(*MintCapabilitiesRequest)(nil),       // 32: storage.v1.MintCapabilitiesRequest
 	(*DeliveryCapability)(nil),            // 33: storage.v1.DeliveryCapability
 	(*MintCapabilitiesResponse)(nil),      // 34: storage.v1.MintCapabilitiesResponse
-	(*v1.ActorContext)(nil),               // 35: common.v1.ActorContext
-	(*timestamppb.Timestamp)(nil),         // 36: google.protobuf.Timestamp
+	(*timestamppb.Timestamp)(nil),         // 35: google.protobuf.Timestamp
 }
 var file_storage_v1_storage_proto_depIdxs = []int32{
-	35, // 0: storage.v1.UploadMetadata.actor:type_name -> common.v1.ActorContext
-	3,  // 1: storage.v1.UploadRequest.metadata:type_name -> storage.v1.UploadMetadata
-	35, // 2: storage.v1.AppendRevisionMetadata.actor:type_name -> common.v1.ActorContext
-	5,  // 3: storage.v1.AppendRevisionRequest.metadata:type_name -> storage.v1.AppendRevisionMetadata
-	7,  // 4: storage.v1.UploadResponse.result:type_name -> storage.v1.UploadResult
-	7,  // 5: storage.v1.AppendRevisionResponse.result:type_name -> storage.v1.UploadResult
-	35, // 6: storage.v1.DescribeRevisionRequest.actor:type_name -> common.v1.ActorContext
-	11, // 7: storage.v1.DescribeRevisionResponse.revision:type_name -> storage.v1.RevisionMetadata
-	35, // 8: storage.v1.ReadContentRequest.actor:type_name -> common.v1.ActorContext
-	35, // 9: storage.v1.ReadImageVariantRequest.actor:type_name -> common.v1.ActorContext
-	15, // 10: storage.v1.ContentChunk.metadata:type_name -> storage.v1.ContentMetadata
-	16, // 11: storage.v1.ReadContentResponse.value:type_name -> storage.v1.ContentChunk
-	16, // 12: storage.v1.ReadImageVariantResponse.value:type_name -> storage.v1.ContentChunk
-	0,  // 13: storage.v1.Claim.kind:type_name -> storage.v1.ClaimKind
-	1,  // 14: storage.v1.Claim.status:type_name -> storage.v1.ClaimStatus
-	36, // 15: storage.v1.Claim.expires_at:type_name -> google.protobuf.Timestamp
-	35, // 16: storage.v1.PrepareClaimRequest.actor:type_name -> common.v1.ActorContext
-	0,  // 17: storage.v1.PrepareClaimRequest.kind:type_name -> storage.v1.ClaimKind
-	36, // 18: storage.v1.PrepareClaimRequest.expires_at:type_name -> google.protobuf.Timestamp
-	35, // 19: storage.v1.ActivateClaimRequest.actor:type_name -> common.v1.ActorContext
-	35, // 20: storage.v1.ReleaseClaimRequest.actor:type_name -> common.v1.ActorContext
-	19, // 21: storage.v1.PrepareClaimResponse.claim:type_name -> storage.v1.Claim
-	19, // 22: storage.v1.ActivateClaimResponse.claim:type_name -> storage.v1.Claim
-	19, // 23: storage.v1.ReleaseClaimResponse.claim:type_name -> storage.v1.Claim
-	35, // 24: storage.v1.CreateUploadSessionRequest.actor:type_name -> common.v1.ActorContext
-	35, // 25: storage.v1.DescribeUploadSessionRequest.actor:type_name -> common.v1.ActorContext
-	2,  // 26: storage.v1.UploadSession.state:type_name -> storage.v1.UploadSessionState
-	36, // 27: storage.v1.UploadSession.expires_at:type_name -> google.protobuf.Timestamp
-	28, // 28: storage.v1.CreateUploadSessionResponse.session:type_name -> storage.v1.UploadSession
-	28, // 29: storage.v1.DescribeUploadSessionResponse.session:type_name -> storage.v1.UploadSession
-	35, // 30: storage.v1.DeliveryCapabilityItem.actor:type_name -> common.v1.ActorContext
-	31, // 31: storage.v1.MintCapabilitiesRequest.items:type_name -> storage.v1.DeliveryCapabilityItem
-	36, // 32: storage.v1.DeliveryCapability.expires_at:type_name -> google.protobuf.Timestamp
-	33, // 33: storage.v1.MintCapabilitiesResponse.items:type_name -> storage.v1.DeliveryCapability
-	4,  // 34: storage.v1.AssetService.Upload:input_type -> storage.v1.UploadRequest
-	6,  // 35: storage.v1.AssetService.AppendRevision:input_type -> storage.v1.AppendRevisionRequest
-	10, // 36: storage.v1.AssetService.DescribeRevision:input_type -> storage.v1.DescribeRevisionRequest
-	13, // 37: storage.v1.AssetService.ReadContent:input_type -> storage.v1.ReadContentRequest
-	14, // 38: storage.v1.AssetService.ReadImageVariant:input_type -> storage.v1.ReadImageVariantRequest
-	20, // 39: storage.v1.ClaimService.PrepareClaim:input_type -> storage.v1.PrepareClaimRequest
-	21, // 40: storage.v1.ClaimService.ActivateClaim:input_type -> storage.v1.ActivateClaimRequest
-	22, // 41: storage.v1.ClaimService.ReleaseClaim:input_type -> storage.v1.ReleaseClaimRequest
-	26, // 42: storage.v1.UploadSessionService.CreateUploadSession:input_type -> storage.v1.CreateUploadSessionRequest
-	27, // 43: storage.v1.UploadSessionService.DescribeUploadSession:input_type -> storage.v1.DescribeUploadSessionRequest
-	32, // 44: storage.v1.DeliveryService.MintCapabilities:input_type -> storage.v1.MintCapabilitiesRequest
-	8,  // 45: storage.v1.AssetService.Upload:output_type -> storage.v1.UploadResponse
-	9,  // 46: storage.v1.AssetService.AppendRevision:output_type -> storage.v1.AppendRevisionResponse
-	12, // 47: storage.v1.AssetService.DescribeRevision:output_type -> storage.v1.DescribeRevisionResponse
-	17, // 48: storage.v1.AssetService.ReadContent:output_type -> storage.v1.ReadContentResponse
-	18, // 49: storage.v1.AssetService.ReadImageVariant:output_type -> storage.v1.ReadImageVariantResponse
-	23, // 50: storage.v1.ClaimService.PrepareClaim:output_type -> storage.v1.PrepareClaimResponse
-	24, // 51: storage.v1.ClaimService.ActivateClaim:output_type -> storage.v1.ActivateClaimResponse
-	25, // 52: storage.v1.ClaimService.ReleaseClaim:output_type -> storage.v1.ReleaseClaimResponse
-	29, // 53: storage.v1.UploadSessionService.CreateUploadSession:output_type -> storage.v1.CreateUploadSessionResponse
-	30, // 54: storage.v1.UploadSessionService.DescribeUploadSession:output_type -> storage.v1.DescribeUploadSessionResponse
-	34, // 55: storage.v1.DeliveryService.MintCapabilities:output_type -> storage.v1.MintCapabilitiesResponse
-	45, // [45:56] is the sub-list for method output_type
-	34, // [34:45] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	3,  // 0: storage.v1.UploadRequest.metadata:type_name -> storage.v1.UploadMetadata
+	5,  // 1: storage.v1.AppendRevisionRequest.metadata:type_name -> storage.v1.AppendRevisionMetadata
+	7,  // 2: storage.v1.UploadResponse.result:type_name -> storage.v1.UploadResult
+	7,  // 3: storage.v1.AppendRevisionResponse.result:type_name -> storage.v1.UploadResult
+	11, // 4: storage.v1.DescribeRevisionResponse.revision:type_name -> storage.v1.RevisionMetadata
+	15, // 5: storage.v1.ContentChunk.metadata:type_name -> storage.v1.ContentMetadata
+	16, // 6: storage.v1.ReadContentResponse.value:type_name -> storage.v1.ContentChunk
+	16, // 7: storage.v1.ReadImageVariantResponse.value:type_name -> storage.v1.ContentChunk
+	0,  // 8: storage.v1.Claim.kind:type_name -> storage.v1.ClaimKind
+	1,  // 9: storage.v1.Claim.status:type_name -> storage.v1.ClaimStatus
+	35, // 10: storage.v1.Claim.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 11: storage.v1.PrepareClaimRequest.kind:type_name -> storage.v1.ClaimKind
+	35, // 12: storage.v1.PrepareClaimRequest.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 13: storage.v1.PrepareClaimResponse.claim:type_name -> storage.v1.Claim
+	19, // 14: storage.v1.ActivateClaimResponse.claim:type_name -> storage.v1.Claim
+	19, // 15: storage.v1.ReleaseClaimResponse.claim:type_name -> storage.v1.Claim
+	2,  // 16: storage.v1.UploadSession.state:type_name -> storage.v1.UploadSessionState
+	35, // 17: storage.v1.UploadSession.expires_at:type_name -> google.protobuf.Timestamp
+	28, // 18: storage.v1.CreateUploadSessionResponse.session:type_name -> storage.v1.UploadSession
+	28, // 19: storage.v1.DescribeUploadSessionResponse.session:type_name -> storage.v1.UploadSession
+	31, // 20: storage.v1.MintCapabilitiesRequest.items:type_name -> storage.v1.DeliveryCapabilityItem
+	35, // 21: storage.v1.DeliveryCapability.expires_at:type_name -> google.protobuf.Timestamp
+	33, // 22: storage.v1.MintCapabilitiesResponse.items:type_name -> storage.v1.DeliveryCapability
+	4,  // 23: storage.v1.AssetService.Upload:input_type -> storage.v1.UploadRequest
+	6,  // 24: storage.v1.AssetService.AppendRevision:input_type -> storage.v1.AppendRevisionRequest
+	10, // 25: storage.v1.AssetService.DescribeRevision:input_type -> storage.v1.DescribeRevisionRequest
+	13, // 26: storage.v1.AssetService.ReadContent:input_type -> storage.v1.ReadContentRequest
+	14, // 27: storage.v1.AssetService.ReadImageVariant:input_type -> storage.v1.ReadImageVariantRequest
+	20, // 28: storage.v1.ClaimService.PrepareClaim:input_type -> storage.v1.PrepareClaimRequest
+	21, // 29: storage.v1.ClaimService.ActivateClaim:input_type -> storage.v1.ActivateClaimRequest
+	22, // 30: storage.v1.ClaimService.ReleaseClaim:input_type -> storage.v1.ReleaseClaimRequest
+	26, // 31: storage.v1.UploadSessionService.CreateUploadSession:input_type -> storage.v1.CreateUploadSessionRequest
+	27, // 32: storage.v1.UploadSessionService.DescribeUploadSession:input_type -> storage.v1.DescribeUploadSessionRequest
+	32, // 33: storage.v1.DeliveryService.MintCapabilities:input_type -> storage.v1.MintCapabilitiesRequest
+	8,  // 34: storage.v1.AssetService.Upload:output_type -> storage.v1.UploadResponse
+	9,  // 35: storage.v1.AssetService.AppendRevision:output_type -> storage.v1.AppendRevisionResponse
+	12, // 36: storage.v1.AssetService.DescribeRevision:output_type -> storage.v1.DescribeRevisionResponse
+	17, // 37: storage.v1.AssetService.ReadContent:output_type -> storage.v1.ReadContentResponse
+	18, // 38: storage.v1.AssetService.ReadImageVariant:output_type -> storage.v1.ReadImageVariantResponse
+	23, // 39: storage.v1.ClaimService.PrepareClaim:output_type -> storage.v1.PrepareClaimResponse
+	24, // 40: storage.v1.ClaimService.ActivateClaim:output_type -> storage.v1.ActivateClaimResponse
+	25, // 41: storage.v1.ClaimService.ReleaseClaim:output_type -> storage.v1.ReleaseClaimResponse
+	29, // 42: storage.v1.UploadSessionService.CreateUploadSession:output_type -> storage.v1.CreateUploadSessionResponse
+	30, // 43: storage.v1.UploadSessionService.DescribeUploadSession:output_type -> storage.v1.DescribeUploadSessionResponse
+	34, // 44: storage.v1.DeliveryService.MintCapabilities:output_type -> storage.v1.MintCapabilitiesResponse
+	34, // [34:45] is the sub-list for method output_type
+	23, // [23:34] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_storage_v1_storage_proto_init() }

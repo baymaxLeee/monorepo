@@ -2,7 +2,9 @@ package rpcapi
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -40,8 +42,10 @@ func (s *Server) MintCapabilities(ctx context.Context, request *storagev1.MintCa
 	}
 	result := make([]*storagev1.DeliveryCapability, 0, len(request.GetItems()))
 	for _, item := range request.GetItems() {
-		a := item.GetActor()
-		value, err := s.delivery.Mint(ctx, application.DeliveryItem{TenantID: a.GetTenantId(), WorkspaceID: a.GetWorkspaceId(), AssetID: item.GetAssetId(), RevisionID: item.GetRevisionId(), MaxDimension: int(item.GetMaxDimension())})
+		value, err := s.delivery.Mint(ctx, application.DeliveryItem{
+			OwnerService: innerruntime.CallerFromContext(ctx), AssetID: item.GetAssetId(), RevisionID: item.GetRevisionId(),
+			MaxDimension: int(item.GetMaxDimension()),
+		})
 		if err != nil {
 			return nil, rpcError(err)
 		}
@@ -50,10 +54,33 @@ func (s *Server) MintCapabilities(ctx context.Context, request *storagev1.MintCa
 	return &storagev1.MintCapabilitiesResponse{Items: result}, nil
 }
 
-func Authorizer() innerruntime.Authorizer {
+func Authorizer(allowedCallers []string) innerruntime.Authorizer {
+	allowed := make(map[string]struct{}, len(allowedCallers))
+	for _, caller := range allowedCallers {
+		allowed[caller] = struct{}{}
+	}
 	return innerruntime.AuthorizeFunc(func(caller, _ string) bool {
-		return caller == "admin" || caller == "canvas" || caller == "runtime" || caller == "knowledge"
+		if !validWorkloadName(caller) {
+			return false
+		}
+		if len(allowed) == 0 {
+			return true
+		}
+		_, ok := allowed[caller]
+		return ok
 	})
+}
+
+func validWorkloadName(value string) bool {
+	if len(value) == 0 || len(value) > 64 || value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	for _, character := range value[1:] {
+		if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) Upload(stream storagev1.AssetService_UploadServer) error {
@@ -65,10 +92,8 @@ func (s *Server) Upload(stream storagev1.AssetService_UploadServer) error {
 	if metadata == nil {
 		return status.Error(codes.InvalidArgument, "the first upload message must contain metadata")
 	}
-	actor := metadata.GetActor()
 	asset, revision, err := s.service.Upload(stream.Context(), application.CreateUploadInput{
-		TenantID: actor.GetTenantId(), WorkspaceID: actor.GetWorkspaceId(), UserID: actor.GetUserId(),
-		Filename: metadata.GetFilename(), MediaType: metadata.GetMediaType(), Category: metadata.GetCategory(),
+		Filename: metadata.GetFilename(), MediaType: metadata.GetMediaType(),
 		CallerService: innerruntime.CallerFromContext(stream.Context()), IdempotencyKey: metadata.GetIdempotencyKey(),
 	}, &uploadReader{recv: func() ([]byte, bool, error) {
 		message, recvErr := stream.Recv()
@@ -95,9 +120,7 @@ func (s *Server) AppendRevision(stream storagev1.AssetService_AppendRevisionServ
 	if metadata == nil {
 		return status.Error(codes.InvalidArgument, "the first append message must contain metadata")
 	}
-	actor := metadata.GetActor()
 	asset, revision, err := s.service.AppendRevision(stream.Context(), application.AppendRevisionInput{
-		TenantID: actor.GetTenantId(), WorkspaceID: actor.GetWorkspaceId(), UserID: actor.GetUserId(),
 		Filename: metadata.GetFilename(), MediaType: metadata.GetMediaType(), CallerService: innerruntime.CallerFromContext(stream.Context()),
 		IdempotencyKey: metadata.GetIdempotencyKey(), AssetID: metadata.GetAssetId(), BaseRevisionID: metadata.GetBaseRevisionId(),
 		OwnerType: metadata.GetOwnerType(), OwnerID: metadata.GetOwnerId(), Slot: metadata.GetSlot(), Generation: metadata.GetGeneration(),
@@ -142,17 +165,25 @@ func (reader *uploadReader) Read(target []byte) (int, error) {
 }
 
 func (s *Server) DescribeRevision(ctx context.Context, request *storagev1.DescribeRevisionRequest) (*storagev1.DescribeRevisionResponse, error) {
-	actor := request.GetActor()
-	asset, revision, err := s.service.Describe(ctx, actor.GetTenantId(), actor.GetWorkspaceId(), request.GetAssetId(), request.GetRevisionId())
+	if err := s.service.AuthorizeRevision(ctx, application.ClaimAuthorizationInput{
+		OwnerService: innerruntime.CallerFromContext(ctx), AssetID: request.GetAssetId(), RevisionID: request.GetRevisionId(),
+	}); err != nil {
+		return nil, rpcError(err)
+	}
+	_, revision, err := s.service.Describe(ctx, request.GetAssetId(), request.GetRevisionId())
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return &storagev1.DescribeRevisionResponse{Revision: revisionMetadata(asset.Category, revision)}, nil
+	return &storagev1.DescribeRevisionResponse{Revision: revisionMetadata(revision)}, nil
 }
 
 func (s *Server) ReadContent(request *storagev1.ReadContentRequest, stream storagev1.AssetService_ReadContentServer) error {
-	actor := request.GetActor()
-	revision, blob, err := s.service.Open(stream.Context(), actor.GetTenantId(), actor.GetWorkspaceId(), request.GetAssetId(), request.GetRevisionId())
+	if err := s.service.AuthorizeRevision(stream.Context(), application.ClaimAuthorizationInput{
+		OwnerService: innerruntime.CallerFromContext(stream.Context()), AssetID: request.GetAssetId(), RevisionID: request.GetRevisionId(),
+	}); err != nil {
+		return rpcError(err)
+	}
+	revision, blob, err := s.service.Open(stream.Context(), request.GetAssetId(), request.GetRevisionId())
 	if err != nil {
 		return rpcError(err)
 	}
@@ -198,8 +229,12 @@ func (s *Server) ReadContent(request *storagev1.ReadContentRequest, stream stora
 }
 
 func (s *Server) ReadImageVariant(request *storagev1.ReadImageVariantRequest, stream storagev1.AssetService_ReadImageVariantServer) error {
-	actor := request.GetActor()
-	revision, blob, err := s.service.Open(stream.Context(), actor.GetTenantId(), actor.GetWorkspaceId(), request.GetAssetId(), request.GetRevisionId())
+	if err := s.service.AuthorizeRevision(stream.Context(), application.ClaimAuthorizationInput{
+		OwnerService: innerruntime.CallerFromContext(stream.Context()), AssetID: request.GetAssetId(), RevisionID: request.GetRevisionId(),
+	}); err != nil {
+		return rpcError(err)
+	}
+	_, blob, err := s.service.Open(stream.Context(), request.GetAssetId(), request.GetRevisionId())
 	if err != nil {
 		return rpcError(err)
 	}
@@ -208,7 +243,8 @@ func (s *Server) ReadImageVariant(request *storagev1.ReadImageVariantRequest, st
 	if err != nil {
 		return status.Error(codes.InvalidArgument, "image cannot be transformed within variant bounds")
 	}
-	if err = stream.Send(&storagev1.ReadImageVariantResponse{Value: &storagev1.ContentChunk{Value: &storagev1.ContentChunk_Metadata{Metadata: &storagev1.ContentMetadata{Filename: "preview.jpg", MediaType: "image/jpeg", SizeBytes: int64(len(data)), Sha256: revision.SHA256}}}}); err != nil {
+	variantSHA256 := fmt.Sprintf("%x", sha256.Sum256(data))
+	if err = stream.Send(&storagev1.ReadImageVariantResponse{Value: &storagev1.ContentChunk{Value: &storagev1.ContentChunk_Metadata{Metadata: &storagev1.ContentMetadata{Filename: "preview.jpg", MediaType: "image/jpeg", SizeBytes: int64(len(data)), Sha256: variantSHA256}}}}); err != nil {
 		return err
 	}
 	for offset := 0; offset < len(data); offset += 64 * 1024 {
@@ -221,13 +257,12 @@ func (s *Server) ReadImageVariant(request *storagev1.ReadImageVariantRequest, st
 }
 
 func (s *Server) PrepareClaim(ctx context.Context, request *storagev1.PrepareClaimRequest) (*storagev1.PrepareClaimResponse, error) {
-	a := request.GetActor()
 	var expiresAt *time.Time
 	if request.ExpiresAt != nil {
 		value := request.ExpiresAt.AsTime()
 		expiresAt = &value
 	}
-	claim, err := s.service.PrepareClaim(ctx, application.PrepareClaimInput{TenantID: a.GetTenantId(), WorkspaceID: a.GetWorkspaceId(), OwnerService: innerruntime.CallerFromContext(ctx), OwnerType: request.GetOwnerType(), OwnerID: request.GetOwnerId(), Slot: request.GetSlot(), AssetID: request.GetAssetId(), RevisionID: request.GetRevisionId(), Kind: claimKind(request.GetKind()), Generation: request.GetGeneration(), ExpiresAt: expiresAt})
+	claim, err := s.service.PrepareClaim(ctx, application.PrepareClaimInput{OwnerService: innerruntime.CallerFromContext(ctx), OwnerType: request.GetOwnerType(), OwnerID: request.GetOwnerId(), Slot: request.GetSlot(), AssetID: request.GetAssetId(), RevisionID: request.GetRevisionId(), Kind: claimKind(request.GetKind()), Generation: request.GetGeneration(), ExpiresAt: expiresAt})
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -235,7 +270,7 @@ func (s *Server) PrepareClaim(ctx context.Context, request *storagev1.PrepareCla
 }
 
 func (s *Server) ActivateClaim(ctx context.Context, request *storagev1.ActivateClaimRequest) (*storagev1.ActivateClaimResponse, error) {
-	claim, err := s.mutateClaim(ctx, request.GetActor(), request.GetOwnerType(), request.GetOwnerId(), request.GetSlot(), request.GetGeneration(), false)
+	claim, err := s.mutateClaim(ctx, request.GetOwnerType(), request.GetOwnerId(), request.GetSlot(), request.GetGeneration(), false)
 	if err != nil {
 		return nil, err
 	}
@@ -243,18 +278,15 @@ func (s *Server) ActivateClaim(ctx context.Context, request *storagev1.ActivateC
 }
 
 func (s *Server) ReleaseClaim(ctx context.Context, request *storagev1.ReleaseClaimRequest) (*storagev1.ReleaseClaimResponse, error) {
-	claim, err := s.mutateClaim(ctx, request.GetActor(), request.GetOwnerType(), request.GetOwnerId(), request.GetSlot(), request.GetGeneration(), true)
+	claim, err := s.mutateClaim(ctx, request.GetOwnerType(), request.GetOwnerId(), request.GetSlot(), request.GetGeneration(), true)
 	if err != nil {
 		return nil, err
 	}
 	return &storagev1.ReleaseClaimResponse{Claim: claimMessage(claim)}, nil
 }
 
-func (s *Server) mutateClaim(ctx context.Context, actor interface {
-	GetTenantId() string
-	GetWorkspaceId() string
-}, ownerType, ownerID, slot string, generation int64, release bool) (domain.Claim, error) {
-	input := application.ClaimMutationInput{TenantID: actor.GetTenantId(), WorkspaceID: actor.GetWorkspaceId(), OwnerService: innerruntime.CallerFromContext(ctx), OwnerType: ownerType, OwnerID: ownerID, Slot: slot, Generation: generation}
+func (s *Server) mutateClaim(ctx context.Context, ownerType, ownerID, slot string, generation int64, release bool) (domain.Claim, error) {
+	input := application.ClaimMutationInput{OwnerService: innerruntime.CallerFromContext(ctx), OwnerType: ownerType, OwnerID: ownerID, Slot: slot, Generation: generation}
 	var claim domain.Claim
 	var err error
 	if release {
@@ -266,8 +298,7 @@ func (s *Server) mutateClaim(ctx context.Context, actor interface {
 }
 
 func (s *Server) CreateUploadSession(ctx context.Context, request *storagev1.CreateUploadSessionRequest) (*storagev1.CreateUploadSessionResponse, error) {
-	a := request.GetActor()
-	session, err := s.service.CreateUploadSession(ctx, application.CreateUploadSessionInput{TenantID: a.GetTenantId(), WorkspaceID: a.GetWorkspaceId(), UserID: a.GetUserId(), CallerService: innerruntime.CallerFromContext(ctx), IdempotencyKey: request.GetIntentId(), Filename: request.GetFilename(), MediaType: request.GetMediaType(), Category: request.GetCategory(), SizeBytes: request.GetSizeBytes()})
+	session, err := s.service.CreateUploadSession(ctx, application.CreateUploadSessionInput{CallerService: innerruntime.CallerFromContext(ctx), IdempotencyKey: request.GetIntentId(), Filename: request.GetFilename(), MediaType: request.GetMediaType(), SizeBytes: request.GetSizeBytes()})
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -275,8 +306,7 @@ func (s *Server) CreateUploadSession(ctx context.Context, request *storagev1.Cre
 }
 
 func (s *Server) DescribeUploadSession(ctx context.Context, request *storagev1.DescribeUploadSessionRequest) (*storagev1.DescribeUploadSessionResponse, error) {
-	a := request.GetActor()
-	session, err := s.service.DescribeUploadSession(ctx, innerruntime.CallerFromContext(ctx), a.GetTenantId(), a.GetWorkspaceId(), request.GetUploadSessionId())
+	session, err := s.service.DescribeUploadSession(ctx, innerruntime.CallerFromContext(ctx), request.GetUploadSessionId())
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -284,7 +314,7 @@ func (s *Server) DescribeUploadSession(ctx context.Context, request *storagev1.D
 }
 
 func (s *Server) uploadSession(value application.UploadSession) *storagev1.UploadSession {
-	result := &storagev1.UploadSession{UploadSessionId: value.ID, IntentId: value.IdempotencyKey, State: uploadSessionState(value.State), UserId: value.UserID, Category: value.Category, Filename: value.Filename, MediaType: value.MediaType, SizeBytes: value.SizeBytes, ExpiresAt: timestamppb.New(value.ExpiresAt), AssetId: optional(value.AssetID), RevisionId: optional(value.RevisionID)}
+	result := &storagev1.UploadSession{UploadSessionId: value.ID, IntentId: value.IdempotencyKey, State: uploadSessionState(value.State), Filename: value.Filename, MediaType: value.MediaType, SizeBytes: value.SizeBytes, ExpiresAt: timestamppb.New(value.ExpiresAt), AssetId: optional(value.AssetID), RevisionId: optional(value.RevisionID)}
 	if s.uploadSessionURL != nil {
 		result.UploadUrl = s.uploadSessionURL(value)
 	}
@@ -294,8 +324,8 @@ func (s *Server) uploadSession(value application.UploadSession) *storagev1.Uploa
 func uploadResult(assetID string, revision domain.Revision) *storagev1.UploadResult {
 	return &storagev1.UploadResult{AssetId: assetID, RevisionId: revision.ID, Filename: revision.Filename, MediaType: revision.MediaType, SizeBytes: revision.SizeBytes, Sha256: revision.SHA256}
 }
-func revisionMetadata(category string, revision domain.Revision) *storagev1.RevisionMetadata {
-	return &storagev1.RevisionMetadata{AssetId: revision.AssetID, RevisionId: revision.ID, Category: category, Filename: revision.Filename, MediaType: revision.MediaType, SizeBytes: revision.SizeBytes, Sha256: revision.SHA256, CreatedBy: revision.CreatedBy}
+func revisionMetadata(revision domain.Revision) *storagev1.RevisionMetadata {
+	return &storagev1.RevisionMetadata{AssetId: revision.AssetID, RevisionId: revision.ID, Filename: revision.Filename, MediaType: revision.MediaType, SizeBytes: revision.SizeBytes, Sha256: revision.SHA256}
 }
 func optional(value string) *string {
 	if value == "" {
@@ -319,7 +349,7 @@ func claimKind(value storagev1.ClaimKind) domain.ClaimKind {
 	}
 }
 func claimMessage(value domain.Claim) *storagev1.Claim {
-	result := &storagev1.Claim{ClaimId: value.ID, AssetId: value.AssetID, RevisionId: optional(value.RevisionID), Kind: mapClaimKind(value.Kind), Status: mapClaimStatus(value.Status), Generation: value.Generation}
+	result := &storagev1.Claim{ClaimId: value.ID, AssetId: value.AssetID, RevisionId: value.RevisionID, Kind: mapClaimKind(value.Kind), Status: mapClaimStatus(value.Status), Generation: value.Generation}
 	if value.ExpiresAt != nil {
 		result.ExpiresAt = timestamppb.New(*value.ExpiresAt)
 	}

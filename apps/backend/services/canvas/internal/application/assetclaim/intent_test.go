@@ -64,7 +64,7 @@ func TestRelayActiveAndReleasedDelivery(t *testing.T) {
 		want        []string
 	}{
 		{name: "active", state: DesiredActive, want: []string{"prepare", "activate"}},
-		{name: "released before active delivery", state: DesiredReleased, want: []string{"prepare", "release"}},
+		{name: "released before active delivery", state: DesiredReleased, want: []string{"release"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			now := time.Now().UTC()

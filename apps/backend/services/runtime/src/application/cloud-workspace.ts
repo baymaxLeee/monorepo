@@ -12,9 +12,6 @@ import { readWorkspaceCheckout } from "./workspace-checkout.js";
 import { isValidWorkspacePath } from "./workspace-paths.js";
 
 export interface CloudWorkspaceScope {
-  tenantId: string;
-  workspaceId: string;
-  userId: string;
   sessionId: string;
   runId: string;
   attemptEpoch: string;
@@ -70,9 +67,6 @@ export async function persistCloudWorkspace(
   deps: CloudWorkspaceDependencies = defaults,
 ): Promise<void> {
   const scope = {
-    tenant_id: context.tenantId,
-    workspace_id: context.workspaceId,
-    user_id: context.userId,
     session_id: context.sessionId,
     run_id: context.runId,
     attempt_epoch: context.attemptEpoch,
@@ -94,9 +88,6 @@ export async function persistCloudWorkspace(
     if (current) {
       await deps.update(
         {
-          userId: context.userId,
-          tenantId: context.tenantId,
-          workspaceId: context.workspaceId,
           sessionId: context.sessionId,
           fileId: current.id,
           expectedEtag: current.etag,
@@ -112,7 +103,7 @@ export async function persistCloudWorkspace(
         },
         async (idempotencyKey, file, claim) => {
           const storage = deps.asset();
-          const claimInput = { tenantId: context.tenantId, workspaceId: context.workspaceId, ...claim };
+          const claimInput = claim;
           await storage.prepareClaim({
             ...claimInput,
             assetId: file.asset_id,
@@ -123,7 +114,6 @@ export async function persistCloudWorkspace(
           const body = await deps.sandbox().download(sandboxId, scope, entry.path);
           try {
             const asset = await storage.appendRevision({
-              ...context,
               assetId: file.asset_id,
               baseRevisionId: file.revision_id,
               ...claim,
@@ -161,7 +151,6 @@ export async function persistCloudWorkspace(
       .digest("hex");
     try {
       const asset = await deps.asset().upload({
-        ...context,
         filename,
         mediaType: workspaceMediaType(filename),
         category: "sandbox-workspace",
@@ -170,9 +159,6 @@ export async function persistCloudWorkspace(
       });
       verifySnapshot(entry, asset);
       await deps.publish({
-        userId: context.userId,
-        tenantId: context.tenantId,
-        workspaceId: context.workspaceId,
         sessionId: context.sessionId,
         title: filename,
         assetId: asset.assetId,
@@ -195,9 +181,6 @@ export async function persistCloudWorkspace(
   for (const [workspacePath, file] of baseline) {
     if (livePaths.has(workspacePath)) continue;
     await deps.delete({
-      userId: context.userId,
-      tenantId: context.tenantId,
-      workspaceId: context.workspaceId,
       sessionId: context.sessionId,
       fileId: file.id,
       workspacePath,

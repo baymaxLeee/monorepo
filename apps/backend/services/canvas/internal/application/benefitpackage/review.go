@@ -96,7 +96,7 @@ type SubmitReviewInput struct {
 }
 
 type ReviewAssetUpload struct {
-	ClientID, SourceAssetID, SourceRevisionID, FileName string
+	ClientRef, UploadSessionID string
 }
 
 type SubmitReviewResult struct {
@@ -165,7 +165,7 @@ func (s *ReviewService) BatchSubmit(ctx context.Context, input BatchSubmitReview
 
 func reviewSubmissionKey(item SubmitReviewItem) string {
 	if item.Upload != nil {
-		return item.PackageID + "\x00upload\x00" + item.Upload.ClientID
+		return item.PackageID + "\x00upload\x00" + item.Upload.ClientRef
 	}
 	return item.PackageID + "\x00asset\x00" + item.AssetID
 }
@@ -239,13 +239,13 @@ func validReviewInput(input SubmitReviewInput) bool {
 	if hasAssetID == hasUpload {
 		return false
 	}
-	return !hasUpload || strings.TrimSpace(input.Upload.ClientID) != "" && strings.TrimSpace(input.Upload.SourceAssetID) != "" && strings.TrimSpace(input.Upload.SourceRevisionID) != "" && strings.TrimSpace(input.Upload.FileName) != ""
+	return !hasUpload || strings.TrimSpace(input.Upload.ClientRef) != "" && strings.TrimSpace(input.Upload.UploadSessionID) != ""
 }
 
 func (s *ReviewService) resolveReviewAsset(ctx context.Context, input SubmitReviewInput) (domainasset.Asset, error) {
 	scope := applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID}
 	if input.Upload != nil {
-		item, _, err := s.assets.CreateIdempotent(ctx, applicationasset.CreateInput{Scope: scope, ProjectID: &input.ProjectID, OwnerType: domainasset.OwnerProject, OwnerID: input.ProjectID, SourceAssetID: input.Upload.SourceAssetID, SourceRevisionID: input.Upload.SourceRevisionID, FileName: input.Upload.FileName, CreationKey: reviewUploadCreationKey(input.ProjectID, input.Upload.ClientID)})
+		item, _, err := s.assets.CreateIdempotent(ctx, applicationasset.CreateInput{Scope: scope, ProjectID: &input.ProjectID, OwnerType: domainasset.OwnerProject, OwnerID: input.ProjectID, UploadSessionID: input.Upload.UploadSessionID, ClientRef: input.Upload.ClientRef, CreationKey: reviewUploadCreationKey(input.ProjectID, input.Upload.ClientRef)})
 		return item, err
 	}
 	items, err := s.assets.BypassBatchGet(ctx, applicationasset.BypassBatchGetInput{Scope: scope, AssetIDs: []string{input.AssetID}})

@@ -18,26 +18,23 @@ import type { UIMessage } from "ai";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
+import type { MediaCapabilities } from "../../../infrastructure/provider/capability.js";
 import { RequestError } from "../../errors.js";
 import { createCloudToolAdapters } from "../adapters/cloud-tools.js";
 import { createRuntimePortableToolModel } from "../adapters/core-tools.js";
 import { RuntimePluginSkillAssetLoader } from "../adapters/plugin-skills.js";
 import { webSearch } from "../adapters/web-search.js";
 import { createMediaToolManifests } from "./builtins/media.js";
-import { createMemoryToolManifests } from "./builtins/memory.js";
 
 export interface AgentToolProviders {
   textProvider: LanguageProviderSnapshot;
+  media: MediaCapabilities;
 }
 
-/** Product authorization stays in the Runtime host; the portable plugin runtime sees only cancellation. */
+/** Turn-local execution identity; product authorization stays in the upper host. */
 export interface HostPluginContext extends AgentPluginContext {
   turnId: string;
   threadId: string;
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
-  workspaceRole: string;
 }
 
 export interface TurnPluginLoader {
@@ -46,10 +43,6 @@ export interface TurnPluginLoader {
 
 export interface PluginSkillAssetLoader {
   loadBody(skill: ResolvedPluginSkillContribution, context: HostPluginContext): Promise<string>;
-}
-
-function domainManifests(): AgentToolManifest[] {
-  return [...createMediaToolManifests(), ...createMemoryToolManifests()].map(deferAgentToolLoading);
 }
 
 function catalogDigest(manifests: AgentToolManifest[]): string {
@@ -64,6 +57,11 @@ function catalogDigest(manifests: AgentToolManifest[]): string {
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
   return createHash("sha256").update(JSON.stringify(projection)).digest("hex");
+}
+
+function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
+  if (providers.media.providers.length === 0) return [];
+  return createMediaToolManifests().map(deferAgentToolLoading);
 }
 
 /** Runtime-owned assembly of core tools plus an already authorized Turn plugin snapshot. */
@@ -120,7 +118,7 @@ export class ToolCatalog {
     }
 
     const catalog = compileTurnTools(
-      [...portableTools.manifests, ...domainManifests(), ...cloudAdapters.manifests],
+      [...portableTools.manifests, ...domainManifests(providers), ...cloudAdapters.manifests],
       pluginSet.manifests,
     );
     const resources = acquired.move();

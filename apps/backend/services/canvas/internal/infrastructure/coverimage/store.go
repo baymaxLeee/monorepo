@@ -27,16 +27,12 @@ func (s *Store) Register(ctx context.Context, input applicationcoverimage.Regist
 	if !input.Revision.Valid() || input.TenantID == "" || input.OwnerType == "" || input.OwnerID == "" {
 		return applicationcoverimage.Registration{}, applicationcoverimage.ErrInvalidReference
 	}
-	workspace := workspaceValue(input.WorkspaceID)
-	revision, err := s.assets.Describe(ctx, input.TenantID, workspace, storageclient.RevisionRef{AssetID: input.Revision.AssetID, RevisionID: input.Revision.RevisionID})
+	revision, err := s.assets.Describe(ctx, storageclient.RevisionRef{AssetID: input.Revision.AssetID, RevisionID: input.Revision.RevisionID})
 	if err != nil {
 		return applicationcoverimage.Registration{}, fmt.Errorf("describe cover image revision: %w", err)
 	}
 	if revision.SizeBytes <= 0 || revision.SizeBytes > applicationcoverimage.MaximumBytes {
 		return applicationcoverimage.Registration{}, applicationcoverimage.ErrTooLarge
-	}
-	if revision.Category != "canvas-cover" || revision.CreatedBy != input.UserID {
-		return applicationcoverimage.Registration{}, applicationcoverimage.ErrInvalidReference
 	}
 	if !applicationcoverimage.SupportedMediaType(revision.MediaType) {
 		return applicationcoverimage.Registration{}, applicationcoverimage.ErrUnsupportedFormat
@@ -72,7 +68,7 @@ func (s *Store) Presign(ctx context.Context, registrations []applicationcoverima
 	inputs := make([]storageclient.DeliveryCapabilityInput, 0, len(registrations))
 	for _, registration := range registrations {
 		if registration.Revision.Valid() {
-			inputs = append(inputs, storageclient.DeliveryCapabilityInput{TenantID: registration.TenantID, WorkspaceID: workspaceValue(registration.WorkspaceID), RevisionRef: storageclient.RevisionRef{AssetID: registration.Revision.AssetID, RevisionID: registration.Revision.RevisionID}})
+			inputs = append(inputs, storageclient.DeliveryCapabilityInput{RevisionRef: storageclient.RevisionRef{AssetID: registration.Revision.AssetID, RevisionID: registration.Revision.RevisionID}})
 		}
 	}
 	if len(inputs) == 0 {

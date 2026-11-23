@@ -53,14 +53,10 @@ async def prepare_source_uploads(
     async def prepare(item: SourceUploadIntentInput) -> SourceUploadPlan:
         async with semaphore:
             session = await client.create_upload_session(
-                tenant_id=current_user.tenant_id,
-                workspace_id=current_user.workspace_id,
-                user_id=current_user.user_id,
                 intent_id=_upload_intent_id(current_user, conversation_id, item.client_ref),
                 filename=item.filename,
                 media_type=item.media_type,
                 size_bytes=item.size_bytes,
-                category="knowledge-source",
             )
         return SourceUploadPlan(
             client_ref=item.client_ref,
@@ -93,24 +89,16 @@ async def ingest_assets(
         try:
             async with semaphore:
                 upload = await client.get_upload_session(
-                    tenant_id=current_user.tenant_id,
-                    workspace_id=current_user.workspace_id,
                     upload_session_id=item.upload_session_id,
                 )
                 if upload.intent_id != _upload_intent_id(current_user, conversation_id, item.client_ref):
                     raise ValueError("upload session does not belong to this document intent")
-                if upload.user_id != current_user.user_id or upload.category != "knowledge-source":
-                    raise ValueError("upload session does not belong to the current user or purpose")
                 if upload.state != "completed" or not upload.asset_id or not upload.revision_id:
                     raise ValueError("upload session is not complete")
                 asset = await client.describe(
-                    tenant_id=current_user.tenant_id,
-                    workspace_id=current_user.workspace_id,
                     asset_id=upload.asset_id,
                     revision_id=upload.revision_id,
                 )
-            if asset.created_by != current_user.user_id:
-                raise ValueError("asset was not uploaded by the current user")
             if asset.size_bytes > settings.attachment_max_upload_bytes:
                 raise ValueError("asset exceeds Knowledge conversion limit")
             async with factory() as session, write_tx(session):

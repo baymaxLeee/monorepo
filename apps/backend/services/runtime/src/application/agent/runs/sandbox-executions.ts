@@ -36,9 +36,6 @@ export const sandboxExecutionLifecycle: SandboxExecutionLifecycle = {
         turnId: scope.run_id,
         attemptEpoch: BigInt(scope.attempt_epoch),
         threadId: scope.session_id,
-        userId: scope.user_id,
-        tenantId: scope.tenant_id,
-        workspaceId: scope.workspace_id,
         state: "restoring",
         createdAt: now,
         updatedAt: now,
@@ -171,9 +168,6 @@ const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
     });
     return rows.map((row) => ({
       scope: {
-        tenant_id: row.tenantId,
-        workspace_id: row.workspaceId,
-        user_id: row.userId,
         session_id: row.threadId,
         run_id: row.turnId,
         attempt_epoch: row.attemptEpoch.toString(),
@@ -188,9 +182,6 @@ const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
   async finalize(scope, sandboxId) {
     await persistCloudWorkspace(
       {
-        tenantId: scope.tenant_id,
-        workspaceId: scope.workspace_id,
-        userId: scope.user_id,
         sessionId: scope.session_id,
         runId: scope.run_id,
         attemptEpoch: scope.attempt_epoch,

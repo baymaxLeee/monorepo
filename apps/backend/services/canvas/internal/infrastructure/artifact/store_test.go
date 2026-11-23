@@ -86,7 +86,7 @@ func TestStorePersistRemote(t *testing.T) {
 		storage, implementation := newStorageClient(t, nil)
 		store := New(storage, "").(*Store)
 		_, err := store.persistRemote(
-			context.Background(), "tenant-1", "workspace-1", "user-1", "result.png", "generated_image", "task-1", server.URL+"/generated.png",
+			context.Background(), "result.png", "task-1", server.URL+"/generated.png",
 		)
 		if err == nil {
 			t.Fatal("expected private generated-media URL to be rejected")
@@ -114,7 +114,7 @@ func TestStorePersistRemote(t *testing.T) {
 		storage, implementation := newStorageClient(t, nil)
 		store := New(storage, "").(*Store)
 		_, err := store.persistRemote(
-			context.Background(), "tenant-1", "workspace-1", "user-1", "result.mp4", "generated_video", "task-1", "https://media.example.com/generated.mp4",
+			context.Background(), "result.mp4", "task-1", "https://media.example.com/generated.mp4",
 		)
 		if err == nil {
 			t.Fatal("expected oversized generated media to be rejected")

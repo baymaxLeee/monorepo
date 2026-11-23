@@ -20,8 +20,9 @@ infrastructure 负责数据库与内部 HTTP adapter。Chat 变薄只减少业�
 
 禁止在 Chat 中重新引入模型、`ToolLoopAgent`、run lease、Redis stream、Sandbox controller 或
 Workflow。Chat 的执行类路由校验 product conversation scope 后，以 `X-Caller-Service: chat`
-调用 Runtime `/v1/sessions`，并透明转发请求体、响应流、取消信号和受信 `X-Auth-*` scope。
-proxy adapter 同时透传 `traceparent`、`tracestate` 与 `X-Trace-Id`，但始终覆盖调用方传入的
+调用 Runtime `/v1/sessions`，把模型、Media、plugin、Skill 与 Memory 解析为冻结的 tenant-neutral
+Turn capability，并透明转发响应流和取消信号。proxy adapter 不向 Runtime 转发任何 `X-Auth-*`；
+它只透传 `Content-Type`、`traceparent`、`tracestate` 与 `X-Trace-Id`，并始终覆盖调用方传入的
 `X-Caller-Service`、`X-Internal-Token`，避免浏览器输入伪造 workload identity。
 
 ## 数据与 API
@@ -32,7 +33,8 @@ Chat PostgreSQL 只保存 `conversations` 产品表和 `runtime_session_id` 映�
 - `POST /conversations`：先创建 Runtime Session，再写入 product mapping；
 - `GET/PATCH/DELETE /conversations/{id}`：先按用户、tenant、workspace 校验本地映射，再读取或修改 Runtime Session；
 - `/conversations/{id}/*` 执行路由：把 product id 映射为 Runtime Session id 后流式代理；
-- `/memories/*`、`/local-inference/*`：保留 Web wire surface，能力所有权仍在 Runtime。
+- `/memories/*`：由 Chat 保存 tenant/workspace/user-scoped 产品 Memory，并在 Turn 开始时投影为冻结内容；
+- `/local-inference/*`：保留 Web wire surface，Chat 完成业务授权与 provider/plugin capability 解析，Desktop Runtime 只消费 tenant-neutral 结果。
 
 Chat 对外保留 `/conversations` 契约；Runtime 内部契约使用 `/v1/sessions`。边界、生命周期和三角色
 部署见 [Session Runtime ADR](../ADR/session-runtime.md)。

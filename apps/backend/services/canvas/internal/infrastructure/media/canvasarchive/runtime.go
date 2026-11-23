@@ -83,7 +83,7 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 	for index := range execution.Inputs {
 		input := execution.Inputs[index]
 		inputs = append(inputs, Input{EntryName: input.EntryName, SourceAssetID: input.SourceAssetID, ExpectedSize: input.MediaSize, Open: func(openCtx context.Context) (io.ReadCloser, error) {
-			return runtime.assets.Open(openCtx, execution.Export.TenantID, workspaceValue(execution.Export.WorkspaceID), storageclient.RevisionRef{AssetID: input.SourceAssetID, RevisionID: input.SourceRevisionID})
+			return runtime.assets.Open(openCtx, storageclient.RevisionRef{AssetID: input.SourceAssetID, RevisionID: input.SourceRevisionID})
 		}})
 	}
 	archive, err := NewBuilder(NewFFprobeProber(nil)).Build(ctx, filepath.Join(directory, "archive.zip"), execution.Export.CreatedAt, strings.TrimSuffix(execution.Export.OutputFilename, ".zip")+".fcpxml", inputs)
@@ -95,7 +95,7 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
 	defer file.Close() //nolint:errcheck
-	revision, err := runtime.assets.Upload(ctx, storageclient.UploadInput{TenantID: execution.Export.TenantID, WorkspaceID: workspaceValue(execution.Export.WorkspaceID), UserID: execution.Export.CreatedBy, Filename: execution.Export.OutputFilename, MediaType: "application/zip", Category: "canvas_archive", IdempotencyKey: "canvas-archive:" + execution.Export.TaskRunID, Body: file})
+	revision, err := runtime.assets.Upload(ctx, storageclient.UploadInput{Filename: execution.Export.OutputFilename, MediaType: "application/zip", IdempotencyKey: "canvas-archive:" + execution.Export.TaskRunID, Body: file})
 	if err != nil {
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
@@ -107,12 +107,5 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 }
 
 func (runtime *Runtime) Open(ctx context.Context, item applicationcanvasarchive.Export) (io.ReadCloser, error) {
-	return runtime.assets.Open(ctx, item.TenantID, workspaceValue(item.WorkspaceID), storageclient.RevisionRef{AssetID: item.OutputAssetID, RevisionID: item.OutputRevisionID})
-}
-
-func workspaceValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
+	return runtime.assets.Open(ctx, storageclient.RevisionRef{AssetID: item.OutputAssetID, RevisionID: item.OutputRevisionID})
 }

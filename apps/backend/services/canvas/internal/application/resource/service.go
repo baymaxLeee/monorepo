@@ -107,10 +107,9 @@ type CreateInput struct {
 }
 
 type InitialAssetInput struct {
-	SourceAssetID    string
-	SourceRevisionID string
-	FileName         string
-	Name             *string
+	UploadSessionID string
+	ClientRef       string
+	Name            *string
 }
 
 type CreateResult struct {
@@ -164,9 +163,8 @@ type CreateResourceAssetInput struct {
 	ProjectID                string
 	ResourceID               string
 	AssetID                  string
-	SourceAssetID            string
-	SourceRevisionID         string
-	FileName                 string
+	UploadSessionID          string
+	ClientRef                string
 	Name                     *string
 	ExpectedResourceRevision int64
 }
@@ -198,8 +196,7 @@ type RenameResourceAssetInput struct {
 type ReplaceUploadedResourceAssetInput struct {
 	Scope
 	ProjectID, ResourceID, ResourceAssetID string
-	SourceAssetID, SourceRevisionID        string
-	FileName                               string
+	UploadSessionID, ClientRef             string
 	ExpectedResourceRevision               int64
 	ExpectedResourceAssetRevision          int64
 }
@@ -314,26 +311,22 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	prepareItems := make([]applicationasset.PrepareCreateItem, len(input.InitialAssets))
 	seenNames := make(map[string]struct{}, len(input.InitialAssets))
 	for index, initial := range input.InitialAssets {
-		if strings.TrimSpace(initial.SourceAssetID) == "" || strings.TrimSpace(initial.SourceRevisionID) == "" || strings.TrimSpace(initial.FileName) == "" {
+		if strings.TrimSpace(initial.UploadSessionID) == "" || strings.TrimSpace(initial.ClientRef) == "" {
 			return CreateResult{}, errno.New(errno.ErrInvalidArgument)
 		}
-		name := domainresource.DefaultResourceAssetName(initial.FileName)
+		name := ""
 		if initial.Name != nil {
 			name = *initial.Name
+			if err := domainresource.ValidateResourceAssetName(name); err != nil {
+				return CreateResult{}, errno.Wrap(errno.ErrInvalidArgument, err)
+			}
 		}
-		if err := domainresource.ValidateResourceAssetName(name); err != nil {
-			return CreateResult{}, errno.Wrap(errno.ErrInvalidArgument, err)
-		}
-		if _, exists := seenNames[name]; exists {
-			return CreateResult{}, errno.New(errno.ErrResourceAssetNameConflict)
-		}
-		seenNames[name] = struct{}{}
 		bindingNames[index] = name
 		bindingIDs[index], err = s.ids.NewID()
 		if err != nil {
 			return CreateResult{}, errno.Wrap(errno.ErrInternalError, err)
 		}
-		prepareItems[index] = applicationasset.PrepareCreateItem{SourceAssetID: initial.SourceAssetID, SourceRevisionID: initial.SourceRevisionID, FileName: initial.FileName}
+		prepareItems[index] = applicationasset.PrepareCreateItem{UploadSessionID: initial.UploadSessionID, ClientRef: initial.ClientRef}
 	}
 	if err := s.repository.ValidateCreate(ctx, item); err != nil {
 		return CreateResult{}, classifyError(err)
@@ -344,10 +337,23 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	if err != nil {
 		return CreateResult{}, err
 	}
-	for _, preparedItem := range prepared {
+	if len(prepared) != len(input.InitialAssets) {
+		return CreateResult{}, errno.New(errno.ErrInternalError)
+	}
+	for index, preparedItem := range prepared {
 		if !mediaMatches(item.Type, preparedItem.MediaType) {
 			return CreateResult{}, classifyError(ErrAssetMediaTypeMismatch)
 		}
+		if bindingNames[index] == "" {
+			bindingNames[index] = domainresource.DefaultResourceAssetName(preparedItem.FileName)
+		}
+		if err := domainresource.ValidateResourceAssetName(bindingNames[index]); err != nil {
+			return CreateResult{}, errno.Wrap(errno.ErrInvalidArgument, err)
+		}
+		if _, exists := seenNames[bindingNames[index]]; exists {
+			return CreateResult{}, errno.New(errno.ErrResourceAssetNameConflict)
+		}
+		seenNames[bindingNames[index]] = struct{}{}
 	}
 	assets, err := s.assetCreator.RegisterPreparedCreates(ctx, prepared)
 	if err != nil {
@@ -623,11 +629,10 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 
 func (s *Service) CreateResourceAsset(ctx context.Context, input CreateResourceAssetInput) (domainresource.ResourceAsset, error) {
 	hasAsset := strings.TrimSpace(input.AssetID) != ""
-	hasRevision := strings.TrimSpace(input.SourceAssetID) != "" && strings.TrimSpace(input.SourceRevisionID) != ""
-	hasPartialRevision := (strings.TrimSpace(input.SourceAssetID) != "") != (strings.TrimSpace(input.SourceRevisionID) != "")
-	hasFileName := strings.TrimSpace(input.FileName) != ""
+	hasUpload := strings.TrimSpace(input.UploadSessionID) != "" && strings.TrimSpace(input.ClientRef) != ""
+	hasPartialUpload := (strings.TrimSpace(input.UploadSessionID) != "") != (strings.TrimSpace(input.ClientRef) != "")
 	if !validScope(input.Scope) || input.ProjectID == "" || input.ResourceID == "" || input.ExpectedResourceRevision < 1 ||
-		hasPartialRevision || hasRevision != hasFileName || hasAsset == hasRevision || s.transactions == nil || (hasAsset && s.assets == nil) || (hasRevision && s.assetCreator == nil) {
+		hasPartialUpload || hasAsset == hasUpload || s.transactions == nil || (hasAsset && s.assets == nil) || (hasUpload && s.assetCreator == nil) {
 		return domainresource.ResourceAsset{}, errno.New(errno.ErrInvalidArgument)
 	}
 	if input.Name != nil {
@@ -652,11 +657,11 @@ func (s *Service) CreateResourceAsset(ctx context.Context, input CreateResourceA
 			return ErrResourceAssetLimitExceeded
 		}
 		var assetItem domainasset.Asset
-		if hasRevision {
+		if hasUpload {
 			assetItem, err = s.assetCreator.Create(txCtx, applicationasset.CreateInput{
 				Scope:     applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID},
 				ProjectID: &input.ProjectID,
-				OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, SourceAssetID: input.SourceAssetID, SourceRevisionID: input.SourceRevisionID, FileName: input.FileName,
+				OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, UploadSessionID: input.UploadSessionID, ClientRef: input.ClientRef,
 			})
 			createdAsset = assetItem
 		} else {
@@ -927,7 +932,7 @@ func (s *Service) RenameResourceAsset(ctx context.Context, input RenameResourceA
 
 func (s *Service) ReplaceUploadedResourceAsset(ctx context.Context, input ReplaceUploadedResourceAssetInput) (domainresource.ResourceAsset, error) {
 	if !validScope(input.Scope) || strings.TrimSpace(input.ProjectID) == "" || strings.TrimSpace(input.ResourceID) == "" ||
-		strings.TrimSpace(input.ResourceAssetID) == "" || strings.TrimSpace(input.SourceAssetID) == "" || strings.TrimSpace(input.SourceRevisionID) == "" || strings.TrimSpace(input.FileName) == "" ||
+		strings.TrimSpace(input.ResourceAssetID) == "" || strings.TrimSpace(input.UploadSessionID) == "" || strings.TrimSpace(input.ClientRef) == "" ||
 		input.ExpectedResourceRevision < 1 || input.ExpectedResourceAssetRevision < 1 || s.transactions == nil || s.assetCreator == nil {
 		return domainresource.ResourceAsset{}, errno.New(errno.ErrInvalidArgument)
 	}
@@ -961,7 +966,7 @@ func (s *Service) ReplaceUploadedResourceAsset(ctx context.Context, input Replac
 		createdAsset, err = s.assetCreator.Create(txCtx, applicationasset.CreateInput{
 			Scope:     applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID},
 			ProjectID: &input.ProjectID,
-			OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, SourceAssetID: input.SourceAssetID, SourceRevisionID: input.SourceRevisionID, FileName: input.FileName,
+			OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, UploadSessionID: input.UploadSessionID, ClientRef: input.ClientRef,
 		})
 		if err != nil {
 			return err

@@ -3,8 +3,12 @@ import test from "node:test";
 
 import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 
-import { AdminUnavailableError } from "../../application/errors.js";
-import { assertLocalPluginExecutionAllowed, attachPlatformMcpCredential, bindTurnPluginGrants } from "./admin.js";
+import { CapabilityBindingError } from "../../application/errors.js";
+import {
+  assertLocalPluginExecutionAllowed,
+  attachPlatformMcpCredential,
+  bindTurnPluginGrants,
+} from "./plugin-capabilities.js";
 
 function snapshot(url = "http://knowledge:8010/mcp"): ResolvedTurnPluginSnapshot {
   return {
@@ -33,10 +37,6 @@ function snapshot(url = "http://knowledge:8010/mcp"): ResolvedTurnPluginSnapshot
         serverName: "knowledge",
         headers: {
           "X-Caller-Service": "runtime",
-          "X-Auth-User-ID": "user",
-          "X-Auth-Tenant-ID": "tenant",
-          "X-Auth-Workspace-ID": "workspace",
-          "X-Auth-Workspace-Role": "member",
         },
       },
     ],
@@ -56,14 +56,28 @@ test("platform credential is injected only after the fixed endpoint and system t
   const bound = bindTurnPluginGrants(resolved, { runId: "run", attemptEpoch: 2 });
   assert.equal(bound.connectionGrants[0]?.headers["X-Runtime-Turn-ID"], "run");
   assert.equal(bound.connectionGrants[0]?.headers["X-Runtime-Attempt-Epoch"], "2");
-  assert.match(bound.connectionGrants[0]?.headers["X-Runtime-Scope-Credential"] ?? "", /^v1\.[\w-]+$/);
+  assert.equal(bound.connectionGrants[0]?.headers["X-Runtime-Scope-Credential"], undefined);
   assert.throws(
     () => attachPlatformMcpCredential(snapshot("https://attacker.example/mcp"), settings),
     /configured platform MCP endpoint/,
   );
 });
 
-test("admin cannot supply or override the Runtime workload credential", () => {
+test("plugin capabilities cannot smuggle business identity headers into Runtime", () => {
+  const value = snapshot();
+  const scoped: ResolvedTurnPluginSnapshot = {
+    ...value,
+    connectionGrants: [
+      {
+        ...value.connectionGrants[0],
+        headers: { ...value.connectionGrants[0].headers, "X-Auth-Workspace-ID": "business-scope" },
+      },
+    ],
+  };
+  assert.throws(() => attachPlatformMcpCredential(scoped, settings), /business identity header/);
+});
+
+test("upper hosts cannot supply or override the Runtime workload credential", () => {
   const value = snapshot();
   const forged: ResolvedTurnPluginSnapshot = {
     ...value,
@@ -74,7 +88,7 @@ test("admin cannot supply or override the Runtime workload credential", () => {
       },
     ],
   };
-  assert.throws(() => attachPlatformMcpCredential(forged, settings), AdminUnavailableError);
+  assert.throws(() => attachPlatformMcpCredential(forged, settings), CapabilityBindingError);
 });
 
 test("Desktop cannot receive system plugin grants from the service trust domain", () => {

@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
-import type { AuthContext } from "../api/http/middleware/auth.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
   assetClaimIntents,
@@ -39,9 +38,6 @@ export interface SessionFile {
 }
 
 type FileScope = {
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
   sessionId: string;
   sandboxAttempt?: WorkspaceAttempt;
 };
@@ -118,12 +114,7 @@ function newContentEtag(): string {
 }
 
 function scopeCondition(scope: FileScope) {
-  return and(
-    eq(sessions.id, scope.sessionId),
-    eq(sessions.userId, scope.userId),
-    eq(sessions.tenantId, scope.tenantId),
-    eq(sessions.workspaceId, scope.workspaceId),
-  );
+  return eq(sessions.id, scope.sessionId);
 }
 
 async function lockFileWriter(tx: ChatTransaction, scope: FileScope) {
@@ -160,34 +151,18 @@ export async function listSessionFiles(scope: FileScope): Promise<SessionFile[]>
   return rows.map(({ file }) => toSessionFile(file));
 }
 
-export async function getSessionFile(
-  auth: Pick<AuthContext, "userId" | "tenantId" | "workspaceId">,
-  sessionId: string,
-  fileId: string,
-): Promise<SessionFile> {
+export async function getSessionFile(sessionId: string, fileId: string): Promise<SessionFile> {
   const [row] = await getDb()
     .select({ file: sessionFiles })
     .from(sessionFiles)
     .innerJoin(sessions, eq(sessions.id, sessionFiles.threadId))
-    .where(
-      and(
-        scopeCondition({ ...auth, sessionId }),
-        eq(sessionFiles.id, fileId),
-        eq(sessionFiles.userId, auth.userId),
-        eq(sessionFiles.tenantId, auth.tenantId),
-        eq(sessionFiles.workspaceId, auth.workspaceId),
-      ),
-    );
+    .where(and(scopeCondition({ sessionId }), eq(sessionFiles.id, fileId)));
   if (!row) throw new NotFoundError(`file ${fileId} not found in session ${sessionId}`);
   return toSessionFile(row.file);
 }
 
-export async function getSessionAttachment(
-  auth: Pick<AuthContext, "userId" | "tenantId" | "workspaceId">,
-  sessionId: string,
-  fileId: string,
-) {
-  const file = await getSessionFile(auth, sessionId, fileId);
+export async function getSessionAttachment(sessionId: string, fileId: string) {
+  const file = await getSessionFile(sessionId, fileId);
   if (!file.workspace_path.startsWith(ATTACHMENT_ROOT) || file.workspace_state !== "live")
     throw new NotFoundError("session attachment not found");
   return file;
@@ -222,15 +197,7 @@ export async function publishSessionFile(
     const [existing] = await tx
       .select()
       .from(sessionFiles)
-      .where(
-        and(
-          eq(sessionFiles.tenantId, input.tenantId),
-          eq(sessionFiles.workspaceId, input.workspaceId),
-          eq(sessionFiles.userId, input.userId),
-          eq(sessionFiles.threadId, input.sessionId),
-          eq(sessionFiles.idempotencyKey, input.idempotencyKey),
-        ),
-      );
+      .where(and(eq(sessionFiles.threadId, input.sessionId), eq(sessionFiles.idempotencyKey, input.idempotencyKey)));
     if (existing) {
       if (
         existing.assetId !== input.assetId ||
@@ -256,9 +223,6 @@ export async function publishSessionFile(
       .values({
         id: randomBytes(16).toString("hex"),
         threadId: input.sessionId,
-        userId: input.userId,
-        tenantId: input.tenantId,
-        workspaceId: input.workspaceId,
         assetId: input.assetId,
         revisionId: input.revisionId,
         title: input.title,
@@ -273,13 +237,11 @@ export async function publishSessionFile(
         contentGeneration: 1n,
         contentEtag: newContentEtag(),
         lastWriterType: input.writerType ?? "agent",
-        lastWriterId: input.writerId ?? input.userId,
+        lastWriterId: input.writerId ?? null,
       })
       .returning();
     if (!row) throw new Error("session file insert returned no row");
     await tx.insert(assetClaimIntents).values({
-      tenantId: input.tenantId,
-      workspaceId: input.workspaceId,
       ownerType: "session_file",
       ownerId: row.id,
       slot: "source",
@@ -338,9 +300,6 @@ type SavePreparation =
 
 function operationCondition(input: SessionFileSaveInput) {
   return and(
-    eq(sessionFileSaveOperations.tenantId, input.tenantId),
-    eq(sessionFileSaveOperations.workspaceId, input.workspaceId),
-    eq(sessionFileSaveOperations.userId, input.userId),
     eq(sessionFileSaveOperations.threadId, input.sessionId),
     eq(sessionFileSaveOperations.operationId, input.operationId),
   );
@@ -388,15 +347,7 @@ async function prepareSessionFileSave(input: SessionFileSaveInput): Promise<Save
     const [row] = await tx
       .select()
       .from(sessionFiles)
-      .where(
-        and(
-          eq(sessionFiles.id, input.fileId),
-          eq(sessionFiles.threadId, input.sessionId),
-          eq(sessionFiles.userId, input.userId),
-          eq(sessionFiles.tenantId, input.tenantId),
-          eq(sessionFiles.workspaceId, input.workspaceId),
-        ),
-      )
+      .where(and(eq(sessionFiles.id, input.fileId), eq(sessionFiles.threadId, input.sessionId)))
       .for("update");
     if (!row) throw new NotFoundError(`file ${input.fileId} not found in session ${input.sessionId}`);
     if (row.workspacePath.startsWith(ATTACHMENT_ROOT)) throw new RequestError("attachments are read-only");
@@ -436,9 +387,6 @@ async function prepareSessionFileSave(input: SessionFileSaveInput): Promise<Save
       await tx.update(sessionFileSaveOperations).set({ leaseUntil, updatedAt: now }).where(operationCondition(input));
     } else {
       await tx.insert(sessionFileSaveOperations).values({
-        tenantId: input.tenantId,
-        workspaceId: input.workspaceId,
-        userId: input.userId,
         threadId: input.sessionId,
         operationId: input.operationId,
         fileId: input.fileId,
@@ -544,15 +492,7 @@ export async function saveSessionFile(
     const [row] = await tx
       .select()
       .from(sessionFiles)
-      .where(
-        and(
-          eq(sessionFiles.id, input.fileId),
-          eq(sessionFiles.threadId, input.sessionId),
-          eq(sessionFiles.userId, input.userId),
-          eq(sessionFiles.tenantId, input.tenantId),
-          eq(sessionFiles.workspaceId, input.workspaceId),
-        ),
-      )
+      .where(and(eq(sessionFiles.id, input.fileId), eq(sessionFiles.threadId, input.sessionId)))
       .for("update");
     if (!row) throw new NotFoundError(`file ${input.fileId} not found in session ${input.sessionId}`);
     const [operation] = await tx
@@ -615,8 +555,6 @@ export async function saveSessionFile(
       })
       .where(
         and(
-          eq(assetClaimIntents.tenantId, input.tenantId),
-          eq(assetClaimIntents.workspaceId, input.workspaceId),
           eq(assetClaimIntents.ownerType, "session_file"),
           eq(assetClaimIntents.ownerId, input.fileId),
           eq(assetClaimIntents.slot, "source"),
@@ -654,15 +592,7 @@ export async function deleteWorkspaceSessionFile(
     const [row] = await tx
       .select()
       .from(sessionFiles)
-      .where(
-        and(
-          eq(sessionFiles.id, input.fileId),
-          eq(sessionFiles.threadId, input.sessionId),
-          eq(sessionFiles.userId, input.userId),
-          eq(sessionFiles.tenantId, input.tenantId),
-          eq(sessionFiles.workspaceId, input.workspaceId),
-        ),
-      )
+      .where(and(eq(sessionFiles.id, input.fileId), eq(sessionFiles.threadId, input.sessionId)))
       .for("update");
     if (!row) throw new NotFoundError(`file ${input.fileId} not found in session ${input.sessionId}`);
     if (row.workspaceState === "deleted" && row.pathGeneration > BigInt(input.expectedPathGeneration)) return;
@@ -693,14 +623,7 @@ export async function releaseSessionFileClaims(tx: ChatTransaction, scope: FileS
   const rows = await tx
     .select({ id: sessionFiles.id })
     .from(sessionFiles)
-    .where(
-      and(
-        eq(sessionFiles.threadId, scope.sessionId),
-        eq(sessionFiles.userId, scope.userId),
-        eq(sessionFiles.tenantId, scope.tenantId),
-        eq(sessionFiles.workspaceId, scope.workspaceId),
-      ),
-    )
+    .where(eq(sessionFiles.threadId, scope.sessionId))
     .for("update");
   if (rows.length === 0) return;
   const now = new Date();
@@ -718,8 +641,6 @@ export async function releaseSessionFileClaims(tx: ChatTransaction, scope: FileS
     })
     .where(
       and(
-        eq(assetClaimIntents.tenantId, scope.tenantId),
-        eq(assetClaimIntents.workspaceId, scope.workspaceId),
         eq(assetClaimIntents.ownerType, "session_file"),
         inArray(
           assetClaimIntents.ownerId,
@@ -739,14 +660,7 @@ export async function forkSessionFileRows(
   const sourceFiles = await tx
     .select()
     .from(sessionFiles)
-    .where(
-      and(
-        eq(sessionFiles.threadId, input.sourceSessionId),
-        eq(sessionFiles.userId, input.userId),
-        eq(sessionFiles.tenantId, input.tenantId),
-        eq(sessionFiles.workspaceId, input.workspaceId),
-      ),
-    )
+    .where(eq(sessionFiles.threadId, input.sourceSessionId))
     .orderBy(asc(sessionFiles.createdAt), asc(sessionFiles.id));
   const fileIds = Object.fromEntries(sourceFiles.map((file) => [file.id, randomBytes(16).toString("hex")]));
   if (sourceFiles.length === 0) return fileIds;
@@ -755,9 +669,6 @@ export async function forkSessionFileRows(
     sourceFiles.map((file) => ({
       id: fileIds[file.id]!,
       threadId: input.sessionId,
-      userId: input.userId,
-      tenantId: input.tenantId,
-      workspaceId: input.workspaceId,
       assetId: file.assetId,
       revisionId: file.revisionId,
       title: file.title,
@@ -779,8 +690,6 @@ export async function forkSessionFileRows(
   );
   await tx.insert(assetClaimIntents).values(
     sourceFiles.map((file) => ({
-      tenantId: input.tenantId,
-      workspaceId: input.workspaceId,
       ownerType: "session_file",
       ownerId: fileIds[file.id]!,
       slot: "source",

@@ -18,7 +18,6 @@ import {
   waitForTaskCompletion,
   type TaskOwner,
 } from "../../../application/tasks/service.js";
-import { getVideoProductionProjection } from "../../../application/video-production/service.js";
 import { requireCallerService } from "../middleware/worker-auth.js";
 
 export const tasksRoutes = new Hono();
@@ -56,10 +55,6 @@ async function taskWatchFrame(id: string, owner: TaskOwner) {
     source,
     frame: {
       task: source.task,
-      production:
-        source.task.type === "video-generation"
-          ? await getVideoProductionProjection(source.task.id, owner.service)
-          : null,
     },
   };
 }
@@ -128,7 +123,7 @@ tasksRoutes.get("/:id/stream", async (c) => {
         const next = await taskWatchFrame(id, owner);
         if (
           next.frame.task.updatedAt !== current.frame.task.updatedAt ||
-          next.frame.production?.version !== current.frame.production?.version
+          next.frame.task.status !== current.frame.task.status
         ) {
           current = next;
           await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });

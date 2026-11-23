@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getRun } from "workflow/api";
 
 import { getDb, getSql } from "../../infrastructure/persistence/index.js";
-import { tasks } from "../../infrastructure/persistence/media-schema.js";
+import { tasks } from "../../infrastructure/persistence/task-schema.js";
 import { getTaskType } from "./registry.js";
 
 function cleanupLockKey(id: string): string {

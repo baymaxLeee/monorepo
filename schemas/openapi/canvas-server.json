@@ -217,24 +217,16 @@
       "CanvasAssetReviewUpload": {
         "additionalProperties": false,
         "properties": {
-          "client_id": {
+          "client_ref": {
             "type": "string"
           },
-          "file_name": {
-            "type": "string"
-          },
-          "source_asset_id": {
-            "type": "string"
-          },
-          "source_revision_id": {
+          "upload_session_id": {
             "type": "string"
           }
         },
         "required": [
-          "client_id",
-          "source_asset_id",
-          "source_revision_id",
-          "file_name"
+          "client_ref",
+          "upload_session_id"
         ],
         "type": "object"
       },
@@ -537,6 +529,22 @@
         ],
         "type": "object"
       },
+      "CanvasCoverUpload": {
+        "additionalProperties": false,
+        "properties": {
+          "client_ref": {
+            "type": "string"
+          },
+          "upload_session_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_session_id",
+          "client_ref"
+        ],
+        "type": "object"
+      },
       "CanvasCreateCanvasAssetResponse": {
         "additionalProperties": false,
         "properties": {
@@ -681,23 +689,19 @@
       "CanvasCreateResourceInitialAsset": {
         "additionalProperties": false,
         "properties": {
-          "file_name": {
+          "client_ref": {
             "type": "string"
           },
           "name": {
             "type": "string"
           },
-          "source_asset_id": {
-            "type": "string"
-          },
-          "source_revision_id": {
+          "upload_session_id": {
             "type": "string"
           }
         },
         "required": [
-          "source_asset_id",
-          "source_revision_id",
-          "file_name"
+          "upload_session_id",
+          "client_ref"
         ],
         "type": "object"
       },
@@ -4582,13 +4586,10 @@
           "asset_id": {
             "type": "string"
           },
-          "file_name": {
+          "client_ref": {
             "type": "string"
           },
-          "source_asset_id": {
-            "type": "string"
-          },
-          "source_revision_id": {
+          "upload_session_id": {
             "type": "string"
           }
         },
@@ -5400,20 +5401,16 @@
       "CanvasUploadedAsset": {
         "additionalProperties": false,
         "properties": {
-          "file_name": {
+          "client_ref": {
             "type": "string"
           },
-          "source_asset_id": {
-            "type": "string"
-          },
-          "source_revision_id": {
+          "upload_session_id": {
             "type": "string"
           }
         },
         "required": [
-          "source_asset_id",
-          "source_revision_id",
-          "file_name"
+          "upload_session_id",
+          "client_ref"
         ],
         "type": "object"
       },
@@ -5611,11 +5608,8 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "cover_image_asset_id": {
-                    "type": "string"
-                  },
-                  "cover_image_revision_id": {
-                    "type": "string"
+                  "cover_upload": {
+                    "$ref": "#/components/schemas/CanvasCoverUpload"
                   },
                   "member_user_ids": {
                     "items": {
@@ -5777,11 +5771,11 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "cover_image_asset_id": {
-                    "type": "string"
+                  "clear_cover_image": {
+                    "type": "boolean"
                   },
-                  "cover_image_revision_id": {
-                    "type": "string"
+                  "cover_upload": {
+                    "$ref": "#/components/schemas/CanvasCoverUpload"
                   },
                   "member_user_ids": {
                     "items": {
@@ -5994,11 +5988,8 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "cover_image_asset_id": {
-                    "type": "string"
-                  },
-                  "cover_image_revision_id": {
-                    "type": "string"
+                  "cover_upload": {
+                    "$ref": "#/components/schemas/CanvasCoverUpload"
                   },
                   "member_user_ids": {
                     "items": {
@@ -6160,11 +6151,11 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "cover_image_asset_id": {
-                    "type": "string"
+                  "clear_cover_image": {
+                    "type": "boolean"
                   },
-                  "cover_image_revision_id": {
-                    "type": "string"
+                  "cover_upload": {
+                    "$ref": "#/components/schemas/CanvasCoverUpload"
                   }
                 },
                 "type": "object"
@@ -6441,11 +6432,8 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "cover_image_asset_id": {
-                    "type": "string"
-                  },
-                  "cover_image_revision_id": {
-                    "type": "string"
+                  "cover_upload": {
+                    "$ref": "#/components/schemas/CanvasCoverUpload"
                   },
                   "name": {
                     "type": "string"
@@ -6621,11 +6609,11 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "cover_image_asset_id": {
-                    "type": "string"
+                  "clear_cover_image": {
+                    "type": "boolean"
                   },
-                  "cover_image_revision_id": {
-                    "type": "string"
+                  "cover_upload": {
+                    "$ref": "#/components/schemas/CanvasCoverUpload"
                   },
                   "name": {
                     "type": "string"
@@ -7124,20 +7112,16 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "file_name": {
+                  "client_ref": {
                     "type": "string"
                   },
-                  "source_asset_id": {
-                    "type": "string"
-                  },
-                  "source_revision_id": {
+                  "upload_session_id": {
                     "type": "string"
                   }
                 },
                 "required": [
-                  "source_asset_id",
-                  "source_revision_id",
-                  "file_name"
+                  "upload_session_id",
+                  "client_ref"
                 ],
                 "type": "object"
               }
@@ -9719,19 +9703,16 @@
                   "asset_id": {
                     "type": "string"
                   },
+                  "client_ref": {
+                    "type": "string"
+                  },
                   "expected_resource_revision": {
                     "type": "integer"
-                  },
-                  "file_name": {
-                    "type": "string"
                   },
                   "name": {
                     "type": "string"
                   },
-                  "source_asset_id": {
-                    "type": "string"
-                  },
-                  "source_revision_id": {
+                  "upload_session_id": {
                     "type": "string"
                   }
                 },
@@ -10442,30 +10423,26 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "client_ref": {
+                    "type": "string"
+                  },
                   "expected_resource_asset_revision": {
                     "type": "integer"
                   },
                   "expected_resource_revision": {
                     "type": "integer"
                   },
-                  "file_name": {
-                    "type": "string"
-                  },
                   "resource_asset_id": {
                     "type": "string"
                   },
-                  "source_asset_id": {
-                    "type": "string"
-                  },
-                  "source_revision_id": {
+                  "upload_session_id": {
                     "type": "string"
                   }
                 },
                 "required": [
                   "resource_asset_id",
-                  "source_asset_id",
-                  "source_revision_id",
-                  "file_name",
+                  "upload_session_id",
+                  "client_ref",
                   "expected_resource_revision",
                   "expected_resource_asset_revision"
                 ],

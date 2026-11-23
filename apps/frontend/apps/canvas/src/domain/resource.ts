@@ -134,9 +134,8 @@ export interface CreateResourceFromAssetResponse {
 }
 
 export interface CreateResourceInitialAsset {
-  SourceAssetID: string;
-  SourceRevisionID: string;
-  FileName: string;
+  UploadSessionID: string;
+  ClientRef: string;
   Name?: string;
 }
 
@@ -261,9 +260,8 @@ export interface ReplaceUploadedResourceAssetRequest {
   ProjectID: string;
   ResourceID: string;
   ResourceAssetID: string;
-  SourceAssetID: string;
-  SourceRevisionID: string;
-  FileName: string;
+  UploadSessionID: string;
+  ClientRef: string;
   ExpectedResourceRevision: Int64;
   ExpectedResourceAssetRevision: Int64;
 }
@@ -386,12 +384,11 @@ export interface ResourceAssetGenerationUploadedReference {
   PreviewURL?: string;
 }
 
-/** Patch 输入允许复用既有 Canvas Asset，或提交平台 Asset revision；Server 负责建立 Resource Owner Asset。 */
+/** Patch 输入允许复用既有 Canvas Asset，或提交 Canvas 上传凭据；Server 负责业务接纳。 */
 export interface ResourceAssetGenerationUploadedReferenceInput {
   AssetID?: string;
-  SourceAssetID?: string;
-  SourceRevisionID?: string;
-  FileName?: string;
+  UploadSessionID?: string;
+  ClientRef?: string;
 }
 
 export interface ResourceAssetGroup {

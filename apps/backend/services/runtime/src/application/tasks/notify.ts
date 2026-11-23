@@ -2,11 +2,11 @@ import { eq } from "drizzle-orm";
 import { getWritable } from "workflow";
 
 import { getDb } from "../../infrastructure/persistence/index.js";
-import { tasks } from "../../infrastructure/persistence/media-schema.js";
+import { tasks } from "../../infrastructure/persistence/task-schema.js";
 import type { TaskProgress } from "./types.js";
 
 export type TaskStatusSignal = {
-  type: "task-changed" | "video-production-changed";
+  type: "task-changed";
 };
 
 export async function reportTaskStatusSignal(type: TaskStatusSignal["type"]): Promise<void> {

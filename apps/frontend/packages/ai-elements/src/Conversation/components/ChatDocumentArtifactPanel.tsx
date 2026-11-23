@@ -1,6 +1,6 @@
 import { ArtifactAction, resolveArtifactPreviewKind } from "@repo/ai-elements";
 import { createStorageDownloadUrl, downloadAssetUrl, fetchAssetText } from "@repo/api";
-import { type ConversationDocumentDetail, getConversationDocument, updateConversationDocument } from "@repo/api/chat";
+import { type Document, getMyDocument, updateMyDocument } from "@repo/api/knowledge";
 import { Button, toast } from "@repo/design-system";
 import { MarkdownEditor } from "@repo/editors/markdown-editor";
 import { getErrorMessage } from "@repo/shared";
@@ -17,6 +17,7 @@ import { ChatArtifactPreview } from "./ChatArtifactPreview";
 const AUTOSAVE_DELAY_MS = 1500;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+type ConversationDocumentDetail = Document & { content_md?: string };
 
 // Only agent-authored Markdown artifacts (plans, notes, ...) are editable in
 // place; uploaded sources stay read-only and binary previews have no text body.
@@ -61,7 +62,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
     setLoading(true);
     setArtifact(null);
     setSaveState("idle");
-    void getConversationDocument(conversationId, documentId, { include_content: false }, { signal: controller.signal })
+    void getMyDocument(documentId, { signal: controller.signal })
       .then(async (metadata) => {
         let document = metadata;
         if (isEditableMarkdown(metadata) && metadata.asset_id && metadata.source_revision_id) {
@@ -179,10 +180,10 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
     }
   }, [artifact, conversationId, documentId, editable]);
 
-  const runSave = useCallback(async (cid: string, did: string, content: string) => {
+  const runSave = useCallback(async (did: string, content: string) => {
     setSaveState("saving");
     try {
-      const updated = await updateConversationDocument(cid, did, {
+      const updated = await updateMyDocument(did, {
         content_md: content,
       });
       savedContentRef.current = content;
@@ -212,7 +213,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
     }
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      void runSave(conversationId, documentId, draftRef.current);
+      void runSave(documentId, draftRef.current);
     }, AUTOSAVE_DELAY_MS);
   }
 
@@ -226,7 +227,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
       if (conversationId && documentId && draftRef.current !== savedContentRef.current) {
-        void runSave(conversationId, documentId, draftRef.current);
+        void runSave(documentId, draftRef.current);
       }
     };
   }, [conversationId, documentId, token, runSave]);
@@ -300,7 +301,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
             title={artifact.title}
             filename={previewFilename}
             mimeType={previewMimeType}
-            content={artifact.content_md}
+            content={artifact.content_md ?? ""}
             asset={
               artifact.asset_id && artifact.source_revision_id
                 ? {

@@ -39,10 +39,7 @@ test(
       internalToken: config.runtimeToken,
     });
     const scope: SandboxScope = {
-      tenant_id: "test",
-      workspace_id: "test",
-      user_id: "test",
-      conversation_id: "test",
+      session_id: "test",
       run_id: randomUUID(),
       attempt_epoch: "1",
     };
@@ -118,7 +115,7 @@ test(
       await assert.rejects(client.download(id, scope, "outputs/escape"));
       await assert.rejects(
         client.start(id, {
-          scope: { ...scope, user_id: "other" },
+          scope: { ...scope, run_id: "other" },
           request_id: "foreign",
           command: "true",
           workdir: "/workspace/work",

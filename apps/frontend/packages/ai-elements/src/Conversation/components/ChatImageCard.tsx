@@ -1,11 +1,10 @@
 import { ImageIcon, Loader2Icon } from "lucide-react";
 
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
-import { useChatStore } from "../store/useChatStore";
 import { ChatMediaCard } from "./ChatMediaCard";
 
 export type GeneratedImageRef = {
-  documentId: string;
+  fileId: string;
   filename: string;
   mediaType: string;
 };
@@ -13,7 +12,6 @@ export type GeneratedImageRef = {
 export type GenerateImageOutput = {
   ok: boolean;
   status: string;
-  taskId?: string;
   images: GeneratedImageRef[];
   error?: string;
   count?: number;
@@ -36,12 +34,12 @@ export function parseGenerateImageOutput(output: unknown): GenerateImageOutput |
           return [];
         }
         const row = item as Record<string, unknown>;
-        if (typeof row.document_id !== "string") {
+        if (typeof row.file_id !== "string") {
           return [];
         }
         return [
           {
-            documentId: row.document_id,
+            fileId: row.file_id,
             filename: typeof row.filename === "string" ? row.filename : "image",
             mediaType: typeof row.media_type === "string" ? row.media_type : "image/png",
           },
@@ -59,7 +57,6 @@ export function parseGenerateImageOutput(output: unknown): GenerateImageOutput |
             ? "completed"
             : "generating",
     images,
-    taskId: typeof raw.task_id === "string" ? raw.task_id : undefined,
     error: outcome.ok === false ? outcome.error.message : undefined,
     count: typeof raw.count === "number" ? raw.count : undefined,
     failed: typeof raw.failed === "number" ? raw.failed : undefined,
@@ -67,26 +64,21 @@ export function parseGenerateImageOutput(output: unknown): GenerateImageOutput |
 }
 
 export function ChatImageCard({
-  conversationId,
   output,
   state,
   errorText,
+  onOpen,
 }: {
-  conversationId: string;
   output: unknown;
   state: string;
   errorText?: string;
+  onOpen: (fileId: string) => void;
 }) {
-  const openImagePreview = useChatStore((s) => s.openImagePreview);
   const parsed = parseGenerateImageOutput(output);
   const failed = state === "output-error" || parsed?.ok === false;
 
   const images = parsed?.images ?? [];
   if ((parsed?.status === "completed" || parsed?.status === "partial") && images.length > 0) {
-    const refs = images.map((image) => ({
-      documentId: image.documentId,
-      filename: image.filename,
-    }));
     const skipped = parsed.failed ?? 0;
     return (
       <ChatMediaCard
@@ -94,7 +86,7 @@ export function ChatImageCard({
         title={images.length > 1 ? "图片组" : "图片"}
         description={`共 ${images.length} 张`}
         note={skipped > 0 ? `${skipped} 张生成失败${parsed.error ? `：${parsed.error}` : ""}` : undefined}
-        onOpen={() => openImagePreview(conversationId, refs, 0)}
+        onOpen={() => onOpen(images[0].fileId)}
       />
     );
   }
@@ -103,20 +95,6 @@ export function ChatImageCard({
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
         {errorText?.trim() || parsed?.error?.trim() || "图片生成失败。"}
-      </div>
-    );
-  }
-
-  if (parsed?.taskId) {
-    return (
-      <div className="flex items-center gap-2.5 rounded-lg border bg-background px-4 py-3 shadow-sm">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <ImageIcon className="size-4" />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-foreground">图片生成任务</span>
-          <span className="block truncate text-sm text-muted-foreground">任务已提交，正在后台生成</span>
-        </span>
       </div>
     );
   }

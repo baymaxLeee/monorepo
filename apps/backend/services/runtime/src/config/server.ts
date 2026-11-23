@@ -14,9 +14,7 @@ export interface ServerSettings {
   redisHost: string;
   redisPort: number;
   redisDb: number;
-  adminRpcTarget: string;
   storageRpcTarget: string;
-  knowledgeRpcTarget: string;
   knowledgeServiceUrl: string;
   canvasServiceUrl: string;
   workerServiceUrl: string;
@@ -26,7 +24,6 @@ export interface ServerSettings {
   toolApprovalSecret: string;
   exaApiKey: string;
   tavilyApiKey: string;
-  providerCacheTtlSeconds: number;
 }
 
 function serviceUrl(env: NodeJS.ProcessEnv, key: string, fallback: string): string {
@@ -91,9 +88,7 @@ export function parseServerSettings(env: NodeJS.ProcessEnv): ServerSettings {
     redisHost,
     redisPort: positiveInt(env, "REDIS_PORT", 6379),
     redisDb: nonNegativeInt(env, "REDIS_DB", 2),
-    adminRpcTarget: envOr(env, "ADMIN_RPC_TARGET", "localhost:9001"),
     storageRpcTarget: envOr(env, "STORAGE_RPC_TARGET", "localhost:9013"),
-    knowledgeRpcTarget: envOr(env, "KNOWLEDGE_RPC_TARGET", "localhost:9010"),
     knowledgeServiceUrl: serviceUrl(env, "KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     canvasServiceUrl: serviceUrl(env, "CANVAS_SERVICE_URL", "http://localhost:8012"),
     workerServiceUrl: envOr(env, "RUNTIME_WORKER_URL", "http://localhost:8011"),
@@ -103,7 +98,6 @@ export function parseServerSettings(env: NodeJS.ProcessEnv): ServerSettings {
     toolApprovalSecret: toolApprovalSecret || DEV_INTERNAL_TOKEN,
     exaApiKey: envOr(env, "EXA_API_KEY", ""),
     tavilyApiKey: envOr(env, "TAVILY_API_KEY", ""),
-    providerCacheTtlSeconds: positiveInt(env, "PROVIDER_CACHE_TTL_SECONDS", 300),
   };
 }
 

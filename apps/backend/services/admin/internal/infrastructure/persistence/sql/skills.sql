@@ -430,7 +430,14 @@ SET
     asset_id = EXCLUDED.asset_id,
     revision_id = EXCLUDED.revision_id,
     kind = EXCLUDED.kind,
-    generation = asset_claim_intents.generation + 1,
+    generation = CASE
+        WHEN asset_claim_intents.asset_id IS DISTINCT FROM EXCLUDED.asset_id
+          OR asset_claim_intents.revision_id IS DISTINCT FROM EXCLUDED.revision_id
+          OR asset_claim_intents.kind IS DISTINCT FROM EXCLUDED.kind
+          OR (asset_claim_intents.desired_state = 'released' AND EXCLUDED.desired_state = 'active')
+        THEN asset_claim_intents.generation + 1
+        ELSE asset_claim_intents.generation
+    END,
     desired_state = EXCLUDED.desired_state,
     delivered_at = NULL,
     attempt_count = 0,
@@ -438,4 +445,69 @@ SET
     lease_until = NULL,
     state_version = asset_claim_intents.state_version + 1,
     last_error = NULL,
-    updated_at = EXCLUDED.updated_at;
+    updated_at = EXCLUDED.updated_at
+WHERE asset_claim_intents.asset_id IS DISTINCT FROM EXCLUDED.asset_id
+   OR asset_claim_intents.revision_id IS DISTINCT FROM EXCLUDED.revision_id
+   OR asset_claim_intents.kind IS DISTINCT FROM EXCLUDED.kind
+   OR asset_claim_intents.desired_state IS DISTINCT FROM EXCLUDED.desired_state;
+
+-- name: ClaimDueAssetClaims :many
+WITH due AS (
+    SELECT tenant_id, workspace_id, owner_type, owner_id, slot
+    FROM asset_claim_intents
+    WHERE delivered_at IS NULL
+      AND next_attempt_at <= @now::pg_catalog.timestamptz
+      AND (lease_until IS NULL OR lease_until <= @now)
+    ORDER BY next_attempt_at, updated_at, tenant_id, workspace_id, owner_type, owner_id, slot
+    LIMIT @page_size::bigint
+    FOR UPDATE SKIP LOCKED
+), claimed AS (
+    UPDATE asset_claim_intents i
+    SET lease_until = @lease::pg_catalog.timestamptz,
+        state_version = i.state_version + 1
+    FROM due
+    WHERE (i.tenant_id, i.workspace_id, i.owner_type, i.owner_id, i.slot) =
+          (due.tenant_id, due.workspace_id, due.owner_type, due.owner_id, due.slot)
+    RETURNING i.tenant_id, i.workspace_id, i.owner_type, i.owner_id, i.slot,
+              i.asset_id, i.revision_id, i.kind, i.generation, i.desired_state,
+              i.state_version, i.attempt_count
+)
+SELECT * FROM claimed
+ORDER BY tenant_id, workspace_id, owner_type, owner_id, slot;
+
+-- name: MarkAssetClaimDelivered :execrows
+UPDATE asset_claim_intents
+SET delivered_at = @now::pg_catalog.timestamptz,
+    lease_until = NULL,
+    state_version = state_version + 1,
+    last_error = NULL,
+    updated_at = @now
+WHERE tenant_id = @tenant_id
+  AND workspace_id = @workspace_id
+  AND owner_type = @owner_type
+  AND owner_id = @owner_id
+  AND slot = @slot
+  AND generation = @generation
+  AND desired_state = @desired_state
+  AND state_version = @state_version
+  AND delivered_at IS NULL
+  AND lease_until > @now;
+
+-- name: RescheduleAssetClaim :execrows
+UPDATE asset_claim_intents
+SET next_attempt_at = @next_attempt_at,
+    lease_until = NULL,
+    state_version = state_version + 1,
+    attempt_count = attempt_count + 1,
+    last_error = @message,
+    updated_at = @now
+WHERE tenant_id = @tenant_id
+  AND workspace_id = @workspace_id
+  AND owner_type = @owner_type
+  AND owner_id = @owner_id
+  AND slot = @slot
+  AND generation = @generation
+  AND desired_state = @desired_state
+  AND state_version = @state_version
+  AND delivered_at IS NULL
+  AND lease_until > @now;

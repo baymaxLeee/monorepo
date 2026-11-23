@@ -14,6 +14,7 @@ type Querier interface {
 	AppendRevision(ctx context.Context, arg AppendRevisionParams) error
 	ApplyClaimDelta(ctx context.Context, arg ApplyClaimDeltaParams) error
 	CheckAppendAuthorization(ctx context.Context, arg CheckAppendAuthorizationParams) (CheckAppendAuthorizationRow, error)
+	ClaimAuthorizesRevision(ctx context.Context, arg ClaimAuthorizesRevisionParams) (bool, error)
 	CompleteAppendUpload(ctx context.Context, arg CompleteAppendUploadParams) error
 	CompleteBlobDeletion(ctx context.Context, arg CompleteBlobDeletionParams) error
 	CompleteDeletion(ctx context.Context, arg CompleteDeletionParams) (int64, error)
@@ -24,6 +25,7 @@ type Querier interface {
 	DecrementBlockingClaims(ctx context.Context, arg DecrementBlockingClaimsParams) error
 	DeleteAbortedUpload(ctx context.Context, id string) (int64, error)
 	FailUpload(ctx context.Context, arg FailUploadParams) error
+	GetClaimReleaseFence(ctx context.Context, arg GetClaimReleaseFenceParams) (int64, error)
 	GetRevision(ctx context.Context, arg GetRevisionParams) (GetRevisionRow, error)
 	GetUpload(ctx context.Context, arg GetUploadParams) (GetUploadRow, error)
 	HasReadableReference(ctx context.Context, blobID string) (bool, error)
@@ -32,10 +34,11 @@ type Querier interface {
 	InsertUpload(ctx context.Context, arg InsertUploadParams) (string, error)
 	LeaseUploadCleanup(ctx context.Context, arg LeaseUploadCleanupParams) error
 	LockAppendUpload(ctx context.Context, id string) (LockAppendUploadRow, error)
-	LockAsset(ctx context.Context, arg LockAssetParams) (LockAssetRow, error)
+	LockAsset(ctx context.Context, id string) (LockAssetRow, error)
 	LockAssetBlobs(ctx context.Context, assetID string) ([]LockAssetBlobsRow, error)
 	LockClaim(ctx context.Context, arg LockClaimParams) (LockClaimRow, error)
 	LockClaimAssets(ctx context.Context, arg LockClaimAssetsParams) ([]LockClaimAssetsRow, error)
+	LockClaimAuthorization(ctx context.Context, arg LockClaimAuthorizationParams) (string, error)
 	LockClaimSlot(ctx context.Context, arg LockClaimSlotParams) error
 	LockDeletionCandidates(ctx context.Context, arg LockDeletionCandidatesParams) ([]LockDeletionCandidatesRow, error)
 	LockExistingAppend(ctx context.Context, arg LockExistingAppendParams) (LockExistingAppendRow, error)
@@ -63,6 +66,7 @@ type Querier interface {
 	UpdateClaimCount(ctx context.Context, arg UpdateClaimCountParams) error
 	UpsertBlob(ctx context.Context, arg UpsertBlobParams) (UpsertBlobRow, error)
 	UpsertClaim(ctx context.Context, arg UpsertClaimParams) error
+	UpsertClaimReleaseFence(ctx context.Context, arg UpsertClaimReleaseFenceParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -1,113 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { JSONValue } from "@ai-sdk/provider";
-import type { ModelMessage } from "ai";
+import { createMediaToolManifests } from "./media.js";
 
-import { assertMediaGenerationConfirmed, mediaConfirmationId } from "./media.js";
-
-function result(toolCallId: string, toolName: string, data: JSONValue): ModelMessage {
-  return {
-    role: "tool",
-    content: [
-      {
-        type: "tool-result",
-        toolCallId,
-        toolName,
-        output: toolName === "ask_user" ? { type: "text", value: JSON.stringify(data) } : { type: "json", value: data },
-      },
-    ],
-  };
-}
-
-function confirmedHistory(confirmationId: string): ModelMessage[] {
-  return [
-    { role: "user", content: [{ type: "text", text: "生成图片" }] },
-    {
-      role: "assistant",
-      content: [{ type: "tool-call", toolCallId: "list", toolName: "list_media_models", input: { kind: "image" } }],
-    },
-    result("list", "list_media_models", {
-      kind: "image",
-      models: [{ id: "image-provider", name: "Image", model: "image-model", is_default: true }],
-    }),
-    {
-      role: "assistant",
-      content: [
-        {
-          type: "tool-call",
-          toolCallId: "select",
-          toolName: "ask_user",
-          input: { questions: [{ id: "media_model_selection" }] },
-        },
-      ],
-    },
-    result("select", "ask_user", {
-      answers: { media_model_selection: { answers: ["image-provider"] } },
-    }),
-    {
-      role: "assistant",
-      content: [
-        {
-          type: "tool-call",
-          toolCallId: "prepare",
-          toolName: "prepare_media_generation",
-          input: { kind: "image", configuration: { provider_id: "image-provider", prompts: ["prompt"] } },
-        },
-      ],
-    },
-    result("prepare", "prepare_media_generation", { kind: "image", confirmation_id: confirmationId }),
-    {
-      role: "assistant",
-      content: [
-        {
-          type: "tool-call",
-          toolCallId: "confirm",
-          toolName: "ask_user",
-          input: { questions: [{ id: "media_generation_configuration" }] },
-        },
-      ],
-    },
-    result("confirm", "ask_user", {
-      answers: { media_generation_configuration: { answers: [confirmationId] } },
-    }),
-  ];
-}
-
-test("media generation requires a fresh model choice and a separate exact configuration confirmation", () => {
-  const configuration = { provider_id: "image-provider", prompts: ["prompt"] };
-  const confirmationId = mediaConfirmationId("image", configuration);
-  const history = confirmedHistory(confirmationId);
-
-  assert.doesNotThrow(() =>
-    assertMediaGenerationConfirmed(
-      "image",
-      { ...configuration, confirmation_id: confirmationId },
-      ["image-provider"],
-      confirmationId,
-      history,
-    ),
+test("media tools expose blocking durable generation without a production workbench", () => {
+  const manifests = createMediaToolManifests();
+  assert.deepEqual(
+    manifests.map((manifest) => manifest.name),
+    ["list_media_models", "generate_images", "generate_video"],
   );
-  assert.throws(
-    () =>
-      assertMediaGenerationConfirmed(
-        "image",
-        { ...configuration, prompts: ["changed"], confirmation_id: confirmationId },
-        ["image-provider"],
-        confirmationId,
-        history,
-      ),
-    /changed after confirmation/,
+  assert.equal(
+    manifests.some((manifest) => manifest.name === "prepare_media_generation"),
+    false,
   );
-  assert.throws(
-    () =>
-      assertMediaGenerationConfirmed(
-        "image",
-        { ...configuration, confirmation_id: confirmationId },
-        ["image-provider"],
-        confirmationId,
-        history.slice(0, -2),
-      ),
-    /not confirmed by the user/,
+  assert.equal(
+    manifests.some((manifest) => manifest.name === "create_video_production"),
+    false,
   );
+
+  for (const name of ["generate_images", "generate_video"]) {
+    const manifest = manifests.find((candidate) => candidate.name === name);
+    assert.equal(manifest?.policy.execution, "durable");
+    assert.equal(manifest?.planning.parallelizable, false);
+    const description = manifest?.tool?.description;
+    assert.equal(typeof description, "string");
+    if (typeof description !== "string") throw new Error(`${name} must have a static description`);
+    assert.match(description, /returns only after/i);
+    assert.match(manifest?.planning.prerequisites?.join("\n") ?? "", /final work-producing tool/i);
+    assert.doesNotMatch(JSON.stringify(manifest), /production_id|confirmation_id/i);
+  }
 });

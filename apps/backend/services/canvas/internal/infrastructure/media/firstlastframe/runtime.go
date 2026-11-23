@@ -132,7 +132,7 @@ func (files *artifactFiles) OpenArtifact(
 	sourceAssetID string,
 	sourceRevisionID string,
 ) (io.ReadCloser, error) {
-	return files.assets.Open(ctx, tenantID, "", storageclient.RevisionRef{AssetID: sourceAssetID, RevisionID: sourceRevisionID})
+	return files.assets.Open(ctx, storageclient.RevisionRef{AssetID: sourceAssetID, RevisionID: sourceRevisionID})
 }
 
 func (files *artifactFiles) SaveArtifact(
@@ -145,11 +145,7 @@ func (files *artifactFiles) SaveArtifact(
 		return SavedArtifact{}, err
 	}
 	defer file.Close() //nolint:errcheck
-	workspace := ""
-	if workspaceID != nil {
-		workspace = *workspaceID
-	}
-	stored, err := files.assets.Upload(ctx, storageclient.UploadInput{TenantID: tenantID, WorkspaceID: workspace, UserID: userID, Filename: filename, MediaType: "image/jpeg", Category: "generated_frame", IdempotencyKey: idempotencyKey, Body: file})
+	stored, err := files.assets.Upload(ctx, storageclient.UploadInput{Filename: filename, MediaType: "image/jpeg", IdempotencyKey: idempotencyKey, Body: file})
 	if err != nil {
 		return SavedArtifact{}, err
 	}

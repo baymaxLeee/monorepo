@@ -1,19 +1,9 @@
 import { propagationHeaders } from "#runtime/foundation";
-import {
-  RuntimeWorkerClient,
-  TransportError,
-  type ProductionDecision,
-  type CreateTaskInput,
-  type Task,
-  type VideoProductionDetail,
-  type VideoProductionProjection,
-} from "#runtime/transport";
+import { RuntimeWorkerClient, type CreateTaskInput, type Task } from "#runtime/transport";
 
-import { NotFoundError } from "../../application/errors.js";
 import { getServerSettings } from "../../config/server.js";
 
 export type { Task } from "#runtime/transport";
-export type { ProductionDecision, VideoProductionDetail, VideoProductionProjection } from "#runtime/transport";
 
 function workerClient(): RuntimeWorkerClient {
   const s = getServerSettings();
@@ -25,13 +15,17 @@ function workerClient(): RuntimeWorkerClient {
   });
 }
 
-type StartTaskInput = {
-  [Type in CreateTaskInput["type"]]: {
-    type: Type;
-    ownerRef: string;
-    payload: Extract<CreateTaskInput, { type: Type }>["payload"];
-  };
-}[CreateTaskInput["type"]];
+type StartTaskInput =
+  | {
+      type: "image-generation";
+      ownerRef: string;
+      payload: Extract<CreateTaskInput, { type: "image-generation" }>["payload"];
+    }
+  | {
+      type: "video-generation";
+      ownerRef: string;
+      payload: Extract<CreateTaskInput, { type: "video-generation" }>["payload"];
+    };
 
 export async function startTask(input: StartTaskInput): Promise<Task> {
   if (input.type === "image-generation") {
@@ -50,20 +44,10 @@ export async function startTask(input: StartTaskInput): Promise<Task> {
   });
 }
 
-export async function getVideoProduction(id: string): Promise<VideoProductionDetail> {
-  try {
-    return await workerClient().getVideoProduction(id);
-  } catch (err) {
-    if (err instanceof TransportError && err.status === 404) {
-      throw new NotFoundError(`video production ${id} not found`);
-    }
-    throw err;
-  }
+export async function getTask(id: string, ownerRef: string): Promise<Task> {
+  return workerClient().getTask(id, { owner_service: "runtime", owner_ref: ownerRef });
 }
 
-export async function decideVideoProduction(
-  id: string,
-  decision: ProductionDecision,
-): Promise<VideoProductionProjection> {
-  return workerClient().decideVideoProduction(id, decision);
+export function watchTask(id: string, ownerRef: string, signal?: AbortSignal) {
+  return workerClient().watchTask(id, { owner_service: "runtime", owner_ref: ownerRef }, signal);
 }

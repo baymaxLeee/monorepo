@@ -46,9 +46,9 @@ export class ProviderNotConfiguredError extends AppError {
   }
 }
 
-export class AdminUnavailableError extends AppError {
+export class CapabilityBindingError extends AppError {
   constructor(message: string) {
-    super(message, 502, "admin_unavailable");
+    super(message, 502, "capability_binding_failed");
   }
 }
 

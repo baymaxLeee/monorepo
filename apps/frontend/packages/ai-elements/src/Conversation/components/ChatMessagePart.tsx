@@ -164,8 +164,7 @@ export function ChatMessagePart({
       >
         <ToolPartView
           part={part}
-          conversationId={conversationId}
-          onOpenArtifact={onOpenArtifact}
+          onOpenFile={onOpenFile}
           onAnswerClientTool={onAnswerClientTool}
           onToolApproval={onToolApproval}
         />

@@ -183,8 +183,6 @@ async def authorize_document_delivery(
     if row is None or not row.asset_id or not row.source_revision_id:
         raise NotFoundError("document has no accessible Storage revision")
     return await get_storage_client().mint_delivery(
-        tenant_id=current_user.tenant_id,
-        workspace_id=current_user.workspace_id,
         asset_id=row.asset_id,
         revision_id=row.source_revision_id,
     )

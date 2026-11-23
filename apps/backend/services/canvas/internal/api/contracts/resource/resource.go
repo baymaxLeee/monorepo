@@ -908,12 +908,11 @@ func (p *ResourceAssetGenerationUploadedReference) String() string {
 	return fmt.Sprintf("ResourceAssetGenerationUploadedReference(%+v)", *p)
 }
 
-// Patch 输入允许复用既有 Canvas Asset，或提交平台 Asset revision。
+// Patch 输入允许复用既有 Canvas Asset，或提交 Canvas 上传凭据。
 type ResourceAssetGenerationUploadedReferenceInput struct {
-	AssetID          *string `json:"AssetID,omitempty"`
-	SourceAssetID    *string `json:"SourceAssetID,omitempty"`
-	SourceRevisionID *string `json:"SourceRevisionID,omitempty"`
-	FileName         *string `json:"FileName,omitempty"`
+	AssetID         *string `json:"AssetID,omitempty"`
+	UploadSessionID *string `json:"UploadSessionID,omitempty"`
+	ClientRef       *string `json:"ClientRef,omitempty"`
 }
 
 func NewResourceAssetGenerationUploadedReferenceInput() *ResourceAssetGenerationUploadedReferenceInput {
@@ -932,45 +931,30 @@ func (p *ResourceAssetGenerationUploadedReferenceInput) GetAssetID() (v string) 
 	return *p.AssetID
 }
 
-var ResourceAssetGenerationUploadedReferenceInput_SourceAssetID_DEFAULT string
-
-func (p *ResourceAssetGenerationUploadedReferenceInput) GetSourceAssetID() string {
-	if p.SourceAssetID == nil {
-		return ResourceAssetGenerationUploadedReferenceInput_SourceAssetID_DEFAULT
-	}
-	return *p.SourceAssetID
-}
-
-func (p *ResourceAssetGenerationUploadedReferenceInput) GetSourceRevisionID() string {
-	if p.SourceRevisionID == nil {
+func (p *ResourceAssetGenerationUploadedReferenceInput) GetUploadSessionID() string {
+	if p.UploadSessionID == nil {
 		return ""
 	}
-	return *p.SourceRevisionID
+	return *p.UploadSessionID
 }
 
-var ResourceAssetGenerationUploadedReferenceInput_FileName_DEFAULT string
-
-func (p *ResourceAssetGenerationUploadedReferenceInput) GetFileName() (v string) {
-	if !p.IsSetFileName() {
-		return ResourceAssetGenerationUploadedReferenceInput_FileName_DEFAULT
+func (p *ResourceAssetGenerationUploadedReferenceInput) GetClientRef() string {
+	if p.ClientRef == nil {
+		return ""
 	}
-	return *p.FileName
+	return *p.ClientRef
 }
 
 func (p *ResourceAssetGenerationUploadedReferenceInput) IsSetAssetID() bool {
 	return p.AssetID != nil
 }
 
-func (p *ResourceAssetGenerationUploadedReferenceInput) IsSetSourceAssetID() bool {
-	return p.SourceAssetID != nil
+func (p *ResourceAssetGenerationUploadedReferenceInput) IsSetUploadSessionID() bool {
+	return p.UploadSessionID != nil
 }
 
-func (p *ResourceAssetGenerationUploadedReferenceInput) IsSetSourceRevisionID() bool {
-	return p.SourceRevisionID != nil
-}
-
-func (p *ResourceAssetGenerationUploadedReferenceInput) IsSetFileName() bool {
-	return p.FileName != nil
+func (p *ResourceAssetGenerationUploadedReferenceInput) IsSetClientRef() bool {
+	return p.ClientRef != nil
 }
 
 func (p *ResourceAssetGenerationUploadedReferenceInput) String() string {
@@ -1763,10 +1747,9 @@ func (p *BatchGetResourcesResponse) String() string {
 }
 
 type CreateResourceInitialAsset struct {
-	SourceAssetID    string  `json:"SourceAssetID"`
-	SourceRevisionID string  `json:"SourceRevisionID"`
-	FileName         string  `json:"FileName"`
-	Name             *string `json:"Name,omitempty"`
+	UploadSessionID string  `json:"UploadSessionID"`
+	ClientRef       string  `json:"ClientRef"`
+	Name            *string `json:"Name,omitempty"`
 }
 
 func NewCreateResourceInitialAsset() *CreateResourceInitialAsset {
@@ -1776,16 +1759,12 @@ func NewCreateResourceInitialAsset() *CreateResourceInitialAsset {
 func (p *CreateResourceInitialAsset) InitDefault() {
 }
 
-func (p *CreateResourceInitialAsset) GetSourceAssetID() string {
-	return p.SourceAssetID
+func (p *CreateResourceInitialAsset) GetUploadSessionID() string {
+	return p.UploadSessionID
 }
 
-func (p *CreateResourceInitialAsset) GetSourceRevisionID() string {
-	return p.SourceRevisionID
-}
-
-func (p *CreateResourceInitialAsset) GetFileName() (v string) {
-	return p.FileName
+func (p *CreateResourceInitialAsset) GetClientRef() string {
+	return p.ClientRef
 }
 
 var CreateResourceInitialAsset_Name_DEFAULT string
@@ -2522,9 +2501,8 @@ type CreateResourceAssetRequest struct {
 	AssetID                  *string `json:"AssetID,omitempty"`
 	Name                     *string `json:"Name,omitempty"`
 	ExpectedResourceRevision int64   `json:"ExpectedResourceRevision"`
-	SourceAssetID            *string `json:"SourceAssetID,omitempty"`
-	SourceRevisionID         *string `json:"SourceRevisionID,omitempty"`
-	FileName                 *string `json:"FileName,omitempty"`
+	UploadSessionID          *string `json:"UploadSessionID,omitempty"`
+	ClientRef                *string `json:"ClientRef,omitempty"`
 }
 
 func NewCreateResourceAssetRequest() *CreateResourceAssetRequest {
@@ -2573,27 +2551,18 @@ func (p *CreateResourceAssetRequest) GetExpectedResourceRevision() (v int64) {
 	return p.ExpectedResourceRevision
 }
 
-func (p *CreateResourceAssetRequest) GetSourceAssetID() string {
-	if p.SourceAssetID == nil {
+func (p *CreateResourceAssetRequest) GetUploadSessionID() string {
+	if p.UploadSessionID == nil {
 		return ""
 	}
-	return *p.SourceAssetID
+	return *p.UploadSessionID
 }
 
-func (p *CreateResourceAssetRequest) GetSourceRevisionID() string {
-	if p.SourceRevisionID == nil {
+func (p *CreateResourceAssetRequest) GetClientRef() string {
+	if p.ClientRef == nil {
 		return ""
 	}
-	return *p.SourceRevisionID
-}
-
-var CreateResourceAssetRequest_FileName_DEFAULT string
-
-func (p *CreateResourceAssetRequest) GetFileName() (v string) {
-	if !p.IsSetFileName() {
-		return CreateResourceAssetRequest_FileName_DEFAULT
-	}
-	return *p.FileName
+	return *p.ClientRef
 }
 
 func (p *CreateResourceAssetRequest) IsSetWorkspaceID() bool {
@@ -2608,16 +2577,12 @@ func (p *CreateResourceAssetRequest) IsSetName() bool {
 	return p.Name != nil
 }
 
-func (p *CreateResourceAssetRequest) IsSetSourceAssetID() bool {
-	return p.SourceAssetID != nil
+func (p *CreateResourceAssetRequest) IsSetUploadSessionID() bool {
+	return p.UploadSessionID != nil
 }
 
-func (p *CreateResourceAssetRequest) IsSetSourceRevisionID() bool {
-	return p.SourceRevisionID != nil
-}
-
-func (p *CreateResourceAssetRequest) IsSetFileName() bool {
-	return p.FileName != nil
+func (p *CreateResourceAssetRequest) IsSetClientRef() bool {
+	return p.ClientRef != nil
 }
 
 func (p *CreateResourceAssetRequest) String() string {
@@ -2740,9 +2705,8 @@ type ReplaceUploadedResourceAssetRequest struct {
 	ProjectID                     string  `json:"ProjectID"`
 	ResourceID                    string  `json:"ResourceID"`
 	ResourceAssetID               string  `json:"ResourceAssetID"`
-	SourceAssetID                 string  `json:"SourceAssetID"`
-	SourceRevisionID              string  `json:"SourceRevisionID"`
-	FileName                      string  `json:"FileName"`
+	UploadSessionID               string  `json:"UploadSessionID"`
+	ClientRef                     string  `json:"ClientRef"`
 	ExpectedResourceRevision      int64   `json:"ExpectedResourceRevision"`
 	ExpectedResourceAssetRevision int64   `json:"ExpectedResourceAssetRevision"`
 }
@@ -2775,16 +2739,12 @@ func (p *ReplaceUploadedResourceAssetRequest) GetResourceAssetID() (v string) {
 	return p.ResourceAssetID
 }
 
-func (p *ReplaceUploadedResourceAssetRequest) GetSourceAssetID() string {
-	return p.SourceAssetID
+func (p *ReplaceUploadedResourceAssetRequest) GetUploadSessionID() string {
+	return p.UploadSessionID
 }
 
-func (p *ReplaceUploadedResourceAssetRequest) GetSourceRevisionID() string {
-	return p.SourceRevisionID
-}
-
-func (p *ReplaceUploadedResourceAssetRequest) GetFileName() (v string) {
-	return p.FileName
+func (p *ReplaceUploadedResourceAssetRequest) GetClientRef() string {
+	return p.ClientRef
 }
 
 func (p *ReplaceUploadedResourceAssetRequest) GetExpectedResourceRevision() (v int64) {

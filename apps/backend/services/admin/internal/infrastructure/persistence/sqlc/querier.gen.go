@@ -12,6 +12,7 @@ type Querier interface {
 	AddBenefitPackageModel(ctx context.Context, arg AddBenefitPackageModelParams) error
 	BulkDeleteSkills(ctx context.Context, arg BulkDeleteSkillsParams) (int64, error)
 	BumpAgentPluginWorkspaceRevision(ctx context.Context, arg BumpAgentPluginWorkspaceRevisionParams) (int64, error)
+	ClaimDueAssetClaims(ctx context.Context, arg ClaimDueAssetClaimsParams) ([]ClaimDueAssetClaimsRow, error)
 	ClearBenefitPackageModels(ctx context.Context, packageID string) error
 	ClearDefaultProvider(ctx context.Context, arg ClearDefaultProviderParams) error
 	ClearPublishedSkillNodes(ctx context.Context, skillID string) error
@@ -73,6 +74,8 @@ type Querier interface {
 	LockAgentPluginWorkspaceRevision(ctx context.Context, arg LockAgentPluginWorkspaceRevisionParams) (int64, error)
 	LockProvider(ctx context.Context, arg LockProviderParams) (LockProviderRow, error)
 	LockProviderDefaults(ctx context.Context, lockKey string) error
+	MarkAssetClaimDelivered(ctx context.Context, arg MarkAssetClaimDeliveredParams) (int64, error)
+	RescheduleAssetClaim(ctx context.Context, arg RescheduleAssetClaimParams) (int64, error)
 	ReviewUsage(ctx context.Context, arg ReviewUsageParams) ([]ReviewUsageRow, error)
 	SaveAgentPluginInstallation(ctx context.Context, arg SaveAgentPluginInstallationParams) error
 	SaveAssetGroupCleanup(ctx context.Context, arg SaveAssetGroupCleanupParams) error

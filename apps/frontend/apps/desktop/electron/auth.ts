@@ -119,10 +119,6 @@ export class DesktopAuth {
       signal: AbortSignal.any([AbortSignal.timeout(5 * 60_000), ...(init?.signal ? [init.signal] : [])]),
       headers: { ...Object.fromEntries(new Headers(init?.headers)), Authorization: `Bearer ${this.token}` },
     });
-    if (!response.ok) {
-      const problem = (await response.json().catch(() => ({}))) as { message?: string };
-      throw new Error(problem.message ?? `模型服务返回 ${response.status}`);
-    }
     return response;
   }
 }

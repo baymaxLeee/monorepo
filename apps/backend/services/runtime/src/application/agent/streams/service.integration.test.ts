@@ -255,17 +255,11 @@ test("replay capacity overflow stops persistence and removes the active cache", 
 
 test("resume endpoint returns 204 when no stream is active", { skip: !enabled }, async () => {
   const sessionId = identifier("cv");
-  const userId = identifier("u");
-  const tenantId = identifier("t");
-  const workspaceId = identifier("w");
   const now = new Date();
   await getDb()
     .insert(sessions)
     .values({
       id: sessionId,
-      userId,
-      tenantId,
-      workspaceId,
       createRequestId: identifier("create"),
       model: "test-model",
       providerId: "test-provider",
@@ -278,9 +272,6 @@ test("resume endpoint returns 204 when no stream is active", { skip: !enabled },
       headers: {
         "X-Caller-Service": "chat",
         "X-Internal-Token": "dev-chat-internal-token",
-        "X-Auth-User-ID": userId,
-        "X-Auth-Tenant-ID": tenantId,
-        "X-Auth-Workspace-ID": workspaceId,
       },
     });
     assert.equal(response.status, 204);

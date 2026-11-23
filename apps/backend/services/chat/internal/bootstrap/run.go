@@ -10,8 +10,10 @@ import (
 
 	httpapi "github.com/example/monorepo/chat/internal/api/http"
 	"github.com/example/monorepo/chat/internal/application"
+	adminclient "github.com/example/monorepo/chat/internal/infrastructure/admin"
 	"github.com/example/monorepo/chat/internal/infrastructure/persistence"
 	runtimeclient "github.com/example/monorepo/chat/internal/infrastructure/runtime"
+	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"github.com/example/monorepo/observability-go"
 	"github.com/joho/godotenv"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -36,7 +38,18 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	service := application.NewService(repository, runtimeclient.New(config.RuntimeURL, config.InternalAPIToken))
+	adminConnection, err := innerruntime.DialContext(ctx, config.AdminRPCTarget, innerruntime.ClientOptions{
+		Caller: "chat", DefaultTimeout: 30 * time.Second,
+	})
+	if err != nil {
+		return err
+	}
+	defer adminConnection.Close()
+	service := application.NewService(
+		repository,
+		runtimeclient.New(config.RuntimeURL, config.InternalAPIToken),
+		adminclient.NewCapabilityResolver(adminConnection),
+	)
 	defer service.Close()
 
 	server := &http.Server{

@@ -3,18 +3,9 @@ import { createHash, randomBytes } from "node:crypto";
 import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
-import type { AuthContext } from "../api/http/middleware/auth.js";
-import {
-  getDocument,
-  getWorkspaceDocument,
-  knowledgeDocumentSessionId,
-  updateArtifact,
-  type KnowledgeDocument,
-} from "../infrastructure/clients/knowledge.js";
 import { storageClient } from "../infrastructure/clients/storage.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
-  threadArtifactCleanupOutbox,
   threadItems,
   threads,
   turnLeases,
@@ -37,7 +28,6 @@ export { getSessionFile } from "./session-files.js";
 import { assertEditableFileSize } from "./file-edit-limits.js";
 
 export async function updateSessionFileContent(
-  auth: Pick<AuthContext, "userId" | "tenantId" | "workspaceId">,
   sessionId: string,
   fileId: string,
   input: { content: string; expectedEtag: string; operationId: string; signal?: AbortSignal },
@@ -47,7 +37,6 @@ export async function updateSessionFileContent(
   const contentSha256 = createHash("sha256").update(bytes).digest("hex");
   return coordinateCloudWorkspaceUserEdit(
     {
-      ...auth,
       sessionId,
       fileId,
       expectedEtag: input.expectedEtag,
@@ -58,7 +47,6 @@ export async function updateSessionFileContent(
     (sandboxAttempt) =>
       saveSessionFile(
         {
-          ...auth,
           sessionId,
           fileId,
           expectedEtag: input.expectedEtag,
@@ -66,15 +54,11 @@ export async function updateSessionFileContent(
           contentSha256,
           operationId: input.operationId,
           writerType: "user",
-          writerId: auth.userId,
+          writerId: input.operationId,
         },
         async (idempotencyKey, file, claim) => {
           const client = storageClient();
-          const claimInput = {
-            tenantId: auth.tenantId,
-            workspaceId: auth.workspaceId,
-            ...claim,
-          };
+          const claimInput = claim;
           await client.prepareClaim({
             ...claimInput,
             assetId: file.asset_id,
@@ -84,7 +68,6 @@ export async function updateSessionFileContent(
           await client.activateClaim(claimInput);
           return client.appendRevision({
             ...claimInput,
-            userId: auth.userId,
             assetId: file.asset_id,
             baseRevisionId: file.revision_id,
             filename: file.filename,
@@ -101,9 +84,6 @@ export async function updateSessionFileContent(
 
 export interface Session {
   id: string;
-  user_id: string;
-  tenant_id: string;
-  workspace_id: string;
   model: string;
   provider_id: string;
   reasoning_effort: ReasoningEffort;
@@ -139,54 +119,6 @@ export interface MessageBranchGroup {
   candidates: MessageBranchCandidate[];
 }
 
-export function mapKnowledgeDocument(doc: KnowledgeDocument, sessionId: string) {
-  return {
-    id: doc.id,
-    session_id: knowledgeDocumentSessionId(doc) ?? sessionId,
-    kind: doc.kind,
-    editable_source: doc.editable_source,
-    title: doc.title,
-    filename: doc.filename,
-    mime_type: doc.mime_type,
-    source_size: doc.source_size,
-    source_mime_type: doc.source_mime_type,
-    asset_id: doc.asset_id ?? null,
-    source_revision_id: doc.source_revision_id ?? null,
-    source_sha256: doc.source_sha256 ?? null,
-    source_filename: doc.source_filename ?? null,
-    ingest_status: doc.ingest_status,
-    ingest_progress: doc.ingest_progress,
-    ingest_error: doc.ingest_error ?? null,
-    created_at: doc.created_at,
-    updated_at: doc.updated_at,
-  };
-}
-
-export interface SessionDocument {
-  id: string;
-  session_id: string;
-  kind: "source" | "artifact";
-  editable_source: boolean;
-  title: string;
-  filename: string;
-  mime_type: string;
-  source_size: number;
-  source_mime_type: string | null;
-  asset_id: string | null;
-  source_revision_id: string | null;
-  source_sha256: string | null;
-  source_filename: string | null;
-  ingest_status: string;
-  ingest_progress: number;
-  ingest_error: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SessionDocumentDetail extends SessionDocument {
-  content_md: string;
-}
-
 export interface SessionDetail extends Session {
   messages: Message[];
   branches: MessageBranchGroup[];
@@ -202,9 +134,6 @@ function iso(d: Date): string {
 function toSession(row: typeof threads.$inferSelect): Session {
   return {
     id: row.id,
-    user_id: row.userId,
-    tenant_id: row.tenantId,
-    workspace_id: row.workspaceId,
     model: row.model,
     provider_id: row.providerId,
     reasoning_effort: row.reasoningEffort as ReasoningEffort,
@@ -302,24 +231,8 @@ export function buildMessageBranches(allMessages: Message[], selectedPath: Messa
   });
 }
 
-export async function listSessions(auth: AuthContext): Promise<Session[]> {
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(threads)
-    .where(
-      and(
-        eq(threads.userId, auth.userId),
-        eq(threads.tenantId, auth.tenantId),
-        eq(threads.workspaceId, auth.workspaceId),
-      ),
-    )
-    .orderBy(desc(threads.updatedAt));
-  return rows.map(toSession);
-}
-
-export async function getSession(auth: AuthContext, sessionId: string): Promise<SessionDetail> {
-  const row = await getSessionRow(auth, sessionId);
+export async function getSession(sessionId: string): Promise<SessionDetail> {
+  const row = await getSessionRow(sessionId);
   const db = getDb();
   const messageRows = await db
     .select()
@@ -332,7 +245,7 @@ export async function getSession(auth: AuthContext, sessionId: string): Promise<
     .where(eq(turns.threadId, sessionId))
     .orderBy(desc(turns.ordinal))
     .limit(1);
-  const files = await listSessionFiles({ ...auth, sessionId });
+  const files = await listSessionFiles({ sessionId });
   const allMessages = messageRows.map(toMessage);
   const selectedMessages = selectMessagePath(allMessages, row.selectedItemId);
   return {
@@ -345,25 +258,19 @@ export async function getSession(auth: AuthContext, sessionId: string): Promise<
   };
 }
 
-export async function createSession(
-  auth: AuthContext,
-  input: {
-    request_id: string;
-    provider_id?: string | null;
-    model?: string | null;
-    reasoning_effort?: ReasoningEffort | null;
-    approval_policy?: ApprovalPolicy | null;
-    permission_profile?: BuiltInPermissionProfileId | null;
-  },
-): Promise<Session> {
+export async function createSession(input: {
+  request_id: string;
+  provider_id?: string | null;
+  model?: string | null;
+  reasoning_effort?: ReasoningEffort | null;
+  approval_policy?: ApprovalPolicy | null;
+  permission_profile?: BuiltInPermissionProfileId | null;
+}): Promise<Session> {
   const db = getDb();
   const now = new Date();
   const id = randomBytes(6).toString("hex");
   const values = {
     id,
-    userId: auth.userId,
-    tenantId: auth.tenantId,
-    workspaceId: auth.workspaceId,
     model: input.model ?? "",
     providerId: input.provider_id ?? "",
     reasoningEffort: input.reasoning_effort ?? "medium",
@@ -375,17 +282,7 @@ export async function createSession(
   };
   const [inserted] = await db.insert(threads).values(values).onConflictDoNothing().returning();
   if (inserted) return toSession(inserted);
-  const [row] = await db
-    .select()
-    .from(threads)
-    .where(
-      and(
-        eq(threads.userId, auth.userId),
-        eq(threads.tenantId, auth.tenantId),
-        eq(threads.workspaceId, auth.workspaceId),
-        eq(threads.createRequestId, input.request_id),
-      ),
-    );
+  const [row] = await db.select().from(threads).where(eq(threads.createRequestId, input.request_id));
   if (!row) throw new ConflictError("session creation conflict");
   if (
     row.providerId !== (input.provider_id ?? "") ||
@@ -400,24 +297,12 @@ export async function createSession(
 }
 
 export async function selectSessionHistory(
-  auth: AuthContext,
   sessionId: string,
   input: { leaf_message_id: string; expected_revision: number },
 ): Promise<SessionDetail> {
   const db = getDb();
   await db.transaction(async (tx) => {
-    const [session] = await tx
-      .select()
-      .from(threads)
-      .where(
-        and(
-          eq(threads.id, sessionId),
-          eq(threads.userId, auth.userId),
-          eq(threads.tenantId, auth.tenantId),
-          eq(threads.workspaceId, auth.workspaceId),
-        ),
-      )
-      .for("update");
+    const [session] = await tx.select().from(threads).where(eq(threads.id, sessionId)).for("update");
     if (!session) throw new NotFoundError(`session ${sessionId} not found`);
     if (session.historyRevision !== BigInt(input.expected_revision)) {
       throw new ConflictError("session history revision is stale", "history_revision_conflict", {
@@ -458,25 +343,14 @@ export async function selectSessionHistory(
       })
       .where(eq(threads.id, sessionId));
   });
-  return getSession(auth, sessionId);
+  return getSession(sessionId);
 }
 
-export async function deleteSession(auth: AuthContext, sessionId: string): Promise<void> {
+export async function deleteSession(sessionId: string): Promise<void> {
   const db = getDb();
   const now = new Date();
   await db.transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(threads)
-      .where(
-        and(
-          eq(threads.id, sessionId),
-          eq(threads.userId, auth.userId),
-          eq(threads.tenantId, auth.tenantId),
-          eq(threads.workspaceId, auth.workspaceId),
-        ),
-      )
-      .for("update");
+    const [row] = await tx.select().from(threads).where(eq(threads.id, sessionId)).for("update");
     if (!row) throw new NotFoundError(`session ${sessionId} not found`);
     const [lease] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, row.id)).for("update");
     const [leasedRun] = lease
@@ -494,66 +368,11 @@ export async function deleteSession(auth: AuthContext, sessionId: string): Promi
         .where(eq(turns.id, lease.turnId));
     }
     if (lease) await tx.delete(turnLeases).where(eq(turnLeases.turnId, lease.turnId));
-    await tx
-      .insert(threadArtifactCleanupOutbox)
-      .values({
-        threadId: row.id,
-        userId: row.userId,
-        tenantId: row.tenantId,
-        workspaceId: row.workspaceId,
-        availableAt: now,
-        createdAt: now,
-      })
-      .onConflictDoNothing();
     await releaseSessionFileClaims(tx, {
       sessionId: row.id,
-      userId: row.userId,
-      tenantId: row.tenantId,
-      workspaceId: row.workspaceId,
     });
     await tx.delete(threads).where(eq(threads.id, row.id));
   });
-}
-
-function assertSessionDocument(doc: KnowledgeDocument, sessionId: string): KnowledgeDocument {
-  if (knowledgeDocumentSessionId(doc) !== sessionId) {
-    throw new NotFoundError(`document ${doc.id} not found in session ${sessionId}`);
-  }
-  return doc;
-}
-
-export async function getSessionDocument(
-  auth: AuthContext,
-  sessionId: string,
-  documentId: string,
-  includeContent = true,
-): Promise<SessionDocumentDetail> {
-  const session = await getSessionRow(auth, sessionId);
-  const doc = assertSessionDocument(await getDocument(session.userId, documentId, includeContent), sessionId);
-  return {
-    ...mapKnowledgeDocument(doc, sessionId),
-    content_md: doc.content_md ?? "",
-  };
-}
-
-export async function updateSessionDocument(
-  auth: AuthContext,
-  sessionId: string,
-  documentId: string,
-  input: { title?: string; content_md?: string },
-): Promise<SessionDocumentDetail> {
-  const session = await getSessionRow(auth, sessionId);
-  const current = assertSessionDocument(await getDocument(session.userId, documentId), sessionId);
-  const updated = await updateArtifact({
-    userId: session.userId,
-    documentId: current.id,
-    title: input.title,
-    content: input.content_md,
-  });
-  return {
-    ...mapKnowledgeDocument(updated, sessionId),
-    content_md: updated.content_md ?? "",
-  };
 }
 
 export async function touchSession(sessionId: string): Promise<void> {
@@ -561,15 +380,9 @@ export async function touchSession(sessionId: string): Promise<void> {
   await db.update(threads).set({ updatedAt: new Date() }).where(eq(threads.id, sessionId));
 }
 
-export async function getSessionRow(auth: AuthContext, sessionId: string): Promise<typeof threads.$inferSelect> {
+export async function getSessionRow(sessionId: string): Promise<typeof threads.$inferSelect> {
   const db = getDb();
-  const condition = and(
-    eq(threads.id, sessionId),
-    eq(threads.userId, auth.userId),
-    eq(threads.tenantId, auth.tenantId),
-    eq(threads.workspaceId, auth.workspaceId),
-  );
-  const [row] = await db.select().from(threads).where(condition);
+  const [row] = await db.select().from(threads).where(eq(threads.id, sessionId));
   if (!row) {
     throw new NotFoundError(`session ${sessionId} not found`);
   }
@@ -661,11 +474,10 @@ export async function updateMessageContent(input: {
 }
 
 export async function updateSessionModel(
-  auth: AuthContext,
   sessionId: string,
   input: { providerId: string; model: string; reasoningEffort: ReasoningEffort },
 ): Promise<Session> {
-  await getSessionRow(auth, sessionId);
+  await getSessionRow(sessionId);
   const db = getDb();
   const [row] = await db
     .update(threads)
@@ -682,11 +494,10 @@ export async function updateSessionModel(
 }
 
 export async function updateSessionExecutionPolicy(
-  auth: AuthContext,
   sessionId: string,
   input: { approvalPolicy: ApprovalPolicy; permissionProfile: BuiltInPermissionProfileId },
 ): Promise<Session> {
-  await getSessionRow(auth, sessionId);
+  await getSessionRow(sessionId);
   const [row] = await getDb()
     .update(threads)
     .set({
@@ -698,23 +509,6 @@ export async function updateSessionExecutionPolicy(
     .returning();
   if (!row) throw new NotFoundError("session not found");
   return toSession(row);
-}
-
-export async function authorizeDocumentDelivery(
-  auth: AuthContext,
-  sessionId: string,
-  documentId: string,
-  maxDim?: number,
-) {
-  const doc = await getSessionDocument(auth, sessionId, documentId, false);
-  if (!doc.asset_id || !doc.source_revision_id) throw new NotFoundError("document has no Storage revision");
-  return storageClient().mintDelivery({
-    tenantId: auth.tenantId,
-    workspaceId: auth.workspaceId,
-    assetId: doc.asset_id,
-    revisionId: doc.source_revision_id,
-    maxDim,
-  });
 }
 
 function isKnowledgeSourcePart(part: unknown, sourceId: string): boolean {
@@ -733,33 +527,17 @@ export function hasKnowledgeSourceReference(history: Message[], sourceId: string
   return history.some((message) => message.content.parts.some((part) => isKnowledgeSourcePart(part, sourceId)));
 }
 
-export async function authorizeSessionSourceDelivery(auth: AuthContext, sessionId: string, sourceId: string) {
-  const session = await getSessionRow(auth, sessionId);
-  const history = await listMessages(session.id);
-  if (!hasKnowledgeSourceReference(history, sourceId)) throw new NotFoundError("session source not found");
-  const document = await getWorkspaceDocument(auth.tenantId, auth.workspaceId, sourceId);
-  if (!document.asset_id || !document.source_revision_id) throw new NotFoundError("source has no Storage revision");
-  return storageClient().mintDelivery({
-    tenantId: auth.tenantId,
-    workspaceId: auth.workspaceId,
-    assetId: document.asset_id,
-    revisionId: document.source_revision_id,
-  });
-}
 export async function authorizeFileDelivery(
-  auth: AuthContext,
   sessionId: string,
   fileId: string,
   expectedRevision?: string,
   maxDim?: number,
 ) {
-  const file = await getSessionFile(auth, sessionId, fileId);
+  const file = await getSessionFile(sessionId, fileId);
   if (expectedRevision !== undefined && expectedRevision !== file.revision_id) {
     throw new ConflictError("session file changed while loading", "file_content_conflict");
   }
   return storageClient().mintDelivery({
-    tenantId: auth.tenantId,
-    workspaceId: auth.workspaceId,
     assetId: file.asset_id,
     revisionId: file.revision_id,
     maxDim,

@@ -160,9 +160,8 @@ type CreateNodeInput struct {
 }
 
 type UploadedAssetInput struct {
-	SourceAssetID    string
-	SourceRevisionID string
-	FileName         string
+	UploadSessionID string
+	ClientRef       string
 }
 
 type CopyNodeInput struct {

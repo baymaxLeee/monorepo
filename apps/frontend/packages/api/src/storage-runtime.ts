@@ -1,5 +1,5 @@
 import { authFetch } from "./auth-fetch";
-import { authorizeConversationDocumentDelivery, authorizeConversationFileDelivery } from "./chat-server";
+import { authorizeConversationFileDelivery } from "./chat-server";
 import { API_BASE_URL } from "./http";
 import { authorizeDocumentDelivery } from "./knowledge-server";
 
@@ -63,18 +63,14 @@ export async function createStorageDownloadUrl(
   signal?: AbortSignal,
   maxDim?: number,
 ): Promise<StorageDownloadCapability> {
+  void maxDim;
   const owner = ref.owner;
   const options = { signal, skipErrorNotify: true };
   const capability =
     owner.kind === "knowledge-document"
       ? await authorizeDocumentDelivery(owner.documentId, options)
       : owner.kind === "conversation-document"
-        ? await authorizeConversationDocumentDelivery(
-            owner.conversationId,
-            owner.documentId,
-            maxDim ? { max_dim: maxDim } : undefined,
-            options,
-          )
+        ? await authorizeDocumentDelivery(owner.documentId, options)
         : await authorizeConversationFileDelivery(
             owner.conversationId,
             owner.fileId,

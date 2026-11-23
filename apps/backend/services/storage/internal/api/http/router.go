@@ -71,21 +71,6 @@ func (router *Router) uploadSessionContentRoute() http.HandlerFunc {
 	}
 }
 
-func (router *Router) uploadSessionResponse(session application.UploadSession) map[string]any {
-	result := map[string]any{
-		"upload_session_id": session.ID, "intent_id": session.IdempotencyKey, "state": session.State,
-		"user_id": session.UserID, "category": session.Category, "filename": session.Filename,
-		"media_type": session.MediaType, "size_bytes": session.SizeBytes,
-		"expires_at": session.ExpiresAt,
-		"upload_url": UploadSessionURL(string(router.signingKey), session),
-	}
-	if session.AssetID != "" && session.RevisionID != "" {
-		result["asset_id"] = session.AssetID
-		result["revision_id"] = session.RevisionID
-	}
-	return result
-}
-
 func UploadSessionURL(signingKey string, session application.UploadSession) string {
 	expires := session.ExpiresAt.Unix()
 	mac := hmac.New(sha256.New, []byte(signingKey))
@@ -103,7 +88,6 @@ func (router *Router) signUploadSession(uploadID string, expires int64) string {
 func (router *Router) capabilityContentRoute() http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
 		query := request.URL.Query()
-		tenantID, workspaceID := query.Get("tenant_id"), query.Get("workspace_id")
 		expires, err := strconv.ParseInt(query.Get("expires"), 10, 64)
 		if err != nil {
 			writeProblem(w, 403, "forbidden", "invalid expiry")
@@ -117,7 +101,7 @@ func (router *Router) capabilityContentRoute() http.HandlerFunc {
 				return
 			}
 		}
-		expected := router.signDeliveryVariant(tenantID, workspaceID, chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"), expires, maxDim)
+		expected := router.signDeliveryVariant(chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"), expires, maxDim)
 		provided := query.Get("signature")
 		if err != nil || time.Now().Unix() >= expires || len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
 			writeProblem(w, http.StatusForbidden, "forbidden", "invalid or expired delivery capability")
@@ -127,13 +111,13 @@ func (router *Router) capabilityContentRoute() http.HandlerFunc {
 			router.imageVariantRoute()(w, request)
 			return
 		}
-		router.serveContent(w, request, tenantID, workspaceID)
+		router.serveContent(w, request)
 	}
 }
 
-func (router *Router) signDelivery(tenantID, workspaceID, assetID, revisionID string, expires int64) string {
+func (router *Router) signDelivery(assetID, revisionID string, expires int64) string {
 	mac := hmac.New(sha256.New, router.signingKey)
-	_, _ = fmt.Fprintf(mac, "%s\x00%s\x00%s\x00%s\x00%d", tenantID, workspaceID, assetID, revisionID, expires)
+	_, _ = fmt.Fprintf(mac, "%s\x00%s\x00%d", assetID, revisionID, expires)
 	return fmt.Sprintf("%x", mac.Sum(nil))
 }
 
@@ -156,8 +140,8 @@ func uploadResponse(asset domain.Asset, revision domain.Revision) map[string]any
 	}
 }
 
-func (router *Router) serveContent(w http.ResponseWriter, request *http.Request, tenantID, workspaceID string) {
-	revision, blob, err := router.service.Open(request.Context(), tenantID, workspaceID, chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"))
+func (router *Router) serveContent(w http.ResponseWriter, request *http.Request) {
+	revision, blob, err := router.service.Open(request.Context(), chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"))
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -210,11 +194,11 @@ func writeProblem(w http.ResponseWriter, status int, title, detail string) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"type": "about:blank", "title": title, "detail": detail, "status": status})
 }
 
-func (router *Router) signDeliveryVariant(tenantID, workspaceID, assetID, revisionID string, expires int64, maxDim int) string {
+func (router *Router) signDeliveryVariant(assetID, revisionID string, expires int64, maxDim int) string {
 	if maxDim == 0 {
-		return router.signDelivery(tenantID, workspaceID, assetID, revisionID, expires)
+		return router.signDelivery(assetID, revisionID, expires)
 	}
 	mac := hmac.New(sha256.New, router.signingKey)
-	_, _ = fmt.Fprintf(mac, "image-v1\x00%s\x00%s\x00%s\x00%s\x00%d\x00%d", tenantID, workspaceID, assetID, revisionID, expires, maxDim)
+	_, _ = fmt.Fprintf(mac, "image-v2\x00%s\x00%s\x00%d\x00%d", assetID, revisionID, expires, maxDim)
 	return fmt.Sprintf("%x", mac.Sum(nil))
 }

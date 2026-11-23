@@ -1585,15 +1585,14 @@ func (p *GetCanvasGraphResponse) String() string {
 	return fmt.Sprintf("GetCanvasGraphResponse(%+v)", *p)
 }
 
-// CreateCanvasAssetRequest 将平台 Asset revision 注册为当前 Project 可用的画布素材。
+// CreateCanvasAssetRequest 将当前调用方准备的上传注册为 Project 素材。
 // Asset Owner 由 Server 根据可信 Project/Canvas scope 派生，调用方不能指定。
 type CreateCanvasAssetRequest struct {
-	WorkspaceID      *string `json:"WorkspaceID,omitempty"`
-	ProjectID        string  `json:"ProjectID"`
-	CanvasID         string  `json:"CanvasID"`
-	SourceAssetID    string  `json:"SourceAssetID"`
-	SourceRevisionID string  `json:"SourceRevisionID"`
-	FileName         string  `json:"FileName"`
+	WorkspaceID     *string `json:"WorkspaceID,omitempty"`
+	ProjectID       string  `json:"ProjectID"`
+	CanvasID        string  `json:"CanvasID"`
+	UploadSessionID string  `json:"UploadSessionID"`
+	ClientRef       string  `json:"ClientRef"`
 }
 
 func NewCreateCanvasAssetRequest() *CreateCanvasAssetRequest {
@@ -1620,16 +1619,12 @@ func (p *CreateCanvasAssetRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-func (p *CreateCanvasAssetRequest) GetSourceAssetID() string {
-	return p.SourceAssetID
+func (p *CreateCanvasAssetRequest) GetUploadSessionID() string {
+	return p.UploadSessionID
 }
 
-func (p *CreateCanvasAssetRequest) GetSourceRevisionID() string {
-	return p.SourceRevisionID
-}
-
-func (p *CreateCanvasAssetRequest) GetFileName() (v string) {
-	return p.FileName
+func (p *CreateCanvasAssetRequest) GetClientRef() string {
+	return p.ClientRef
 }
 
 func (p *CreateCanvasAssetRequest) IsSetWorkspaceID() bool {
@@ -1674,11 +1669,10 @@ func (p *CreateCanvasAssetResponse) String() string {
 	return fmt.Sprintf("CreateCanvasAssetResponse(%+v)", *p)
 }
 
-// CanvasUploadedAsset 是由节点创建或素材物化直接消费的平台 Asset revision。
+// CanvasUploadedAsset 是由节点创建或素材物化消费的 Canvas 上传凭据。
 type CanvasUploadedAsset struct {
-	SourceAssetID    string `json:"SourceAssetID"`
-	SourceRevisionID string `json:"SourceRevisionID"`
-	FileName         string `json:"FileName"`
+	UploadSessionID string `json:"UploadSessionID"`
+	ClientRef       string `json:"ClientRef"`
 }
 
 func NewCanvasUploadedAsset() *CanvasUploadedAsset {
@@ -1688,16 +1682,12 @@ func NewCanvasUploadedAsset() *CanvasUploadedAsset {
 func (p *CanvasUploadedAsset) InitDefault() {
 }
 
-func (p *CanvasUploadedAsset) GetSourceAssetID() string {
-	return p.SourceAssetID
+func (p *CanvasUploadedAsset) GetUploadSessionID() string {
+	return p.UploadSessionID
 }
 
-func (p *CanvasUploadedAsset) GetSourceRevisionID() string {
-	return p.SourceRevisionID
-}
-
-func (p *CanvasUploadedAsset) GetFileName() (v string) {
-	return p.FileName
+func (p *CanvasUploadedAsset) GetClientRef() string {
+	return p.ClientRef
 }
 
 func (p *CanvasUploadedAsset) String() string {

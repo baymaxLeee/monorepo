@@ -8,9 +8,6 @@ import { ConflictError } from "../../errors.js";
 import { reconcileSandboxExecutions, sandboxExecutionReconciliationState } from "./sandbox-executions.js";
 
 const first: SandboxScope = {
-  tenant_id: "tenant",
-  workspace_id: "workspace",
-  user_id: "user",
   session_id: "session",
   run_id: "first",
   attempt_epoch: "1",

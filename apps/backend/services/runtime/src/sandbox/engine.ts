@@ -9,14 +9,7 @@ import { filePath, processSchema, workspaceSnapshotSchema, type Scope } from "./
 const LABEL = "monorepo.sandbox";
 const HELPER = ["python3", "/opt/sandbox/runner.py"];
 export function resourceName(scope: Scope): string {
-  const values = [
-    scope.tenant_id,
-    scope.workspace_id,
-    scope.user_id,
-    scope.conversation_id,
-    scope.run_id,
-    scope.attempt_epoch,
-  ];
+  const values = [scope.session_id, scope.run_id, scope.attempt_epoch];
   return `sandbox-${createHash("sha256").update(JSON.stringify(values)).digest("hex").slice(0, 40)}`;
 }
 

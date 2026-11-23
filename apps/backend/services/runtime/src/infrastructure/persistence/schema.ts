@@ -22,13 +22,7 @@ export interface PersistedThreadItemContent {
 }
 
 export interface PersistedTurnResumeSnapshot {
-  schemaVersion: 1;
-  auth: {
-    userId: string;
-    tenantId: string;
-    workspaceId: string;
-    workspaceRole: string;
-  };
+  schemaVersion: 2;
   execution: {
     operation: "submit-message" | "edit-message" | "regenerate-message" | "tool-continuation";
     assistantMessageId: string;
@@ -58,9 +52,6 @@ export const threads = pgTable(
   "threads",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
-    userId: varchar("user_id", { length: 26 }).notNull(),
-    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
-    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
     model: varchar("model", { length: 120 }).notNull().default(""),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
     reasoningEffort: varchar("reasoning_effort", { length: 16 }).notNull().default("medium"),
@@ -75,11 +66,7 @@ export const threads = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
-  (t) => [
-    index("ix_threads_user_id").on(t.userId),
-    index("ix_threads_scope_updated").on(t.tenantId, t.workspaceId, t.userId, t.updatedAt),
-    uniqueIndex("ux_threads_create_request").on(t.tenantId, t.workspaceId, t.userId, t.createRequestId),
-  ],
+  (t) => [uniqueIndex("ux_threads_create_request").on(t.createRequestId), index("ix_threads_updated").on(t.updatedAt)],
 );
 
 /** A single admitted RuntimeTurn and its terminal outcome. */
@@ -91,7 +78,6 @@ export const turns = pgTable(
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
     ordinal: bigint("ordinal", { mode: "bigint" }).notNull(),
-    userId: varchar("user_id", { length: 26 }).notNull(),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
     model: varchar("model", { length: 120 }).notNull().default(""),
     status: varchar("status", { length: 20 }).notNull(),
@@ -113,7 +99,6 @@ export const turns = pgTable(
       .on(t.threadId)
       .where(sql`${t.status} IN ('running', 'cancel_requested', 'waiting')`),
     index("ix_turns_thread_created").on(t.threadId, t.createdAt),
-    index("ix_turns_user_id").on(t.userId),
   ],
 );
 
@@ -369,9 +354,6 @@ export const turnSandboxExecutions = pgTable(
     threadId: varchar("thread_id", { length: 32 })
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    userId: varchar("user_id", { length: 26 }).notNull(),
-    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
-    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
     state: varchar("state", { length: 20 }).notNull(),
     sandboxId: varchar("sandbox_id", { length: 128 }),
     expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true, precision: 6 }),
@@ -417,9 +399,6 @@ export const threadFiles = pgTable(
     threadId: varchar("thread_id", { length: 32 })
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    userId: varchar("user_id", { length: 26 }).notNull(),
-    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
-    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
     assetId: uuid("asset_id").notNull(),
     revisionId: uuid("revision_id").notNull(),
     title: varchar("title", { length: 255 }).notNull(),
@@ -441,9 +420,9 @@ export const threadFiles = pgTable(
   (t) => [
     index("ix_thread_files_thread").on(t.threadId, t.createdAt),
     index("ix_thread_files_asset_revision").on(t.assetId, t.revisionId),
-    uniqueIndex("ux_thread_files_idempotency").on(t.tenantId, t.workspaceId, t.userId, t.threadId, t.idempotencyKey),
+    uniqueIndex("ux_thread_files_idempotency").on(t.threadId, t.idempotencyKey),
     uniqueIndex("ux_thread_files_live_workspace_path")
-      .on(t.tenantId, t.workspaceId, t.threadId, t.workspacePath)
+      .on(t.threadId, t.workspacePath)
       .where(sql`${t.workspaceState} = 'live'`),
   ],
 );
@@ -451,9 +430,6 @@ export const threadFiles = pgTable(
 export const threadFileSaveOperations = pgTable(
   "thread_file_save_operations",
   {
-    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
-    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
-    userId: varchar("user_id", { length: 26 }).notNull(),
     threadId: varchar("thread_id", { length: 32 })
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
@@ -475,7 +451,7 @@ export const threadFileSaveOperations = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.tenantId, t.workspaceId, t.userId, t.threadId, t.operationId] }),
+    primaryKey({ columns: [t.threadId, t.operationId] }),
     index("ix_thread_file_save_operations_file").on(t.fileId, t.createdAt),
     index("ix_thread_file_save_operations_pending")
       .on(t.status, t.leaseUntil)
@@ -486,8 +462,6 @@ export const threadFileSaveOperations = pgTable(
 export const assetClaimIntents = pgTable(
   "asset_claim_intents",
   {
-    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
-    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
     ownerType: varchar("owner_type", { length: 64 }).notNull(),
     ownerId: varchar("owner_id", { length: 128 }).notNull(),
     slot: varchar("slot", { length: 128 }).notNull(),
@@ -506,7 +480,7 @@ export const assetClaimIntents = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.tenantId, t.workspaceId, t.ownerType, t.ownerId, t.slot] }),
+    primaryKey({ columns: [t.ownerType, t.ownerId, t.slot] }),
     index("ix_asset_claim_intents_due").on(t.deliveredAt, t.nextAttemptAt, t.leaseUntil),
   ],
 );
@@ -515,9 +489,6 @@ export const threadArtifactCleanupOutbox = pgTable(
   "thread_artifact_cleanup_outbox",
   {
     threadId: varchar("thread_id", { length: 32 }).primaryKey(),
-    userId: varchar("user_id", { length: 26 }).notNull(),
-    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
-    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
     attempts: integer("attempts").notNull().default(0),
     availableAt: timestamp("available_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     claimedAt: timestamp("claimed_at", { mode: "date", withTimezone: true, precision: 6 }),
@@ -525,23 +496,4 @@ export const threadArtifactCleanupOutbox = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
   (t) => [index("ix_thread_artifact_cleanup_outbox_available").on(t.availableAt, t.createdAt)],
-);
-
-export const userMemories = pgTable(
-  "user_memories",
-  {
-    id: varchar("id", { length: 32 }).primaryKey(),
-    userId: varchar("user_id", { length: 26 }).notNull(),
-    category: varchar("category", { length: 40 }).notNull(),
-    content: text("content").notNull(),
-    source: varchar("source", { length: 80 }).notNull().default("agent"),
-    confidence: integer("confidence").notNull().default(80),
-    status: varchar("status", { length: 20 }).notNull().default("active"),
-    reason: text("reason"),
-    originTurnId: varchar("origin_turn_id", { length: 32 }),
-    supersedesId: varchar("supersedes_id", { length: 32 }),
-    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
-    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
-  },
-  (t) => [index("ix_user_memories_user_id").on(t.userId), index("ix_user_memories_user_status").on(t.userId, t.status)],
 );

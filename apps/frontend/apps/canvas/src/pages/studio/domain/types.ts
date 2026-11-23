@@ -40,6 +40,9 @@ export interface StoryboardAsset {
   /** 已上传但尚未绑定分镜的平台 Asset revision。 */
   sourceAssetId?: string;
   sourceRevisionId?: string;
+  /** Canvas 业务层用于接纳当前用户上传的凭据；不能由裸 Storage ID 替代。 */
+  uploadSessionId?: string;
+  uploadClientRef?: string;
   /**
    * 本地 draft id。后台切到 AssetID 后短暂保留，供 mention 双键查找。
    */

@@ -23,7 +23,6 @@ import {
   type UntypedServiceImplementation,
 } from "@grpc/grpc-js";
 
-import { ActorContext } from "../../common/v1/context.js";
 import { Timestamp } from "../../google/protobuf/timestamp.js";
 
 export const protobufPackage = "storage.v1";
@@ -184,10 +183,8 @@ export function uploadSessionStateToJSON(object: UploadSessionState): string {
 }
 
 export interface UploadMetadata {
-  actor?: ActorContext | undefined;
   filename: string;
   mediaType: string;
-  category: string;
   idempotencyKey: string;
 }
 
@@ -196,7 +193,6 @@ export interface UploadRequest {
 }
 
 export interface AppendRevisionMetadata {
-  actor?: ActorContext | undefined;
   assetId: string;
   filename: string;
   mediaType: string;
@@ -230,7 +226,6 @@ export interface AppendRevisionResponse {
 }
 
 export interface DescribeRevisionRequest {
-  actor?: ActorContext | undefined;
   assetId: string;
   revisionId: string;
 }
@@ -238,12 +233,10 @@ export interface DescribeRevisionRequest {
 export interface RevisionMetadata {
   assetId: string;
   revisionId: string;
-  category: string;
   filename: string;
   mediaType: string;
   sizeBytes: number;
   sha256: string;
-  createdBy: string;
 }
 
 export interface DescribeRevisionResponse {
@@ -251,7 +244,6 @@ export interface DescribeRevisionResponse {
 }
 
 export interface ReadContentRequest {
-  actor?: ActorContext | undefined;
   assetId: string;
   revisionId: string;
   offset?: number | undefined;
@@ -259,7 +251,6 @@ export interface ReadContentRequest {
 }
 
 export interface ReadImageVariantRequest {
-  actor?: ActorContext | undefined;
   assetId: string;
   revisionId: string;
   maxDimension?: number | undefined;
@@ -287,7 +278,7 @@ export interface ReadImageVariantResponse {
 export interface Claim {
   claimId: string;
   assetId: string;
-  revisionId?: string | undefined;
+  revisionId: string;
   kind: ClaimKind;
   status: ClaimStatus;
   generation: number;
@@ -295,19 +286,17 @@ export interface Claim {
 }
 
 export interface PrepareClaimRequest {
-  actor?: ActorContext | undefined;
   ownerType: string;
   ownerId: string;
   slot: string;
   generation: number;
   assetId: string;
-  revisionId?: string | undefined;
+  revisionId: string;
   kind: ClaimKind;
   expiresAt?: string | undefined;
 }
 
 export interface ActivateClaimRequest {
-  actor?: ActorContext | undefined;
   ownerType: string;
   ownerId: string;
   slot: string;
@@ -315,7 +304,6 @@ export interface ActivateClaimRequest {
 }
 
 export interface ReleaseClaimRequest {
-  actor?: ActorContext | undefined;
   ownerType: string;
   ownerId: string;
   slot: string;
@@ -335,16 +323,13 @@ export interface ReleaseClaimResponse {
 }
 
 export interface CreateUploadSessionRequest {
-  actor?: ActorContext | undefined;
   intentId: string;
   filename: string;
   mediaType: string;
-  category: string;
   sizeBytes: number;
 }
 
 export interface DescribeUploadSessionRequest {
-  actor?: ActorContext | undefined;
   uploadSessionId: string;
 }
 
@@ -352,8 +337,6 @@ export interface UploadSession {
   uploadSessionId: string;
   intentId: string;
   state: UploadSessionState;
-  userId: string;
-  category: string;
   filename: string;
   mediaType: string;
   sizeBytes: number;
@@ -372,7 +355,6 @@ export interface DescribeUploadSessionResponse {
 }
 
 export interface DeliveryCapabilityItem {
-  actor?: ActorContext | undefined;
   assetId: string;
   revisionId: string;
   maxDimension?: number | undefined;
@@ -397,25 +379,19 @@ export interface MintCapabilitiesResponse {
 }
 
 function createBaseUploadMetadata(): UploadMetadata {
-  return { actor: undefined, filename: "", mediaType: "", category: "", idempotencyKey: "" };
+  return { filename: "", mediaType: "", idempotencyKey: "" };
 }
 
 export const UploadMetadata: MessageFns<UploadMetadata> = {
   encode(message: UploadMetadata, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.filename !== "") {
-      writer.uint32(18).string(message.filename);
+      writer.uint32(10).string(message.filename);
     }
     if (message.mediaType !== "") {
-      writer.uint32(26).string(message.mediaType);
-    }
-    if (message.category !== "") {
-      writer.uint32(34).string(message.category);
+      writer.uint32(18).string(message.mediaType);
     }
     if (message.idempotencyKey !== "") {
-      writer.uint32(42).string(message.idempotencyKey);
+      writer.uint32(26).string(message.idempotencyKey);
     }
     return writer;
   },
@@ -438,7 +414,7 @@ export const UploadMetadata: MessageFns<UploadMetadata> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.filename = reader.string();
             continue;
           }
           case 2: {
@@ -446,27 +422,11 @@ export const UploadMetadata: MessageFns<UploadMetadata> = {
               break;
             }
 
-            message.filename = reader.string();
+            message.mediaType = reader.string();
             continue;
           }
           case 3: {
             if (tag !== 26) {
-              break;
-            }
-
-            message.mediaType = reader.string();
-            continue;
-          }
-          case 4: {
-            if (tag !== 34) {
-              break;
-            }
-
-            message.category = reader.string();
-            continue;
-          }
-          case 5: {
-            if (tag !== 42) {
               break;
             }
 
@@ -487,14 +447,12 @@ export const UploadMetadata: MessageFns<UploadMetadata> = {
 
   fromJSON(object: any): UploadMetadata {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       filename: isSet(object.filename) ? globalThis.String(object.filename) : "",
       mediaType: isSet(object.mediaType)
         ? globalThis.String(object.mediaType)
         : isSet(object.media_type)
           ? globalThis.String(object.media_type)
           : "",
-      category: isSet(object.category) ? globalThis.String(object.category) : "",
       idempotencyKey: isSet(object.idempotencyKey)
         ? globalThis.String(object.idempotencyKey)
         : isSet(object.idempotency_key)
@@ -505,17 +463,11 @@ export const UploadMetadata: MessageFns<UploadMetadata> = {
 
   toJSON(message: UploadMetadata): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.filename !== "") {
       obj.filename = message.filename;
     }
     if (message.mediaType !== "") {
       obj.mediaType = message.mediaType;
-    }
-    if (message.category !== "") {
-      obj.category = message.category;
     }
     if (message.idempotencyKey !== "") {
       obj.idempotencyKey = message.idempotencyKey;
@@ -528,11 +480,8 @@ export const UploadMetadata: MessageFns<UploadMetadata> = {
   },
   fromPartial(object: DeepPartial<UploadMetadata>): UploadMetadata {
     const message = createBaseUploadMetadata();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.filename = object.filename ?? "";
     message.mediaType = object.mediaType ?? "";
-    message.category = object.category ?? "";
     message.idempotencyKey = object.idempotencyKey ?? "";
     return message;
   },
@@ -641,7 +590,6 @@ export const UploadRequest: MessageFns<UploadRequest> = {
 
 function createBaseAppendRevisionMetadata(): AppendRevisionMetadata {
   return {
-    actor: undefined,
     assetId: "",
     filename: "",
     mediaType: "",
@@ -656,35 +604,32 @@ function createBaseAppendRevisionMetadata(): AppendRevisionMetadata {
 
 export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
   encode(message: AppendRevisionMetadata, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.assetId !== "") {
-      writer.uint32(18).string(message.assetId);
+      writer.uint32(10).string(message.assetId);
     }
     if (message.filename !== "") {
-      writer.uint32(26).string(message.filename);
+      writer.uint32(18).string(message.filename);
     }
     if (message.mediaType !== "") {
-      writer.uint32(34).string(message.mediaType);
+      writer.uint32(26).string(message.mediaType);
     }
     if (message.idempotencyKey !== "") {
-      writer.uint32(42).string(message.idempotencyKey);
+      writer.uint32(34).string(message.idempotencyKey);
     }
     if (message.baseRevisionId !== "") {
-      writer.uint32(50).string(message.baseRevisionId);
+      writer.uint32(42).string(message.baseRevisionId);
     }
     if (message.ownerType !== "") {
-      writer.uint32(58).string(message.ownerType);
+      writer.uint32(50).string(message.ownerType);
     }
     if (message.ownerId !== "") {
-      writer.uint32(66).string(message.ownerId);
+      writer.uint32(58).string(message.ownerId);
     }
     if (message.slot !== "") {
-      writer.uint32(74).string(message.slot);
+      writer.uint32(66).string(message.slot);
     }
     if (message.generation !== 0) {
-      writer.uint32(80).int64(message.generation);
+      writer.uint32(72).int64(message.generation);
     }
     return writer;
   },
@@ -707,7 +652,7 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.assetId = reader.string();
             continue;
           }
           case 2: {
@@ -715,7 +660,7 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.assetId = reader.string();
+            message.filename = reader.string();
             continue;
           }
           case 3: {
@@ -723,7 +668,7 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.filename = reader.string();
+            message.mediaType = reader.string();
             continue;
           }
           case 4: {
@@ -731,7 +676,7 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.mediaType = reader.string();
+            message.idempotencyKey = reader.string();
             continue;
           }
           case 5: {
@@ -739,7 +684,7 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.idempotencyKey = reader.string();
+            message.baseRevisionId = reader.string();
             continue;
           }
           case 6: {
@@ -747,7 +692,7 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.baseRevisionId = reader.string();
+            message.ownerType = reader.string();
             continue;
           }
           case 7: {
@@ -755,7 +700,7 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.ownerType = reader.string();
+            message.ownerId = reader.string();
             continue;
           }
           case 8: {
@@ -763,19 +708,11 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
               break;
             }
 
-            message.ownerId = reader.string();
-            continue;
-          }
-          case 9: {
-            if (tag !== 74) {
-              break;
-            }
-
             message.slot = reader.string();
             continue;
           }
-          case 10: {
-            if (tag !== 80) {
+          case 9: {
+            if (tag !== 72) {
               break;
             }
 
@@ -796,7 +733,6 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
 
   fromJSON(object: any): AppendRevisionMetadata {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       assetId: isSet(object.assetId)
         ? globalThis.String(object.assetId)
         : isSet(object.asset_id)
@@ -835,9 +771,6 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
 
   toJSON(message: AppendRevisionMetadata): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.assetId !== "") {
       obj.assetId = message.assetId;
     }
@@ -873,8 +806,6 @@ export const AppendRevisionMetadata: MessageFns<AppendRevisionMetadata> = {
   },
   fromPartial(object: DeepPartial<AppendRevisionMetadata>): AppendRevisionMetadata {
     const message = createBaseAppendRevisionMetadata();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.assetId = object.assetId ?? "";
     message.filename = object.filename ?? "";
     message.mediaType = object.mediaType ?? "";
@@ -1291,19 +1222,16 @@ export const AppendRevisionResponse: MessageFns<AppendRevisionResponse> = {
 };
 
 function createBaseDescribeRevisionRequest(): DescribeRevisionRequest {
-  return { actor: undefined, assetId: "", revisionId: "" };
+  return { assetId: "", revisionId: "" };
 }
 
 export const DescribeRevisionRequest: MessageFns<DescribeRevisionRequest> = {
   encode(message: DescribeRevisionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.assetId !== "") {
-      writer.uint32(18).string(message.assetId);
+      writer.uint32(10).string(message.assetId);
     }
     if (message.revisionId !== "") {
-      writer.uint32(26).string(message.revisionId);
+      writer.uint32(18).string(message.revisionId);
     }
     return writer;
   },
@@ -1326,19 +1254,11 @@ export const DescribeRevisionRequest: MessageFns<DescribeRevisionRequest> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.assetId = reader.string();
             continue;
           }
           case 2: {
             if (tag !== 18) {
-              break;
-            }
-
-            message.assetId = reader.string();
-            continue;
-          }
-          case 3: {
-            if (tag !== 26) {
               break;
             }
 
@@ -1359,7 +1279,6 @@ export const DescribeRevisionRequest: MessageFns<DescribeRevisionRequest> = {
 
   fromJSON(object: any): DescribeRevisionRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       assetId: isSet(object.assetId)
         ? globalThis.String(object.assetId)
         : isSet(object.asset_id)
@@ -1375,9 +1294,6 @@ export const DescribeRevisionRequest: MessageFns<DescribeRevisionRequest> = {
 
   toJSON(message: DescribeRevisionRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.assetId !== "") {
       obj.assetId = message.assetId;
     }
@@ -1392,8 +1308,6 @@ export const DescribeRevisionRequest: MessageFns<DescribeRevisionRequest> = {
   },
   fromPartial(object: DeepPartial<DescribeRevisionRequest>): DescribeRevisionRequest {
     const message = createBaseDescribeRevisionRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.assetId = object.assetId ?? "";
     message.revisionId = object.revisionId ?? "";
     return message;
@@ -1401,16 +1315,7 @@ export const DescribeRevisionRequest: MessageFns<DescribeRevisionRequest> = {
 };
 
 function createBaseRevisionMetadata(): RevisionMetadata {
-  return {
-    assetId: "",
-    revisionId: "",
-    category: "",
-    filename: "",
-    mediaType: "",
-    sizeBytes: 0,
-    sha256: "",
-    createdBy: "",
-  };
+  return { assetId: "", revisionId: "", filename: "", mediaType: "", sizeBytes: 0, sha256: "" };
 }
 
 export const RevisionMetadata: MessageFns<RevisionMetadata> = {
@@ -1421,23 +1326,17 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
     if (message.revisionId !== "") {
       writer.uint32(18).string(message.revisionId);
     }
-    if (message.category !== "") {
-      writer.uint32(26).string(message.category);
-    }
     if (message.filename !== "") {
-      writer.uint32(34).string(message.filename);
+      writer.uint32(26).string(message.filename);
     }
     if (message.mediaType !== "") {
-      writer.uint32(42).string(message.mediaType);
+      writer.uint32(34).string(message.mediaType);
     }
     if (message.sizeBytes !== 0) {
-      writer.uint32(48).int64(message.sizeBytes);
+      writer.uint32(40).int64(message.sizeBytes);
     }
     if (message.sha256 !== "") {
-      writer.uint32(58).string(message.sha256);
-    }
-    if (message.createdBy !== "") {
-      writer.uint32(66).string(message.createdBy);
+      writer.uint32(50).string(message.sha256);
     }
     return writer;
   },
@@ -1476,7 +1375,7 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
               break;
             }
 
-            message.category = reader.string();
+            message.filename = reader.string();
             continue;
           }
           case 4: {
@@ -1484,39 +1383,23 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
               break;
             }
 
-            message.filename = reader.string();
-            continue;
-          }
-          case 5: {
-            if (tag !== 42) {
-              break;
-            }
-
             message.mediaType = reader.string();
             continue;
           }
-          case 6: {
-            if (tag !== 48) {
+          case 5: {
+            if (tag !== 40) {
               break;
             }
 
             message.sizeBytes = longToNumber(reader.int64());
             continue;
           }
-          case 7: {
-            if (tag !== 58) {
+          case 6: {
+            if (tag !== 50) {
               break;
             }
 
             message.sha256 = reader.string();
-            continue;
-          }
-          case 8: {
-            if (tag !== 66) {
-              break;
-            }
-
-            message.createdBy = reader.string();
             continue;
           }
         }
@@ -1543,7 +1426,6 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
         : isSet(object.revision_id)
           ? globalThis.String(object.revision_id)
           : "",
-      category: isSet(object.category) ? globalThis.String(object.category) : "",
       filename: isSet(object.filename) ? globalThis.String(object.filename) : "",
       mediaType: isSet(object.mediaType)
         ? globalThis.String(object.mediaType)
@@ -1556,11 +1438,6 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
           ? globalThis.Number(object.size_bytes)
           : 0,
       sha256: isSet(object.sha256) ? globalThis.String(object.sha256) : "",
-      createdBy: isSet(object.createdBy)
-        ? globalThis.String(object.createdBy)
-        : isSet(object.created_by)
-          ? globalThis.String(object.created_by)
-          : "",
     };
   },
 
@@ -1571,9 +1448,6 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
     }
     if (message.revisionId !== "") {
       obj.revisionId = message.revisionId;
-    }
-    if (message.category !== "") {
-      obj.category = message.category;
     }
     if (message.filename !== "") {
       obj.filename = message.filename;
@@ -1587,9 +1461,6 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
     if (message.sha256 !== "") {
       obj.sha256 = message.sha256;
     }
-    if (message.createdBy !== "") {
-      obj.createdBy = message.createdBy;
-    }
     return obj;
   },
 
@@ -1600,12 +1471,10 @@ export const RevisionMetadata: MessageFns<RevisionMetadata> = {
     const message = createBaseRevisionMetadata();
     message.assetId = object.assetId ?? "";
     message.revisionId = object.revisionId ?? "";
-    message.category = object.category ?? "";
     message.filename = object.filename ?? "";
     message.mediaType = object.mediaType ?? "";
     message.sizeBytes = object.sizeBytes ?? 0;
     message.sha256 = object.sha256 ?? "";
-    message.createdBy = object.createdBy ?? "";
     return message;
   },
 };
@@ -1681,25 +1550,22 @@ export const DescribeRevisionResponse: MessageFns<DescribeRevisionResponse> = {
 };
 
 function createBaseReadContentRequest(): ReadContentRequest {
-  return { actor: undefined, assetId: "", revisionId: "", offset: undefined, limit: undefined };
+  return { assetId: "", revisionId: "", offset: undefined, limit: undefined };
 }
 
 export const ReadContentRequest: MessageFns<ReadContentRequest> = {
   encode(message: ReadContentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.assetId !== "") {
-      writer.uint32(18).string(message.assetId);
+      writer.uint32(10).string(message.assetId);
     }
     if (message.revisionId !== "") {
-      writer.uint32(26).string(message.revisionId);
+      writer.uint32(18).string(message.revisionId);
     }
     if (message.offset !== undefined) {
-      writer.uint32(32).int64(message.offset);
+      writer.uint32(24).int64(message.offset);
     }
     if (message.limit !== undefined) {
-      writer.uint32(40).int64(message.limit);
+      writer.uint32(32).int64(message.limit);
     }
     return writer;
   },
@@ -1722,7 +1588,7 @@ export const ReadContentRequest: MessageFns<ReadContentRequest> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.assetId = reader.string();
             continue;
           }
           case 2: {
@@ -1730,27 +1596,19 @@ export const ReadContentRequest: MessageFns<ReadContentRequest> = {
               break;
             }
 
-            message.assetId = reader.string();
-            continue;
-          }
-          case 3: {
-            if (tag !== 26) {
-              break;
-            }
-
             message.revisionId = reader.string();
             continue;
           }
-          case 4: {
-            if (tag !== 32) {
+          case 3: {
+            if (tag !== 24) {
               break;
             }
 
             message.offset = longToNumber(reader.int64());
             continue;
           }
-          case 5: {
-            if (tag !== 40) {
+          case 4: {
+            if (tag !== 32) {
               break;
             }
 
@@ -1771,7 +1629,6 @@ export const ReadContentRequest: MessageFns<ReadContentRequest> = {
 
   fromJSON(object: any): ReadContentRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       assetId: isSet(object.assetId)
         ? globalThis.String(object.assetId)
         : isSet(object.asset_id)
@@ -1789,9 +1646,6 @@ export const ReadContentRequest: MessageFns<ReadContentRequest> = {
 
   toJSON(message: ReadContentRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.assetId !== "") {
       obj.assetId = message.assetId;
     }
@@ -1812,8 +1666,6 @@ export const ReadContentRequest: MessageFns<ReadContentRequest> = {
   },
   fromPartial(object: DeepPartial<ReadContentRequest>): ReadContentRequest {
     const message = createBaseReadContentRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.assetId = object.assetId ?? "";
     message.revisionId = object.revisionId ?? "";
     message.offset = object.offset ?? undefined;
@@ -1823,22 +1675,19 @@ export const ReadContentRequest: MessageFns<ReadContentRequest> = {
 };
 
 function createBaseReadImageVariantRequest(): ReadImageVariantRequest {
-  return { actor: undefined, assetId: "", revisionId: "", maxDimension: undefined };
+  return { assetId: "", revisionId: "", maxDimension: undefined };
 }
 
 export const ReadImageVariantRequest: MessageFns<ReadImageVariantRequest> = {
   encode(message: ReadImageVariantRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.assetId !== "") {
-      writer.uint32(18).string(message.assetId);
+      writer.uint32(10).string(message.assetId);
     }
     if (message.revisionId !== "") {
-      writer.uint32(26).string(message.revisionId);
+      writer.uint32(18).string(message.revisionId);
     }
     if (message.maxDimension !== undefined) {
-      writer.uint32(32).int32(message.maxDimension);
+      writer.uint32(24).int32(message.maxDimension);
     }
     return writer;
   },
@@ -1861,7 +1710,7 @@ export const ReadImageVariantRequest: MessageFns<ReadImageVariantRequest> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.assetId = reader.string();
             continue;
           }
           case 2: {
@@ -1869,19 +1718,11 @@ export const ReadImageVariantRequest: MessageFns<ReadImageVariantRequest> = {
               break;
             }
 
-            message.assetId = reader.string();
-            continue;
-          }
-          case 3: {
-            if (tag !== 26) {
-              break;
-            }
-
             message.revisionId = reader.string();
             continue;
           }
-          case 4: {
-            if (tag !== 32) {
+          case 3: {
+            if (tag !== 24) {
               break;
             }
 
@@ -1902,7 +1743,6 @@ export const ReadImageVariantRequest: MessageFns<ReadImageVariantRequest> = {
 
   fromJSON(object: any): ReadImageVariantRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       assetId: isSet(object.assetId)
         ? globalThis.String(object.assetId)
         : isSet(object.asset_id)
@@ -1923,9 +1763,6 @@ export const ReadImageVariantRequest: MessageFns<ReadImageVariantRequest> = {
 
   toJSON(message: ReadImageVariantRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.assetId !== "") {
       obj.assetId = message.assetId;
     }
@@ -1943,8 +1780,6 @@ export const ReadImageVariantRequest: MessageFns<ReadImageVariantRequest> = {
   },
   fromPartial(object: DeepPartial<ReadImageVariantRequest>): ReadImageVariantRequest {
     const message = createBaseReadImageVariantRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.assetId = object.assetId ?? "";
     message.revisionId = object.revisionId ?? "";
     message.maxDimension = object.maxDimension ?? undefined;
@@ -2315,7 +2150,7 @@ export const ReadImageVariantResponse: MessageFns<ReadImageVariantResponse> = {
 };
 
 function createBaseClaim(): Claim {
-  return { claimId: "", assetId: "", revisionId: undefined, kind: 0, status: 0, generation: 0, expiresAt: undefined };
+  return { claimId: "", assetId: "", revisionId: "", kind: 0, status: 0, generation: 0, expiresAt: undefined };
 }
 
 export const Claim: MessageFns<Claim> = {
@@ -2326,7 +2161,7 @@ export const Claim: MessageFns<Claim> = {
     if (message.assetId !== "") {
       writer.uint32(18).string(message.assetId);
     }
-    if (message.revisionId !== undefined) {
+    if (message.revisionId !== "") {
       writer.uint32(26).string(message.revisionId);
     }
     if (message.kind !== 0) {
@@ -2441,7 +2276,7 @@ export const Claim: MessageFns<Claim> = {
         ? globalThis.String(object.revisionId)
         : isSet(object.revision_id)
           ? globalThis.String(object.revision_id)
-          : undefined,
+          : "",
       kind: isSet(object.kind) ? claimKindFromJSON(object.kind) : 0,
       status: isSet(object.status) ? claimStatusFromJSON(object.status) : 0,
       generation: isSet(object.generation) ? globalThis.Number(object.generation) : 0,
@@ -2461,7 +2296,7 @@ export const Claim: MessageFns<Claim> = {
     if (message.assetId !== "") {
       obj.assetId = message.assetId;
     }
-    if (message.revisionId !== undefined) {
+    if (message.revisionId !== "") {
       obj.revisionId = message.revisionId;
     }
     if (message.kind !== 0) {
@@ -2486,7 +2321,7 @@ export const Claim: MessageFns<Claim> = {
     const message = createBaseClaim();
     message.claimId = object.claimId ?? "";
     message.assetId = object.assetId ?? "";
-    message.revisionId = object.revisionId ?? undefined;
+    message.revisionId = object.revisionId ?? "";
     message.kind = object.kind ?? 0;
     message.status = object.status ?? 0;
     message.generation = object.generation ?? 0;
@@ -2497,13 +2332,12 @@ export const Claim: MessageFns<Claim> = {
 
 function createBasePrepareClaimRequest(): PrepareClaimRequest {
   return {
-    actor: undefined,
     ownerType: "",
     ownerId: "",
     slot: "",
     generation: 0,
     assetId: "",
-    revisionId: undefined,
+    revisionId: "",
     kind: 0,
     expiresAt: undefined,
   };
@@ -2511,32 +2345,29 @@ function createBasePrepareClaimRequest(): PrepareClaimRequest {
 
 export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
   encode(message: PrepareClaimRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.ownerType !== "") {
-      writer.uint32(18).string(message.ownerType);
+      writer.uint32(10).string(message.ownerType);
     }
     if (message.ownerId !== "") {
-      writer.uint32(26).string(message.ownerId);
+      writer.uint32(18).string(message.ownerId);
     }
     if (message.slot !== "") {
-      writer.uint32(34).string(message.slot);
+      writer.uint32(26).string(message.slot);
     }
     if (message.generation !== 0) {
-      writer.uint32(40).int64(message.generation);
+      writer.uint32(32).int64(message.generation);
     }
     if (message.assetId !== "") {
-      writer.uint32(50).string(message.assetId);
+      writer.uint32(42).string(message.assetId);
     }
-    if (message.revisionId !== undefined) {
-      writer.uint32(58).string(message.revisionId);
+    if (message.revisionId !== "") {
+      writer.uint32(50).string(message.revisionId);
     }
     if (message.kind !== 0) {
-      writer.uint32(64).int32(message.kind);
+      writer.uint32(56).int32(message.kind);
     }
     if (message.expiresAt !== undefined) {
-      Timestamp.encode(toTimestamp(message.expiresAt), writer.uint32(74).fork()).join();
+      Timestamp.encode(toTimestamp(message.expiresAt), writer.uint32(66).fork()).join();
     }
     return writer;
   },
@@ -2559,7 +2390,7 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.ownerType = reader.string();
             continue;
           }
           case 2: {
@@ -2567,7 +2398,7 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
               break;
             }
 
-            message.ownerType = reader.string();
+            message.ownerId = reader.string();
             continue;
           }
           case 3: {
@@ -2575,23 +2406,23 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
               break;
             }
 
-            message.ownerId = reader.string();
-            continue;
-          }
-          case 4: {
-            if (tag !== 34) {
-              break;
-            }
-
             message.slot = reader.string();
             continue;
           }
-          case 5: {
-            if (tag !== 40) {
+          case 4: {
+            if (tag !== 32) {
               break;
             }
 
             message.generation = longToNumber(reader.int64());
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.assetId = reader.string();
             continue;
           }
           case 6: {
@@ -2599,27 +2430,19 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
               break;
             }
 
-            message.assetId = reader.string();
-            continue;
-          }
-          case 7: {
-            if (tag !== 58) {
-              break;
-            }
-
             message.revisionId = reader.string();
             continue;
           }
-          case 8: {
-            if (tag !== 64) {
+          case 7: {
+            if (tag !== 56) {
               break;
             }
 
             message.kind = reader.int32() as any;
             continue;
           }
-          case 9: {
-            if (tag !== 74) {
+          case 8: {
+            if (tag !== 66) {
               break;
             }
 
@@ -2640,7 +2463,6 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
 
   fromJSON(object: any): PrepareClaimRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       ownerType: isSet(object.ownerType)
         ? globalThis.String(object.ownerType)
         : isSet(object.owner_type)
@@ -2662,7 +2484,7 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
         ? globalThis.String(object.revisionId)
         : isSet(object.revision_id)
           ? globalThis.String(object.revision_id)
-          : undefined,
+          : "",
       kind: isSet(object.kind) ? claimKindFromJSON(object.kind) : 0,
       expiresAt: isSet(object.expiresAt)
         ? globalThis.String(object.expiresAt)
@@ -2674,9 +2496,6 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
 
   toJSON(message: PrepareClaimRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.ownerType !== "") {
       obj.ownerType = message.ownerType;
     }
@@ -2692,7 +2511,7 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
     if (message.assetId !== "") {
       obj.assetId = message.assetId;
     }
-    if (message.revisionId !== undefined) {
+    if (message.revisionId !== "") {
       obj.revisionId = message.revisionId;
     }
     if (message.kind !== 0) {
@@ -2709,14 +2528,12 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
   },
   fromPartial(object: DeepPartial<PrepareClaimRequest>): PrepareClaimRequest {
     const message = createBasePrepareClaimRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.ownerType = object.ownerType ?? "";
     message.ownerId = object.ownerId ?? "";
     message.slot = object.slot ?? "";
     message.generation = object.generation ?? 0;
     message.assetId = object.assetId ?? "";
-    message.revisionId = object.revisionId ?? undefined;
+    message.revisionId = object.revisionId ?? "";
     message.kind = object.kind ?? 0;
     message.expiresAt = object.expiresAt ?? undefined;
     return message;
@@ -2724,25 +2541,22 @@ export const PrepareClaimRequest: MessageFns<PrepareClaimRequest> = {
 };
 
 function createBaseActivateClaimRequest(): ActivateClaimRequest {
-  return { actor: undefined, ownerType: "", ownerId: "", slot: "", generation: 0 };
+  return { ownerType: "", ownerId: "", slot: "", generation: 0 };
 }
 
 export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
   encode(message: ActivateClaimRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.ownerType !== "") {
-      writer.uint32(18).string(message.ownerType);
+      writer.uint32(10).string(message.ownerType);
     }
     if (message.ownerId !== "") {
-      writer.uint32(26).string(message.ownerId);
+      writer.uint32(18).string(message.ownerId);
     }
     if (message.slot !== "") {
-      writer.uint32(34).string(message.slot);
+      writer.uint32(26).string(message.slot);
     }
     if (message.generation !== 0) {
-      writer.uint32(40).int64(message.generation);
+      writer.uint32(32).int64(message.generation);
     }
     return writer;
   },
@@ -2765,7 +2579,7 @@ export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.ownerType = reader.string();
             continue;
           }
           case 2: {
@@ -2773,7 +2587,7 @@ export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
               break;
             }
 
-            message.ownerType = reader.string();
+            message.ownerId = reader.string();
             continue;
           }
           case 3: {
@@ -2781,19 +2595,11 @@ export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
               break;
             }
 
-            message.ownerId = reader.string();
-            continue;
-          }
-          case 4: {
-            if (tag !== 34) {
-              break;
-            }
-
             message.slot = reader.string();
             continue;
           }
-          case 5: {
-            if (tag !== 40) {
+          case 4: {
+            if (tag !== 32) {
               break;
             }
 
@@ -2814,7 +2620,6 @@ export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
 
   fromJSON(object: any): ActivateClaimRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       ownerType: isSet(object.ownerType)
         ? globalThis.String(object.ownerType)
         : isSet(object.owner_type)
@@ -2832,9 +2637,6 @@ export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
 
   toJSON(message: ActivateClaimRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.ownerType !== "") {
       obj.ownerType = message.ownerType;
     }
@@ -2855,8 +2657,6 @@ export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
   },
   fromPartial(object: DeepPartial<ActivateClaimRequest>): ActivateClaimRequest {
     const message = createBaseActivateClaimRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.ownerType = object.ownerType ?? "";
     message.ownerId = object.ownerId ?? "";
     message.slot = object.slot ?? "";
@@ -2866,25 +2666,22 @@ export const ActivateClaimRequest: MessageFns<ActivateClaimRequest> = {
 };
 
 function createBaseReleaseClaimRequest(): ReleaseClaimRequest {
-  return { actor: undefined, ownerType: "", ownerId: "", slot: "", generation: 0 };
+  return { ownerType: "", ownerId: "", slot: "", generation: 0 };
 }
 
 export const ReleaseClaimRequest: MessageFns<ReleaseClaimRequest> = {
   encode(message: ReleaseClaimRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.ownerType !== "") {
-      writer.uint32(18).string(message.ownerType);
+      writer.uint32(10).string(message.ownerType);
     }
     if (message.ownerId !== "") {
-      writer.uint32(26).string(message.ownerId);
+      writer.uint32(18).string(message.ownerId);
     }
     if (message.slot !== "") {
-      writer.uint32(34).string(message.slot);
+      writer.uint32(26).string(message.slot);
     }
     if (message.generation !== 0) {
-      writer.uint32(40).int64(message.generation);
+      writer.uint32(32).int64(message.generation);
     }
     return writer;
   },
@@ -2907,7 +2704,7 @@ export const ReleaseClaimRequest: MessageFns<ReleaseClaimRequest> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.ownerType = reader.string();
             continue;
           }
           case 2: {
@@ -2915,7 +2712,7 @@ export const ReleaseClaimRequest: MessageFns<ReleaseClaimRequest> = {
               break;
             }
 
-            message.ownerType = reader.string();
+            message.ownerId = reader.string();
             continue;
           }
           case 3: {
@@ -2923,19 +2720,11 @@ export const ReleaseClaimRequest: MessageFns<ReleaseClaimRequest> = {
               break;
             }
 
-            message.ownerId = reader.string();
-            continue;
-          }
-          case 4: {
-            if (tag !== 34) {
-              break;
-            }
-
             message.slot = reader.string();
             continue;
           }
-          case 5: {
-            if (tag !== 40) {
+          case 4: {
+            if (tag !== 32) {
               break;
             }
 
@@ -2956,7 +2745,6 @@ export const ReleaseClaimRequest: MessageFns<ReleaseClaimRequest> = {
 
   fromJSON(object: any): ReleaseClaimRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       ownerType: isSet(object.ownerType)
         ? globalThis.String(object.ownerType)
         : isSet(object.owner_type)
@@ -2974,9 +2762,6 @@ export const ReleaseClaimRequest: MessageFns<ReleaseClaimRequest> = {
 
   toJSON(message: ReleaseClaimRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.ownerType !== "") {
       obj.ownerType = message.ownerType;
     }
@@ -2997,8 +2782,6 @@ export const ReleaseClaimRequest: MessageFns<ReleaseClaimRequest> = {
   },
   fromPartial(object: DeepPartial<ReleaseClaimRequest>): ReleaseClaimRequest {
     const message = createBaseReleaseClaimRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.ownerType = object.ownerType ?? "";
     message.ownerId = object.ownerId ?? "";
     message.slot = object.slot ?? "";
@@ -3209,28 +2992,22 @@ export const ReleaseClaimResponse: MessageFns<ReleaseClaimResponse> = {
 };
 
 function createBaseCreateUploadSessionRequest(): CreateUploadSessionRequest {
-  return { actor: undefined, intentId: "", filename: "", mediaType: "", category: "", sizeBytes: 0 };
+  return { intentId: "", filename: "", mediaType: "", sizeBytes: 0 };
 }
 
 export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> = {
   encode(message: CreateUploadSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.intentId !== "") {
-      writer.uint32(18).string(message.intentId);
+      writer.uint32(10).string(message.intentId);
     }
     if (message.filename !== "") {
-      writer.uint32(26).string(message.filename);
+      writer.uint32(18).string(message.filename);
     }
     if (message.mediaType !== "") {
-      writer.uint32(34).string(message.mediaType);
-    }
-    if (message.category !== "") {
-      writer.uint32(42).string(message.category);
+      writer.uint32(26).string(message.mediaType);
     }
     if (message.sizeBytes !== 0) {
-      writer.uint32(48).int64(message.sizeBytes);
+      writer.uint32(32).int64(message.sizeBytes);
     }
     return writer;
   },
@@ -3253,7 +3030,7 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.intentId = reader.string();
             continue;
           }
           case 2: {
@@ -3261,7 +3038,7 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
               break;
             }
 
-            message.intentId = reader.string();
+            message.filename = reader.string();
             continue;
           }
           case 3: {
@@ -3269,27 +3046,11 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
               break;
             }
 
-            message.filename = reader.string();
-            continue;
-          }
-          case 4: {
-            if (tag !== 34) {
-              break;
-            }
-
             message.mediaType = reader.string();
             continue;
           }
-          case 5: {
-            if (tag !== 42) {
-              break;
-            }
-
-            message.category = reader.string();
-            continue;
-          }
-          case 6: {
-            if (tag !== 48) {
+          case 4: {
+            if (tag !== 32) {
               break;
             }
 
@@ -3310,7 +3071,6 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
 
   fromJSON(object: any): CreateUploadSessionRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       intentId: isSet(object.intentId)
         ? globalThis.String(object.intentId)
         : isSet(object.intent_id)
@@ -3322,7 +3082,6 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
         : isSet(object.media_type)
           ? globalThis.String(object.media_type)
           : "",
-      category: isSet(object.category) ? globalThis.String(object.category) : "",
       sizeBytes: isSet(object.sizeBytes)
         ? globalThis.Number(object.sizeBytes)
         : isSet(object.size_bytes)
@@ -3333,9 +3092,6 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
 
   toJSON(message: CreateUploadSessionRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.intentId !== "") {
       obj.intentId = message.intentId;
     }
@@ -3344,9 +3100,6 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
     }
     if (message.mediaType !== "") {
       obj.mediaType = message.mediaType;
-    }
-    if (message.category !== "") {
-      obj.category = message.category;
     }
     if (message.sizeBytes !== 0) {
       obj.sizeBytes = Math.round(message.sizeBytes);
@@ -3359,28 +3112,22 @@ export const CreateUploadSessionRequest: MessageFns<CreateUploadSessionRequest> 
   },
   fromPartial(object: DeepPartial<CreateUploadSessionRequest>): CreateUploadSessionRequest {
     const message = createBaseCreateUploadSessionRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.intentId = object.intentId ?? "";
     message.filename = object.filename ?? "";
     message.mediaType = object.mediaType ?? "";
-    message.category = object.category ?? "";
     message.sizeBytes = object.sizeBytes ?? 0;
     return message;
   },
 };
 
 function createBaseDescribeUploadSessionRequest(): DescribeUploadSessionRequest {
-  return { actor: undefined, uploadSessionId: "" };
+  return { uploadSessionId: "" };
 }
 
 export const DescribeUploadSessionRequest: MessageFns<DescribeUploadSessionRequest> = {
   encode(message: DescribeUploadSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.uploadSessionId !== "") {
-      writer.uint32(18).string(message.uploadSessionId);
+      writer.uint32(10).string(message.uploadSessionId);
     }
     return writer;
   },
@@ -3403,14 +3150,6 @@ export const DescribeUploadSessionRequest: MessageFns<DescribeUploadSessionReque
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
-            continue;
-          }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
-
             message.uploadSessionId = reader.string();
             continue;
           }
@@ -3428,7 +3167,6 @@ export const DescribeUploadSessionRequest: MessageFns<DescribeUploadSessionReque
 
   fromJSON(object: any): DescribeUploadSessionRequest {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       uploadSessionId: isSet(object.uploadSessionId)
         ? globalThis.String(object.uploadSessionId)
         : isSet(object.upload_session_id)
@@ -3439,9 +3177,6 @@ export const DescribeUploadSessionRequest: MessageFns<DescribeUploadSessionReque
 
   toJSON(message: DescribeUploadSessionRequest): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.uploadSessionId !== "") {
       obj.uploadSessionId = message.uploadSessionId;
     }
@@ -3453,8 +3188,6 @@ export const DescribeUploadSessionRequest: MessageFns<DescribeUploadSessionReque
   },
   fromPartial(object: DeepPartial<DescribeUploadSessionRequest>): DescribeUploadSessionRequest {
     const message = createBaseDescribeUploadSessionRequest();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.uploadSessionId = object.uploadSessionId ?? "";
     return message;
   },
@@ -3465,8 +3198,6 @@ function createBaseUploadSession(): UploadSession {
     uploadSessionId: "",
     intentId: "",
     state: 0,
-    userId: "",
-    category: "",
     filename: "",
     mediaType: "",
     sizeBytes: 0,
@@ -3488,32 +3219,26 @@ export const UploadSession: MessageFns<UploadSession> = {
     if (message.state !== 0) {
       writer.uint32(24).int32(message.state);
     }
-    if (message.userId !== "") {
-      writer.uint32(34).string(message.userId);
-    }
-    if (message.category !== "") {
-      writer.uint32(42).string(message.category);
-    }
     if (message.filename !== "") {
-      writer.uint32(50).string(message.filename);
+      writer.uint32(34).string(message.filename);
     }
     if (message.mediaType !== "") {
-      writer.uint32(58).string(message.mediaType);
+      writer.uint32(42).string(message.mediaType);
     }
     if (message.sizeBytes !== 0) {
-      writer.uint32(64).int64(message.sizeBytes);
+      writer.uint32(48).int64(message.sizeBytes);
     }
     if (message.expiresAt !== undefined) {
-      Timestamp.encode(toTimestamp(message.expiresAt), writer.uint32(74).fork()).join();
+      Timestamp.encode(toTimestamp(message.expiresAt), writer.uint32(58).fork()).join();
     }
     if (message.uploadUrl !== "") {
-      writer.uint32(82).string(message.uploadUrl);
+      writer.uint32(66).string(message.uploadUrl);
     }
     if (message.assetId !== undefined) {
-      writer.uint32(90).string(message.assetId);
+      writer.uint32(74).string(message.assetId);
     }
     if (message.revisionId !== undefined) {
-      writer.uint32(98).string(message.revisionId);
+      writer.uint32(82).string(message.revisionId);
     }
     return writer;
   },
@@ -3560,7 +3285,7 @@ export const UploadSession: MessageFns<UploadSession> = {
               break;
             }
 
-            message.userId = reader.string();
+            message.filename = reader.string();
             continue;
           }
           case 5: {
@@ -3568,15 +3293,15 @@ export const UploadSession: MessageFns<UploadSession> = {
               break;
             }
 
-            message.category = reader.string();
+            message.mediaType = reader.string();
             continue;
           }
           case 6: {
-            if (tag !== 50) {
+            if (tag !== 48) {
               break;
             }
 
-            message.filename = reader.string();
+            message.sizeBytes = longToNumber(reader.int64());
             continue;
           }
           case 7: {
@@ -3584,15 +3309,15 @@ export const UploadSession: MessageFns<UploadSession> = {
               break;
             }
 
-            message.mediaType = reader.string();
+            message.expiresAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
             continue;
           }
           case 8: {
-            if (tag !== 64) {
+            if (tag !== 66) {
               break;
             }
 
-            message.sizeBytes = longToNumber(reader.int64());
+            message.uploadUrl = reader.string();
             continue;
           }
           case 9: {
@@ -3600,27 +3325,11 @@ export const UploadSession: MessageFns<UploadSession> = {
               break;
             }
 
-            message.expiresAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+            message.assetId = reader.string();
             continue;
           }
           case 10: {
             if (tag !== 82) {
-              break;
-            }
-
-            message.uploadUrl = reader.string();
-            continue;
-          }
-          case 11: {
-            if (tag !== 90) {
-              break;
-            }
-
-            message.assetId = reader.string();
-            continue;
-          }
-          case 12: {
-            if (tag !== 98) {
               break;
             }
 
@@ -3652,12 +3361,6 @@ export const UploadSession: MessageFns<UploadSession> = {
           ? globalThis.String(object.intent_id)
           : "",
       state: isSet(object.state) ? uploadSessionStateFromJSON(object.state) : 0,
-      userId: isSet(object.userId)
-        ? globalThis.String(object.userId)
-        : isSet(object.user_id)
-          ? globalThis.String(object.user_id)
-          : "",
-      category: isSet(object.category) ? globalThis.String(object.category) : "",
       filename: isSet(object.filename) ? globalThis.String(object.filename) : "",
       mediaType: isSet(object.mediaType)
         ? globalThis.String(object.mediaType)
@@ -3703,12 +3406,6 @@ export const UploadSession: MessageFns<UploadSession> = {
     if (message.state !== 0) {
       obj.state = uploadSessionStateToJSON(message.state);
     }
-    if (message.userId !== "") {
-      obj.userId = message.userId;
-    }
-    if (message.category !== "") {
-      obj.category = message.category;
-    }
     if (message.filename !== "") {
       obj.filename = message.filename;
     }
@@ -3741,8 +3438,6 @@ export const UploadSession: MessageFns<UploadSession> = {
     message.uploadSessionId = object.uploadSessionId ?? "";
     message.intentId = object.intentId ?? "";
     message.state = object.state ?? 0;
-    message.userId = object.userId ?? "";
-    message.category = object.category ?? "";
     message.filename = object.filename ?? "";
     message.mediaType = object.mediaType ?? "";
     message.sizeBytes = object.sizeBytes ?? 0;
@@ -3891,22 +3586,19 @@ export const DescribeUploadSessionResponse: MessageFns<DescribeUploadSessionResp
 };
 
 function createBaseDeliveryCapabilityItem(): DeliveryCapabilityItem {
-  return { actor: undefined, assetId: "", revisionId: "", maxDimension: undefined };
+  return { assetId: "", revisionId: "", maxDimension: undefined };
 }
 
 export const DeliveryCapabilityItem: MessageFns<DeliveryCapabilityItem> = {
   encode(message: DeliveryCapabilityItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.actor !== undefined) {
-      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
-    }
     if (message.assetId !== "") {
-      writer.uint32(18).string(message.assetId);
+      writer.uint32(10).string(message.assetId);
     }
     if (message.revisionId !== "") {
-      writer.uint32(26).string(message.revisionId);
+      writer.uint32(18).string(message.revisionId);
     }
     if (message.maxDimension !== undefined) {
-      writer.uint32(32).int32(message.maxDimension);
+      writer.uint32(24).int32(message.maxDimension);
     }
     return writer;
   },
@@ -3929,7 +3621,7 @@ export const DeliveryCapabilityItem: MessageFns<DeliveryCapabilityItem> = {
               break;
             }
 
-            message.actor = ActorContext.decode(reader, reader.uint32());
+            message.assetId = reader.string();
             continue;
           }
           case 2: {
@@ -3937,19 +3629,11 @@ export const DeliveryCapabilityItem: MessageFns<DeliveryCapabilityItem> = {
               break;
             }
 
-            message.assetId = reader.string();
-            continue;
-          }
-          case 3: {
-            if (tag !== 26) {
-              break;
-            }
-
             message.revisionId = reader.string();
             continue;
           }
-          case 4: {
-            if (tag !== 32) {
+          case 3: {
+            if (tag !== 24) {
               break;
             }
 
@@ -3970,7 +3654,6 @@ export const DeliveryCapabilityItem: MessageFns<DeliveryCapabilityItem> = {
 
   fromJSON(object: any): DeliveryCapabilityItem {
     return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
       assetId: isSet(object.assetId)
         ? globalThis.String(object.assetId)
         : isSet(object.asset_id)
@@ -3991,9 +3674,6 @@ export const DeliveryCapabilityItem: MessageFns<DeliveryCapabilityItem> = {
 
   toJSON(message: DeliveryCapabilityItem): unknown {
     const obj: any = {};
-    if (message.actor !== undefined) {
-      obj.actor = ActorContext.toJSON(message.actor);
-    }
     if (message.assetId !== "") {
       obj.assetId = message.assetId;
     }
@@ -4011,8 +3691,6 @@ export const DeliveryCapabilityItem: MessageFns<DeliveryCapabilityItem> = {
   },
   fromPartial(object: DeepPartial<DeliveryCapabilityItem>): DeliveryCapabilityItem {
     const message = createBaseDeliveryCapabilityItem();
-    message.actor =
-      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
     message.assetId = object.assetId ?? "";
     message.revisionId = object.revisionId ?? "";
     message.maxDimension = object.maxDimension ?? undefined;

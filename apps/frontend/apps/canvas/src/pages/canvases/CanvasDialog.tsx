@@ -39,7 +39,7 @@ const canvasFormSchema = z.object({
     .min(2, t("视频名称长度需为 2-20 个字"))
     .max(20, t("视频名称长度需为 2-20 个字"))
     .refine((value) => !INVALID_NAME_BOUNDARY.test(value), t("不能以连接符（-、_）和空格开头或结尾")),
-  CoverImage: z.object({ assetId: z.string(), revisionId: z.string() }).optional(),
+  CoverImage: z.object({ uploadSessionId: z.string(), clientRef: z.string() }).nullable().optional(),
 });
 type CanvasValues = z.infer<typeof canvasFormSchema>;
 

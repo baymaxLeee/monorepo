@@ -1,7 +1,6 @@
 import type { LanguageModelV4, LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { classifyModelNetworkFailure, estimateTextTokens, type ModelNetworkFailureReason } from "@repo/agent-runtime";
 
-import type { AuthContext } from "../../api/http/middleware/auth.js";
 import { ForbiddenError, RequestError } from "../errors.js";
 import {
   inferenceRequestSchema,
@@ -15,20 +14,6 @@ export interface RelayProvider {
   config: InferenceConfig;
   model: LanguageModelV4;
 }
-export interface RelayDependencies {
-  resolve(
-    auth: AuthContext,
-    providerId: string,
-    reasoningEffort: InferenceRequest["reasoningEffort"],
-  ): Promise<RelayProvider>;
-  reserve(
-    auth: AuthContext,
-    requestId: string,
-    model: string,
-    tokens: number,
-  ): Promise<{ settle(tokens: number | null): Promise<void> }>;
-}
-
 const responseHeaders = {
   "Content-Type": "application/x-ndjson",
   "Cache-Control": "no-store",
@@ -64,26 +49,22 @@ function errorResponse(error: InferenceRelayError) {
 }
 
 export async function inferenceResponse(
-  auth: AuthContext,
+  provider: RelayProvider,
   payload: unknown,
   signal: AbortSignal,
-  deps: RelayDependencies,
 ): Promise<Response> {
   const parsed = inferenceRequestSchema.safeParse(payload);
   if (!parsed.success) throw new RequestError("Invalid local inference request");
   const request: InferenceRequest = parsed.data;
-  const provider = await deps.resolve(auth, request.providerId, request.reasoningEffort);
   if (provider.config.model !== request.model)
     throw new ForbiddenError("Model is not authorized for this conversation");
   if (request.options.maxOutputTokens > provider.config.maxOutputTokens)
     throw new RequestError("Output exceeds configured model budget");
   // Reserve the whole allowed context, rather than treating a tokenizer estimate
   // as an authorization boundary. Unknown provider outcomes retain reservation.
-  const reserved = provider.config.contextWindow + request.options.maxOutputTokens;
   if (estimateTextTokens(JSON.stringify(request.options)) > provider.config.contextWindow)
     throw new RequestError("Local context is too large; start a new session or reduce context");
   signal.throwIfAborted();
-  const operation = await deps.reserve(auth, request.requestId, request.model, reserved);
   const controller = new AbortController();
   const abort = () => controller.abort(signal.reason);
   signal.addEventListener("abort", abort, { once: true });
@@ -108,7 +89,6 @@ export async function inferenceResponse(
     reader = result.stream.getReader();
   } catch (error) {
     cleanup();
-    await operation.settle(null);
     const reason = signal.aborted ? null : timedOut ? "timeout" : classifyModelNetworkFailure(error);
     return errorResponse(safeRelayError(reason));
   }
@@ -120,7 +100,7 @@ export async function inferenceResponse(
     if (!settled) {
       settled = true;
       cleanup();
-      await operation.settle(tokens);
+      void tokens;
     }
   };
   const stream = new ReadableStream<Uint8Array>({

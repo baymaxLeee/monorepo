@@ -6,20 +6,39 @@ import { type SandboxAttempt, compilePermissionProfile } from "@repo/agent-runti
 
 import type { SandboxProcess } from "#runtime/transport";
 
-import type { KnowledgeDocument } from "../../../infrastructure/clients/knowledge.js";
 import type { SessionFile } from "../../session-files.js";
 import { RunSandbox, type SandboxDependencies } from "./cloud-sandbox.js";
 
 const context = {
-  tenantId: "t",
-  workspaceId: "w",
-  userId: "u",
   sessionId: "c",
   runId: "r",
   attemptEpoch: "1",
 };
 const bytes = Uint8Array.from([0, 255, 1, 128, 10]);
 const permissionProfile = compilePermissionProfile(":workspace", { workspaceRoot: "/workspace" }).profile;
+function sessionFile(overrides: Partial<SessionFile> = {}): SessionFile {
+  return {
+    id: "source",
+    session_id: "c",
+    filename: "source.bin",
+    workspace_path: "/workspace/sources/attachments/input/source.bin",
+    workspace_state: "live",
+    path_generation: 1,
+    title: "source.bin",
+    mime_type: "application/octet-stream",
+    size: bytes.length,
+    asset_id: "asset",
+    revision_id: "revision",
+    sha256: "sha",
+    editable: false,
+    edit_max_bytes: 2_097_152,
+    etag: '"11111111111111111111111111111111"',
+    last_writer: { type: "user", id: null },
+    created_at: "now",
+    updated_at: "now",
+    ...overrides,
+  };
+}
 let processId = 0;
 function attempt(): SandboxAttempt {
   processId++;
@@ -31,21 +50,9 @@ function attempt(): SandboxAttempt {
     abortSignal: new AbortController().signal,
   };
 }
-const document = {
-  id: "doc",
-  tenant_id: "t",
-  workspace_id: "w",
-  user_id: "u",
-  conversation_id: "c",
-  filename: "测试.bin",
-  title: "test",
-  asset_id: "asset",
-  source_revision_id: "revision",
-  mime_type: "application/octet-stream",
-  content_md: "",
-} as unknown as KnowledgeDocument;
 function fixture() {
   const calls: string[] = [];
+  const sandboxScopes: unknown[] = [];
   const executionStates: string[] = [];
   const imported: Uint8Array[] = [];
   const importedPaths: string[] = [];
@@ -65,8 +72,9 @@ function fixture() {
     truncated: false,
   };
   const client: ReturnType<SandboxDependencies["sandbox"]> = {
-    create: async () => {
+    create: async (scope) => {
       calls.push("create");
+      sandboxScopes.push(scope);
       return { id: "sandbox", workdir: "/workspace/work", expires_at: "later" };
     },
     destroy: async () => {
@@ -125,7 +133,6 @@ function fixture() {
         };
       },
     }),
-    documents: async () => [document],
     files: async () => [],
     publish: async (input) => {
       calls.push("publish");
@@ -229,6 +236,7 @@ function fixture() {
     deps,
     client,
     calls,
+    sandboxScopes,
     executionStates,
     imported,
     importedPaths,
@@ -237,15 +245,19 @@ function fixture() {
   };
 }
 
-test("lazy run allocation is single-flight; original binary bytes survive import and explicit publication", async () => {
+test("lazy run allocation is single-flight; session files hydrate before execution and publish explicitly", async () => {
   const f = fixture();
+  const source = sessionFile();
+  f.deps.files = async () => [source];
   const run = new RunSandbox(context, f.deps);
   assert.equal(f.calls.length, 0);
   await Promise.all([run.runAttempt(attempt(), { command: "one" }), run.runAttempt(attempt(), { command: "two" })]);
   assert.equal(f.calls.filter((c) => c === "create").length, 1);
-  assert.deepEqual(f.imported, []);
+  assert.deepEqual(f.sandboxScopes, [{ session_id: "c", run_id: "r", attempt_epoch: "1" }]);
+  assert.deepEqual(f.importedPaths, ["sources/attachments/input/source.bin", "sources/workspace-manifest.json"]);
+  assert.deepEqual(f.imported[0], bytes);
   await run.refresh();
-  assert.deepEqual(f.imported, [bytes]);
+  assert.equal(f.importedPaths.length, 2);
   assert.ok(!f.calls.includes("publish"));
   const saved = await run.save("/workspace/outputs/output.bin", "save");
   assert.equal(saved.file_id, "saved");
@@ -350,14 +362,6 @@ test("Stop during provisioning waits for creation then deletes it without execut
   await run.dispose();
   assert.deepEqual(f.calls, ["create", "destroy"]);
   assert.deepEqual(f.executionStates, ["restoring", "releasing", "released"]);
-});
-
-test("attachment scope failures destroy partial initialization; foreign process sessions never execute", async () => {
-  const f = fixture();
-  f.deps.documents = async () => [{ ...document, workspace_id: "other" }];
-  const run = new RunSandbox(context, f.deps);
-  await assert.rejects(run.refresh(), /scope mismatch/);
-  assert.deepEqual(f.calls, ["create", "destroy"]);
 });
 
 test("command continuation consumes output offsets and preserves streamed output", async () => {
@@ -490,7 +494,6 @@ test("a failed helper operation does not dispose the run-scoped workspace", asyn
 
 test("direct text mutations preserve create, overwrite, delete, and CAS conditions through the cloud adapter", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.deps.files = async () => [];
   const run = new RunSandbox(context, f.deps);
   const firstHash = "a".repeat(64);
@@ -531,7 +534,6 @@ test("direct text mutations preserve create, overwrite, delete, and CAS conditio
 
 test("cloud direct text mutations surface stale-content conflicts instead of falling back to an unconditional write", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.deps.files = async () => [];
   const run = new RunSandbox(context, f.deps);
   await run.ensure();
@@ -587,44 +589,50 @@ test("AI SDK 7 stat, directory listing, and deletion use the same sandbox bounda
 
 test("refresh imports and reports only session sources added or updated after initial Bash hydration", async () => {
   const f = fixture();
-  let documents = [document];
-  f.deps.documents = async () => documents;
+  const source = sessionFile();
+  let files = [source];
+  f.deps.files = async () => files;
   const run = new RunSandbox(context, f.deps);
 
   await run.refresh();
-  documents = [
-    document,
-    {
-      ...document,
+  files = [
+    source,
+    sessionFile({
       id: "generated-image",
       filename: "generated.png",
+      workspace_path: "/workspace/sources/attachments/generated/generated.png",
       asset_id: "generated-asset",
-      source_revision_id: "generated-revision",
-    },
+      revision_id: "generated-revision",
+    }),
   ];
 
   const refreshed = await run.refresh();
   assert.deepEqual(f.importedPaths, [
-    "sources/documents/doc/测试.bin",
-    "sources/documents/generated-image/generated.png",
+    "sources/attachments/input/source.bin",
+    "sources/workspace-manifest.json",
+    "sources/attachments/generated/generated.png",
+    "sources/workspace-manifest.json",
   ]);
   assert.deepEqual(refreshed, {
-    sources: [{ path: "/workspace/sources/documents/generated-image/generated.png", document_id: "generated-image" }],
+    sources: [{ path: "/workspace/sources/attachments/generated/generated.png", file_id: "generated-image" }],
   });
 
-  documents = documents.map((entry) =>
-    entry.id === "generated-image" ? { ...entry, source_revision_id: "generated-revision-2" } : entry,
+  files = files.map((entry) =>
+    entry.id === "generated-image" ? { ...entry, revision_id: "generated-revision-2" } : entry,
   );
   const [firstRefresh, concurrentRefresh] = await Promise.all([run.refresh(), run.refresh()]);
   const updated = {
-    sources: [{ path: "/workspace/sources/documents/generated-image/generated.png", document_id: "generated-image" }],
+    sources: [{ path: "/workspace/sources/attachments/generated/generated.png", file_id: "generated-image" }],
   };
   assert.deepEqual(firstRefresh, updated);
   assert.deepEqual(concurrentRefresh, updated);
   assert.deepEqual(f.importedPaths, [
-    "sources/documents/doc/测试.bin",
-    "sources/documents/generated-image/generated.png",
-    "sources/documents/generated-image/generated.png",
+    "sources/attachments/input/source.bin",
+    "sources/workspace-manifest.json",
+    "sources/attachments/generated/generated.png",
+    "sources/workspace-manifest.json",
+    "sources/attachments/generated/generated.png",
+    "sources/workspace-manifest.json",
   ]);
   await run.dispose();
 });
@@ -698,6 +706,8 @@ test("official SDK spawn streams raw bytes and writes ordered binary stdin throu
 
 test("failed exports are never registered as artifacts, and later runs import persisted sources afresh", async () => {
   const f = fixture();
+  const source = sessionFile();
+  f.deps.files = async () => [source];
   f.client.download = async () =>
     new ReadableStream({
       start(c) {
@@ -713,22 +723,29 @@ test("failed exports are never registered as artifacts, and later runs import pe
   const next = new RunSandbox({ ...context, runId: "next" }, f.deps);
   await next.refresh();
   await next.runAttempt(attempt(), { command: "cat" });
-  assert.deepEqual(f.imported, [bytes, bytes]);
+  const importedSources = f.importedPaths.flatMap((path, index) =>
+    path === "sources/attachments/input/source.bin" ? [f.imported[index]] : [],
+  );
+  assert.deepEqual(importedSources, [bytes, bytes]);
   await next.dispose();
 });
 
-test("attachments without a migrated Storage revision fail and clean up the sandbox", async () => {
+test("attachment Storage read failures clean up a partially initialized sandbox", async () => {
   const f = fixture();
-  f.deps.documents = async () => [{ ...document, asset_id: null, source_revision_id: null, content_md: "legacy body" }];
+  f.deps.files = async () => [sessionFile()];
+  const storage = f.deps.asset();
+  storage.content = async () => {
+    throw new Error("Storage revision unavailable");
+  };
+  f.deps.asset = () => storage;
   const run = new RunSandbox(context, f.deps);
-  await assert.rejects(run.refresh(), /no Storage revision/);
+  await assert.rejects(run.refresh(), /Storage revision unavailable/);
   assert.deepEqual(f.imported, []);
   assert.deepEqual(f.calls, ["create", "destroy"]);
 });
 
 test("Runtime-owned saved files import exact Storage bytes including trailing newlines", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.deps.files = async () => [
     {
       id: "file",
@@ -765,7 +782,6 @@ test("Runtime-owned saved files import exact Storage bytes including trailing ne
 test("session input bytes are available on the first tool call and survive an empty output snapshot", async () => {
   const f = fixture();
   const path = "/workspace/sources/attachments/upload/report.bin";
-  f.deps.documents = async () => assert.fail("ordinary uploads are independent of Knowledge");
   f.deps.recordCheckout = async () => assert.fail("read-only inputs must stay out of the output checkout");
   f.deps.files = async () => [
     {
@@ -802,7 +818,6 @@ test("agent updates preserve file identity, use the imported revision and advanc
   const f = fixture();
   const original = new TextEncoder().encode("old\n");
   const updated = new TextEncoder().encode("new\n");
-  f.deps.documents = async () => [];
   f.deps.files = async () => [
     {
       id: "file",
@@ -861,7 +876,6 @@ test("agent updates preserve file identity, use the imported revision and advanc
 
 test("finalization retains the guest if Storage returns bytes different from the frozen snapshot", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.client.snapshot = async () => ({
     files: [{ path: "draft.txt", size: bytes.length, sha256: "a".repeat(64) }],
   });
@@ -875,7 +889,6 @@ test("finalization retains the guest if Storage returns bytes different from the
 
 test("run finalization automatically persists new workspace files before destroying compute", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.client.snapshot = async () => ({
     files: [{ path: "draft.txt", size: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") }],
   });
@@ -889,7 +902,6 @@ test("run finalization automatically persists new workspace files before destroy
 
 test("run finalization records deletion tombstones before destroying compute", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.deps.files = async () => [
     {
       id: "file",
@@ -924,7 +936,6 @@ test("run finalization records deletion tombstones before destroying compute", a
 
 test("failed workspace persistence retains compute for durable finalization retry", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.client.snapshot = async () => {
     throw new Error("Storage unavailable");
   };
@@ -937,7 +948,6 @@ test("failed workspace persistence retains compute for durable finalization retr
 
 test("missing sandbox cleanup is terminal instead of retrying an impossible snapshot", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   f.client.snapshot = async () => {
     throw Object.assign(new Error("runtime-sandbox snapshot failed: 404"), {
       service: "runtime-sandbox",
@@ -974,7 +984,6 @@ test("a rejected reservation cannot release a guest belonging to an existing lea
 
 test("a closing guest cannot tombstone files it never checked out", async () => {
   const f = fixture();
-  f.deps.documents = async () => [];
   const run = new RunSandbox(context, f.deps);
   await run.ensure();
   f.deps.files = async () => [

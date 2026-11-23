@@ -1,6 +1,8 @@
 import {
   type InstructionInput,
+  type MemoryDatum,
   type ResolvedTurnPluginSnapshot,
+  type SkillFileResource,
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
   type RuntimeTokenUsage,
@@ -12,27 +14,45 @@ import type { UIMessage } from "ai";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
-import type { SkillFileResource, SkillSummary } from "../../../infrastructure/clients/admin.js";
+import type { MediaCapabilities } from "../../../infrastructure/provider/capability.js";
+
+export interface RuntimeProviderCapability extends LanguageProviderSnapshot {
+  supportsImageInput: boolean;
+  providerKind?: string;
+}
+
+export interface FrozenSkillSnapshot {
+  id: string;
+  name: string;
+  description: string;
+  body: string;
+  files: Readonly<Record<string, SkillFileResource>>;
+}
+
+export interface TurnCapabilities {
+  provider: RuntimeProviderCapability;
+  media: MediaCapabilities;
+  plugins: ResolvedTurnPluginSnapshot;
+  skills: readonly FrozenSkillSnapshot[];
+  memories: readonly MemoryDatum[];
+}
 
 export interface AgentRuntimeContext {
   [key: string]: unknown;
   runId: string;
   attemptEpoch: bigint;
-  userId: string;
   sessionId: string;
+  media: MediaCapabilities;
 }
 
 export interface CloudTurnInput {
-  workspaceRole?: string;
   runId: string;
   attemptEpoch: bigint;
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
   sessionId: string;
   signal?: AbortSignal;
   pluginSnapshot: ResolvedTurnPluginSnapshot;
-  provider: LanguageProviderSnapshot;
+  provider: RuntimeProviderCapability;
+  media: MediaCapabilities;
   reasoningEffort: ReasoningEffort;
   approvalPolicy: ApprovalPolicy;
   permissionProfile: BuiltInPermissionProfileId;
@@ -46,7 +66,7 @@ export interface CloudTurnInput {
   /** Skill already active in the logical turn, including client-tool continuations. */
   activeSkillName?: string | null;
   /** Enabled published workspace skills advertised to the model (L1). */
-  skills?: SkillSummary[];
+  skills?: Array<Pick<FrozenSkillSnapshot, "id" | "name" | "description">>;
   /** Pulls a skill's full body by id, for the shared `load_skill` tool. */
   loadSkillBody?: (skillId: string) => Promise<string>;
   loadSkillFile?: (skillId: string, path: string) => Promise<SkillFileResource>;

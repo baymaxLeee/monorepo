@@ -251,6 +251,7 @@ services:
       ENVIRONMENT: single-vps
       PORT: "8013"
       RPC_PORT: "9013"
+      STORAGE_RPC_ALLOWED_CALLERS: admin,canvas,runtime,knowledge
       REDIS_URL: redis://redis:6379/0
       STORAGE_DELIVERY_URL_TTL: ${STORAGE_DELIVERY_URL_TTL:-6h}
       POSTGRES_HOST: postgres
@@ -384,6 +385,7 @@ services:
       POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: chat
       RUNTIME_SERVICE_URL: http://runtime:8015
+      ADMIN_RPC_TARGET: admin:9001
       INTERNAL_API_TOKEN: ${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}
     <<: *restart_policy
 
@@ -407,8 +409,6 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "2"
-      ADMIN_RPC_TARGET: admin:9001
-      KNOWLEDGE_RPC_TARGET: knowledge:9010
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       CANVAS_SERVICE_URL: http://canvas:8012
       STORAGE_RPC_TARGET: storage:9013
@@ -500,9 +500,7 @@ services:
       FILE_TASK_CONCURRENCY: "8"
       INTERNAL_API_TOKEN: ${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}
       INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
-      # Provider calls (SSRF-guarded); knowledge owns the published document.
-      ADMIN_RPC_TARGET: admin:9001
-      KNOWLEDGE_RPC_TARGET: knowledge:9010
+      # Frozen provider capabilities are supplied by the Runtime server.
       STORAGE_RPC_TARGET: storage:9013
     <<: *restart_policy
 

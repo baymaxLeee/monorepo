@@ -3,23 +3,19 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export interface RequestContext {
   traceId: string;
   traceParent?: string;
-  userId?: string;
-  workspaceId?: string;
-  tenantId?: string;
+  traceState?: string;
 }
 
 /**
  * Correlation fields propagated across services: read from inbound headers,
  * stamped on every log line, and forwarded on outbound internal calls.
- * Single source of truth — adding a field is one row here (plus a gateway
- * injection point for trusted identity fields).
+ * The Runtime propagates observability metadata only. Product identity and
+ * authorization headers terminate at the upper host.
  */
 export const PROPAGATED_FIELDS = [
   { header: "X-Trace-Id", ctxKey: "traceId", logKey: "trace_id" },
   { header: "traceparent", ctxKey: "traceParent", logKey: "traceparent" },
-  { header: "X-Auth-User-ID", ctxKey: "userId", logKey: "user_id" },
-  { header: "X-Workspace-Id", ctxKey: "workspaceId", logKey: "workspace_id" },
-  { header: "X-Tenant-Id", ctxKey: "tenantId", logKey: "tenant_id" },
+  { header: "tracestate", ctxKey: "traceState", logKey: "tracestate" },
 ] as const satisfies ReadonlyArray<{
   header: string;
   ctxKey: keyof RequestContext;

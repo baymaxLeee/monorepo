@@ -1,4 +1,4 @@
-import { authFetch, type StorageRevisionRef } from "@repo/api";
+import { authFetch } from "@repo/api";
 import { canvasPrepareUpload } from "@repo/api/canvas";
 import { Spinner, toast, Button } from "@repo/design-system";
 import { randomId } from "@repo/shared";
@@ -8,6 +8,11 @@ import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, us
 import t from "@/utils/i18n";
 
 import styles from "./CoverImageUploader.module.css";
+
+export interface CoverUploadReceipt {
+  uploadSessionId: string;
+  clientRef: string;
+}
 
 export function CoverImage({
   path,
@@ -37,9 +42,9 @@ export function CoverImageUploader({
   inputId,
   invalid,
 }: {
-  value?: StorageRevisionRef;
+  value?: CoverUploadReceipt | null;
   previewURL?: string;
-  onChange?: (value: StorageRevisionRef) => void;
+  onChange?: (value: CoverUploadReceipt | null) => void;
   onUploadingChange?: (uploading: boolean) => void;
   imageAlt?: string;
   removeAriaLabel?: string;
@@ -53,7 +58,7 @@ export function CoverImageUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<AbortController | undefined>(undefined);
   const objectURLRef = useRef<string | undefined>(undefined);
-  const uploadedRevisionRef = useRef<StorageRevisionRef | undefined>(undefined);
+  const uploadedReceiptRef = useRef<CoverUploadReceipt | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [localPreviewURL, setLocalPreviewURL] = useState<string>();
 
@@ -64,12 +69,12 @@ export function CoverImageUploader({
   };
 
   useEffect(() => {
-    const uploaded = uploadedRevisionRef.current;
-    if (value?.assetId !== uploaded?.assetId || value?.revisionId !== uploaded?.revisionId) {
-      uploadedRevisionRef.current = undefined;
+    const uploaded = uploadedReceiptRef.current;
+    if (value?.uploadSessionId !== uploaded?.uploadSessionId || value?.clientRef !== uploaded?.clientRef) {
+      uploadedReceiptRef.current = undefined;
       clearLocalPreview();
     }
-  }, [value?.assetId, value?.revisionId]);
+  }, [value?.clientRef, value?.uploadSessionId]);
 
   useEffect(
     () => () => {
@@ -118,18 +123,19 @@ export function CoverImageUploader({
         });
         if (!response.ok) throw new Error(`upload failed: ${response.status}`);
         const completed = await canvasPrepareUpload(request);
-        if (!completed.asset_id || !completed.revision_id) throw new Error("completed upload is missing its revision");
-        return { assetId: completed.asset_id, revisionId: completed.revision_id };
+        if (completed.state !== "completed" || completed.upload_session_id !== plan.upload_session_id) {
+          throw new Error("upload session did not complete");
+        }
+        return { uploadSessionId: completed.upload_session_id, clientRef };
       })
       .then((result) => {
         if (controller.signal.aborted) return;
         clearLocalPreview();
         const objectURL = URL.createObjectURL(file);
         objectURLRef.current = objectURL;
-        const revision = { assetId: result.assetId, revisionId: result.revisionId };
-        uploadedRevisionRef.current = revision;
+        uploadedReceiptRef.current = result;
         setLocalPreviewURL(objectURL);
-        onChange?.(revision);
+        onChange?.(result);
       })
       .catch(() => {
         if (!controller.signal.aborted)
@@ -145,6 +151,8 @@ export function CoverImageUploader({
         onUploadingChange?.(false);
       });
   };
+
+  const effectivePreviewURL = value === null ? undefined : (localPreviewURL ?? previewURL);
 
   const select = (event: ChangeEvent<HTMLInputElement>) => {
     selectFile(event.target.files?.[0]);
@@ -169,11 +177,11 @@ export function CoverImageUploader({
         onClick={() => inputRef.current?.click()}
         type="button"
       >
-        {localPreviewURL || previewURL ? (
+        {effectivePreviewURL ? (
           <CoverImage
             alt={imageAlt}
             className={imageClassName ?? "h-full w-full object-cover"}
-            path={localPreviewURL ?? previewURL ?? ""}
+            path={effectivePreviewURL}
           />
         ) : (
           (emptyContent ?? <ImagePlus />)
@@ -188,7 +196,7 @@ export function CoverImageUploader({
         onChange={select}
         type="file"
       />
-      {(localPreviewURL || previewURL) && showReplaceAction ? (
+      {effectivePreviewURL && showReplaceAction ? (
         <div className={styles.replaceMask}>
           <ImagePlus className="size-10" />
         </div>
@@ -198,17 +206,16 @@ export function CoverImageUploader({
           <Spinner aria-label={t("上传中")} />
         </div>
       ) : null}
-      {(localPreviewURL || previewURL) && !uploading ? (
+      {effectivePreviewURL && !uploading ? (
         <Button
           variant="ghost"
           aria-label={removeAriaLabel}
           className={styles.removeButton}
           onClick={(event) => {
             event.stopPropagation();
-            const cleared = { assetId: "", revisionId: "" };
-            uploadedRevisionRef.current = cleared;
+            uploadedReceiptRef.current = undefined;
             clearLocalPreview();
-            onChange?.(cleared);
+            onChange?.(null);
           }}
           type="button"
         >

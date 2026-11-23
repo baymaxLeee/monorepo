@@ -11,7 +11,7 @@
 | 项目、画布、节点、素材业务记录、生成任务与用量 | canvas | 引用 Asset；耐久工作交给 Executor |
 | 语义文档、解析索引与检索 | knowledge | 文档语义归 Knowledge，物理 bytes 归 Storage |
 | 耐久 task、workflow、视频制片审批与执行投影 | executor | 任务契约与持久工作流 |
-| Asset、Revision、Blob、Claim、上传与 delivery、物理回收 | asset | asset/revision ID 与 Claim intent |
+| Asset、Revision、Blob、Claim、UploadSession、delivery 与物理回收 | storage | workload identity、asset/revision ID、Claim intent 与签名 Capability |
 | RUM、遥测接收与查询 | telemetry | 可观测契约 |
 | 资源授权与业务审计 | 各资源所属服务 | Gateway 认证不能替代资源授权 |
 

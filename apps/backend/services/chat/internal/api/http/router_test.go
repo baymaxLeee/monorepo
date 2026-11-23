@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 
 type repositoryStub struct {
 	conversation application.Conversation
+	memories     []application.UserMemory
 }
 
 func (repositoryStub) Ping(context.Context) error { return nil }
@@ -43,6 +45,24 @@ func (repositoryStub) UpdateTitle(context.Context, application.AuthContext, stri
 func (repositoryStub) UpdateTitleIfDefault(context.Context, application.AuthContext, string, string) (*application.Conversation, error) {
 	return nil, nil
 }
+func (stub repositoryStub) ListActiveMemories(context.Context, application.AuthContext) ([]application.UserMemory, error) {
+	return stub.memories, nil
+}
+func (repositoryStub) ListMemoryCandidates(context.Context, application.AuthContext) ([]application.MemoryCandidate, error) {
+	return []application.MemoryCandidate{}, nil
+}
+func (repositoryStub) ApproveMemoryCandidate(context.Context, application.AuthContext, string) (*application.UserMemory, error) {
+	return nil, nil
+}
+func (repositoryStub) RejectMemoryCandidate(context.Context, application.AuthContext, string) (bool, error) {
+	return false, nil
+}
+func (repositoryStub) UpdateMemoryCandidate(context.Context, application.AuthContext, string, *application.MemoryCategory, *string) (*application.MemoryCandidate, error) {
+	return nil, nil
+}
+func (repositoryStub) DeleteMemory(context.Context, application.AuthContext, string) (bool, error) {
+	return false, nil
+}
 func (repositoryStub) BeginDelete(context.Context, application.AuthContext, string) (*application.Conversation, error) {
 	return nil, nil
 }
@@ -60,6 +80,20 @@ func (stub *runtimeStub) Do(_ context.Context, request application.RuntimeReques
 	return stub.response, nil
 }
 
+type capabilityResolverStub struct{}
+
+func (capabilityResolverStub) ResolveTurn(context.Context, application.AuthContext, *string, []application.ConversationPluginSelection) (application.TurnCapabilities, error) {
+	return application.TurnCapabilities{}, nil
+}
+
+func (capabilityResolverStub) ResolveProvider(context.Context, application.AuthContext, *string) (application.RuntimeProviderCapability, error) {
+	return application.RuntimeProviderCapability{ID: "provider-1", Model: "model-1"}, nil
+}
+
+func (capabilityResolverStub) ResolvePlugins(context.Context, application.AuthContext, []application.ConversationPluginSelection) (map[string]any, error) {
+	return map[string]any{"snapshotId": "snapshot-1", "plugins": []any{}}, nil
+}
+
 func testRouter(runtimeResponse *http.Response) (http.Handler, *runtimeStub) {
 	conversation := application.Conversation{
 		ID: "chat-conversation", State: application.ConversationReady, Operation: application.ConversationCreate,
@@ -67,7 +101,7 @@ func testRouter(runtimeResponse *http.Response) (http.Handler, *runtimeStub) {
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	runtime := &runtimeStub{response: runtimeResponse}
-	handler := New(application.NewService(repositoryStub{conversation: conversation}, runtime))
+	handler := New(application.NewService(repositoryStub{conversation: conversation}, runtime, capabilityResolverStub{}))
 	for index := 0; index < 100; index++ {
 		request := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 		response := httptest.NewRecorder()
@@ -98,6 +132,40 @@ func TestMissingGatewayScopeIsRejected(t *testing.T) {
 	}
 }
 
+func TestProductMemoryIsOwnedByChatAndScopedBeforeRuntimeProjection(t *testing.T) {
+	conversation := application.Conversation{
+		ID: "chat-conversation", State: application.ConversationReady, Operation: application.ConversationCreate,
+		RuntimeThreadID: "runtime-thread", UserID: "user", TenantID: "tenant", WorkspaceID: "workspace",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	repository := repositoryStub{conversation: conversation, memories: []application.UserMemory{{
+		ID: "memory", Category: application.MemoryPreference, Content: "Prefer concise answers.", Confidence: 100,
+	}}}
+	handler := New(application.NewService(repository, &runtimeStub{}, capabilityResolverStub{}))
+	for index := 0; index < 100; index++ {
+		ready := httptest.NewRecorder()
+		handler.ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+		if ready.Code == http.StatusOK {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, scopedRequest(http.MethodGet, "/memories", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Memories []application.UserMemory `json:"memories"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Memories) != 1 || body.Memories[0].ID != "memory" {
+		t.Fatalf("memories = %#v", body.Memories)
+	}
+}
+
 func TestConversationProxyPreservesSSEBytesAndMapsRuntimePath(t *testing.T) {
 	payload := "data: {\"type\":\"text-delta\",\"delta\":\"runtime-session\"}\n\n"
 	handler, runtime := testRouter(&http.Response{
@@ -119,19 +187,29 @@ func TestConversationProxyPreservesSSEBytesAndMapsRuntimePath(t *testing.T) {
 	}
 }
 
-func TestRuntimeErrorStatusHeadersAndBodyArePreserved(t *testing.T) {
+func TestActiveTurnConflictStatusHeadersAndBodyArePreserved(t *testing.T) {
 	handler, _ := testRouter(&http.Response{
-		StatusCode: http.StatusServiceUnavailable,
+		StatusCode: http.StatusConflict,
 		Header:     http.Header{"Content-Type": []string{"application/json"}, "Retry-After": []string{"2"}},
-		Body:       io.NopCloser(strings.NewReader(`{"code":"runtime_busy","message":"try later"}`)),
+		Body:       io.NopCloser(strings.NewReader(`{"code":"active_run_exists","message":"this session already has an active run","details":{"run_id":"turn"}}`)),
 	})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, scopedRequest(http.MethodGet, "/conversations/chat-conversation/context", nil))
-	if response.Code != http.StatusServiceUnavailable || response.Header().Get("Retry-After") != "2" {
+	if response.Code != http.StatusConflict || response.Header().Get("Retry-After") != "2" {
 		t.Fatalf("response = %d retry=%q", response.Code, response.Header().Get("Retry-After"))
 	}
-	if response.Body.String() != `{"code":"runtime_busy","message":"try later"}` {
-		t.Fatalf("body = %q", response.Body.String())
+	var problem struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Details struct {
+			RunID string `json:"run_id"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode body %q: %v", response.Body.String(), err)
+	}
+	if problem.Code != "active_run_exists" || problem.Message != "this session already has an active run" || problem.Details.RunID != "turn" {
+		t.Fatalf("problem = %#v", problem)
 	}
 }
 
@@ -148,7 +226,7 @@ func TestCreateInputRejectsSecretBearingOrEndpointPluginFields(t *testing.T) {
 
 func TestLocalInferenceDeliversFirstRecordBeforeStreamEnds(t *testing.T) {
 	reader, upstream := io.Pipe()
-	handler, _ := testRouter(&http.Response{
+	handler, runtime := testRouter(&http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/x-ndjson; charset=utf-8"}},
 		Body:       reader,
@@ -158,7 +236,7 @@ func TestLocalInferenceDeliversFirstRecordBeforeStreamEnds(t *testing.T) {
 	defer upstream.Close()
 	const first = "{\"type\":\"text-start\",\"id\":\"answer\"}\n"
 	go func() { _, _ = io.WriteString(upstream, first) }()
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/local-inference/stream", nil)
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/local-inference/stream", strings.NewReader(`{"providerId":"provider-1","messages":[]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,5 +251,16 @@ func TestLocalInferenceDeliversFirstRecordBeforeStreamEnds(t *testing.T) {
 	got := make([]byte, len(first))
 	if _, err := io.ReadFull(response.Body, got); err != nil || string(got) != first {
 		t.Fatalf("first live record = %q, err = %v", got, err)
+	}
+	if runtime.request.Method != http.MethodPost || runtime.request.Path != "/local-inference/stream" {
+		t.Fatalf("runtime request = %s %s", runtime.request.Method, runtime.request.Path)
+	}
+	forwarded, err := io.ReadAll(runtime.request.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"provider":{"id":"provider-1","name":"","model":"model-1","baseUrl":"","apiKey":"","extraBody":null,"contextWindow":0,"maxOutputTokens":0,"supportsImageInput":false},"request":{"messages":[],"providerId":"provider-1"}}`
+	if string(forwarded) != want {
+		t.Fatalf("runtime request body = %s", forwarded)
 	}
 }

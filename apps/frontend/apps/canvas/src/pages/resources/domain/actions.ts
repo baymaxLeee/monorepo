@@ -213,7 +213,7 @@ export async function createResource(
     name: string;
     description?: string;
     type: resource.ResourceType;
-    files?: Array<{ sourceAssetId: string; sourceRevisionId: string; fileName: string; name?: string }>;
+    files?: Array<{ uploadSessionId: string; clientRef: string; name?: string }>;
   },
 ) {
   const response = await canvasCreateResource(projectId, {
@@ -221,9 +221,8 @@ export async function createResource(
     name: input.name.trim(),
     description: input.description?.trim() || undefined,
     initial_assets: input.files?.map((file) => ({
-      source_asset_id: file.sourceAssetId,
-      source_revision_id: file.sourceRevisionId,
-      file_name: file.fileName,
+      upload_session_id: file.uploadSessionId,
+      client_ref: file.clientRef,
       name: file.name?.trim() || undefined,
     })),
   });
@@ -262,12 +261,11 @@ export async function addResourceFile(
   projectId: string,
   resourceId: string,
   resourceRevision: number,
-  input: { sourceAssetId: string; sourceRevisionId: string; fileName: string; name?: string },
+  input: { uploadSessionId: string; clientRef: string; name?: string },
 ) {
   const response = await canvasCreateResourceAsset(projectId, resourceId, {
-    source_asset_id: input.sourceAssetId,
-    source_revision_id: input.sourceRevisionId,
-    file_name: input.fileName,
+    upload_session_id: input.uploadSessionId,
+    client_ref: input.clientRef,
     name: input.name?.trim() || undefined,
     expected_resource_revision: resourceRevision,
   });
@@ -428,9 +426,8 @@ export async function updateResourceAssetGeneration(
         watermark: patch.Watermark,
         uploaded_references: patch.UploadedReferences?.map((reference) => ({
           asset_id: reference.AssetID,
-          source_asset_id: reference.SourceAssetID,
-          source_revision_id: reference.SourceRevisionID,
-          file_name: reference.FileName,
+          upload_session_id: reference.UploadSessionID,
+          client_ref: reference.ClientRef,
         })),
         resource_references: patch.ResourceReferences?.map((reference) => ({
           resource_id: reference.ResourceID,
@@ -489,13 +486,12 @@ export async function replaceUploadedResourceAsset(
   resourceId: string,
   current: resource.ResourceAsset,
   expectedResourceRevision: number,
-  input: { sourceAssetId: string; sourceRevisionId: string; fileName: string },
+  input: { uploadSessionId: string; clientRef: string },
 ) {
   const response = await canvasReplaceResourceAsset(projectId, resourceId, current.ResourceAssetID, {
     resource_asset_id: current.ResourceAssetID,
-    source_asset_id: input.sourceAssetId,
-    source_revision_id: input.sourceRevisionId,
-    file_name: input.fileName,
+    upload_session_id: input.uploadSessionId,
+    client_ref: input.clientRef,
     expected_resource_revision: expectedResourceRevision,
     expected_resource_asset_revision: current.Revision,
   });

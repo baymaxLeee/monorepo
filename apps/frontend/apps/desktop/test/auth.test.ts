@@ -48,6 +48,22 @@ it("cannot act as a generic authenticated proxy", async () => {
   await expect(auth.fetch("https://evil.test")).rejects.toThrow("未授权");
   expect(fetch).not.toHaveBeenCalled();
 });
+it("returns a rejected model response after refreshing an expired bearer", async () => {
+  const auth = new DesktopAuth("https://platform.test", async () => {});
+  const rejected = Response.json({ code: "conflict", message: "request active" }, { status: 409 });
+  fetch
+    .mockResolvedValueOnce(Response.json(user))
+    .mockResolvedValueOnce(Response.json({ accessToken: "new", expiresAt: expires, user }))
+    .mockResolvedValueOnce(rejected);
+
+  await auth.bind("expired", "2000-01-01T00:00:00Z");
+  const response = await auth.fetch("/api/chat-server/local-inference/stream", { method: "POST" });
+
+  expect(response).toBe(rejected);
+  expect(response.status).toBe(409);
+  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(fetch.mock.calls[2]?.[1]).toMatchObject({ headers: { Authorization: "Bearer new" } });
+});
 it("pins a root Platform origin and explicitly opts in to remote HTTP", () => {
   expect(platformUrl("http://localhost:3000").origin).toBe("http://localhost:3000");
   expect(platformUrl("https://platform.test").origin).toBe("https://platform.test");

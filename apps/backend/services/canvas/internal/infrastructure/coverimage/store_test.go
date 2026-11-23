@@ -24,7 +24,7 @@ type storageServer struct {
 
 func (server *storageServer) DescribeRevision(_ context.Context, request *storagev1.DescribeRevisionRequest) (*storagev1.DescribeRevisionResponse, error) {
 	server.describes++
-	return &storagev1.DescribeRevisionResponse{Revision: &storagev1.RevisionMetadata{AssetId: request.GetAssetId(), RevisionId: request.GetRevisionId(), Category: "canvas-cover", CreatedBy: "user", Filename: "cover.png", MediaType: "image/png", SizeBytes: 512, Sha256: "digest"}}, nil
+	return &storagev1.DescribeRevisionResponse{Revision: &storagev1.RevisionMetadata{AssetId: request.GetAssetId(), RevisionId: request.GetRevisionId(), Filename: "cover.png", MediaType: "image/png", SizeBytes: 512, Sha256: "digest"}}, nil
 }
 
 func (server *storageServer) MintCapabilities(_ context.Context, request *storagev1.MintCapabilitiesRequest) (*storagev1.MintCapabilitiesResponse, error) {

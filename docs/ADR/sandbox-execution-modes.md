@@ -333,7 +333,7 @@ stateDiagram-v2
 
 云端使用稳定根目录 `/workspace`，例如 `/workspace/demo.js`。文件树、编辑器和 Agent 指向同一逻辑文件；下一次恢复仍使用相同路径。已保存文件以会话内文件身份和精确 Storage 引用定位，路径到文件身份的映射由 Runtime 管理。
 
-Runtime 拥有权威 `workspace_path`、文件存活/删除状态和并发代际；`filename` 只能作为展示信息，不能再用来推导恢复路径。对同一 tenant、IAM workspace、conversation 的存活文件强制路径唯一；路径使用规范的 `/workspace` 根下绝对路径、按大小写区分，禁止 `..`、根外路径和非法路径分量。恢复、编辑、重命名、交付入口只使用这份映射。删除写入 tombstone 与新代际；迟到保存不得复活旧文件。同路径重新创建使用新文件身份，不能复用旧操作的写入权。
+Runtime 拥有权威 `workspace_path`、文件存活/删除状态和并发代际；`filename` 只能作为展示信息，不能再用来推导恢复路径。同一 Session 内的存活文件强制路径唯一，不使用 tenant、IAM workspace 或 product conversation 作为执行键；路径使用规范的 `/workspace` 根下绝对路径、按大小写区分，禁止 `..`、根外路径和非法路径分量。恢复、编辑、重命名、交付入口只使用这份映射。删除写入 tombstone 与新代际；迟到保存不得复活旧文件。同路径重新创建使用新文件身份，不能复用旧操作的写入权。
 
 取消“只读 saved source → 手工 checkout → 临时副本 → 另一次发布”作为可编辑文件的必经流程。来自 Knowledge 等其他 owner 的原始附件仍保持原有权威与权限；只有明确导入为可编辑工作文件后才在工作区修改，不隐式回写源资源。
 
@@ -470,7 +470,7 @@ Runtime server 数据库按 [Session Runtime 的绿地模型](session-runtime.md
 
 本地 runc 真实 Docker 集成已覆盖 bubblewrap 启动、命令级 seccomp 加载、零 capabilities、文件视图、PTY、deadline、controller replacement 和逐命令出口；它不能替代 runsc/gVisor/K8s 的生产验证。云端仍待验证大目录恢复、Storage 故障、进程崩溃、TTL 丢失和节点缩容指标。当前 Docker 的 `/workspace` 使用 tmpfs，K8s 使用磁盘型 emptyDir；两者资源行为不能当作一致。
 
-本地侧已实现 Electron utility runtime、Seatbelt 执行边界、受约束 inference/plugin relay、新 `runtime.sqlite` journal/进程生命周期及 UI 接入；正式签名、真实 provider、真实外部 MCP 与支持的 macOS 版本矩阵仍待环境验收。当前 [Admin client](../../apps/backend/services/runtime/src/infrastructure/clients/admin.ts) 的内部 provider snapshot 包含 `apiKey`，不能直接复用为桌面配置契约；插件 resolve 则使用独立的 activation/snapshot contract，grants 不进入 preload 或 SQLite。
+本地侧已实现 Electron utility runtime、Seatbelt 执行边界、受约束 inference/plugin relay、新 `runtime.sqlite` journal/进程生命周期及 UI 接入；正式签名、真实 provider、真实外部 MCP 与支持的 macOS 版本矩阵仍待环境验收。[Chat capability resolver](../../apps/backend/services/chat/internal/infrastructure/admin/capabilities.go) 在产品授权后解析含 secret 的 provider/plugin capability，Desktop 只经 Chat relay 取得无 secret 的推理配置和冻结 plugin snapshot；provider secret、connection grants 与业务身份都不进入 preload 或 SQLite。
 
 当前源码可确认的执行策略边界如下；这些实现事实用于校准本文，不以本文存在本身证明完成：
 

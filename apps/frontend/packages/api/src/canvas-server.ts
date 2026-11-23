@@ -108,10 +108,8 @@ export interface CanvasAsset {
 }
 
 export interface CanvasAssetReviewUpload {
-  client_id: string;
-  file_name: string;
-  source_asset_id: string;
-  source_revision_id: string;
+  client_ref: string;
+  upload_session_id: string;
 }
 
 export interface CanvasAssetReviews {
@@ -521,6 +519,11 @@ export interface CanvasCopyCanvasNodeResponse {
   canvas_revision: number;
 }
 
+export interface CanvasCoverUpload {
+  client_ref: string;
+  upload_session_id: string;
+}
+
 export interface CanvasCreateCanvasAssetResponse {
   asset: CanvasAsset;
 }
@@ -672,10 +675,9 @@ export interface CanvasCreateResourceFromAssetResponse {
 }
 
 export interface CanvasCreateResourceInitialAsset {
-  file_name: string;
+  client_ref: string;
   name?: string;
-  source_asset_id: string;
-  source_revision_id: string;
+  upload_session_id: string;
 }
 
 export interface CanvasCreateResourceResponse {
@@ -1662,9 +1664,8 @@ export interface CanvasReplaceUploadedResourceAssetResponse {
 
 export interface CanvasResourceAssetGenerationUploadedReferenceInput {
   asset_id?: string;
-  file_name?: string;
-  source_asset_id?: string;
-  source_revision_id?: string;
+  client_ref?: string;
+  upload_session_id?: string;
 }
 
 export interface CanvasResourceAssetGenerationPatch {
@@ -1783,9 +1784,8 @@ export interface CanvasUploadPlan {
 }
 
 export interface CanvasUploadedAsset {
-  file_name: string;
-  source_asset_id: string;
-  source_revision_id: string;
+  client_ref: string;
+  upload_session_id: string;
 }
 
 export type CanvasAdminListProjectsParams = {
@@ -1794,16 +1794,15 @@ export type CanvasAdminListProjectsParams = {
 };
 
 export type CanvasAdminCreateProjectBody = {
-  cover_image_asset_id?: string;
-  cover_image_revision_id?: string;
+  cover_upload?: CanvasCoverUpload;
   member_user_ids: string[];
   name: string;
   usage_limit?: number;
 };
 
 export type CanvasAdminUpdateProjectBody = {
-  cover_image_asset_id?: string;
-  cover_image_revision_id?: string;
+  clear_cover_image?: boolean;
+  cover_upload?: CanvasCoverUpload;
   member_user_ids: string[];
   name: string;
   usage_limit?: number;
@@ -1817,16 +1816,15 @@ export type CanvasListProjectsParams = {
 };
 
 export type CanvasCreateProjectBody = {
-  cover_image_asset_id?: string;
-  cover_image_revision_id?: string;
+  cover_upload?: CanvasCoverUpload;
   member_user_ids: string[];
   name: string;
   usage_limit?: number;
 };
 
 export type CanvasUpdateProjectBody = {
-  cover_image_asset_id?: string;
-  cover_image_revision_id?: string;
+  clear_cover_image?: boolean;
+  cover_upload?: CanvasCoverUpload;
 };
 
 export type CanvasBatchGetAssetReviewsBody = {
@@ -1846,14 +1844,13 @@ export type CanvasListCanvasesParams = {
 };
 
 export type CanvasCreateCanvasBody = {
-  cover_image_asset_id?: string;
-  cover_image_revision_id?: string;
+  cover_upload?: CanvasCoverUpload;
   name: string;
 };
 
 export type CanvasUpdateCanvasBody = {
-  cover_image_asset_id?: string;
-  cover_image_revision_id?: string;
+  clear_cover_image?: boolean;
+  cover_upload?: CanvasCoverUpload;
   name: string;
 };
 
@@ -1875,9 +1872,8 @@ export type CanvasMaterializeAssetReferenceBody = {
 };
 
 export type CanvasCreateAssetBody = {
-  file_name: string;
-  source_asset_id: string;
-  source_revision_id: string;
+  client_ref: string;
+  upload_session_id: string;
 };
 
 export type CanvasDeleteEdgeBody = {
@@ -2011,11 +2007,10 @@ export type CanvasListResourceAssetsParams = {
 
 export type CanvasCreateResourceAssetBody = {
   asset_id?: string;
+  client_ref?: string;
   expected_resource_revision: number;
-  file_name?: string;
   name?: string;
-  source_asset_id?: string;
-  source_revision_id?: string;
+  upload_session_id?: string;
 };
 
 export type CanvasDeleteResourceAssetBody = {
@@ -2048,12 +2043,11 @@ export type CanvasSetPrimaryResourceAssetBody = {
 };
 
 export type CanvasReplaceResourceAssetBody = {
+  client_ref: string;
   expected_resource_asset_revision: number;
   expected_resource_revision: number;
-  file_name: string;
   resource_asset_id: string;
-  source_asset_id: string;
-  source_revision_id: string;
+  upload_session_id: string;
 };
 
 export type CanvasBatchDeleteResourceAssetsBody = {

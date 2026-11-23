@@ -9,16 +9,24 @@ import (
 )
 
 type Querier interface {
+	ActivateMemoryCandidate(ctx context.Context, arg ActivateMemoryCandidateParams) (UserMemory, error)
 	BeginConversationDelete(ctx context.Context, arg BeginConversationDeleteParams) (Conversation, error)
 	BindConversationRuntimeThread(ctx context.Context, arg BindConversationRuntimeThreadParams) (Conversation, error)
 	CompleteConversationDelete(ctx context.Context, arg CompleteConversationDeleteParams) (Conversation, error)
+	DeleteMemory(ctx context.Context, arg DeleteMemoryParams) (string, error)
 	FindConversationByIdempotency(ctx context.Context, arg FindConversationByIdempotencyParams) (Conversation, error)
 	GetConversation(ctx context.Context, arg GetConversationParams) (Conversation, error)
+	GetMemoryForUpdate(ctx context.Context, arg GetMemoryForUpdateParams) (UserMemory, error)
+	ListActiveMemories(ctx context.Context, arg ListActiveMemoriesParams) ([]UserMemory, error)
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]Conversation, error)
+	ListPendingMemoryCandidates(ctx context.Context, arg ListPendingMemoryCandidatesParams) ([]UserMemory, error)
 	RecordConversationSagaFailure(ctx context.Context, arg RecordConversationSagaFailureParams) (Conversation, error)
+	RejectMemoryCandidate(ctx context.Context, arg RejectMemoryCandidateParams) (string, error)
 	ReserveConversation(ctx context.Context, arg ReserveConversationParams) (Conversation, error)
+	SupersedeActiveMemory(ctx context.Context, arg SupersedeActiveMemoryParams) error
 	UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (Conversation, error)
 	UpdateConversationTitleIfDefault(ctx context.Context, arg UpdateConversationTitleIfDefaultParams) (Conversation, error)
+	UpdateMemoryCandidate(ctx context.Context, arg UpdateMemoryCandidateParams) (UserMemory, error)
 }
 
 var _ Querier = (*Queries)(nil)

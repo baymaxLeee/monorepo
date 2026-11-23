@@ -17,9 +17,6 @@ SET row_security = off;
 
 CREATE TABLE public.threads (
     id varchar(32) PRIMARY KEY,
-    user_id varchar(26) NOT NULL,
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
     model varchar(120) NOT NULL DEFAULT '',
     provider_id varchar(32) NOT NULL DEFAULT '',
     reasoning_effort varchar(16) NOT NULL DEFAULT 'medium',
@@ -37,16 +34,13 @@ CREATE TABLE public.threads (
 );
 
 CREATE UNIQUE INDEX ux_threads_create_request
-    ON public.threads (tenant_id, workspace_id, user_id, create_request_id);
-CREATE INDEX ix_threads_user_id ON public.threads (user_id);
-CREATE INDEX ix_threads_scope_updated
-    ON public.threads (tenant_id, workspace_id, user_id, updated_at);
+    ON public.threads (create_request_id);
+CREATE INDEX ix_threads_updated ON public.threads (updated_at);
 
 CREATE TABLE public.turns (
     id varchar(32) PRIMARY KEY,
     thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
     ordinal bigint NOT NULL CHECK (ordinal > 0),
-    user_id varchar(26) NOT NULL,
     provider_id varchar(32) NOT NULL DEFAULT '',
     model varchar(120) NOT NULL DEFAULT '',
     status varchar(20) NOT NULL,
@@ -79,7 +73,6 @@ CREATE UNIQUE INDEX ux_turns_one_active
     ON public.turns (thread_id)
     WHERE status IN ('running', 'cancel_requested', 'waiting');
 CREATE INDEX ix_turns_thread_created ON public.turns (thread_id, created_at);
-CREATE INDEX ix_turns_user_id ON public.turns (user_id);
 
 CREATE TABLE public.turn_plugin_snapshots (
     turn_id varchar(32) PRIMARY KEY REFERENCES public.turns(id) ON DELETE CASCADE,
@@ -208,7 +201,7 @@ CREATE TABLE public.turn_resume_envelopes (
         DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT turn_resume_envelopes_snapshot_check CHECK (
         jsonb_typeof(snapshot_json) = 'object'
-        AND snapshot_json ->> 'schemaVersion' = '1'
+        AND snapshot_json ->> 'schemaVersion' = '2'
     )
 );
 
@@ -335,9 +328,6 @@ CREATE TABLE public.turn_sandbox_executions (
     turn_id varchar(32) NOT NULL,
     attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
     thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
-    user_id varchar(26) NOT NULL,
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
     state varchar(20) NOT NULL,
     sandbox_id varchar(128),
     expires_at timestamptz,
@@ -380,9 +370,6 @@ CREATE TABLE public.sandbox_workspace_checkout (
 CREATE TABLE public.thread_files (
     id varchar(32) PRIMARY KEY,
     thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
-    user_id varchar(26) NOT NULL,
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
     asset_id uuid NOT NULL,
     revision_id uuid NOT NULL,
     title varchar(255) NOT NULL,
@@ -410,19 +397,16 @@ CREATE TABLE public.thread_files (
         AND workspace_path !~ '(^|/)\\.{1,2}(/|$)'
     ),
     CONSTRAINT ux_thread_files_idempotency
-        UNIQUE (tenant_id, workspace_id, user_id, thread_id, idempotency_key)
+        UNIQUE (thread_id, idempotency_key)
 );
 
 CREATE INDEX ix_thread_files_thread ON public.thread_files (thread_id, created_at);
 CREATE INDEX ix_thread_files_asset_revision ON public.thread_files (asset_id, revision_id);
 CREATE UNIQUE INDEX ux_thread_files_live_workspace_path
-    ON public.thread_files (tenant_id, workspace_id, thread_id, workspace_path)
+    ON public.thread_files (thread_id, workspace_path)
     WHERE workspace_state = 'live';
 
 CREATE TABLE public.thread_file_save_operations (
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
-    user_id varchar(26) NOT NULL,
     thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
     operation_id varchar(80) NOT NULL,
     file_id varchar(32) NOT NULL,
@@ -438,7 +422,7 @@ CREATE TABLE public.thread_file_save_operations (
     result_json jsonb,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    PRIMARY KEY (tenant_id, workspace_id, user_id, thread_id, operation_id),
+    PRIMARY KEY (thread_id, operation_id),
     CONSTRAINT fk_thread_file_save_operations_file
         FOREIGN KEY (thread_id, file_id)
         REFERENCES public.thread_files(thread_id, id) ON DELETE CASCADE,
@@ -458,8 +442,6 @@ CREATE INDEX ix_thread_file_save_operations_pending
     WHERE status = 'pending';
 
 CREATE TABLE public.asset_claim_intents (
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
     owner_type varchar(64) NOT NULL,
     owner_id varchar(128) NOT NULL,
     slot varchar(128) NOT NULL,
@@ -476,7 +458,7 @@ CREATE TABLE public.asset_claim_intents (
     last_error text,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    PRIMARY KEY (tenant_id, workspace_id, owner_type, owner_id, slot),
+    PRIMARY KEY (owner_type, owner_id, slot),
     CONSTRAINT asset_claim_intents_kind_check CHECK (kind IN ('strong', 'snapshot', 'lease', 'weak')),
     CONSTRAINT asset_claim_intents_state_check CHECK (desired_state IN ('active', 'released'))
 );
@@ -486,9 +468,6 @@ CREATE INDEX ix_asset_claim_intents_due
 
 CREATE TABLE public.thread_artifact_cleanup_outbox (
     thread_id varchar(32) PRIMARY KEY,
-    user_id varchar(26) NOT NULL,
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
     attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     available_at timestamptz NOT NULL,
     claimed_at timestamptz,
@@ -499,56 +478,8 @@ CREATE TABLE public.thread_artifact_cleanup_outbox (
 CREATE INDEX ix_thread_artifact_cleanup_outbox_available
     ON public.thread_artifact_cleanup_outbox (available_at, created_at);
 
-CREATE TABLE public.user_memories (
-    id varchar(32) PRIMARY KEY,
-    user_id varchar(26) NOT NULL,
-    category varchar(40) NOT NULL,
-    content text NOT NULL,
-    source varchar(80) NOT NULL DEFAULT 'agent',
-    confidence integer NOT NULL DEFAULT 80 CHECK (confidence BETWEEN 0 AND 100),
-    status varchar(20) NOT NULL DEFAULT 'active',
-    reason text,
-    origin_turn_id varchar(32),
-    supersedes_id varchar(32),
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL
-);
-
-CREATE INDEX ix_user_memories_user_id ON public.user_memories (user_id);
-CREATE INDEX ix_user_memories_user_status ON public.user_memories (user_id, status);
-
--- Local inference records contain authorization/accounting metadata only.
--- No local Thread, prompt, tool result or file content is stored here.
-CREATE TABLE public.local_inference_budgets (
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
-    user_id varchar(26) NOT NULL,
-    day date NOT NULL,
-    used_tokens bigint NOT NULL CHECK (used_tokens >= 0),
-    PRIMARY KEY (tenant_id, workspace_id, user_id, day)
-);
-
-CREATE TABLE public.local_inference_requests (
-    id uuid PRIMARY KEY,
-    tenant_id varchar(26) NOT NULL,
-    workspace_id varchar(26) NOT NULL,
-    user_id varchar(26) NOT NULL,
-    day date NOT NULL,
-    model varchar(200) NOT NULL,
-    reserved_tokens bigint NOT NULL CHECK (reserved_tokens > 0),
-    charged_tokens bigint NOT NULL CHECK (charged_tokens >= 0),
-    status varchar(20) NOT NULL CHECK (status IN ('admitted', 'completed', 'unknown')),
-    deadline timestamptz NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    FOREIGN KEY (tenant_id, workspace_id, user_id, day)
-        REFERENCES public.local_inference_budgets (tenant_id, workspace_id, user_id, day)
-);
-
-CREATE INDEX ix_local_inference_active
-    ON public.local_inference_requests (tenant_id, workspace_id, user_id, deadline)
-    WHERE status = 'admitted';
-
--- Detached durable Jobs remain independent from interactive Turns.
+-- Blocking Runtime tools may use durable tasks internally. Task identity is
+-- scoped only by the authenticated workload caller and its stable tool call.
 CREATE TABLE public.tasks (
     id varchar(32) PRIMARY KEY,
     type varchar(64) NOT NULL,
@@ -569,85 +500,3 @@ CREATE TABLE public.tasks (
 
 CREATE INDEX ix_tasks_workflow_run_id ON public.tasks (workflow_run_id);
 CREATE INDEX ix_tasks_pending_cleanup ON public.tasks (cleanup_pending) WHERE cleanup_pending = true;
-
-CREATE TABLE public.video_productions (
-    id varchar(32) PRIMARY KEY,
-    task_id varchar(32) NOT NULL UNIQUE REFERENCES public.tasks(id),
-    tenant_id varchar(32) NOT NULL,
-    workspace_id varchar(32) NOT NULL,
-    user_id varchar(32) NOT NULL,
-    thread_id varchar(32) REFERENCES public.threads(id) ON DELETE SET NULL,
-    status varchar(32) NOT NULL,
-    stage varchar(48) NOT NULL,
-    version integer NOT NULL CHECK (version > 0),
-    projection jsonb NOT NULL,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    finished_at timestamptz
-);
-
-CREATE INDEX ix_video_productions_thread_id ON public.video_productions (thread_id);
-
-CREATE TABLE public.video_production_artifacts (
-    id varchar(32) PRIMARY KEY,
-    production_id varchar(32) NOT NULL REFERENCES public.video_productions(id),
-    artifact_type varchar(40) NOT NULL,
-    version integer NOT NULL CHECK (version > 0),
-    input_sha256 varchar(64) NOT NULL,
-    payload jsonb NOT NULL,
-    provenance jsonb NOT NULL,
-    created_at timestamptz NOT NULL,
-    CONSTRAINT ux_video_production_artifact_version
-        UNIQUE (production_id, artifact_type, version)
-);
-
-CREATE INDEX ix_video_production_artifacts_production_id
-    ON public.video_production_artifacts (production_id);
-
-CREATE TABLE public.video_production_events (
-    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    production_id varchar(32) NOT NULL REFERENCES public.video_productions(id),
-    sequence integer NOT NULL CHECK (sequence >= 0),
-    kind varchar(64) NOT NULL,
-    stage varchar(48) NOT NULL,
-    actor_id varchar(32),
-    payload jsonb NOT NULL,
-    created_at timestamptz NOT NULL,
-    CONSTRAINT ux_video_production_event_sequence UNIQUE (production_id, sequence)
-);
-
-CREATE INDEX ix_video_production_events_production_id
-    ON public.video_production_events (production_id);
-
-CREATE TABLE public.video_production_decisions (
-    id varchar(32) PRIMARY KEY,
-    production_id varchar(32) NOT NULL REFERENCES public.video_productions(id),
-    action_id varchar(80) NOT NULL,
-    action varchar(40) NOT NULL,
-    expected_version integer NOT NULL,
-    actor_id varchar(32) NOT NULL,
-    reason text,
-    status varchar(24) NOT NULL,
-    payload jsonb NOT NULL,
-    created_at timestamptz NOT NULL,
-    delivered_at timestamptz,
-    CONSTRAINT ux_video_production_decision_action UNIQUE (production_id, action_id)
-);
-
-CREATE INDEX ix_video_production_decisions_production_id
-    ON public.video_production_decisions (production_id);
-
-CREATE TABLE public.video_cost_entries (
-    id varchar(32) PRIMARY KEY,
-    production_id varchar(32) NOT NULL REFERENCES public.video_productions(id),
-    idempotency_key varchar(120) NOT NULL,
-    kind varchar(24) NOT NULL,
-    amount_micros bigint NOT NULL,
-    currency varchar(3) NOT NULL,
-    payload jsonb NOT NULL,
-    created_at timestamptz NOT NULL,
-    CONSTRAINT ux_video_cost_entry_idempotency UNIQUE (production_id, idempotency_key)
-);
-
-CREATE INDEX ix_video_cost_entries_production_id
-    ON public.video_cost_entries (production_id);

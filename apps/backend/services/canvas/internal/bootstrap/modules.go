@@ -160,6 +160,7 @@ func buildModules(
 		assetRepository, assetpersistence.NewOwnerResolver(db), artifacts, uuidGenerator{}, utcClock{},
 		applicationasset.WithReferenceStore(assetRepository),
 		applicationasset.WithClaimIntents(claimIntents, transactions),
+		applicationasset.WithUploadIntents(uploadIntents),
 	)
 	reviewCleanup := applicationpackage.NewReviewCleanupService(reviewRepository, taskRepository, transactions, utcClock{})
 	assetService = applicationasset.NewService(
@@ -169,6 +170,7 @@ func buildModules(
 		applicationasset.WithReviewCleanup(reviewCleanup, nil),
 		applicationasset.WithStorageQuota(quotaService, transactions),
 		applicationasset.WithClaimIntents(claimIntents, transactions),
+		applicationasset.WithUploadIntents(uploadIntents),
 	)
 	reviews := applicationpackage.NewReviewService(
 		reviewRepository, assetService, artifacts, resourceRepository, providers, taskRepository, transactions, uuidGenerator{}, utcClock{},
@@ -334,6 +336,7 @@ func buildModules(
 		applicationcanvas.WithProjectStatistics(projectStatistics),
 		applicationcanvas.WithCanvasDeletionQueue(deletionQueue),
 		applicationcanvas.WithStorageQuota(quotaService, transactions),
+		applicationcanvas.WithUploadIntents(uploadIntents),
 	)
 	nodeHandler.SetCanvasMetadata(canvasService)
 	if role == roleServer && rpcService != nil {
@@ -351,6 +354,7 @@ func buildModules(
 		applicationproject.WithDeletionQueue(deletionQueue),
 		applicationproject.WithQuota(quotaService, transactions),
 		applicationproject.WithStorageQuota(quotaService, transactions),
+		applicationproject.WithUploadIntents(uploadIntents),
 	)
 	coverCleaner := applicationcoverimage.NewCleaner(coverImages, quotaService)
 	deletionProcessor := applicationdeletion.NewProcessor(deletionRepository, map[string]applicationdeletion.Handler{

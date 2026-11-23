@@ -3,6 +3,8 @@ import { canvasPrepareUpload } from "@repo/api/canvas";
 import { randomId } from "@repo/shared";
 
 export interface UploadAssetResult {
+  UploadSessionID: string;
+  ClientRef: string;
   SourceAssetID: string;
   SourceRevisionID: string;
   Filename: string;
@@ -40,11 +42,18 @@ export function stageUpload(options: UploadOptions) {
       if (!response.ok) throw new Error(`upload failed: ${response.status}`);
       const completed = await canvasPrepareUpload(request);
       if (!completed.asset_id || !completed.revision_id) throw new Error("completed upload is missing its revision");
-      return { assetId: completed.asset_id, revisionId: completed.revision_id };
+      return {
+        uploadSessionId: completed.upload_session_id,
+        clientRef,
+        assetId: completed.asset_id,
+        revisionId: completed.revision_id,
+      };
     })
     .then((result) => {
       options.onProgress(100);
       options.onSuccess({
+        UploadSessionID: result.uploadSessionId,
+        ClientRef: result.clientRef,
         SourceAssetID: result.assetId,
         SourceRevisionID: result.revisionId,
         Filename: options.file.name,

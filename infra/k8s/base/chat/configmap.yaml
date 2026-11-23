@@ -8,3 +8,4 @@ data:
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "chat"
   RUNTIME_SERVICE_URL: "http://runtime:8015"
+  ADMIN_RPC_TARGET: "admin:9001"

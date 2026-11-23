@@ -30,8 +30,6 @@ export interface StorageRevision {
   sha256: string;
 }
 export interface StorageClaimIdentity {
-  tenantId: string;
-  workspaceId: string;
   ownerType: string;
   ownerId: string;
   slot: string;
@@ -81,24 +79,21 @@ export class StorageClient {
   }
 
   content(input: {
-    tenantId: string;
-    workspaceId: string;
     assetId: string;
     revisionId: string;
     signal?: AbortSignal;
     maxDim?: number;
   }): Promise<ReadableStream<Uint8Array>> {
-    const actor = { userId: "", tenantId: input.tenantId, workspaceId: input.workspaceId };
     const metadata = this.caller.metadata(propagationHeaders());
     const options = this.caller.deadline(180_000);
     const stream = input.maxDim
       ? this.assets.readImageVariant(
-          { actor, assetId: input.assetId, revisionId: input.revisionId, maxDimension: input.maxDim },
+          { assetId: input.assetId, revisionId: input.revisionId, maxDimension: input.maxDim },
           metadata,
           options,
         )
       : this.assets.readContent(
-          { actor, assetId: input.assetId, revisionId: input.revisionId, offset: undefined, limit: undefined },
+          { assetId: input.assetId, revisionId: input.revisionId, offset: undefined, limit: undefined },
           metadata,
           options,
         );
@@ -138,13 +133,7 @@ export class StorageClient {
     );
   }
 
-  async mintDelivery(input: {
-    tenantId: string;
-    workspaceId: string;
-    assetId: string;
-    revisionId: string;
-    maxDim?: number;
-  }) {
+  async mintDelivery(input: { assetId: string; revisionId: string; maxDim?: number }) {
     const response = await this.caller.unary<{
       items: Array<{
         assetId: string;
@@ -161,7 +150,6 @@ export class StorageClient {
           {
             items: [
               {
-                actor: { userId: "", tenantId: input.tenantId, workspaceId: input.workspaceId },
                 assetId: input.assetId,
                 revisionId: input.revisionId,
                 maxDimension: input.maxDim,
@@ -205,7 +193,6 @@ export class StorageClient {
       (metadata, options, callback) =>
         this.claims.prepareClaim(
           {
-            actor: actor(input),
             ownerType: input.ownerType,
             ownerId: input.ownerId,
             slot: input.slot,
@@ -232,7 +219,6 @@ export class StorageClient {
 
   private async mutateClaim(input: StorageClaimIdentity, release: boolean): Promise<void> {
     const request = {
-      actor: actor(input),
       ownerType: input.ownerType,
       ownerId: input.ownerId,
       slot: input.slot,
@@ -251,9 +237,6 @@ export class StorageClient {
   }
 
   upload(input: {
-    tenantId: string;
-    workspaceId: string;
-    userId: string;
     filename: string;
     mediaType: string;
     category: string;
@@ -264,10 +247,8 @@ export class StorageClient {
   }): Promise<StorageRevision> {
     return this.sendUpload(
       {
-        actor: actor(input),
         filename: input.filename,
         mediaType: input.mediaType,
-        category: input.category,
         idempotencyKey: input.idempotencyKey,
       },
       input.body,
@@ -277,7 +258,6 @@ export class StorageClient {
 
   appendRevision(
     input: StorageClaimIdentity & {
-      userId: string;
       assetId: string;
       baseRevisionId: string;
       filename: string;
@@ -289,7 +269,6 @@ export class StorageClient {
     },
   ): Promise<StorageRevision> {
     const metadata: AppendRevisionMetadata = {
-      actor: actor(input),
       assetId: input.assetId,
       filename: input.filename,
       mediaType: input.mediaType,
@@ -359,10 +338,6 @@ export class StorageClient {
   }
 }
 
-function actor(input: { userId?: string; tenantId: string; workspaceId: string }) {
-  return { userId: input.userId ?? "", tenantId: input.tenantId, workspaceId: input.workspaceId };
-}
-
 async function* bodyChunks(body: StorageUploadBody): AsyncGenerator<Uint8Array> {
   const stream = body instanceof Uint8Array ? new Blob([body]).stream() : body instanceof Blob ? body.stream() : body;
   const reader = stream.getReader();
@@ -383,9 +358,6 @@ export function storageClient() {
 }
 
 export function uploadAsset(input: {
-  tenantId: string;
-  workspaceId: string;
-  userId: string;
   filename: string;
   mediaType: string;
   category: string;

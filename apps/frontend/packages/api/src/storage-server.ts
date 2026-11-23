@@ -24,8 +24,6 @@ export interface UploadResult {
 }
 
 export type StorageReadCapabilityContentParams = {
-  tenant_id: string;
-  workspace_id: string;
   expires: string;
   signature: string;
   /**
@@ -36,8 +34,6 @@ export type StorageReadCapabilityContentParams = {
 };
 
 export type StorageHeadCapabilityContentParams = {
-  tenant_id: string;
-  workspace_id: string;
   expires: string;
   signature: string;
   /**

@@ -7,7 +7,7 @@ import { parseToolOutcome } from "../lib/tool-outcome";
 import { parseGenerateImageOutput } from "./ChatImageCard";
 import type { DeliverableCompletion, DeliverableKind, TodoItem } from "./ChatTodoListCard";
 import { parseTodoListOutput } from "./ChatTodoListCard";
-import { parseCreateVideoProductionOutput } from "./ChatVideoCard";
+import { parseGenerateVideoOutput } from "./ChatVideoCard";
 
 type ToolPart = Extract<UIMessage["parts"][number], { toolCallId: string }>;
 type DeliverablePartStatus = DeliverableCompletion[DeliverableKind][number];
@@ -42,10 +42,10 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
       return parsed?.status === "completed" ? "completed" : "running";
     }
     case "video": {
-      const parsed = parseCreateVideoProductionOutput(output);
+      const parsed = parseGenerateVideoOutput(output);
       if (parsed?.ok === false || parsed?.status === "failed") return "error";
       if (parsed?.status === "cancelled") return "cancelled";
-      return parsed?.status === "completed" && (parsed.productionId || parsed.documentId) ? "completed" : "running";
+      return parsed?.status === "completed" && parsed.fileId ? "completed" : "running";
     }
     case "artifact": {
       const outcome = parseToolOutcome(output);

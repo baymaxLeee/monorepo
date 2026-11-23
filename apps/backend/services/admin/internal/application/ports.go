@@ -110,37 +110,36 @@ type AssetClaim struct {
 
 type SkillAssetStore interface {
 	CreateUploadSession(context.Context, CreateUploadSession) (UploadSession, error)
-	GetUploadSession(context.Context, string, string, string) (UploadSession, error)
-	DescribeRevision(context.Context, string, string, string, string) (AssetRevision, error)
-	DeliveryURL(context.Context, string, string, string, string) (string, error)
-	DownloadRevision(context.Context, string, string, AssetRevision, int64) ([]byte, error)
+	GetUploadSession(context.Context, string) (UploadSession, error)
+	DescribeRevision(context.Context, string, string) (AssetRevision, error)
+	DeliveryURL(context.Context, string, string) (string, error)
+	DownloadRevision(context.Context, AssetRevision, int64) ([]byte, error)
 	UploadAsset(context.Context, UploadAsset) (AssetRevision, error)
 }
 
 type UploadAsset struct {
-	TenantID, WorkspaceID, UserID string
-	Filename, MediaType           string
-	IdempotencyKey                string
-	Content                       []byte
+	Filename, MediaType string
+	IdempotencyKey      string
+	Content             []byte
 }
 
 type CreateUploadSession struct {
-	TenantID, WorkspaceID, UserID, IntentID string
-	Filename, MediaType, Category           string
-	SizeBytes                               int64
+	IntentID            string
+	Filename, MediaType string
+	SizeBytes           int64
 }
 
 type UploadSession struct {
-	UploadSessionID, IntentID, State, UserID string
-	Category, Filename, MediaType, UploadURL string
-	SizeBytes                                int64
-	ExpiresAt                                time.Time
-	AssetID, RevisionID                      *string
+	UploadSessionID, IntentID, State string
+	Filename, MediaType, UploadURL   string
+	SizeBytes                        int64
+	ExpiresAt                        time.Time
+	AssetID, RevisionID              *string
 }
 
 type AssetRevision struct {
-	AssetID, RevisionID, Category, Filename, MediaType, SHA256, CreatedBy string
-	SizeBytes                                                             int64
+	AssetID, RevisionID, Filename, MediaType, SHA256 string
+	SizeBytes                                        int64
 }
 
 type BenefitPackageRepository interface {

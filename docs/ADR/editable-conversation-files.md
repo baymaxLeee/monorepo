@@ -63,7 +63,7 @@ Runtime 拥有文件的会话归属、用户权限、标题、文件名、类型
 
 Storage 的既有模型和读取侧已经支持一个 Asset 下的多个不可变 revision：`asset_revisions` 以 `(asset_id, revision_number)` 唯一，调用方按精确 `asset_id + revision_id` 读取，Claim 也可绑定精确 revision。创建上传仍新建 Asset 并写入首个 revision；内部追加入口为既有文件写入后续 revision。
 
-追加入口限内部已认证 caller，并绑定 tenant/workspace、目标 Asset、owner/slot/generation 与本次读取的 base revision。Storage 在 staging 前和最终提交时都校验该 caller 在目标 Asset 上的 strong Claim；不能因某服务知道 Asset ID 就允许任意跨 owner 追加。浏览器不能直接指定任意 Asset 创建 revision；首期文本保存由 Runtime 接收并调用内部 Storage，执行独立文本字节预算。
+追加入口限内部已认证 workload caller，并绑定目标 Asset、owner/slot/generation 与本次读取的 base revision；tenant/workspace/user 留在 Runtime 的业务授权边界，不进入 Storage。Storage 在 staging 前和最终提交时都校验该 caller 在目标 Asset 上的 strong Claim；不能因某服务知道 Asset ID 就允许任意跨 owner 追加。浏览器不能直接指定任意 Asset 创建 revision；首期文本保存由 Runtime 接收并调用内部 Storage，执行独立文本字节预算。
 
 在 Storage 本地事务中锁定目标 Asset，重新验证其状态与精确 Claim，分配唯一递增 revision_number、插入 Revision、更新 Storage head，并完成上传幂等结果与 upload lease。字节仍先 staging 后原子 promotion；失败和取消遵循已有残留清理。不得用未加锁的 `max + 1`。`deleting`、`deleted`、`quarantined` 禁止追加；`candidate` 只有在有效阻塞 Claim 与本次 upload lease 能恢复其 active 状态时才可提交。
 

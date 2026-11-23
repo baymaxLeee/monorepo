@@ -14,11 +14,7 @@ export interface WorkerSettings {
   postgresDatabase: string;
   internalApiToken: string;
   internalServiceTokens: Readonly<Record<string, string>>;
-  adminRpcTarget: string;
   storageRpcTarget: string;
-  knowledgeRpcTarget: string;
-  ffmpegPath: string;
-  videoSegmentConcurrency: number;
   workflowTargetWorld: string;
   workflowWorkerConcurrency: number;
   workflowMaxPoolSize: number;
@@ -70,11 +66,7 @@ export function parseWorkerSettings(env: NodeJS.ProcessEnv): WorkerSettings {
     ...parseDatabaseSettings(environment, env),
     internalApiToken,
     internalServiceTokens: parseInternalServiceTokens(environment, env),
-    adminRpcTarget: envOr(env, "ADMIN_RPC_TARGET", "localhost:9001"),
     storageRpcTarget: envOr(env, "STORAGE_RPC_TARGET", "localhost:9013"),
-    knowledgeRpcTarget: envOr(env, "KNOWLEDGE_RPC_TARGET", "localhost:9010"),
-    ffmpegPath: envOr(env, "FFMPEG_PATH", "ffmpeg"),
-    videoSegmentConcurrency: Math.min(positiveInt(env, "VIDEO_SEGMENT_CONCURRENCY", 12), 12),
     workflowTargetWorld,
     workflowWorkerConcurrency: positiveInt(env, "WORKFLOW_POSTGRES_WORKER_CONCURRENCY", 50),
     workflowMaxPoolSize: positiveInt(env, "WORKFLOW_POSTGRES_MAX_POOL_SIZE", 52),

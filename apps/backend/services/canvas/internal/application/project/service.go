@@ -12,6 +12,7 @@ import (
 	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationprojectaccess "github.com/example/monorepo/canvas/internal/application/projectaccess"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
+	applicationuploadintent "github.com/example/monorepo/canvas/internal/application/uploadintent"
 	domainproject "github.com/example/monorepo/canvas/internal/domain/project"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
@@ -37,6 +38,11 @@ type Service struct {
 	transactions     TransactionManager
 	memberCache      applicationprojectaccess.CacheInvalidator
 	deletion         *applicationdeletion.Queue
+	uploadIntents    uploadIntentResolver
+}
+
+type uploadIntentResolver interface {
+	Resolve(context.Context, applicationuploadintent.ResolveInput) (applicationuploadintent.ResolvedUpload, error)
 }
 
 type Option func(*Service)
@@ -91,6 +97,13 @@ func WithMemberCacheInvalidator(invalidator applicationprojectaccess.CacheInvali
 	return func(service *Service) { service.memberCache = invalidator }
 }
 
+// WithUploadIntents installs the Canvas-owned admission boundary for public
+// cover uploads. Storage revision identifiers are derived from the validated
+// receipt and are never accepted directly from the caller.
+func WithUploadIntents(resolver uploadIntentResolver) Option {
+	return func(service *Service) { service.uploadIntents = resolver }
+}
+
 func NewService(repository Repository, covers applicationcoverimage.Store, ids IDGenerator, clock Clock, options ...Option) *Service {
 	service := &Service{
 		repository: repository, covers: covers, ids: ids, clock: clock,
@@ -104,21 +117,25 @@ func NewService(repository Repository, covers applicationcoverimage.Store, ids I
 
 type CreateInput struct {
 	Scope
-	Name                 string
-	MemberIDs            []string
-	CoverImageAssetID    *string
-	CoverImageRevisionID *string
-	UsageLimit           *int64
+	Name        string
+	MemberIDs   []string
+	CoverUpload *CoverUpload
+	UsageLimit  *int64
 }
 
 type UpdateInput struct {
 	Scope
-	ProjectID            string
-	Name                 string
-	MemberIDs            []string
-	CoverImageAssetID    *string
-	CoverImageRevisionID *string
-	UsageLimit           *int64
+	ProjectID       string
+	Name            string
+	MemberIDs       []string
+	CoverUpload     *CoverUpload
+	ClearCoverImage bool
+	UsageLimit      *int64
+}
+
+type CoverUpload struct {
+	UploadSessionID string
+	ClientRef       string
 }
 
 type ProjectWithUsage struct {
@@ -150,9 +167,9 @@ func valueOrEmpty(value *string) string {
 
 type UpdateByMemberInput struct {
 	Scope
-	ProjectID            string
-	CoverImageAssetID    *string
-	CoverImageRevisionID *string
+	ProjectID       string
+	CoverUpload     *CoverUpload
+	ClearCoverImage bool
 }
 
 type DeleteInput struct {
@@ -225,6 +242,10 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (ProjectWithUsa
 	if s.usagePolicies == nil {
 		return ProjectWithUsage{}, errno.New(errno.ErrConfigurationError)
 	}
+	coverAssetID, coverRevisionID, err := s.resolveCoverUpload(ctx, input.Scope, input.CoverUpload, false)
+	if err != nil {
+		return ProjectWithUsage{}, err
+	}
 	id, err := s.ids.NewID()
 	if err != nil {
 		return ProjectWithUsage{}, errno.Wrap(errno.ErrInternalError, err)
@@ -237,7 +258,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (ProjectWithUsa
 		Name:              input.Name,
 		CreatedBy:         input.CallerID,
 		MemberIDs:         input.MemberIDs,
-		CoverImageAssetID: valueOrEmpty(input.CoverImageAssetID), CoverImageRevisionID: valueOrEmpty(input.CoverImageRevisionID),
+		CoverImageAssetID: valueOrEmpty(coverAssetID), CoverImageRevisionID: valueOrEmpty(coverRevisionID),
 		Now: s.clock.Now(),
 	})
 	if err != nil {
@@ -341,11 +362,17 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (ProjectWithUsa
 	}
 	previousRegistration := coverImageRegistration(current)
 	previousMembers := append([]string(nil), current.MemberIDs...)
-	if err := current.Update(input.Name, input.MemberIDs, input.CoverImageAssetID, input.CoverImageRevisionID, s.clock.Now()); err != nil {
+	coverAssetID, coverRevisionID, err := s.resolveCoverUpload(
+		ctx, input.Scope, input.CoverUpload, input.ClearCoverImage,
+	)
+	if err != nil {
+		return ProjectWithUsage{}, err
+	}
+	if err := current.Update(input.Name, input.MemberIDs, coverAssetID, coverRevisionID, s.clock.Now()); err != nil {
 		return ProjectWithUsage{}, classifyDomainError(err)
 	}
 	var newRegistration *applicationcoverimage.Registration
-	if input.CoverImageRevisionID != nil && current.CoverImageRevisionID != "" && current.CoverImageSHA256 == "" {
+	if coverRevisionID != nil && current.CoverImageRevisionID != "" && current.CoverImageSHA256 == "" {
 		newRegistration, err = s.registerCoverImage(ctx, input.Scope, &current)
 		if err != nil {
 			return ProjectWithUsage{}, err
@@ -435,12 +462,18 @@ func (s *Service) UpdateByMember(ctx context.Context, input UpdateByMemberInput)
 	if !slices.Contains(current.MemberIDs, input.CallerID) {
 		return domainproject.Project{}, errno.New(errno.ErrForbidden)
 	}
-	if input.CoverImageRevisionID == nil && input.CoverImageAssetID == nil {
+	if input.CoverUpload == nil && !input.ClearCoverImage {
 		return current, nil
 	}
 
 	previousRegistration := coverImageRegistration(current)
-	if err := current.UpdateByMember(input.CoverImageAssetID, input.CoverImageRevisionID, s.clock.Now()); err != nil {
+	coverAssetID, coverRevisionID, err := s.resolveCoverUpload(
+		ctx, input.Scope, input.CoverUpload, input.ClearCoverImage,
+	)
+	if err != nil {
+		return domainproject.Project{}, err
+	}
+	if err := current.UpdateByMember(coverAssetID, coverRevisionID, s.clock.Now()); err != nil {
 		return domainproject.Project{}, classifyDomainError(err)
 	}
 	var newRegistration *applicationcoverimage.Registration
@@ -492,6 +525,38 @@ func (s *Service) UpdateByMember(ctx context.Context, input UpdateByMemberInput)
 	}
 	current = s.enrichedCoverImage(ctx, current)
 	return current, nil
+}
+
+func (s *Service) resolveCoverUpload(
+	ctx context.Context,
+	scope Scope,
+	upload *CoverUpload,
+	clear bool,
+) (*string, *string, error) {
+	if upload != nil && clear {
+		return nil, nil, errno.New(errno.ErrInvalidArgument)
+	}
+	if clear {
+		emptyAssetID, emptyRevisionID := "", ""
+		return &emptyAssetID, &emptyRevisionID, nil
+	}
+	if upload == nil {
+		return nil, nil, nil
+	}
+	if s.uploadIntents == nil {
+		return nil, nil, errno.New(errno.ErrConfigurationError)
+	}
+	resolved, err := s.uploadIntents.Resolve(ctx, applicationuploadintent.ResolveInput{
+		Scope: applicationuploadintent.Scope{
+			TenantID: scope.TenantID, WorkspaceID: valueOrEmpty(scope.WorkspaceID), UserID: scope.CallerID,
+		},
+		ClientRef: upload.ClientRef, Purpose: applicationuploadintent.PurposeCover,
+		UploadSessionID: upload.UploadSessionID,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resolved.AssetID, &resolved.RevisionID, nil
 }
 
 func (s *Service) Delete(ctx context.Context, input DeleteInput) error {

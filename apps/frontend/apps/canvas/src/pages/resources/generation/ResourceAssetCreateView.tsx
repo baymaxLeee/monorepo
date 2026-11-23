@@ -252,12 +252,11 @@ export function ResourceAssetCreateView({
       UploadedReferences: generationReferences.flatMap<resource.ResourceAssetGenerationUploadedReferenceInput>(
         (ref) => {
           if (ref.assetId) return [{ AssetID: ref.assetId }];
-          if (ref.sourceAssetId && ref.sourceRevisionId) {
+          if (ref.uploadSessionId && ref.uploadClientRef) {
             return [
               {
-                SourceAssetID: ref.sourceAssetId,
-                SourceRevisionID: ref.sourceRevisionId,
-                FileName: ref.pendingFile?.name ?? ref.title,
+                UploadSessionID: ref.uploadSessionId,
+                ClientRef: ref.uploadClientRef,
               },
             ];
           }
@@ -292,6 +291,8 @@ export function ResourceAssetCreateView({
           assetId: generation.UploadedReferences[index].AssetID,
           sourceAssetId: undefined,
           sourceRevisionId: undefined,
+          uploadSessionId: undefined,
+          uploadClientRef: undefined,
           syncStatus: "ready" as const,
         }));
         setReferences(persistedReferences);
@@ -367,6 +368,8 @@ export function ResourceAssetCreateView({
           ...placeholder,
           sourceAssetId: uploaded.SourceAssetID,
           sourceRevisionId: uploaded.SourceRevisionID,
+          uploadSessionId: uploaded.UploadSessionID,
+          uploadClientRef: uploaded.ClientRef,
           syncStatus: "uploaded",
         };
         setReferences([...nextReferences]);

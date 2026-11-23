@@ -4,18 +4,7 @@ import test from "node:test";
 
 import type { LanguageModelV4StreamPart, LanguageModelV4CallOptions } from "@ai-sdk/provider";
 
-import type { AuthContext } from "../../api/http/middleware/auth.js";
-import { inferenceResponse, type RelayDependencies } from "./policy.js";
-
-const auth: AuthContext = {
-  userId: "user",
-  username: "test",
-  email: "",
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  workspaceRole: "member",
-  roles: [],
-};
+import { inferenceResponse, type RelayProvider } from "./policy.js";
 const finish: LanguageModelV4StreamPart = {
   type: "finish",
   finishReason: { unified: "stop", raw: "stop" },
@@ -40,89 +29,75 @@ function fixture(
   streamError?: Error,
   startError?: Error,
 ) {
-  const charges: (number | null)[] = [],
-    calls: LanguageModelV4CallOptions[] = [],
-    reserved: number[] = [];
+  const calls: LanguageModelV4CallOptions[] = [];
   let cancelled = false;
-  const deps: RelayDependencies = {
-    resolve: async () => ({
-      config: {
-        providerId: "provider",
-        providerName: "test",
-        reasoningEffort: "medium",
-        instructions: "",
-        model: "authorized",
-        maxOutputTokens: 100,
-        contextWindow,
+  const provider: RelayProvider = {
+    config: {
+      providerId: "provider",
+      providerName: "test",
+      reasoningEffort: "medium",
+      instructions: "",
+      model: "authorized",
+      maxOutputTokens: 100,
+      contextWindow,
+    },
+    model: {
+      specificationVersion: "v4",
+      provider: "test",
+      modelId: "authorized",
+      supportedUrls: {},
+      doGenerate: () => {
+        throw new Error("unused");
       },
-      model: {
-        specificationVersion: "v4",
-        provider: "test",
-        modelId: "authorized",
-        supportedUrls: {},
-        doGenerate: () => {
-          throw new Error("unused");
-        },
-        doStream: async (options) => {
-          calls.push(options);
-          if (startError) throw startError;
-          let nextPart = 0;
-          return {
-            stream: new ReadableStream({
-              pull(controller) {
-                const part = parts[nextPart++];
-                if (part) controller.enqueue(part);
-                else if (streamError) controller.error(streamError);
-                else controller.close();
-              },
-              cancel() {
-                cancelled = true;
-              },
-            }),
-          };
-        },
+      doStream: async (options) => {
+        calls.push(options);
+        if (startError) throw startError;
+        let nextPart = 0;
+        return {
+          stream: new ReadableStream({
+            pull(controller) {
+              const part = parts[nextPart++];
+              if (part) controller.enqueue(part);
+              else if (streamError) controller.error(streamError);
+              else controller.close();
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        };
       },
-    }),
-    reserve: async (_auth, _id, _model, tokens) => {
-      reserved.push(tokens);
-      return {
-        async settle(tokens) {
-          charges.push(tokens);
-        },
-      };
     },
   };
-  return { deps, charges, calls, reserved, cancelled: () => cancelled };
+  return { provider, calls, cancelled: () => cancelled };
 }
 test("relay compares estimated input tokens with the context window instead of JSON bytes", async () => {
   const f = fixture([finish], 3_000);
   const payload = request();
   payload.options.prompt[0]!.content[0]!.text = "本".repeat(2_000);
 
-  const response = await inferenceResponse(auth, payload, new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, payload, new AbortController().signal);
 
   assert.equal(response.status, 200);
   await response.body?.cancel();
 });
-test("relay emits native provider parts, meters once and strips provider persistence/diagnostics", async () => {
+test("relay emits native provider parts and strips provider persistence/diagnostics", async () => {
   const f = fixture([
     { type: "response-metadata", id: "opaque-secret" },
     { type: "raw", rawValue: { credentials: "secret" } },
     finish,
   ]);
-  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   const output = await response.text();
   assert.equal(JSON.parse(output).type, "finish");
   assert.ok(!output.includes("secret"));
-  assert.deepEqual(f.charges, [15]);
-  assert.deepEqual(f.reserved, [10100]);
   assert.deepEqual(f.calls[0]?.providerOptions, { openai: { store: false } });
   assert.equal(f.calls[0]?.includeRawChunks, false);
 });
 test("relay explicitly keeps the HTTP response in chunked streaming mode", async () => {
   const f = fixture([{ type: "stream-start", warnings: [] }, finish]);
 
-  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
 
   assert.equal(response.headers.get("transfer-encoding"), "chunked");
   await response.body?.cancel();
@@ -146,14 +121,13 @@ test("unauthorized model, injected provider options, remote URLs and hosted tool
     },
   ]) {
     const f = fixture();
-    await assert.rejects(inferenceResponse(auth, payload, new AbortController().signal, f.deps));
+    await assert.rejects(inferenceResponse(f.provider, payload, new AbortController().signal));
     assert.equal(f.calls.length, 0);
-    assert.equal(f.reserved.length, 0);
   }
 });
 test("a connection failure before semantic output is retryable and keeps the reservation", async () => {
   const f = fixture([]);
-  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   assert.deepEqual(JSON.parse(await response.text()), {
     type: "error",
     error: {
@@ -164,12 +138,11 @@ test("a connection failure before semantic output is retryable and keeps the res
     },
   });
   assert.equal(f.calls.length, 1);
-  assert.deepEqual(f.charges, [null]);
 });
 
 test("a provider connection failure before the stream starts uses the same retryable protocol", async () => {
   const f = fixture([], 10_000, undefined, new TypeError("fetch failed"));
-  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   assert.deepEqual(JSON.parse(await response.text()), {
     type: "error",
     error: {
@@ -180,7 +153,6 @@ test("a provider connection failure before the stream starts uses the same retry
     },
   });
   assert.equal(f.calls.length, 1);
-  assert.deepEqual(f.charges, [null]);
 });
 
 test("a connection drop after partial semantic output remains retryable", async () => {
@@ -188,7 +160,7 @@ test("a connection drop after partial semantic output remains retryable", async 
     { type: "text-start", id: "answer" },
     { type: "text-delta", id: "answer", delta: "partial" },
   ]);
-  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   const output = (await response.text())
     .trim()
     .split("\n")
@@ -203,7 +175,6 @@ test("a connection drop after partial semantic output remains retryable", async 
     },
   });
   assert.equal(f.calls.length, 1);
-  assert.deepEqual(f.charges, [null]);
 });
 
 test("provider-hosted execution remains a terminal protocol violation", async () => {
@@ -216,7 +187,7 @@ test("provider-hosted execution remains a terminal protocol violation", async ()
       providerExecuted: true,
     } satisfies LanguageModelV4StreamPart,
   ]);
-  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   const output = (await response.text())
     .trim()
     .split("\n")
@@ -231,12 +202,11 @@ test("provider-hosted execution remains a terminal protocol violation", async ()
     },
   });
   assert.equal(f.calls.length, 1);
-  assert.deepEqual(f.charges, [null]);
 });
 
 test("a socket failure after only stream metadata remains retryable", async () => {
   const f = fixture([{ type: "stream-start", warnings: [] }], 10_000, new Error("upstream socket closed"));
-  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   const parts = (await response.text())
     .trim()
     .split("\n")
@@ -254,21 +224,11 @@ test("a socket failure after only stream metadata remains retryable", async () =
     },
   ]);
   assert.equal(f.calls.length, 1);
-  assert.deepEqual(f.charges, [null]);
 });
-test("pre-aborted requests do not reserve budget or call a model", async () => {
+test("pre-aborted requests do not call a model", async () => {
   const f = fixture();
   const abort = new AbortController();
   abort.abort();
-  await assert.rejects(inferenceResponse(auth, request(), abort.signal, f.deps));
-  assert.equal(f.calls.length, 0);
-  assert.equal(f.reserved.length, 0);
-});
-test("an admission failure cannot start upstream inference", async () => {
-  const f = fixture();
-  f.deps.reserve = async () => {
-    throw new Error("quota exceeded");
-  };
-  await assert.rejects(inferenceResponse(auth, request(), new AbortController().signal, f.deps), /quota/);
+  await assert.rejects(inferenceResponse(f.provider, request(), abort.signal));
   assert.equal(f.calls.length, 0);
 });

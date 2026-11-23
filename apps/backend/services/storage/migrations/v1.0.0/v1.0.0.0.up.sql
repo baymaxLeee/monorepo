@@ -1,4 +1,4 @@
--- Canonical reinstall-only schema baseline. See ADR-0073.
+-- Canonical reinstall-only schema baseline. See docs/ADR/files-and-assets.md.
 -- The migration runner owns the migration table and version/checksum update.
 
 
@@ -25,14 +25,12 @@ SET default_table_access_method = heap;
 
 CREATE TABLE public.asset_claims (
     id uuid NOT NULL,
-    tenant_id character varying(64) NOT NULL,
-    workspace_id character varying(64) NOT NULL,
     owner_service character varying(32) NOT NULL,
     owner_type character varying(64) NOT NULL,
     owner_id character varying(128) NOT NULL,
     slot character varying(128) NOT NULL,
     asset_id uuid NOT NULL,
-    revision_id uuid,
+    revision_id uuid NOT NULL,
     kind character varying(20) NOT NULL,
     status character varying(20) NOT NULL,
     generation bigint NOT NULL,
@@ -47,12 +45,14 @@ CREATE TABLE public.asset_claims (
 
 
 
-CREATE TABLE public.asset_lineage (
-    output_revision_id uuid NOT NULL,
-    input_revision_id uuid NOT NULL,
-    relation character varying(64) NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    CONSTRAINT asset_lineage_check CHECK ((output_revision_id <> input_revision_id))
+CREATE TABLE public.claim_release_fences (
+    owner_service character varying(32) NOT NULL,
+    owner_type character varying(64) NOT NULL,
+    owner_id character varying(128) NOT NULL,
+    slot character varying(128) NOT NULL,
+    released_generation bigint NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT claim_release_fences_generation_check CHECK ((released_generation > 0))
 );
 
 
@@ -66,7 +66,6 @@ CREATE TABLE public.asset_revisions (
     media_type character varying(255) NOT NULL,
     size_bytes bigint NOT NULL,
     sha256 character(64) NOT NULL,
-    created_by character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     CONSTRAINT asset_revisions_revision_number_check CHECK ((revision_number > 0)),
     CONSTRAINT asset_revisions_size_bytes_check CHECK ((size_bytes >= 0))
@@ -76,9 +75,6 @@ CREATE TABLE public.asset_revisions (
 
 CREATE TABLE public.assets (
     id uuid NOT NULL,
-    tenant_id character varying(64) NOT NULL,
-    workspace_id character varying(64) NOT NULL,
-    category character varying(64) NOT NULL,
     current_revision_id uuid,
     state character varying(20) NOT NULL,
     blocking_claim_count bigint DEFAULT 0 NOT NULL,
@@ -87,7 +83,6 @@ CREATE TABLE public.assets (
     state_version bigint DEFAULT 1 NOT NULL,
     deletion_attempts integer DEFAULT 0 NOT NULL,
     last_error_code character varying(64),
-    created_by character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     CONSTRAINT assets_blocking_claim_count_check CHECK ((blocking_claim_count >= 0)),
@@ -98,7 +93,6 @@ CREATE TABLE public.assets (
 
 CREATE TABLE public.blobs (
     id uuid NOT NULL,
-    tenant_id character varying(64) NOT NULL,
     sha256 character(64) NOT NULL,
     size_bytes bigint NOT NULL,
     storage_key character varying(512) NOT NULL,
@@ -116,12 +110,8 @@ CREATE TABLE public.blobs (
 
 CREATE TABLE public.upload_sessions (
     id uuid NOT NULL,
-    tenant_id character varying(64) NOT NULL,
-    workspace_id character varying(64) NOT NULL,
-    user_id character varying(64) NOT NULL,
     caller_service character varying(64) NOT NULL,
     idempotency_key character varying(255),
-    category character varying(64) NOT NULL,
     filename character varying(255) NOT NULL,
     declared_media_type character varying(255) NOT NULL,
     declared_size_bytes bigint,
@@ -151,17 +141,22 @@ ALTER TABLE ONLY public.asset_claims
 
 
 ALTER TABLE ONLY public.asset_claims
-    ADD CONSTRAINT asset_claims_tenant_id_workspace_id_owner_service_owner_typ_key UNIQUE (tenant_id, workspace_id, owner_service, owner_type, owner_id, slot);
+    ADD CONSTRAINT asset_claims_owner_key UNIQUE (owner_service, owner_type, owner_id, slot);
 
 
 
-ALTER TABLE ONLY public.asset_lineage
-    ADD CONSTRAINT asset_lineage_pkey PRIMARY KEY (output_revision_id, input_revision_id, relation);
+ALTER TABLE ONLY public.claim_release_fences
+    ADD CONSTRAINT claim_release_fences_pkey PRIMARY KEY (owner_service, owner_type, owner_id, slot);
 
 
 
 ALTER TABLE ONLY public.asset_revisions
     ADD CONSTRAINT asset_revisions_asset_id_revision_number_key UNIQUE (asset_id, revision_number);
+
+
+
+ALTER TABLE ONLY public.asset_revisions
+    ADD CONSTRAINT asset_revisions_asset_id_id_key UNIQUE (asset_id, id);
 
 
 
@@ -206,10 +201,6 @@ CREATE INDEX ix_assets_gc_scan ON public.assets USING btree (state, blocking_cla
 
 
 
-CREATE INDEX ix_assets_tenant_workspace ON public.assets USING btree (tenant_id, workspace_id, created_at DESC);
-
-
-
 CREATE INDEX ix_blobs_deletion_owner ON public.blobs USING btree (deletion_owner_asset_id) WHERE ((state)::text = 'deleting'::text);
 
 
@@ -222,11 +213,11 @@ CREATE INDEX ix_upload_sessions_append_target ON public.upload_sessions USING bt
 
 
 
-CREATE UNIQUE INDEX uq_upload_sessions_idempotency ON public.upload_sessions USING btree (tenant_id, workspace_id, caller_service, idempotency_key) WHERE (idempotency_key IS NOT NULL);
+CREATE UNIQUE INDEX uq_upload_sessions_idempotency ON public.upload_sessions USING btree (caller_service, idempotency_key) WHERE (idempotency_key IS NOT NULL);
 
 
 
-CREATE UNIQUE INDEX ux_blobs_active_content ON public.blobs USING btree (tenant_id, sha256, size_bytes) WHERE ((state)::text = 'active'::text);
+CREATE UNIQUE INDEX ux_blobs_active_content ON public.blobs USING btree (sha256, size_bytes) WHERE ((state)::text = 'active'::text);
 
 
 
@@ -236,17 +227,7 @@ ALTER TABLE ONLY public.asset_claims
 
 
 ALTER TABLE ONLY public.asset_claims
-    ADD CONSTRAINT asset_claims_revision_id_fkey FOREIGN KEY (revision_id) REFERENCES public.asset_revisions(id);
-
-
-
-ALTER TABLE ONLY public.asset_lineage
-    ADD CONSTRAINT asset_lineage_input_revision_id_fkey FOREIGN KEY (input_revision_id) REFERENCES public.asset_revisions(id);
-
-
-
-ALTER TABLE ONLY public.asset_lineage
-    ADD CONSTRAINT asset_lineage_output_revision_id_fkey FOREIGN KEY (output_revision_id) REFERENCES public.asset_revisions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT asset_claims_asset_revision_fkey FOREIGN KEY (asset_id, revision_id) REFERENCES public.asset_revisions(asset_id, id);
 
 
 

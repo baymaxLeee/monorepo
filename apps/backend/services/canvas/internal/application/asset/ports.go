@@ -25,8 +25,6 @@ type Scope struct {
 type ResolvedRevision struct {
 	SourceAssetID    string
 	SourceRevisionID string
-	Category         string
-	CreatedBy        string
 	MediaType        domainasset.MediaType
 	ContentType      string
 	SizeBytes        int64
@@ -86,8 +84,8 @@ type OwnerResolver interface {
 }
 
 type RevisionStore interface {
-	Resolve(context.Context, string, string, RevisionRef) (ResolvedRevision, error)
-	BatchDeliveryURLs(context.Context, string, string, []RevisionRef) (map[string]PresignedArtifact, error)
+	Resolve(context.Context, RevisionRef) (ResolvedRevision, error)
+	BatchDeliveryURLs(context.Context, []RevisionRef) (map[string]PresignedArtifact, error)
 }
 
 type IDGenerator interface {

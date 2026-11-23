@@ -23,15 +23,10 @@ RUN pnpm run build
 FROM node:24.18.0-slim
 ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
 ARG COREPACK_NPM_REGISTRY=https://registry.npmjs.org
-ARG DEBIAN_MIRROR=deb.debian.org
 ENV npm_config_registry=${NPM_CONFIG_REGISTRY}
 ENV NODE_ENV=production
 WORKDIR /app
-RUN corepack enable \
-  && sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg \
-  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable
 COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=kubectl /bin/kubectl /usr/local/bin/kubectl
 COPY package.json ./package.json

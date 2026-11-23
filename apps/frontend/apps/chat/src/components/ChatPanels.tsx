@@ -51,7 +51,7 @@ const ChatContent = memo(function ChatContent() {
 export function ChatPanels() {
   const { open, setOpen, isMobile } = useSidebar();
   const { pathname } = useLocation();
-  const cloudInspectorOpen = useChatStore((s) => s.artifactPreview.open || s.videoProductionWorkspace.open);
+  const cloudInspectorOpen = useChatStore((s) => s.artifactPreview.open);
   const wideQuery = useMemo(() => window.matchMedia("(min-width: 1024px)"), []);
   const wide = useSyncExternalStore(
     useCallback(
@@ -68,7 +68,6 @@ export function ChatPanels() {
   const closeInspector = useCallback(() => {
     const state = useChatStore.getState();
     state.closeArtifactPreview();
-    state.closeVideoProductionWorkspace();
   }, []);
   const anyInspectorOpen = pathname.includes("/conversations/") && cloudInspectorOpen;
   const panelIds = [!isMobile && "history", "conversation", wide && anyInspectorOpen && "artifact"].filter(

@@ -331,14 +331,10 @@ func (p *Asset) String() string {
 	return fmt.Sprintf("Asset(%+v)", *p)
 }
 
-// AssetReviewUpload 描述送审时需要物化为项目素材的平台 Asset revision。
+// AssetReviewUpload 描述送审时需要由 Canvas 接纳的上传凭据。
 type AssetReviewUpload struct {
-	// ClientID 是调用方为本地草稿分配的稳定标识，用于幂等物化。
-	ClientID         string `json:"ClientID"`
-	SourceAssetID    string `json:"SourceAssetID"`
-	SourceRevisionID string `json:"SourceRevisionID"`
-	// FileName 是用户上传时提供的文件名。
-	FileName string `json:"FileName"`
+	ClientRef       string `json:"ClientRef"`
+	UploadSessionID string `json:"UploadSessionID"`
 }
 
 func NewAssetReviewUpload() *AssetReviewUpload {
@@ -348,20 +344,12 @@ func NewAssetReviewUpload() *AssetReviewUpload {
 func (p *AssetReviewUpload) InitDefault() {
 }
 
-func (p *AssetReviewUpload) GetClientID() (v string) {
-	return p.ClientID
+func (p *AssetReviewUpload) GetClientRef() (v string) {
+	return p.ClientRef
 }
 
-func (p *AssetReviewUpload) GetSourceAssetID() string {
-	return p.SourceAssetID
-}
-
-func (p *AssetReviewUpload) GetSourceRevisionID() string {
-	return p.SourceRevisionID
-}
-
-func (p *AssetReviewUpload) GetFileName() (v string) {
-	return p.FileName
+func (p *AssetReviewUpload) GetUploadSessionID() string {
+	return p.UploadSessionID
 }
 
 func (p *AssetReviewUpload) String() string {

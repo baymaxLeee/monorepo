@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { useSourceAction } from "./useSourceAction";
 
 const delivery = vi.hoisted(() => vi.fn());
-vi.mock("@repo/api/chat", () => ({ authorizeConversationSourceDelivery: delivery }));
+vi.mock("@repo/api/knowledge", () => ({ authorizeDocumentDelivery: delivery }));
 const source = {
   type: "source-document" as const,
   sourceId: "doc",
@@ -29,7 +29,7 @@ test("document source navigation authorizes on click and only opens the returned
   const open = result.current(source)!;
   expect(delivery).not.toHaveBeenCalled();
   const pending = open();
-  expect(delivery).toHaveBeenCalledWith("conversation", "doc");
+  expect(delivery).toHaveBeenCalledWith("doc");
   expect(tab.opener).toBeNull();
   expect(tab.location.replace).not.toHaveBeenCalled();
   resolve({ url: "https://storage.example/signed" });

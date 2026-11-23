@@ -53,8 +53,6 @@ async def _maybe_append_image_chunk(
         return "image vector skipped: source Asset revision missing"
     try:
         image_bytes = await get_storage_client().read(
-            tenant_id=row.tenant_id,
-            workspace_id=row.workspace_id,
             asset_id=row.asset_id,
             revision_id=row.source_revision_id,
             max_bytes=get_settings().attachment_max_upload_bytes,

@@ -54,7 +54,7 @@ const projectFormSchema = z.object({
     .refine((value) => !INVALID_NAME_BOUNDARY.test(value), t("不能以连接符（-、_）和空格开头或结尾")),
   MemberUserIDs: z.array(z.string()).min(1, t("请至少选择一名项目成员")),
   UsageLimit: z.number().optional(),
-  CoverImage: z.object({ assetId: z.string(), revisionId: z.string() }).optional(),
+  CoverImage: z.object({ uploadSessionId: z.string(), clientRef: z.string() }).nullable().optional(),
 });
 type ProjectValues = z.infer<typeof projectFormSchema>;
 
@@ -165,8 +165,13 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
     if (!state) return;
     if (memberOnlyEdit && state.mode === "edit") {
       await canvasUpdateProject(state.project.ProjectID, {
-        cover_image_asset_id: values.CoverImage?.assetId,
-        cover_image_revision_id: values.CoverImage?.revisionId,
+        cover_upload: values.CoverImage
+          ? {
+              upload_session_id: values.CoverImage.uploadSessionId,
+              client_ref: values.CoverImage.clientRef,
+            }
+          : undefined,
+        clear_cover_image: values.CoverImage === null,
       });
       onSuccess();
       onClose();
@@ -176,16 +181,19 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
       await updateProjectWithUsage({
         ProjectID: state.project.ProjectID,
         ...values,
-        CoverImageAssetID: values.CoverImage?.assetId,
-        CoverImageRevisionID: values.CoverImage?.revisionId,
+        CoverUpload: values.CoverImage
+          ? { UploadSessionID: values.CoverImage.uploadSessionId, ClientRef: values.CoverImage.clientRef }
+          : undefined,
+        ClearCoverImage: values.CoverImage === null,
       });
     } else {
       await createProjectWithUsage({
         Name: values.Name,
         MemberUserIDs: values.MemberUserIDs,
         UsageLimit: values.UsageLimit,
-        CoverImageAssetID: values.CoverImage?.assetId,
-        CoverImageRevisionID: values.CoverImage?.revisionId,
+        CoverUpload: values.CoverImage
+          ? { UploadSessionID: values.CoverImage.uploadSessionId, ClientRef: values.CoverImage.clientRef }
+          : undefined,
       });
     }
     onSuccess();

@@ -11,12 +11,10 @@ def revision(*, digest: str, size: int) -> StorageRevision:
     return StorageRevision(
         asset_id="00000000-0000-0000-0000-000000000001",
         revision_id="00000000-0000-0000-0000-000000000002",
-        category="knowledge-file",
         filename="notes.md",
         media_type="text/markdown",
         size_bytes=size,
         sha256=digest,
-        created_by="user",
     )
 
 
@@ -29,9 +27,6 @@ async def test_document_text_publish_verifies_storage_bytes(monkeypatch):
     monkeypatch.setattr(document_content, "get_storage_client", lambda: client)
 
     result = await document_content.store_document_text(
-        tenant_id="tenant",
-        workspace_id="workspace",
-        user_id="user",
         filename="folder/notes.md",
         media_type="text/markdown",
         content=content,
@@ -49,9 +44,6 @@ async def test_document_text_publish_rejects_mismatched_revision(monkeypatch):
 
     with pytest.raises(ConflictError, match="does not match"):
         await document_content.store_document_text(
-            tenant_id="tenant",
-            workspace_id="workspace",
-            user_id="user",
             filename="notes.md",
             media_type="text/markdown",
             content="semantic document",

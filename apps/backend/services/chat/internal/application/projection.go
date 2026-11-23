@@ -58,7 +58,7 @@ func ProjectConversation(product Conversation, runtimeValue any) map[string]any 
 	return projected
 }
 
-func RuntimeRunBody(product Conversation, body map[string]any) (map[string]any, error) {
+func RuntimeRunBody(product Conversation, body map[string]any, capabilities TurnCapabilities) (map[string]any, error) {
 	if value, exists := body["id"]; exists && value != product.ID {
 		return nil, BadRequest("chat request id does not match the route conversation")
 	}
@@ -74,9 +74,11 @@ func RuntimeRunBody(product Conversation, body map[string]any) (map[string]any, 
 		result["message"] = projected
 	}
 	delete(result, "host_context")
+	delete(result, "capabilities")
+	delete(result, "plugin_activations")
 	result["id"] = product.RuntimeThreadID
 	result["generate_title"] = isAutoNamableTitle(product.Title)
-	result["plugin_activations"] = clonePluginSelections(product.PluginSelections)
+	result["capabilities"] = capabilities
 	return result, nil
 }
 

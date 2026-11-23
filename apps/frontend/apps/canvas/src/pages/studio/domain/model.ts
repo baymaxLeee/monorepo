@@ -162,7 +162,7 @@ export function isAssetReady(asset: StoryboardAsset) {
 export function isAssetUploadReady(asset: StoryboardAsset) {
   return (
     isAssetReady(asset) ||
-    (asset.syncStatus === "uploaded" && Boolean(asset.sourceAssetId) && Boolean(asset.sourceRevisionId))
+    (asset.syncStatus === "uploaded" && Boolean(asset.uploadSessionId) && Boolean(asset.uploadClientRef))
   );
 }
 

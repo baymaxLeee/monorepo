@@ -205,12 +205,11 @@ func (h *ProjectHandler) CreateProject(
 		return nil, err
 	}
 	project, err := h.service.Create(ctx, applicationproject.CreateInput{
-		Scope:                requestScope(ctx, request.WorkspaceID),
-		Name:                 request.Name,
-		MemberIDs:            request.MemberUserIDs,
-		CoverImageAssetID:    request.CoverImageAssetID,
-		CoverImageRevisionID: request.CoverImageRevisionID,
-		UsageLimit:           cloneInt64(request.UsageLimit),
+		Scope:       requestScope(ctx, request.WorkspaceID),
+		Name:        request.Name,
+		MemberIDs:   request.MemberUserIDs,
+		CoverUpload: projectCoverUpload(request.CoverUpload),
+		UsageLimit:  cloneInt64(request.UsageLimit),
 	})
 	if err != nil {
 		return nil, err
@@ -226,13 +225,13 @@ func (h *ProjectHandler) UpdateProject(
 		return nil, err
 	}
 	project, err := h.service.Update(ctx, applicationproject.UpdateInput{
-		Scope:                requestScope(ctx, request.WorkspaceID),
-		ProjectID:            request.ProjectID,
-		Name:                 request.Name,
-		MemberIDs:            request.MemberUserIDs,
-		CoverImageAssetID:    request.CoverImageAssetID,
-		CoverImageRevisionID: request.CoverImageRevisionID,
-		UsageLimit:           cloneInt64(request.UsageLimit),
+		Scope:           requestScope(ctx, request.WorkspaceID),
+		ProjectID:       request.ProjectID,
+		Name:            request.Name,
+		MemberIDs:       request.MemberUserIDs,
+		CoverUpload:     projectCoverUpload(request.CoverUpload),
+		ClearCoverImage: request.ClearCoverImage,
+		UsageLimit:      cloneInt64(request.UsageLimit),
 	})
 	if err != nil {
 		return nil, err
@@ -248,15 +247,25 @@ func (h *ProjectHandler) UpdateProjectByMember(
 		return nil, err
 	}
 	project, err := h.service.UpdateByMember(ctx, applicationproject.UpdateByMemberInput{
-		Scope:                projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessMember),
-		ProjectID:            request.ProjectID,
-		CoverImageAssetID:    request.CoverImageAssetID,
-		CoverImageRevisionID: request.CoverImageRevisionID,
+		Scope:           projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessMember),
+		ProjectID:       request.ProjectID,
+		CoverUpload:     projectCoverUpload(request.CoverUpload),
+		ClearCoverImage: request.ClearCoverImage,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &thriftproject.UpdateProjectByMemberResponse{Project: memberProjectDetail(project)}, nil
+}
+
+func projectCoverUpload(upload *thriftproject.CoverUpload) *applicationproject.CoverUpload {
+	if upload == nil {
+		return nil
+	}
+	return &applicationproject.CoverUpload{
+		UploadSessionID: upload.UploadSessionID,
+		ClientRef:       upload.ClientRef,
+	}
 }
 
 func (h *ProjectHandler) DeleteProject(

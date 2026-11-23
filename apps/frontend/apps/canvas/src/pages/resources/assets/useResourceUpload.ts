@@ -15,7 +15,7 @@ export function useResourceUpload() {
           onProgress: () => undefined,
           onSuccess: (response) => {
             const uploaded = response as UploadAssetResult | undefined;
-            if (uploaded?.SourceAssetID && uploaded.SourceRevisionID) resolve(uploaded);
+            if (uploaded?.UploadSessionID && uploaded.ClientRef) resolve(uploaded);
             else reject(new Error(t("素材上传失败")));
           },
           onError: (reason) => reject(reason),

@@ -133,9 +133,8 @@ export async function CreateCanvasNode(request: view.CreateCanvasNodeRequest, op
       type: request.Type,
       uploaded_asset: request.UploadedAsset
         ? {
-            source_asset_id: request.UploadedAsset.SourceAssetID,
-            source_revision_id: request.UploadedAsset.SourceRevisionID,
-            file_name: request.UploadedAsset.FileName,
+            upload_session_id: request.UploadedAsset.UploadSessionID,
+            client_ref: request.UploadedAsset.ClientRef,
           }
         : undefined,
     },

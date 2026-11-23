@@ -19,8 +19,9 @@ type DeliveryCache interface {
 }
 
 type DeliveryItem struct {
-	TenantID, WorkspaceID, AssetID, RevisionID string
-	MaxDimension                               int
+	OwnerService        string
+	AssetID, RevisionID string
+	MaxDimension        int
 }
 
 type DeliveryCapability struct {
@@ -44,15 +45,21 @@ func NewDeliveryService(assets *Service, signingKey string, ttl time.Duration, c
 }
 
 func (service *DeliveryService) Mint(ctx context.Context, item DeliveryItem) (DeliveryCapability, error) {
-	_, revision, err := service.assets.Describe(ctx, item.TenantID, item.WorkspaceID, item.AssetID, item.RevisionID)
+	now := service.assets.clock.Now().UTC()
+	expiresAt := now.Add(service.ttl)
+	if err := service.assets.AuthorizeRevision(ctx, ClaimAuthorizationInput{
+		OwnerService: item.OwnerService, AssetID: item.AssetID, RevisionID: item.RevisionID, ValidUntil: expiresAt,
+	}); err != nil {
+		return DeliveryCapability{}, err
+	}
+	_, revision, err := service.assets.Describe(ctx, item.AssetID, item.RevisionID)
 	if err != nil {
 		return DeliveryCapability{}, err
 	}
 	if item.MaxDimension < 0 || item.MaxDimension > 4096 || (item.MaxDimension > 0 && !strings.HasPrefix(revision.MediaType, "image/")) {
 		return DeliveryCapability{}, ErrInvalidInput
 	}
-	now := time.Now().UTC()
-	key := fmt.Sprintf("storage:delivery:v2:%x", sha256.Sum256([]byte(fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d\x00%d\x00%x", item.TenantID, item.WorkspaceID, item.AssetID, item.RevisionID, service.ttl, item.MaxDimension, sha256.Sum256(service.signingKey)))))
+	key := fmt.Sprintf("storage:delivery:v3:%x", sha256.Sum256([]byte(fmt.Sprintf("%s\x00%s\x00%d\x00%d\x00%x", item.AssetID, item.RevisionID, service.ttl, item.MaxDimension, sha256.Sum256(service.signingKey)))))
 	cacheAvailable := service.cache != nil
 	if cacheAvailable {
 		raw, cacheErr := service.cache.Get(ctx, key)
@@ -65,8 +72,8 @@ func (service *DeliveryService) Mint(ctx context.Context, item DeliveryItem) (De
 			return cached, nil
 		}
 	}
-	expires := now.Add(service.ttl).Unix()
-	query := url.Values{"tenant_id": {item.TenantID}, "workspace_id": {item.WorkspaceID}, "expires": {strconv.FormatInt(expires, 10)}, "signature": {service.signature(item, expires)}}
+	expires := expiresAt.Unix()
+	query := url.Values{"expires": {strconv.FormatInt(expires, 10)}, "signature": {service.signature(item, expires)}}
 	if item.MaxDimension > 0 {
 		query.Set("max_dim", strconv.Itoa(item.MaxDimension))
 	}
@@ -83,9 +90,9 @@ func (service *DeliveryService) Mint(ctx context.Context, item DeliveryItem) (De
 func (service *DeliveryService) signature(item DeliveryItem, expires int64) string {
 	mac := hmac.New(sha256.New, service.signingKey)
 	if item.MaxDimension == 0 {
-		_, _ = fmt.Fprintf(mac, "%s\x00%s\x00%s\x00%s\x00%d", item.TenantID, item.WorkspaceID, item.AssetID, item.RevisionID, expires)
+		_, _ = fmt.Fprintf(mac, "%s\x00%s\x00%d", item.AssetID, item.RevisionID, expires)
 	} else {
-		_, _ = fmt.Fprintf(mac, "image-v1\x00%s\x00%s\x00%s\x00%s\x00%d\x00%d", item.TenantID, item.WorkspaceID, item.AssetID, item.RevisionID, expires, item.MaxDimension)
+		_, _ = fmt.Fprintf(mac, "image-v2\x00%s\x00%s\x00%d\x00%d", item.AssetID, item.RevisionID, expires, item.MaxDimension)
 	}
 	return fmt.Sprintf("%x", mac.Sum(nil))
 }

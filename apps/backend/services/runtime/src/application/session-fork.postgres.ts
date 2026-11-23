@@ -25,15 +25,6 @@ Object.assign(process.env, {
   POSTGRES_PASSWORD: decodeURIComponent(connection.password),
   POSTGRES_DATABASE: connection.pathname.slice(1),
 });
-const auth = {
-  userId: "fork-test",
-  username: "test",
-  email: "",
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  workspaceRole: "member",
-  roles: [],
-};
 const id = () => randomBytes(16).toString("hex");
 function gate() {
   let open!: () => void;
@@ -57,9 +48,6 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
     await getDb().transaction(async (tx) => {
       await tx.insert(threads).values({
         id: sourceId,
-        userId: auth.userId,
-        tenantId: auth.tenantId,
-        workspaceId: auth.workspaceId,
         createRequestId: id(),
         itemSequence: 2n,
         selectedItemId: replyId,
@@ -98,13 +86,13 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       const copying = gate(),
         copied = gate();
       let target = "";
-      const pending = forkSession(auth, sourceId, replyId, {
+      const pending = forkSession(sourceId, replyId, {
         ...sessionForkDependencies,
-        forkSessionDocuments: async (input) => {
-          target = input.sessionId;
+        publish: async (...args) => {
+          target = args[1];
           copying.open();
           await copied.promise;
-          return { document_ids: {} };
+          return sessionForkDependencies.publish(...args);
         },
       });
       const result = pending.then(
@@ -112,7 +100,7 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
         (error: unknown) => ({ value: undefined, error }),
       );
       await copying.promise;
-      const runId = await createAgentRun({ sessionId: sourceId, userId: auth.userId, providerId: "", model: "" });
+      const runId = await createAgentRun({ sessionId: sourceId, providerId: "", model: "" });
       const lease = await acquireRunLease(sourceId, runId);
       if (finished) {
         await finishAgentRun({ ...lease, status: "completed" });
@@ -124,27 +112,27 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       assert.equal(outcome.value, undefined, "an overlapping run must invalidate the copied snapshot");
       assert.match(String(outcome.error), /生成|分支/);
       assert.equal((await getDb().select().from(threads).where(eq(threads.id, target))).length, 0);
-      const [intent] = await getDb()
+      const intents = await getDb()
         .select()
         .from(threadArtifactCleanupOutbox)
         .where(eq(threadArtifactCleanupOutbox.threadId, target));
-      assert.equal(intent.claimedAt, null, "failed snapshot remains eligible for durable cleanup");
+      assert.equal(intents.length, 0, "failed snapshot releases its fork reservation");
     });
   await t.test("publication excludes run acquisition until the branch commits", async () => {
     const { sourceId, replyId } = await seed();
     const locked = gate(),
       release = gate();
     let blocker: Promise<unknown> | undefined;
-    const pending = forkSession(auth, sourceId, replyId, {
+    const pending = forkSession(sourceId, replyId, {
       ...sessionForkDependencies,
-      forkSessionDocuments: async (input) => {
+      publish: async (...args) => {
         blocker = peer.begin(async (tx) => {
-          await tx`select thread_id from thread_artifact_cleanup_outbox where thread_id = ${input.sessionId} for update`;
+          await tx`select thread_id from thread_artifact_cleanup_outbox where thread_id = ${args[1]} for update`;
           locked.open();
           await release.promise;
         });
         await locked.promise;
-        return { document_ids: {} };
+        return sessionForkDependencies.publish(...args);
       },
     });
     // Hold the target cleanup row so the REAL publication transaction pauses
@@ -166,13 +154,11 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
     let runLease: Awaited<ReturnType<typeof acquireRunLease>> | undefined;
     try {
       await waitForLock('delete from "thread_artifact_cleanup_outbox"');
-      admitting = createAgentRun({ sessionId: sourceId, userId: auth.userId, providerId: "", model: "" }).then(
-        async (id) => {
-          runId = id;
-          runLease = await acquireRunLease(sourceId, id);
-          admitted = true;
-        },
-      );
+      admitting = createAgentRun({ sessionId: sourceId, providerId: "", model: "" }).then(async (id) => {
+        runId = id;
+        runLease = await acquireRunLease(sourceId, id);
+        admitted = true;
+      });
       await waitForLock('from "threads"');
       assert.equal(admitted, false);
     } finally {
@@ -195,13 +181,12 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
   });
   await t.test("rejected Turn admission rolls back its ordinal and active Turns reject before copying", async () => {
     const { sourceId, replyId } = await seed();
-    const runId = await createAgentRun({ sessionId: sourceId, userId: auth.userId, providerId: "", model: "" });
+    const runId = await createAgentRun({ sessionId: sourceId, providerId: "", model: "" });
     const lease = await acquireRunLease(sourceId, runId);
     const [before] = await getDb().select().from(threads).where(eq(threads.id, sourceId));
     await assert.rejects(
       createAgentRun({
         sessionId: sourceId,
-        userId: auth.userId,
         providerId: "",
         model: "",
       }),
@@ -210,11 +195,11 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
     assert.equal(before.turnSequence, after.turnSequence);
     let copied = false;
     await assert.rejects(
-      forkSession(auth, sourceId, replyId, {
+      forkSession(sourceId, replyId, {
         ...sessionForkDependencies,
-        forkSessionDocuments: async () => {
+        publish: async (...args) => {
           copied = true;
-          return { document_ids: {} };
+          return sessionForkDependencies.publish(...args);
         },
       }),
       /停止/,

@@ -130,6 +130,21 @@ it("preserves a rejected inference response instead of reporting a model protoco
   ]);
 });
 
+it.each([
+  ["config", { providerId: "provider", reasoningEffort: "medium" }],
+  ["plugins", {}],
+])("rejects a non-success %s response instead of passing its problem body to the worker", async (method, payload) => {
+  const child = new FakeUtilityProcess();
+  electron.fork.mockReturnValue(child);
+  const response = Response.json({ code: "forbidden", message: "Workspace access denied" }, { status: 403 });
+  new RuntimeHost("/app", vi.fn().mockResolvedValue(response), vi.fn());
+
+  child.emit("message", { type: "request", id: `request-${method}`, method, payload });
+
+  await vi.waitFor(() => expect(child.messages).toHaveLength(1));
+  expect(child.messages).toEqual([{ type: "response", id: `request-${method}`, error: "Workspace access denied" }]);
+});
+
 it("converts a truncated HTTP model body into a safe native error part", async () => {
   const child = new FakeUtilityProcess();
   electron.fork.mockReturnValue(child);

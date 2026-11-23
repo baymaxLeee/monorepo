@@ -42,7 +42,7 @@ User-owned semantic document knowledge base: parsing, MarkItDown conversion, ind
 - RAG index is kept fresh: re-index on document change; `document_chunks` has an `ON DELETE CASCADE` FK so deleting a document removes its chunks.
 - Embedding model and the `vector(N)` column dimension must agree; changing the model requires altering the column + re-indexing.
 - Errors via `kernel.errors.*`, NEVER raw HTTPException.
-- Transactions (docs/ADR/architecture.md): persistence repositories only read/stage and never commit; the router/service owning a write opens `async with write_tx(session):` (autobegin-first) around its reads + writes. Asset-service IO stays outside the block; ownership changes use the durable asset-claim intent relay. `index_document` is DB-free (snapshot -> chunks); the ingest/indexer worker sessions keep intentional multi-stage `write_tx` blocks for durable SSE/background progress; the `pg_advisory_lock` raw connection is exempt.
+- Transactions (docs/ADR/architecture.md): persistence repositories only read/stage and never commit; the router/service owning a write opens `async with write_tx(session):` (autobegin-first) around its reads + writes. Storage IO stays outside the block; ownership changes use the durable asset-claim intent relay. `index_document` is DB-free (snapshot -> chunks); the ingest/indexer worker sessions keep intentional multi-stage `write_tx` blocks for durable SSE/background progress; the `pg_advisory_lock` raw connection is exempt.
 
 ## Storage boundary
 

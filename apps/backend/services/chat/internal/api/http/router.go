@@ -47,8 +47,12 @@ func New(service *application.Service) http.Handler {
 			conversations.Post("/{conversationID}/forks", transport.forkConversation)
 			conversations.HandleFunc("/{conversationID}/*", transport.proxyConversation)
 		})
-		api.HandleFunc("/memories", transport.proxyRuntime)
-		api.HandleFunc("/memories/*", transport.proxyRuntime)
+		api.Get("/memories", transport.listActiveMemories)
+		api.Get("/memories/candidates", transport.listMemoryCandidates)
+		api.Patch("/memories/candidates/{id}", transport.updateMemoryCandidate)
+		api.Post("/memories/candidates/{id}/approve", transport.approveMemoryCandidate)
+		api.Post("/memories/candidates/{id}/reject", transport.rejectMemoryCandidate)
+		api.Delete("/memories/{id}", transport.deleteMemory)
 		api.HandleFunc("/local-inference/*", transport.proxyRuntime)
 	})
 
@@ -105,9 +109,10 @@ func (router *Router) requireReady(next http.Handler) http.Handler {
 func requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		scope := application.AuthContext{
-			UserID:      strings.TrimSpace(request.Header.Get("X-Auth-User-ID")),
-			TenantID:    strings.TrimSpace(request.Header.Get("X-Auth-Tenant-ID")),
-			WorkspaceID: strings.TrimSpace(request.Header.Get("X-Auth-Workspace-ID")),
+			UserID:        strings.TrimSpace(request.Header.Get("X-Auth-User-ID")),
+			TenantID:      strings.TrimSpace(request.Header.Get("X-Auth-Tenant-ID")),
+			WorkspaceID:   strings.TrimSpace(request.Header.Get("X-Auth-Workspace-ID")),
+			WorkspaceRole: strings.TrimSpace(request.Header.Get("X-Auth-Workspace-Role")),
 		}
 		if scope.UserID == "" || scope.TenantID == "" || scope.WorkspaceID == "" {
 			writeJSON(writer, http.StatusUnauthorized, map[string]string{"code": "unauthorized", "message": "missing auth context"})
@@ -198,8 +203,104 @@ func (router *Router) proxyConversation(writer http.ResponseWriter, request *htt
 }
 
 func (router *Router) proxyRuntime(writer http.ResponseWriter, request *http.Request) {
-	response, err := router.service.ProxyRuntime(request.Context(), request.Header, request.Method, request.URL.Path, request.URL.RawQuery, request.Body)
+	response, err := router.service.ProxyRuntime(request.Context(), auth(request), request.Header, request.Method, request.URL.Path, request.URL.RawQuery, request.Body)
 	writeProxyResponse(writer, request, response, err)
+}
+
+func (router *Router) listActiveMemories(writer http.ResponseWriter, request *http.Request) {
+	memories, err := router.service.ListActiveMemories(request.Context(), auth(request))
+	if err != nil {
+		writeError(writer, request, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"memories": memories})
+}
+
+func (router *Router) listMemoryCandidates(writer http.ResponseWriter, request *http.Request) {
+	candidates, err := router.service.ListMemoryCandidates(request.Context(), auth(request))
+	if err != nil {
+		writeError(writer, request, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"candidates": candidates})
+}
+
+func (router *Router) approveMemoryCandidate(writer http.ResponseWriter, request *http.Request) {
+	memory, err := router.service.ApproveMemoryCandidate(request.Context(), auth(request), chi.URLParam(request, "id"))
+	if err != nil {
+		writeError(writer, request, err)
+		return
+	}
+	if memory == nil {
+		writeError(writer, request, application.NotFound("memory candidate not found"))
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"memory": memory})
+}
+
+func (router *Router) rejectMemoryCandidate(writer http.ResponseWriter, request *http.Request) {
+	rejected, err := router.service.RejectMemoryCandidate(request.Context(), auth(request), chi.URLParam(request, "id"))
+	if err != nil {
+		writeError(writer, request, err)
+		return
+	}
+	if !rejected {
+		writeError(writer, request, application.NotFound("memory candidate not found"))
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"rejected": true})
+}
+
+func (router *Router) updateMemoryCandidate(writer http.ResponseWriter, request *http.Request) {
+	var input struct {
+		Category *application.MemoryCategory `json:"category"`
+		Content  *string                     `json:"content"`
+	}
+	if err := decodeJSON(request, &input); err != nil || (input.Category == nil && input.Content == nil) {
+		writeInvalidRequest(writer)
+		return
+	}
+	if input.Category != nil {
+		switch *input.Category {
+		case application.MemoryPreference, application.MemoryProfile, application.MemoryProject, application.MemoryInstruction:
+		default:
+			writeInvalidRequest(writer)
+			return
+		}
+	}
+	if input.Content != nil {
+		content := strings.TrimSpace(*input.Content)
+		if len(content) < 5 || len(content) > 500 {
+			writeInvalidRequest(writer)
+			return
+		}
+		input.Content = &content
+	}
+	candidate, err := router.service.UpdateMemoryCandidate(
+		request.Context(), auth(request), chi.URLParam(request, "id"), input.Category, input.Content,
+	)
+	if err != nil {
+		writeError(writer, request, err)
+		return
+	}
+	if candidate == nil {
+		writeError(writer, request, application.NotFound("memory candidate not found"))
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"candidate": candidate})
+}
+
+func (router *Router) deleteMemory(writer http.ResponseWriter, request *http.Request) {
+	deleted, err := router.service.DeleteMemory(request.Context(), auth(request), chi.URLParam(request, "id"))
+	if err != nil {
+		writeError(writer, request, err)
+		return
+	}
+	if !deleted {
+		writeError(writer, request, application.NotFound("memory not found"))
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"deleted": true})
 }
 
 func decodeCreateInput(request *http.Request) (application.CreateConversationInput, error) {

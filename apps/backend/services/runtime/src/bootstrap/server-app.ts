@@ -4,11 +4,9 @@ import { Hono } from "hono";
 
 import { requestLogger, traceMiddleware } from "#runtime/foundation";
 
-import { authMiddleware } from "../api/http/middleware/auth.js";
 import { problemJson } from "../api/http/problem.js";
 import { createAgentsRoutes } from "../api/http/routes/agents.js";
 import { localInferenceRoutes } from "../api/http/routes/local-inference.js";
-import { memoriesRoutes } from "../api/http/routes/memories.js";
 import { sessionsRoutes } from "../api/http/routes/sessions.js";
 import { ToolCatalog } from "../application/agent/tools/catalog.js";
 import { getServerSettings } from "../config/server.js";
@@ -60,10 +58,8 @@ export function createApp(dependencies: { toolCatalog?: ToolCatalog } = {}) {
     if (!valid) return c.json({ code: "unauthorized", message: "invalid Runtime caller" }, 401);
     await next();
   });
-  api.use("*", authMiddleware);
   api.route("/v1/sessions", sessionsRoutes);
   api.route("/v1/sessions", createAgentsRoutes({ toolCatalog }));
-  api.route("/memories", memoriesRoutes);
   api.route("/local-inference", localInferenceRoutes);
   app.route("/", api);
 

@@ -268,9 +268,8 @@ export function ResourceAssetsPageContent({
     await mutate(async (targetResourceId, revision) => {
       const uploaded = await uploadResource(file);
       await addResourceFile(projectId, targetResourceId, revision, {
-        sourceAssetId: uploaded.SourceAssetID,
-        sourceRevisionId: uploaded.SourceRevisionID,
-        fileName: file.name,
+        uploadSessionId: uploaded.UploadSessionID,
+        clientRef: uploaded.ClientRef,
       });
     });
     setUploading(false);
@@ -685,9 +684,8 @@ export function ResourceAssetsPageContent({
                   await mutate(async (resourceId, revision) => {
                     const uploaded = await uploadResource(file);
                     await replaceUploadedResourceAsset(projectId, resourceId, detailFile, revision, {
-                      sourceAssetId: uploaded.SourceAssetID,
-                      sourceRevisionId: uploaded.SourceRevisionID,
-                      fileName: file.name,
+                      uploadSessionId: uploaded.UploadSessionID,
+                      clientRef: uploaded.ClientRef,
                     });
                   });
                   setUploading(false);

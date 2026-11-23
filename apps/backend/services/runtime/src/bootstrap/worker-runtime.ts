@@ -12,11 +12,6 @@ import {
   startPendingTaskRecovery,
   stopPendingTaskRecovery,
 } from "../application/tasks/service.js";
-import {
-  recoverStaleVideoProductionDecisions,
-  startStaleVideoProductionDecisionRecovery,
-  stopStaleVideoProductionDecisionRecovery,
-} from "../application/video-production/decisions.js";
 import { getWorkerSettings } from "../config/worker.js";
 import {
   markBootFailed,
@@ -42,8 +37,6 @@ async function runWorkerBootstrap(): Promise<void> {
     startPendingTaskRecovery();
     await reconcileTaskCleanup();
     startTaskCleanupRecovery();
-    await recoverStaleVideoProductionDecisions();
-    startStaleVideoProductionDecisionRecovery();
     if (!workerStopping) markBootReady();
     logger.info("runtime worker bootstrap complete");
   } catch (error) {
@@ -96,7 +89,7 @@ export function createWorkerShutdown(dependencies: WorkerShutdownDependencies): 
 
 async function stopWorkerRecoveries(): Promise<void> {
   await workerBootstrap?.catch(() => undefined);
-  await Promise.all([stopPendingTaskRecovery(), stopTaskCleanupRecovery(), stopStaleVideoProductionDecisionRecovery()]);
+  await Promise.all([stopPendingTaskRecovery(), stopTaskCleanupRecovery()]);
 }
 
 export function workerShutdown(closeHttp: () => Promise<void>): () => Promise<void> {

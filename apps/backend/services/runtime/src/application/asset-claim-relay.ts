@@ -3,8 +3,6 @@ import { logger } from "../infrastructure/observability/logger.js";
 import { getSql } from "../infrastructure/persistence/index.js";
 
 interface ClaimIntentRow {
-  tenant_id: string;
-  workspace_id: string;
   owner_type: string;
   owner_id: string;
   slot: string;
@@ -33,7 +31,7 @@ function errorMessage(error: unknown): string {
 async function claimNext(): Promise<ClaimIntent | undefined> {
   const [row] = await getSql()<ClaimIntentRow[]>`
     WITH candidate AS (
-      SELECT tenant_id, workspace_id, owner_type, owner_id, slot
+      SELECT owner_type, owner_id, slot
       FROM asset_claim_intents
       WHERE delivered_at IS NULL
         AND next_attempt_at <= NOW()
@@ -45,12 +43,10 @@ async function claimNext(): Promise<ClaimIntent | undefined> {
     UPDATE asset_claim_intents AS intent
     SET lease_until = NOW() + INTERVAL '1 minute'
     FROM candidate
-    WHERE intent.tenant_id = candidate.tenant_id
-      AND intent.workspace_id = candidate.workspace_id
-      AND intent.owner_type = candidate.owner_type
+    WHERE intent.owner_type = candidate.owner_type
       AND intent.owner_id = candidate.owner_id
       AND intent.slot = candidate.slot
-    RETURNING intent.tenant_id, intent.workspace_id, intent.owner_type, intent.owner_id, intent.slot,
+    RETURNING intent.owner_type, intent.owner_id, intent.slot,
       intent.asset_id, intent.revision_id, intent.kind, intent.generation, intent.desired_state,
       intent.attempt_count, intent.state_version
   `;
@@ -64,8 +60,6 @@ async function claimNext(): Promise<ClaimIntent | undefined> {
 
 async function deliver(intent: ClaimIntent): Promise<void> {
   const identity = {
-    tenantId: intent.tenant_id,
-    workspaceId: intent.workspace_id,
     ownerType: intent.owner_type,
     ownerId: intent.owner_id,
     slot: intent.slot,
@@ -87,9 +81,7 @@ async function deliver(intent: ClaimIntent): Promise<void> {
     await getSql()`
       UPDATE asset_claim_intents
       SET delivered_at = NOW(), lease_until = NULL, last_error = NULL, updated_at = NOW()
-      WHERE tenant_id = ${intent.tenant_id}
-        AND workspace_id = ${intent.workspace_id}
-        AND owner_type = ${intent.owner_type}
+      WHERE owner_type = ${intent.owner_type}
         AND owner_id = ${intent.owner_id}
         AND slot = ${intent.slot}
         AND generation = ${intent.generation}
@@ -103,9 +95,7 @@ async function deliver(intent: ClaimIntent): Promise<void> {
       UPDATE asset_claim_intents
       SET attempt_count = ${attempt}, next_attempt_at = ${nextAttempt}, lease_until = NULL,
           last_error = ${errorMessage(error).slice(0, 2000)}, updated_at = NOW()
-      WHERE tenant_id = ${intent.tenant_id}
-        AND workspace_id = ${intent.workspace_id}
-        AND owner_type = ${intent.owner_type}
+      WHERE owner_type = ${intent.owner_type}
         AND owner_id = ${intent.owner_id}
         AND slot = ${intent.slot}
         AND generation = ${intent.generation}

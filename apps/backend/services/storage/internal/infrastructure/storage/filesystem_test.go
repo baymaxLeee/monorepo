@@ -62,7 +62,7 @@ func TestFilesystemCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const key = "blobs/tenant/aa/bb/blob-id"
+	const key = "blobs/content/aa/bb/blob-id"
 	if err = store.Commit(context.Background(), staged, key); err != nil {
 		t.Fatal(err)
 	}

@@ -1,47 +1,25 @@
 import type { VideoGenerationInput } from "../../../workflows/video-generation.js";
-import { getProvider } from "../../infrastructure/clients/admin-media.js";
 import { deleteArkVideoTask } from "../../infrastructure/clients/ark.js";
-import { discardStagedMedia } from "../../infrastructure/clients/knowledge-media.js";
+import { releaseTaskAsset } from "../../infrastructure/clients/storage-media.js";
 import type { TaskProgress } from "../tasks/types.js";
-import { cancelVideoProductionProjection } from "../video-production/service.js";
 
 export async function cancelVideoGeneration(
   input: VideoGenerationInput,
   progress: TaskProgress | null,
   context: { taskId: string },
 ): Promise<void> {
-  const taskIds = progress?.externalTaskIds ?? [];
-  const production = await cancelVideoProductionProjection(context.taskId);
+  const externalIds = progress?.externalTaskIds ?? [];
   const cleanup: Array<Promise<unknown>> = [];
-  if (production?.stagedMediaId) {
-    cleanup.push(
-      discardStagedMedia({
-        userId: input.userId,
-        tenantId: input.tenantId,
-        workspaceId: input.workspaceId,
-        stagedId: production.stagedMediaId,
-      }),
-    );
+  if (externalIds.includes("asset:video:final")) {
+    cleanup.push(releaseTaskAsset(context.taskId, "video:final"));
   }
-  for (const stagedId of production?.shotReviews.flatMap((review) =>
-    review.takes.flatMap((take) => (take.stagedMediaId ? [take.stagedMediaId] : [])),
-  ) ?? []) {
+  const providerTaskIds = externalIds.flatMap((value) => (value.startsWith("provider:") ? [value.slice(9)] : []));
+  if (providerTaskIds.length > 0) {
     cleanup.push(
-      discardStagedMedia({
-        userId: input.userId,
-        tenantId: input.tenantId,
-        workspaceId: input.workspaceId,
-        stagedId,
-      }),
-    );
-  }
-  if (taskIds.length > 0) {
-    const provider = await getProvider(input.providerId, input.tenantId, input.workspaceId, true);
-    cleanup.push(
-      ...taskIds.map((taskId) =>
+      ...providerTaskIds.map((taskId) =>
         deleteArkVideoTask({
-          baseUrl: provider.baseUrl,
-          apiKey: provider.apiKey,
+          baseUrl: input.provider.baseUrl,
+          apiKey: input.provider.apiKey,
           taskId,
           signal: AbortSignal.timeout(30_000),
         }),

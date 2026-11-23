@@ -11,7 +11,6 @@ import {
   type UIMessageStreamOnEndCallback,
 } from "ai";
 
-import { getDocument, knowledgeDocumentSessionId } from "../../../infrastructure/clients/knowledge.js";
 import { uploadAsset } from "../../../infrastructure/clients/storage.js";
 import { RequestError } from "../../errors.js";
 import { getSessionFile, publishSessionFile, type SessionFile } from "../../session-files.js";
@@ -44,7 +43,6 @@ export interface NativePartDependencies {
   uploadAsset: typeof uploadAsset;
   publishSessionFile: typeof publishSessionFile;
   getSessionFile: typeof getSessionFile;
-  getDocument: typeof getDocument;
 }
 
 const nativePartDependencies: NativePartDependencies = {
@@ -52,16 +50,12 @@ const nativePartDependencies: NativePartDependencies = {
   uploadAsset,
   publishSessionFile,
   getSessionFile,
-  getDocument,
 };
 
 export interface NativeFilePublicationContext {
   attemptEpoch: string;
   runId: string;
   sessionId: string;
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
   signal: AbortSignal;
   stageWorkspaceFile?: (file: SessionFile, content: Uint8Array, signal: AbortSignal) => Promise<void>;
 }
@@ -209,18 +203,6 @@ function nativeFileExtension(mediaType: string): string {
   );
 }
 
-function authorizedDocumentId(url: string, sessionId: string): string | null {
-  try {
-    const parsed = new URL(url, "http://chat.local");
-    const documentId = parsed.searchParams.get("document_id");
-    return documentId && parsed.pathname.includes(`/sessions/${encodeURIComponent(sessionId)}/documents/`)
-      ? documentId
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function publishNativeFileParts(
   parts: AnyUIMessage["parts"],
   context: NativeFilePublicationContext,
@@ -232,16 +214,7 @@ export async function publishNativeFileParts(
     if (part.type !== "file" && part.type !== "reasoning-file") continue;
     const existingFileId = sessionFileIdFromUrl(part.url, context.sessionId);
     if (existingFileId) {
-      await dependencies.getSessionFile(context, context.sessionId, existingFileId);
-      published.push(part);
-      continue;
-    }
-    const existingDocumentId = authorizedDocumentId(part.url, context.sessionId);
-    if (existingDocumentId) {
-      const document = await dependencies.getDocument(context.userId, existingDocumentId, false);
-      if (knowledgeDocumentSessionId(document) !== context.sessionId) {
-        throw new RequestError(`file ${existingDocumentId} does not belong to this session`);
-      }
+      await dependencies.getSessionFile(context.sessionId, existingFileId);
       published.push(part);
       continue;
     }
@@ -262,9 +235,6 @@ export async function publishNativeFileParts(
     const workspacePath = `/workspace/outputs/${context.runId}/${ordinal}/${filename}`;
     const idempotencyKey = `${context.runId}:native-file:${ordinal - 1}`;
     const asset = await dependencies.uploadAsset({
-      userId: context.userId,
-      tenantId: context.tenantId,
-      workspaceId: context.workspaceId,
       filename,
       mediaType: part.mediaType,
       category: part.type === "reasoning-file" ? "reasoning-file" : "model-file",
@@ -273,9 +243,6 @@ export async function publishNativeFileParts(
       signal: context.signal,
     });
     const file = await dependencies.publishSessionFile({
-      userId: context.userId,
-      tenantId: context.tenantId,
-      workspaceId: context.workspaceId,
       sessionId: context.sessionId,
       title: filename,
       assetId: asset.assetId,

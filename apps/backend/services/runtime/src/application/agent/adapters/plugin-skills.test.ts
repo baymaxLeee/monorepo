@@ -10,18 +10,12 @@ import { RuntimePluginSkillAssetLoader, type PluginSkillContentSource } from "./
 const context: HostPluginContext = {
   turnId: "turn",
   threadId: "thread",
-  userId: "user",
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  workspaceRole: "member",
 };
 
 function source(body: string): PluginSkillContentSource {
   return {
     content: async (input) => {
       assert.deepEqual(input, {
-        tenantId: "tenant",
-        workspaceId: "workspace",
         assetId: "asset",
         revisionId: "revision",
         signal: undefined,

@@ -57,10 +57,7 @@ function lease(claim: { runId: string; attemptEpoch: bigint }) {
   return { runId: claim.runId, attemptEpoch: claim.attemptEpoch };
 }
 
-function resumeEnvelope(
-  claim: { historyMessageId: string; historyRevision: number },
-  auth: Awaited<ReturnType<typeof createSession>>["auth"],
-) {
+function resumeEnvelope(claim: { historyMessageId: string; historyRevision: number }) {
   return {
     sessionId: "",
     historyMessageId: claim.historyMessageId,
@@ -72,13 +69,7 @@ function resumeEnvelope(
     compactorVersion: "runtime-context-projection-v1",
     remoteBinding: null,
     snapshot: {
-      schemaVersion: 1 as const,
-      auth: {
-        userId: auth.userId,
-        tenantId: auth.tenantId,
-        workspaceId: auth.workspaceId,
-        workspaceRole: auth.workspaceRole,
-      },
+      schemaVersion: 2 as const,
       execution: {
         operation: "submit-message" as const,
         assistantMessageId: identifier("assistant"),
@@ -105,61 +96,25 @@ function resumeEnvelope(
   };
 }
 
-async function createSession(): Promise<{
-  sessionId: string;
-  userId: string;
-  auth: {
-    userId: string;
-    username: string;
-    email: string;
-    tenantId: string;
-    workspaceId: string;
-    workspaceRole: string;
-    roles: string[];
-  };
-}> {
+async function createSession(): Promise<{ sessionId: string }> {
   const sessionId = identifier("cv");
-  const userId = identifier("u");
-  const tenantId = identifier("t");
-  const workspaceId = identifier("w");
   const now = new Date();
   await getDb()
     .insert(threads)
     .values({
       id: sessionId,
-      userId,
-      tenantId,
-      workspaceId,
       createRequestId: identifier("create"),
       model: "test-model",
       providerId: "test-provider",
       createdAt: now,
       updatedAt: now,
     });
-  return {
-    sessionId,
-    userId,
-    auth: {
-      userId,
-      username: userId,
-      email: "",
-      tenantId,
-      workspaceId,
-      workspaceRole: "member",
-      roles: [],
-    },
-  };
+  return { sessionId };
 }
 
-async function claimSubmit(
-  sessionId: string,
-  userId: string,
-  requestId = identifier("req"),
-  inputMessageId = identifier("msg"),
-) {
+async function claimSubmit(sessionId: string, requestId = identifier("req"), inputMessageId = identifier("msg")) {
   const claim = await claimAgentRunOperation({
     sessionId,
-    userId,
     providerId: "test-provider",
     model: "test-model",
     requestId,
@@ -182,19 +137,19 @@ after(async () => {
   if (enabled) await getSql().end();
 });
 
-test("concurrent claims serialize on history revision", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+test("concurrent claims for one Session reject the second active Turn explicitly", { skip: !enabled }, async () => {
+  const { sessionId } = await createSession();
   try {
     const claims = await Promise.allSettled([
-      claimSubmit(sessionId, userId, identifier("req")),
-      claimSubmit(sessionId, userId, identifier("req")),
+      claimSubmit(sessionId, identifier("req")),
+      claimSubmit(sessionId, identifier("req")),
     ]);
     const fulfilled = claims.filter((result) => result.status === "fulfilled");
     const rejected = claims.filter((result) => result.status === "rejected");
     assert.equal(fulfilled.length, 1);
     assert.equal(rejected.length, 1);
     assert.ok(rejected[0]?.reason instanceof ConflictError);
-    assert.equal(rejected[0]?.reason.code, "history_revision_conflict");
+    assert.equal(rejected[0]?.reason.code, "active_run_exists");
 
     const runs = await getDb().select().from(turns).where(eq(turns.threadId, sessionId));
     const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
@@ -207,10 +162,28 @@ test("concurrent claims serialize on history revision", { skip: !enabled }, asyn
   }
 });
 
-test("Turn plugin snapshots are immutable and never persist connection grants", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+test("different Sessions can run concurrently without a shared workspace lock", { skip: !enabled }, async () => {
+  const first = await createSession();
+  const second = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const [firstClaim, secondClaim] = await Promise.all([
+      claimSubmit(first.sessionId, identifier("req")),
+      claimSubmit(second.sessionId, identifier("req")),
+    ]);
+
+    assert.notEqual(firstClaim.runId, secondClaim.runId);
+    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, first.sessionId))).length, 1);
+    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, second.sessionId))).length, 1);
+  } finally {
+    await cleanup(first.sessionId);
+    await cleanup(second.sessionId);
+  }
+});
+
+test("Turn plugin snapshots are immutable and never persist connection grants", { skip: !enabled }, async () => {
+  const { sessionId } = await createSession();
+  try {
+    const claim = await claimSubmit(sessionId);
     const snapshot: ResolvedTurnPluginSnapshot = {
       schemaVersion: 1,
       snapshotId: identifier("snapshot"),
@@ -247,9 +220,9 @@ test("Turn plugin snapshots are immutable and never persist connection grants", 
 });
 
 test("lease takeover increments the epoch and fences the old Turn owner", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     await getDb()
       .update(turnLeases)
       .set({ expiresAt: new Date(0) })
@@ -283,10 +256,10 @@ test(
   "completed tool effects replay across attempts and changed identities fail closed",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId } = await createSession();
+    const { sessionId } = await createSession();
     let current: ReturnType<typeof lease> | undefined;
     try {
-      const claim = await claimSubmit(sessionId, userId);
+      const claim = await claimSubmit(sessionId);
       const effect = {
         runId: claim.runId,
         attemptEpoch: claim.attemptEpoch,
@@ -328,10 +301,10 @@ test(
 );
 
 test("an unconfirmed tool effect from an older attempt requires reconciliation", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   let current: ReturnType<typeof lease> | undefined;
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     const effect = {
       runId: claim.runId,
       attemptEpoch: claim.attemptEpoch,
@@ -359,10 +332,7 @@ test("provider tool-call ids are scoped to a logical Turn", { skip: !enabled }, 
   const first = await createSession();
   const second = await createSession();
   try {
-    const [left, right] = await Promise.all([
-      claimSubmit(first.sessionId, first.userId),
-      claimSubmit(second.sessionId, second.userId),
-    ]);
+    const [left, right] = await Promise.all([claimSubmit(first.sessionId), claimSubmit(second.sessionId)]);
     const toolCallId = identifier("tool");
     assert.deepEqual(
       await claimToolEffect({
@@ -392,8 +362,8 @@ test(
   "replacement controllers retain cancellation ownership until their own attempt releases",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId } = await createSession();
-    const old = lease(await claimSubmit(sessionId, userId));
+    const { sessionId } = await createSession();
+    const old = lease(await claimSubmit(sessionId));
     const first = registerRunController(old);
     let latest = old;
     try {
@@ -428,17 +398,8 @@ test(
   "session creation retries reuse the same Runtime session and reject changed input",
   { skip: !enabled },
   async () => {
-    const auth = {
-      userId: identifier("u"),
-      username: "session-user",
-      email: "",
-      tenantId: identifier("t"),
-      workspaceId: identifier("w"),
-      workspaceRole: "member",
-      roles: [],
-    };
     const requestId = identifier("create");
-    const first = await createRuntimeSession(auth, {
+    const first = await createRuntimeSession({
       request_id: requestId,
       provider_id: "provider-a",
       approval_policy: "unless-trusted",
@@ -447,7 +408,7 @@ test(
     try {
       assert.equal(first.approval_policy, "unless-trusted");
       assert.equal(first.permission_profile, ":read-only");
-      const retry = await createRuntimeSession(auth, {
+      const retry = await createRuntimeSession({
         request_id: requestId,
         provider_id: "provider-a",
         approval_policy: "unless-trusted",
@@ -455,7 +416,7 @@ test(
       });
       assert.equal(retry.id, first.id);
       await assert.rejects(
-        createRuntimeSession(auth, {
+        createRuntimeSession({
           request_id: requestId,
           provider_id: "provider-a",
           approval_policy: "on-request",
@@ -471,9 +432,9 @@ test(
 
 test("history selection reclaims terminal and expired run leases", { skip: !enabled }, async () => {
   for (const staleKind of ["terminal", "expired"] as const) {
-    const { sessionId, userId, auth } = await createSession();
+    const { sessionId } = await createSession();
     try {
-      const claim = await claimSubmit(sessionId, userId);
+      const claim = await claimSubmit(sessionId);
       if (staleKind === "terminal") {
         await getDb()
           .update(turns)
@@ -486,7 +447,7 @@ test("history selection reclaims terminal and expired run leases", { skip: !enab
           .where(eq(turnLeases.turnId, claim.runId));
       }
 
-      const detail = await selectSessionHistory(auth, sessionId, {
+      const detail = await selectSessionHistory(sessionId, {
         leaf_message_id: claim.inputMessageId,
         expected_revision: 1,
       });
@@ -506,19 +467,19 @@ test("terminal run cleanup and session deletion cannot leave blocking leases", {
   const finished = await createSession();
   const deleted = await createSession();
   try {
-    const finishedClaim = await claimSubmit(finished.sessionId, finished.userId);
+    const finishedClaim = await claimSubmit(finished.sessionId);
     await finishAgentRun({ ...lease(finishedClaim), status: "failed", error: "provider failed" });
     assert.equal(
       (await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, finished.sessionId))).length,
       0,
     );
 
-    const deletedClaim = await claimSubmit(deleted.sessionId, deleted.userId);
+    const deletedClaim = await claimSubmit(deleted.sessionId);
     await getDb()
       .update(turns)
       .set({ status: "completed", completedAt: new Date() })
       .where(eq(turns.id, deletedClaim.runId));
-    await deleteSession(deleted.auth, deleted.sessionId);
+    await deleteSession(deleted.sessionId);
     assert.equal((await getDb().select().from(threads).where(eq(threads.id, deleted.sessionId))).length, 0);
     assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, deleted.sessionId))).length, 0);
   } finally {
@@ -528,9 +489,9 @@ test("terminal run cleanup and session deletion cannot leave blocking leases", {
 });
 
 test("message listing reads the selected pointer and graph from one ordered snapshot", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     const newLeafId = identifier("msg");
     let listing: ReturnType<typeof listMessages> | undefined;
     await getSql().begin(async (tx) => {
@@ -580,12 +541,12 @@ test("message listing reads the selected pointer and graph from one ordered snap
 });
 
 test("an exact request retry reuses its run while changed payload is rejected", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
     const requestId = identifier("req");
     const inputMessageId = identifier("msg");
-    const first = await claimSubmit(sessionId, userId, requestId, inputMessageId);
-    const duplicate = await claimSubmit(sessionId, userId, requestId, inputMessageId);
+    const first = await claimSubmit(sessionId, requestId, inputMessageId);
+    const duplicate = await claimSubmit(sessionId, requestId, inputMessageId);
     assert.equal(duplicate.duplicate, true);
     assert.equal(duplicate.runId, first.runId);
     assert.equal(duplicate.historyRevision, first.historyRevision);
@@ -593,7 +554,6 @@ test("an exact request retry reuses its run while changed payload is rejected", 
     await assert.rejects(
       claimAgentRunOperation({
         sessionId,
-        userId,
         providerId: "test-provider",
         model: "test-model",
         requestId,
@@ -618,9 +578,9 @@ test("an exact request retry reuses its run while changed payload is rejected", 
 });
 
 test("journal finalization rolls tool updates back with message failure", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     const toolCallId = identifier("tool");
     await getDb()
       .insert(toolEffects)
@@ -666,9 +626,9 @@ test("journal finalization rolls tool updates back with message failure", { skip
 });
 
 test("journal finalization is idempotent and cancellation closes tool state", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     const runningToolId = identifier("tool");
     const todoToolId = identifier("todo");
     const todoOutput = {
@@ -760,9 +720,9 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
 });
 
 test("client continuation validation and journal merge share the claim transaction", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     const frozen = await persistAgentRunPluginSnapshot(lease(claim), {
       schemaVersion: 1,
       snapshotId: identifier("frozen"),
@@ -792,7 +752,6 @@ test("client continuation validation and journal merge share the claim transacti
     assert.equal(waiting.status, "waiting");
     const operation = {
       sessionId,
-      userId,
       providerId: "test-provider",
       model: "test-model",
       requestId: identifier("req"),
@@ -862,9 +821,9 @@ test("client continuation validation and journal merge share the claim transacti
 });
 
 test("a waiting logical Turn blocks admission of a second Turn", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     await persistAgentRunPluginSnapshot(lease(claim), {
       schemaVersion: 1,
       snapshotId: identifier("frozen"),
@@ -895,7 +854,6 @@ test("a waiting logical Turn blocks admission of a second Turn", { skip: !enable
     await assert.rejects(
       claimAgentRunOperation({
         sessionId,
-        userId,
         providerId: "test-provider",
         model: "test-model",
         requestId: identifier("req"),
@@ -919,10 +877,10 @@ test(
   "finalization locks session before run so an expired lease claim cannot deadlock",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId } = await createSession();
+    const { sessionId } = await createSession();
     let finalizing: ReturnType<typeof finalizeAgentRunJournal> | undefined;
     try {
-      const claim = await claimSubmit(sessionId, userId);
+      const claim = await claimSubmit(sessionId);
       await getSql().begin(async (tx) => {
         const [blocker] = await tx`select pg_backend_pid() as pid`;
         await tx`select id from threads where id = ${sessionId} for update`;
@@ -955,10 +913,10 @@ test(
 );
 
 test("terminal cleanup locks session before run and lease", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   let finishing: ReturnType<typeof finishAgentRun> | undefined;
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     await getSql().begin(async (tx) => {
       const [blocker] = await tx`select pg_backend_pid() as pid`;
       await tx`select id from threads where id = ${sessionId} for update`;
@@ -984,9 +942,9 @@ test("terminal cleanup locks session before run and lease", { skip: !enabled }, 
 });
 
 test("a trace completion gap cannot override the SDK outcome or leave a running step", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     await getDb()
       .insert(turnSteps)
       .values({
@@ -1025,9 +983,9 @@ test("a trace completion gap cannot override the SDK outcome or leave a running 
 });
 
 test("cancellation committed after the stream snapshot wins in journal finalization", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     const toolCallId = identifier("tool");
     const parts = [{ type: "tool-ask_user", toolCallId, state: "input-available", input: {} }];
     await getDb()
@@ -1073,9 +1031,9 @@ test(
   "late cleanup failure and stale orphan snapshots cannot overwrite a committed run",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId } = await createSession();
+    const { sessionId } = await createSession();
     try {
-      const claim = await claimSubmit(sessionId, userId);
+      const claim = await claimSubmit(sessionId);
       await finalizeAgentRunJournal({
         ...lease(claim),
         parts: [],
@@ -1096,10 +1054,10 @@ test(
 );
 
 test("a reaper waiting behind a takeover cannot interrupt the new owner", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   let pending: ReturnType<typeof interruptRuns> | undefined;
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     await getDb()
       .update(turnLeases)
       .set({ expiresAt: new Date(0) })
@@ -1144,9 +1102,9 @@ test("a reaper waiting behind a takeover cannot interrupt the new owner", { skip
 });
 
 test("orphan reconciliation rechecks a renewed lease before interrupting", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
+    const claim = await claimSubmit(sessionId);
     await interruptRuns([claim.runId]);
     let [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
     assert.equal(run?.status, "running");
@@ -1166,10 +1124,10 @@ test(
   "attempt resume envelopes are immutable and copied into an atomically fenced recovery",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId, auth } = await createSession();
+    const { sessionId } = await createSession();
     try {
-      const claim = await claimSubmit(sessionId, userId);
-      const envelope = { ...resumeEnvelope(claim, auth), sessionId };
+      const claim = await claimSubmit(sessionId);
+      const envelope = { ...resumeEnvelope(claim), sessionId };
       const stored = await persistTurnResumeEnvelope(lease(claim), envelope);
       assert.deepEqual(await persistTurnResumeEnvelope(lease(claim), envelope), stored);
       await assert.rejects(
@@ -1222,10 +1180,10 @@ test(
   "orphan reconciliation cleans the old sandbox before handing off the fenced attempt",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId, auth } = await createSession();
+    const { sessionId } = await createSession();
     try {
-      const claim = await claimSubmit(sessionId, userId);
-      await persistTurnResumeEnvelope(lease(claim), { ...resumeEnvelope(claim, auth), sessionId });
+      const claim = await claimSubmit(sessionId);
+      await persistTurnResumeEnvelope(lease(claim), { ...resumeEnvelope(claim), sessionId });
       await getDb()
         .update(turnLeases)
         .set({ expiresAt: new Date(0) })
@@ -1271,10 +1229,10 @@ test(
 );
 
 test("a committed SDK step resumes at the next step instead of regenerating it", { skip: !enabled }, async () => {
-  const { sessionId, userId, auth } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
-    const envelope = { ...resumeEnvelope(claim, auth), sessionId };
+    const claim = await claimSubmit(sessionId);
+    const envelope = { ...resumeEnvelope(claim), sessionId };
     await persistTurnResumeEnvelope(lease(claim), envelope);
     await persistCompletedStep(lease(claim), envelope.snapshot.execution.assistantMessageId, {
       version: 2,
@@ -1294,10 +1252,10 @@ test("a committed SDK step resumes at the next step instead of regenerating it",
 });
 
 test("a committed effect without its journaled SDK step is interrupted", { skip: !enabled }, async () => {
-  const { sessionId, userId, auth } = await createSession();
+  const { sessionId } = await createSession();
   try {
-    const claim = await claimSubmit(sessionId, userId);
-    await persistTurnResumeEnvelope(lease(claim), { ...resumeEnvelope(claim, auth), sessionId });
+    const claim = await claimSubmit(sessionId);
+    await persistTurnResumeEnvelope(lease(claim), { ...resumeEnvelope(claim), sessionId });
     const effect = {
       ...lease(claim),
       toolCallId: identifier("tool"),
@@ -1323,7 +1281,7 @@ test("a committed effect without its journaled SDK step is interrupted", { skip:
 test("missing envelopes and unconfirmed effects interrupt instead of guessing", { skip: !enabled }, async () => {
   const missing = await createSession();
   try {
-    const claim = await claimSubmit(missing.sessionId, missing.userId);
+    const claim = await claimSubmit(missing.sessionId);
     await getDb()
       .update(turnLeases)
       .set({ expiresAt: new Date(0) })
@@ -1338,9 +1296,9 @@ test("missing envelopes and unconfirmed effects interrupt instead of guessing", 
 
   const uncertain = await createSession();
   try {
-    const claim = await claimSubmit(uncertain.sessionId, uncertain.userId);
+    const claim = await claimSubmit(uncertain.sessionId);
     await persistTurnResumeEnvelope(lease(claim), {
-      ...resumeEnvelope(claim, uncertain.auth),
+      ...resumeEnvelope(claim),
       sessionId: uncertain.sessionId,
     });
     await claimToolEffect({
@@ -1366,14 +1324,13 @@ test(
   "run input admission is idempotent, payload-bound, recoverable, and terminalized",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId } = await createSession();
+    const { sessionId } = await createSession();
     try {
-      const claim = await claimSubmit(sessionId, userId);
+      const claim = await claimSubmit(sessionId);
       const clientMessageId = identifier("input");
       const input = {
         sessionId,
         runId: claim.runId,
-        userId,
         clientMessageId,
         mode: "follow-up" as const,
         text: "use the other city",
@@ -1385,7 +1342,7 @@ test(
         acceptAgentRunInput({ ...input, text: "changed payload" }),
         (error: unknown) => error instanceof ConflictError && error.code === "run_input_id_conflict",
       );
-      assert.deepEqual(await listAgentRunInputs({ sessionId, runId: claim.runId, userId }), [accepted]);
+      assert.deepEqual(await listAgentRunInputs({ sessionId, runId: claim.runId }), [accepted]);
 
       await finishAgentRun({ ...lease(claim), status: "completed" });
       const [settled] = await getDb().select().from(turnInputs).where(eq(turnInputs.id, clientMessageId));
@@ -1404,22 +1361,15 @@ test(
   "workspace checkout is atomic with publication and fences superseded attempts and turns",
   { skip: !enabled },
   async () => {
-    const {
-      sessionId,
-      userId,
-      auth: { tenantId, workspaceId },
-    } = await createSession();
+    const { sessionId } = await createSession();
     try {
-      const first = await claimSubmit(sessionId, userId);
-      const scope = { sessionId, userId, tenantId, workspaceId };
+      const first = await claimSubmit(sessionId);
+      const scope = { sessionId };
       const sandboxAttempt = { runId: first.runId, attemptEpoch: first.attemptEpoch.toString() };
       await sandboxExecutionLifecycle.restoring({
         run_id: first.runId,
         attempt_epoch: sandboxAttempt.attemptEpoch,
         session_id: sessionId,
-        user_id: userId,
-        tenant_id: tenantId,
-        workspace_id: workspaceId,
       });
       const input = {
         ...scope,
@@ -1467,7 +1417,6 @@ test(
       const [thread] = await getDb().select().from(threads).where(eq(threads.id, sessionId));
       await claimAgentRunOperation({
         sessionId,
-        userId,
         providerId: "test-provider",
         model: "test-model",
         requestId: identifier("req"),
@@ -1487,7 +1436,7 @@ test(
         stale,
       );
     } finally {
-      await getDb().delete(assetClaimIntents).where(eq(assetClaimIntents.tenantId, tenantId));
+      await getDb().delete(assetClaimIntents).where(eq(assetClaimIntents.ownerType, "session_file"));
       await cleanup(sessionId);
     }
   },
@@ -1497,9 +1446,9 @@ test(
   "completed steps survive owner loss and finalization updates the same assistant item",
   { skip: !enabled },
   async () => {
-    const { sessionId, userId } = await createSession();
+    const { sessionId } = await createSession();
     try {
-      const claim = await claimSubmit(sessionId, userId);
+      const claim = await claimSubmit(sessionId);
       const id = identifier("assistant");
       const content = {
         version: 2 as const,

@@ -20,6 +20,12 @@ tenant/user/workspace/roles。服务必须检查作用域与资源权限，资�
 按 RPC method allowlist 验证。Gateway 不公开代理 RPC 端口；
 Runtime server、worker、sandbox 都没有公共 Gateway route。内部 API 的解密配置不能原样返回浏览器。
 
+Runtime 是 tenant-neutral 的执行服务例外：Chat/Desktop/Canvas 等产品宿主先完成 tenant、workspace、
+user membership、资源权限、模型与插件选择，再向 Runtime 传递冻结的 Session capability 或去密 snapshot。
+Runtime 只校验 workload caller、Session/Turn 关联及 capability 的 audience、operation、resource、expiry 与
+attempt binding；它的 API、数据库、恢复 envelope 和 plugin context 不接收或持久化产品身份，也不承担
+上层租户隔离。Chat 到 Runtime 的 HTTP adapter 不转发任何 `X-Auth-*`。
+
 浏览器认证生命周期统一由 Platform 的 `src/auth/` 拥有：登录、注册、刷新、
 退出、workspace 切换和桌面凭据绑定均在这里完成；access token 与刷新中的
 Promise 只保存在 Platform 模块内存。页面不得直接调用生成 IAM 登录/退出/切换

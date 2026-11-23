@@ -28,16 +28,14 @@ const checkAppendAuthorization = `-- name: CheckAppendAuthorization :one
 SELECT a.state,
 EXISTS(SELECT 1 FROM asset_revisions r WHERE r.id=$1 AND r.asset_id=a.id) AS base_exists,
 EXISTS(SELECT 1 FROM asset_claims c
-WHERE c.tenant_id=$2 AND c.workspace_id=$3 AND c.owner_service=$4 AND c.owner_type=$5
-AND c.owner_id=$6 AND c.slot=$7 AND c.generation=$8 AND c.asset_id=a.id
-AND c.revision_id=$1 AND c.kind='strong' AND c.status IN ('pending','active')) AS claim_exists
-FROM assets a WHERE a.id=$9 AND a.tenant_id=$2 AND a.workspace_id=$3
+WHERE c.owner_service=$2 AND c.owner_type=$3
+AND c.owner_id=$4 AND c.slot=$5 AND c.generation=$6 AND c.asset_id=a.id
+AND c.revision_id=$1 AND c.kind='strong' AND c.status='active') AS claim_exists
+FROM assets a WHERE a.id=$7
 `
 
 type CheckAppendAuthorizationParams struct {
 	BaseRevisionID string
-	TenantID       string
-	WorkspaceID    string
 	OwnerService   string
 	OwnerType      string
 	OwnerID        string
@@ -55,8 +53,6 @@ type CheckAppendAuthorizationRow struct {
 func (q *Queries) CheckAppendAuthorization(ctx context.Context, arg CheckAppendAuthorizationParams) (CheckAppendAuthorizationRow, error) {
 	row := q.db.QueryRow(ctx, checkAppendAuthorization,
 		arg.BaseRevisionID,
-		arg.TenantID,
-		arg.WorkspaceID,
 		arg.OwnerService,
 		arg.OwnerType,
 		arg.OwnerID,
@@ -141,27 +137,21 @@ func (q *Queries) FailUpload(ctx context.Context, arg FailUploadParams) error {
 }
 
 const getUpload = `-- name: GetUpload :one
-SELECT id,tenant_id,workspace_id,user_id,caller_service,COALESCE(idempotency_key,'')::text AS idempotency_key,
-category,filename,declared_media_type,COALESCE(declared_size_bytes,-1)::bigint AS size_bytes,state,
+SELECT id,caller_service,COALESCE(idempotency_key,'')::text AS idempotency_key,
+filename,declared_media_type,COALESCE(declared_size_bytes,-1)::bigint AS size_bytes,state,
 COALESCE(asset_id::text,'')::text AS asset_id,COALESCE(revision_id::text,'')::text AS revision_id,expires_at
-FROM upload_sessions WHERE id=$1 AND caller_service=$2 AND tenant_id=$3 AND workspace_id=$4
+FROM upload_sessions WHERE id=$1 AND caller_service=$2
 `
 
 type GetUploadParams struct {
 	ID            string
 	CallerService string
-	TenantID      string
-	WorkspaceID   string
 }
 
 type GetUploadRow struct {
 	ID                string
-	TenantID          string
-	WorkspaceID       string
-	UserID            string
 	CallerService     string
 	IdempotencyKey    string
-	Category          string
 	Filename          string
 	DeclaredMediaType string
 	SizeBytes         int64
@@ -172,21 +162,12 @@ type GetUploadRow struct {
 }
 
 func (q *Queries) GetUpload(ctx context.Context, arg GetUploadParams) (GetUploadRow, error) {
-	row := q.db.QueryRow(ctx, getUpload,
-		arg.ID,
-		arg.CallerService,
-		arg.TenantID,
-		arg.WorkspaceID,
-	)
+	row := q.db.QueryRow(ctx, getUpload, arg.ID, arg.CallerService)
 	var i GetUploadRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
-		&i.WorkspaceID,
-		&i.UserID,
 		&i.CallerService,
 		&i.IdempotencyKey,
-		&i.Category,
 		&i.Filename,
 		&i.DeclaredMediaType,
 		&i.SizeBytes,
@@ -200,17 +181,14 @@ func (q *Queries) GetUpload(ctx context.Context, arg GetUploadParams) (GetUpload
 
 const insertAppendUpload = `-- name: InsertAppendUpload :one
 INSERT INTO upload_sessions
-(id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,
+(id,caller_service,idempotency_key,filename,declared_media_type,
 state,expires_at,created_at,updated_at,target_asset_id,base_revision_id,claim_owner_type,claim_owner_id,claim_slot,claim_generation)
-VALUES ($1,$2,$3,$4,$5,$6,'revision-append',$7,$8,'uploading',$9,$10,$10,$11,$12,$13,$14,$15,$16)
+VALUES ($1,$2,$3,$4,$5,'uploading',$6,$7,$7,$8,$9,$10,$11,$12,$13)
 ON CONFLICT DO NOTHING RETURNING id
 `
 
 type InsertAppendUploadParams struct {
 	ID                string
-	TenantID          string
-	WorkspaceID       string
-	UserID            string
 	CallerService     string
 	IdempotencyKey    *string
 	Filename          string
@@ -228,9 +206,6 @@ type InsertAppendUploadParams struct {
 func (q *Queries) InsertAppendUpload(ctx context.Context, arg InsertAppendUploadParams) (string, error) {
 	row := q.db.QueryRow(ctx, insertAppendUpload,
 		arg.ID,
-		arg.TenantID,
-		arg.WorkspaceID,
-		arg.UserID,
 		arg.CallerService,
 		arg.IdempotencyKey,
 		arg.Filename,
@@ -251,19 +226,15 @@ func (q *Queries) InsertAppendUpload(ctx context.Context, arg InsertAppendUpload
 
 const insertPendingUpload = `-- name: InsertPendingUpload :one
 INSERT INTO upload_sessions
-(id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,declared_size_bytes,state,expires_at,created_at,updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12,$12)
+(id,caller_service,idempotency_key,filename,declared_media_type,declared_size_bytes,state,expires_at,created_at,updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$8)
 ON CONFLICT DO NOTHING RETURNING id
 `
 
 type InsertPendingUploadParams struct {
 	ID                string
-	TenantID          string
-	WorkspaceID       string
-	UserID            string
 	CallerService     string
 	IdempotencyKey    *string
-	Category          string
 	Filename          string
 	DeclaredMediaType string
 	DeclaredSizeBytes *int64
@@ -274,12 +245,8 @@ type InsertPendingUploadParams struct {
 func (q *Queries) InsertPendingUpload(ctx context.Context, arg InsertPendingUploadParams) (string, error) {
 	row := q.db.QueryRow(ctx, insertPendingUpload,
 		arg.ID,
-		arg.TenantID,
-		arg.WorkspaceID,
-		arg.UserID,
 		arg.CallerService,
 		arg.IdempotencyKey,
-		arg.Category,
 		arg.Filename,
 		arg.DeclaredMediaType,
 		arg.DeclaredSizeBytes,
@@ -293,19 +260,15 @@ func (q *Queries) InsertPendingUpload(ctx context.Context, arg InsertPendingUplo
 
 const insertUpload = `-- name: InsertUpload :one
 INSERT INTO upload_sessions
-(id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,state,expires_at,created_at,updated_at)
-VALUES ($1,$2,$3,$4,$5,NULLIF($6::text,''),$7,$8,$9,'uploading',$10,$11,$11)
+(id,caller_service,idempotency_key,filename,declared_media_type,state,expires_at,created_at,updated_at)
+VALUES ($1,$2,NULLIF($3::text,''),$4,$5,'uploading',$6,$7,$7)
 ON CONFLICT DO NOTHING RETURNING id
 `
 
 type InsertUploadParams struct {
 	ID                string
-	TenantID          string
-	WorkspaceID       string
-	UserID            string
 	CallerService     string
 	IdempotencyKey    string
-	Category          string
 	Filename          string
 	DeclaredMediaType string
 	ExpiresAt         time.Time
@@ -315,12 +278,8 @@ type InsertUploadParams struct {
 func (q *Queries) InsertUpload(ctx context.Context, arg InsertUploadParams) (string, error) {
 	row := q.db.QueryRow(ctx, insertUpload,
 		arg.ID,
-		arg.TenantID,
-		arg.WorkspaceID,
-		arg.UserID,
 		arg.CallerService,
 		arg.IdempotencyKey,
-		arg.Category,
 		arg.Filename,
 		arg.DeclaredMediaType,
 		arg.ExpiresAt,
@@ -348,22 +307,19 @@ func (q *Queries) LeaseUploadCleanup(ctx context.Context, arg LeaseUploadCleanup
 }
 
 const lockExistingAppend = `-- name: LockExistingAppend :one
-SELECT id,user_id,filename,declared_media_type,state,COALESCE(target_asset_id::text,'')::text AS target_asset_id,COALESCE(base_revision_id::text,'')::text AS base_revision_id,
+SELECT id,filename,declared_media_type,state,COALESCE(target_asset_id::text,'')::text AS target_asset_id,COALESCE(base_revision_id::text,'')::text AS base_revision_id,
 COALESCE(claim_owner_type,'') AS claim_owner_type,COALESCE(claim_owner_id,'') AS claim_owner_id,COALESCE(claim_slot,'') AS claim_slot,COALESCE(claim_generation,0)::bigint AS claim_generation,COALESCE(asset_id::text,'')::text AS asset_id,COALESCE(revision_id::text,'')::text AS revision_id,expires_at
 FROM upload_sessions
-WHERE tenant_id=$1 AND workspace_id=$2 AND caller_service=$3 AND idempotency_key=$4 FOR UPDATE
+WHERE caller_service=$1 AND idempotency_key=$2 FOR UPDATE
 `
 
 type LockExistingAppendParams struct {
-	TenantID       string
-	WorkspaceID    string
 	CallerService  string
 	IdempotencyKey *string
 }
 
 type LockExistingAppendRow struct {
 	ID                string
-	UserID            string
 	Filename          string
 	DeclaredMediaType string
 	State             string
@@ -379,16 +335,10 @@ type LockExistingAppendRow struct {
 }
 
 func (q *Queries) LockExistingAppend(ctx context.Context, arg LockExistingAppendParams) (LockExistingAppendRow, error) {
-	row := q.db.QueryRow(ctx, lockExistingAppend,
-		arg.TenantID,
-		arg.WorkspaceID,
-		arg.CallerService,
-		arg.IdempotencyKey,
-	)
+	row := q.db.QueryRow(ctx, lockExistingAppend, arg.CallerService, arg.IdempotencyKey)
 	var i LockExistingAppendRow
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
 		&i.Filename,
 		&i.DeclaredMediaType,
 		&i.State,
@@ -406,23 +356,19 @@ func (q *Queries) LockExistingAppend(ctx context.Context, arg LockExistingAppend
 }
 
 const lockExistingUpload = `-- name: LockExistingUpload :one
-SELECT id,user_id,category,filename,declared_media_type,state,COALESCE(asset_id::text,'')::text AS asset_id,COALESCE(revision_id::text,'')::text AS revision_id
+SELECT id,filename,declared_media_type,state,COALESCE(asset_id::text,'')::text AS asset_id,COALESCE(revision_id::text,'')::text AS revision_id
 FROM upload_sessions
-WHERE tenant_id=$1 AND workspace_id=$2 AND caller_service=$3 AND idempotency_key=$4
+WHERE caller_service=$1 AND idempotency_key=$2
 FOR UPDATE
 `
 
 type LockExistingUploadParams struct {
-	TenantID       string
-	WorkspaceID    string
 	CallerService  string
 	IdempotencyKey *string
 }
 
 type LockExistingUploadRow struct {
 	ID                string
-	UserID            string
-	Category          string
 	Filename          string
 	DeclaredMediaType string
 	State             string
@@ -431,17 +377,10 @@ type LockExistingUploadRow struct {
 }
 
 func (q *Queries) LockExistingUpload(ctx context.Context, arg LockExistingUploadParams) (LockExistingUploadRow, error) {
-	row := q.db.QueryRow(ctx, lockExistingUpload,
-		arg.TenantID,
-		arg.WorkspaceID,
-		arg.CallerService,
-		arg.IdempotencyKey,
-	)
+	row := q.db.QueryRow(ctx, lockExistingUpload, arg.CallerService, arg.IdempotencyKey)
 	var i LockExistingUploadRow
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.Category,
 		&i.Filename,
 		&i.DeclaredMediaType,
 		&i.State,
@@ -483,29 +422,23 @@ func (q *Queries) LockExpiredUploads(ctx context.Context, arg LockExpiredUploads
 }
 
 const lockScopedUpload = `-- name: LockScopedUpload :one
-SELECT id,tenant_id,workspace_id,user_id,caller_service,COALESCE(idempotency_key,'')::text AS idempotency_key,
-category,filename,declared_media_type,COALESCE(declared_size_bytes,-1)::bigint AS size_bytes,state,
+SELECT id,caller_service,COALESCE(idempotency_key,'')::text AS idempotency_key,
+filename,declared_media_type,COALESCE(declared_size_bytes,-1)::bigint AS size_bytes,state,
 COALESCE(asset_id::text,'')::text AS asset_id,COALESCE(revision_id::text,'')::text AS revision_id,expires_at
 FROM upload_sessions
-WHERE tenant_id=$1 AND workspace_id=$2 AND caller_service=$3 AND idempotency_key=$4
+WHERE caller_service=$1 AND idempotency_key=$2
 FOR UPDATE
 `
 
 type LockScopedUploadParams struct {
-	TenantID       string
-	WorkspaceID    string
 	CallerService  string
 	IdempotencyKey *string
 }
 
 type LockScopedUploadRow struct {
 	ID                string
-	TenantID          string
-	WorkspaceID       string
-	UserID            string
 	CallerService     string
 	IdempotencyKey    string
-	Category          string
 	Filename          string
 	DeclaredMediaType string
 	SizeBytes         int64
@@ -516,21 +449,12 @@ type LockScopedUploadRow struct {
 }
 
 func (q *Queries) LockScopedUpload(ctx context.Context, arg LockScopedUploadParams) (LockScopedUploadRow, error) {
-	row := q.db.QueryRow(ctx, lockScopedUpload,
-		arg.TenantID,
-		arg.WorkspaceID,
-		arg.CallerService,
-		arg.IdempotencyKey,
-	)
+	row := q.db.QueryRow(ctx, lockScopedUpload, arg.CallerService, arg.IdempotencyKey)
 	var i LockScopedUploadRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
-		&i.WorkspaceID,
-		&i.UserID,
 		&i.CallerService,
 		&i.IdempotencyKey,
-		&i.Category,
 		&i.Filename,
 		&i.DeclaredMediaType,
 		&i.SizeBytes,
@@ -543,20 +467,16 @@ func (q *Queries) LockScopedUpload(ctx context.Context, arg LockScopedUploadPara
 }
 
 const lockUpload = `-- name: LockUpload :one
-SELECT id,tenant_id,workspace_id,user_id,caller_service,COALESCE(idempotency_key,'')::text AS idempotency_key,
-category,filename,declared_media_type,COALESCE(declared_size_bytes,-1)::bigint AS size_bytes,state,
+SELECT id,caller_service,COALESCE(idempotency_key,'')::text AS idempotency_key,
+filename,declared_media_type,COALESCE(declared_size_bytes,-1)::bigint AS size_bytes,state,
 COALESCE(asset_id::text,'')::text AS asset_id,COALESCE(revision_id::text,'')::text AS revision_id,expires_at
 FROM upload_sessions WHERE id=$1 FOR UPDATE
 `
 
 type LockUploadRow struct {
 	ID                string
-	TenantID          string
-	WorkspaceID       string
-	UserID            string
 	CallerService     string
 	IdempotencyKey    string
-	Category          string
 	Filename          string
 	DeclaredMediaType string
 	SizeBytes         int64
@@ -571,12 +491,8 @@ func (q *Queries) LockUpload(ctx context.Context, id string) (LockUploadRow, err
 	var i LockUploadRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
-		&i.WorkspaceID,
-		&i.UserID,
 		&i.CallerService,
 		&i.IdempotencyKey,
-		&i.Category,
 		&i.Filename,
 		&i.DeclaredMediaType,
 		&i.SizeBytes,
@@ -590,9 +506,9 @@ func (q *Queries) LockUpload(ctx context.Context, id string) (LockUploadRow, err
 
 const replaceAppendUpload = `-- name: ReplaceAppendUpload :exec
 INSERT INTO upload_sessions
-(id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,
+(id,caller_service,idempotency_key,filename,declared_media_type,
 state,expires_at,created_at,updated_at,target_asset_id,base_revision_id,claim_owner_type,claim_owner_id,claim_slot,claim_generation)
-SELECT $1::uuid,tenant_id,workspace_id,user_id,caller_service,$2::varchar,category,filename,declared_media_type,
+SELECT $1::uuid,caller_service,$2::varchar,filename,declared_media_type,
 'uploading',$3::pg_catalog.timestamptz,$4::pg_catalog.timestamptz,$4,target_asset_id,base_revision_id,claim_owner_type,claim_owner_id,claim_slot,claim_generation
 FROM upload_sessions AS old WHERE old.id=$5
 `

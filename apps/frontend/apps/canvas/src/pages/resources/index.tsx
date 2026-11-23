@@ -189,9 +189,8 @@ export default function ResourcesPage() {
           type: selectedType,
           files: [
             {
-              sourceAssetId: uploaded.SourceAssetID,
-              sourceRevisionId: uploaded.SourceRevisionID,
-              fileName: file.name,
+              uploadSessionId: uploaded.UploadSessionID,
+              clientRef: uploaded.ClientRef,
               name,
             },
           ],
@@ -253,9 +252,8 @@ export default function ResourcesPage() {
       const uploaded = await uploadResource(file);
       if (primary) {
         await replaceUploadedResourceAsset(projectId, item.ResourceID, primary, item.Revision, {
-          sourceAssetId: uploaded.SourceAssetID,
-          sourceRevisionId: uploaded.SourceRevisionID,
-          fileName: file.name,
+          uploadSessionId: uploaded.UploadSessionID,
+          clientRef: uploaded.ClientRef,
         });
         toast.add({
           type: "success",
@@ -263,9 +261,8 @@ export default function ResourcesPage() {
         });
       } else {
         await addResourceFile(projectId, item.ResourceID, item.Revision, {
-          sourceAssetId: uploaded.SourceAssetID,
-          sourceRevisionId: uploaded.SourceRevisionID,
-          fileName: file.name,
+          uploadSessionId: uploaded.UploadSessionID,
+          clientRef: uploaded.ClientRef,
           name: getResourceNameFromFile(file.name),
         });
         toast.add({

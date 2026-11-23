@@ -147,7 +147,7 @@ func (s SkillService) Workspace(ctx context.Context, actor Actor, id string) (do
 }
 
 func (s SkillService) File(ctx context.Context, actor Actor, skillID, nodeID string) (SkillFile, error) {
-	skill, err := s.Get(ctx, actor, skillID)
+	_, err := s.Get(ctx, actor, skillID)
 	if err != nil {
 		return SkillFile{}, err
 	}
@@ -160,7 +160,7 @@ func (s SkillService) File(ctx context.Context, actor Actor, skillID, nodeID str
 	}
 	var delivery *string
 	if node.StorageKind == "asset" && node.AssetID != nil && node.RevisionID != nil {
-		value, err := s.Assets.DeliveryURL(ctx, skill.TenantID, skill.WorkspaceID, *node.AssetID, *node.RevisionID)
+		value, err := s.Assets.DeliveryURL(ctx, *node.AssetID, *node.RevisionID)
 		if err != nil {
 			return SkillFile{}, err
 		}
@@ -233,8 +233,7 @@ func (s SkillService) PrepareUpload(ctx context.Context, actor Actor, skillID st
 	if limit > 0 && request.SizeBytes > limit {
 		return UploadSession{}, BadRequestf("%s exceeds the configured byte limit", purpose)
 	}
-	request.TenantID, request.WorkspaceID, request.UserID = actor.TenantID, actor.WorkspaceID, actor.UserID
-	request.IntentID, request.Category = uploadIntentID(skillID, purpose, clientRef), purpose
+	request.IntentID = uploadIntentID(skillID, purpose, clientRef)
 	return s.Assets.CreateUploadSession(ctx, request)
 }
 
@@ -297,7 +296,7 @@ func (s SkillService) ImportArchive(ctx context.Context, actor Actor, skillID, c
 	if revision.MediaType != "application/zip" && revision.MediaType != "application/x-zip-compressed" && revision.MediaType != "application/octet-stream" {
 		return SkillImportResult{}, BadRequest("skill import Asset must be a ZIP archive")
 	}
-	raw, err := s.Assets.DownloadRevision(ctx, actor.TenantID, actor.WorkspaceID, revision, s.ArchiveMaxBytes)
+	raw, err := s.Assets.DownloadRevision(ctx, revision, s.ArchiveMaxBytes)
 	if err != nil {
 		return SkillImportResult{}, err
 	}
@@ -311,7 +310,7 @@ func (s SkillService) ImportArchive(ctx context.Context, actor Actor, skillID, c
 			continue
 		}
 		digest := sha256.Sum256([]byte(revision.RevisionID + "\x00" + file.Path))
-		uploaded, err := s.Assets.UploadAsset(ctx, UploadAsset{TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, UserID: actor.UserID, Filename: path.Base(file.Path), MediaType: file.MediaType, IdempotencyKey: "skill-archive:" + hex.EncodeToString(digest[:]), Content: file.Content})
+		uploaded, err := s.Assets.UploadAsset(ctx, UploadAsset{Filename: path.Base(file.Path), MediaType: file.MediaType, IdempotencyKey: "skill-archive:" + hex.EncodeToString(digest[:]), Content: file.Content})
 		if err != nil {
 			return SkillImportResult{}, err
 		}
@@ -716,7 +715,7 @@ func (s SkillService) InternalFile(ctx context.Context, skillID, workspaceID, te
 		}
 		var delivery *string
 		if node.StorageKind == "asset" && node.AssetID != nil && node.RevisionID != nil {
-			url, err := s.Assets.DeliveryURL(ctx, tenantID, workspaceID, *node.AssetID, *node.RevisionID)
+			url, err := s.Assets.DeliveryURL(ctx, *node.AssetID, *node.RevisionID)
 			if err != nil {
 				return InternalSkillFile{}, err
 			}
@@ -728,7 +727,7 @@ func (s SkillService) InternalFile(ctx context.Context, skillID, workspaceID, te
 }
 
 func (s SkillService) resolveUpload(ctx context.Context, actor Actor, skillID, purpose, clientRef, uploadSessionID string) (AssetRevision, error) {
-	upload, err := s.Assets.GetUploadSession(ctx, actor.TenantID, actor.WorkspaceID, uploadSessionID)
+	upload, err := s.Assets.GetUploadSession(ctx, uploadSessionID)
 	if err != nil {
 		return AssetRevision{}, err
 	}
@@ -738,7 +737,7 @@ func (s SkillService) resolveUpload(ctx context.Context, actor Actor, skillID, p
 	if upload.State != "completed" || upload.AssetID == nil || upload.RevisionID == nil {
 		return AssetRevision{}, Conflict("upload session is not completed")
 	}
-	return s.Assets.DescribeRevision(ctx, actor.TenantID, actor.WorkspaceID, *upload.AssetID, *upload.RevisionID)
+	return s.Assets.DescribeRevision(ctx, *upload.AssetID, *upload.RevisionID)
 }
 
 func getSkill(ctx context.Context, repo SkillRepository, errors ErrorClassifier, actor Actor, id string, lock bool) (domain.Skill, error) {

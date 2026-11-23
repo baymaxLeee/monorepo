@@ -85,12 +85,21 @@ Admin、Knowledge、Canvas 与 Storage 对同集群 sibling 暴露标准 gRPC �
 
 - gateway 不代理 RPC 端口到公网；Single-VPS 和本地使用 h2c，不要求 sidecar。
 - 生成 client 自动携带固定 caller metadata、trace、deadline 和取消；接收方按 method allowlist 校验 caller。
-- 业务身份按具体契约携带 tenant/workspace/user，由调用方从认证上下文取得；
-  接收方继续校验资源 scope，不能只凭 caller token 或 user_id 授权。
+- 当前 h2c client 使用 insecure transport credentials；caller metadata 是网络隔离内的命名空间声明，
+  不是密码学 workload 认证。部署必须限制 RPC 端口可达面，服务端 allowlist 仍不能防止获准 sibling
+  伪造另一 caller。它不得替代最终用户或资源级授权。
+- 普通业务 owner 按具体契约携带 tenant/workspace/user，由调用方从认证上下文取得；
+  接收方继续校验资源 scope，不能只凭 caller token 或 user_id 授权。Runtime 是执行层例外：产品宿主
+  先完成这些业务授权，再传递冻结的 tenant-neutral capability；Runtime 不接收或保存业务身份字段。
+- Storage 是刻意的例外：其 Proto 与数据库不携带业务身份，以 deployment-allowlisted `x-caller-service` 划分
+  workload 命名空间，并以 caller-scoped exact-revision Claim 授权内部读取和 capability 签发。
+  tenant/workspace/user 授权留在资源所属服务；
+  对公网的上传和读取只能使用短期签名 capability，不能把裸资源 ID 当权限。
 - RPC 响应可包含**解密后**的敏感字段(API key 等),公开 API **绝不**
   返回相同形态 —— 必须脱敏（参考 Admin `internal/infrastructure/crypto.Mask`）。
 
-典型场景：Runtime 通过 Admin client 解析当前作用域的 provider snapshot。
+典型场景：Chat 通过 Admin RPC 按当前业务 scope 解析 provider/plugin/skill/media，并把冻结的
+tenant-neutral capability 传给 Runtime；Runtime 不凭 Session 反查 Admin 作用域。
 具体路由、缓存与刷新策略以 client 和 owner 契约为准，不把旧 TTL 写成平台规则。
 
 文档语义、解析和检索由 `knowledge` 持久化；文件 bytes 由 `storage` 统一保存。

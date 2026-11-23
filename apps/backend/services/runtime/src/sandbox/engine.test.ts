@@ -5,14 +5,11 @@ import { parseEnv } from "node:util";
 
 import { createApp } from "../bootstrap/sandbox-app.js";
 import { getSandboxSettings } from "../config/sandbox.js";
-import { filePath } from "./contracts.js";
+import { filePath, scopeSchema } from "./contracts.js";
 import { Engine, resourceName } from "./engine.js";
 
 const scope = {
-  tenant_id: "tenant",
-  workspace_id: "workspace",
-  user_id: "user",
-  conversation_id: "conversation",
+  session_id: "session",
   run_id: "run",
   attempt_epoch: "1",
 };
@@ -34,7 +31,7 @@ test("local Docker example selects runc explicitly without permitting production
   );
 });
 
-test("scope binding rejects tenant/user/conversation/run substitution before runtime access", async () => {
+test("scope binding rejects session/run/attempt substitution before runtime access", async () => {
   let touched = false;
   const engine = new Engine(config, async () => {
     touched = true;
@@ -44,6 +41,12 @@ test("scope binding rejects tenant/user/conversation/run substitution before run
     await assert.rejects(engine.assertOwner(resourceName(scope), { ...scope, [field]: "other" }), /scope mismatch/);
   }
   assert.equal(touched, false);
+});
+
+test("sandbox protocol rejects product identity fields", () => {
+  for (const identityField of ["tenant_id", "workspace_id", "user_id", "conversation_id"]) {
+    assert.throws(() => scopeSchema.parse({ ...scope, [identityField]: "product-identity" }));
+  }
 });
 
 test("only disappearance of the requested guest is a terminal 404", async () => {

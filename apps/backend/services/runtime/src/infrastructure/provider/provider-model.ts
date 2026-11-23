@@ -88,7 +88,7 @@ function normalizeOpenAIBaseUrl(raw: string): string {
 }
 
 function providerName(providerId: string): string {
-  return `adminProvider-${providerId}`;
+  return `capabilityProvider-${providerId}`;
 }
 
 function isJsonValue(value: unknown): value is JSONValue {

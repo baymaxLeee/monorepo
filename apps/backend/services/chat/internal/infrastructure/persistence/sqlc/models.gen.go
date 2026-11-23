@@ -29,3 +29,20 @@ type Conversation struct {
 	CreatedAt            pgtype.Timestamptz
 	UpdatedAt            pgtype.Timestamptz
 }
+
+type UserMemory struct {
+	ID           string
+	TenantID     string
+	WorkspaceID  string
+	UserID       string
+	Category     string
+	Content      string
+	Source       string
+	Confidence   int32
+	Status       string
+	Reason       *string
+	OriginTurnID *string
+	SupersedesID *string
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+}

@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import { authorizeConversationDocumentDelivery, authorizeConversationFileDelivery } from "./chat-server";
+import { authorizeConversationFileDelivery } from "./chat-server";
+import { authorizeDocumentDelivery } from "./knowledge-server";
 import { createStorageDownloadUrl, fetchAssetText } from "./storage-runtime";
 
 vi.mock("./http", () => ({
@@ -8,7 +9,6 @@ vi.mock("./http", () => ({
 }));
 vi.mock("./auth-fetch", () => ({ authFetch: vi.fn() }));
 vi.mock("./chat-server", () => ({
-  authorizeConversationDocumentDelivery: vi.fn(),
   authorizeConversationFileDelivery: vi.fn(),
 }));
 vi.mock("./knowledge-server", () => ({ authorizeDocumentDelivery: vi.fn() }));
@@ -41,7 +41,7 @@ it("binds conversation file delivery to the revision paired with the editor ETag
 });
 
 it("signs through the authorizing business owner and resolves the gateway URL", async () => {
-  vi.mocked(authorizeConversationDocumentDelivery).mockResolvedValue({
+  vi.mocked(authorizeDocumentDelivery).mockResolvedValue({
     asset_id: "asset",
     revision_id: "revision",
     url: "/api/storage-server/media/file?signature=capability",
@@ -60,12 +60,7 @@ it("signs through the authorizing business owner and resolves the gateway URL", 
     signal,
     512,
   );
-  expect(authorizeConversationDocumentDelivery).toHaveBeenCalledWith(
-    "c",
-    "d",
-    { max_dim: 512 },
-    { signal, skipErrorNotify: true },
-  );
+  expect(authorizeDocumentDelivery).toHaveBeenCalledWith("d", { signal, skipErrorNotify: true });
   expect(result.url).toBe("https://files.example/api/storage-server/media/file?signature=capability");
 });
 

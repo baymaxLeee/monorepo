@@ -15,7 +15,7 @@ test("text editing enforces UTF-8 bytes before persistence or upload", async (t)
   assert.equal(editableFileByteLimit(), 4);
   assert.doesNotThrow(() => assertEditableFileSize(4));
   await assert.rejects(
-    updateSessionFileContent({ userId: "user", tenantId: "tenant", workspaceId: "workspace" }, "session", "file", {
+    updateSessionFileContent("session", "file", {
       content: "中文",
       expectedEtag: '"etag"',
       operationId: "operation",

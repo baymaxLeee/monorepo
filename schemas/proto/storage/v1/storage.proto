@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package storage.v1;
 
-import "common/v1/context.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/example/monorepo/inner-api-go/gen/storage/v1;storagev1";
@@ -31,11 +30,9 @@ service DeliveryService {
 }
 
 message UploadMetadata {
-  common.v1.ActorContext actor = 1;
-  string filename = 2;
-  string media_type = 3;
-  string category = 4;
-  string idempotency_key = 5;
+  string filename = 1;
+  string media_type = 2;
+  string idempotency_key = 3;
 }
 
 message UploadRequest {
@@ -46,16 +43,15 @@ message UploadRequest {
 }
 
 message AppendRevisionMetadata {
-  common.v1.ActorContext actor = 1;
-  string asset_id = 2;
-  string filename = 3;
-  string media_type = 4;
-  string idempotency_key = 5;
-  string base_revision_id = 6;
-  string owner_type = 7;
-  string owner_id = 8;
-  string slot = 9;
-  int64 generation = 10;
+  string asset_id = 1;
+  string filename = 2;
+  string media_type = 3;
+  string idempotency_key = 4;
+  string base_revision_id = 5;
+  string owner_type = 6;
+  string owner_id = 7;
+  string slot = 8;
+  int64 generation = 9;
 }
 
 message AppendRevisionRequest {
@@ -83,20 +79,17 @@ message AppendRevisionResponse {
 }
 
 message DescribeRevisionRequest {
-  common.v1.ActorContext actor = 1;
-  string asset_id = 2;
-  string revision_id = 3;
+  string asset_id = 1;
+  string revision_id = 2;
 }
 
 message RevisionMetadata {
   string asset_id = 1;
   string revision_id = 2;
-  string category = 3;
-  string filename = 4;
-  string media_type = 5;
-  int64 size_bytes = 6;
-  string sha256 = 7;
-  string created_by = 8;
+  string filename = 3;
+  string media_type = 4;
+  int64 size_bytes = 5;
+  string sha256 = 6;
 }
 
 message DescribeRevisionResponse {
@@ -104,18 +97,16 @@ message DescribeRevisionResponse {
 }
 
 message ReadContentRequest {
-  common.v1.ActorContext actor = 1;
-  string asset_id = 2;
-  string revision_id = 3;
-  optional int64 offset = 4;
-  optional int64 limit = 5;
+  string asset_id = 1;
+  string revision_id = 2;
+  optional int64 offset = 3;
+  optional int64 limit = 4;
 }
 
 message ReadImageVariantRequest {
-  common.v1.ActorContext actor = 1;
-  string asset_id = 2;
-  string revision_id = 3;
-  optional int32 max_dimension = 4;
+  string asset_id = 1;
+  string revision_id = 2;
+  optional int32 max_dimension = 3;
 }
 
 message ContentMetadata {
@@ -158,7 +149,7 @@ enum ClaimStatus {
 message Claim {
   string claim_id = 1;
   string asset_id = 2;
-  optional string revision_id = 3;
+  string revision_id = 3;
   ClaimKind kind = 4;
   ClaimStatus status = 5;
   int64 generation = 6;
@@ -166,31 +157,28 @@ message Claim {
 }
 
 message PrepareClaimRequest {
-  common.v1.ActorContext actor = 1;
-  string owner_type = 2;
-  string owner_id = 3;
-  string slot = 4;
-  int64 generation = 5;
-  string asset_id = 6;
-  optional string revision_id = 7;
-  ClaimKind kind = 8;
-  optional google.protobuf.Timestamp expires_at = 9;
+  string owner_type = 1;
+  string owner_id = 2;
+  string slot = 3;
+  int64 generation = 4;
+  string asset_id = 5;
+  string revision_id = 6;
+  ClaimKind kind = 7;
+  optional google.protobuf.Timestamp expires_at = 8;
 }
 
 message ActivateClaimRequest {
-  common.v1.ActorContext actor = 1;
-  string owner_type = 2;
-  string owner_id = 3;
-  string slot = 4;
-  int64 generation = 5;
+  string owner_type = 1;
+  string owner_id = 2;
+  string slot = 3;
+  int64 generation = 4;
 }
 
 message ReleaseClaimRequest {
-  common.v1.ActorContext actor = 1;
-  string owner_type = 2;
-  string owner_id = 3;
-  string slot = 4;
-  int64 generation = 5;
+  string owner_type = 1;
+  string owner_id = 2;
+  string slot = 3;
+  int64 generation = 4;
 }
 
 message PrepareClaimResponse {
@@ -206,17 +194,14 @@ message ReleaseClaimResponse {
 }
 
 message CreateUploadSessionRequest {
-  common.v1.ActorContext actor = 1;
-  string intent_id = 2;
-  string filename = 3;
-  string media_type = 4;
-  string category = 5;
-  int64 size_bytes = 6;
+  string intent_id = 1;
+  string filename = 2;
+  string media_type = 3;
+  int64 size_bytes = 4;
 }
 
 message DescribeUploadSessionRequest {
-  common.v1.ActorContext actor = 1;
-  string upload_session_id = 2;
+  string upload_session_id = 1;
 }
 
 enum UploadSessionState {
@@ -232,15 +217,13 @@ message UploadSession {
   string upload_session_id = 1;
   string intent_id = 2;
   UploadSessionState state = 3;
-  string user_id = 4;
-  string category = 5;
-  string filename = 6;
-  string media_type = 7;
-  int64 size_bytes = 8;
-  google.protobuf.Timestamp expires_at = 9;
-  string upload_url = 10;
-  optional string asset_id = 11;
-  optional string revision_id = 12;
+  string filename = 4;
+  string media_type = 5;
+  int64 size_bytes = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  string upload_url = 8;
+  optional string asset_id = 9;
+  optional string revision_id = 10;
 }
 
 message CreateUploadSessionResponse {
@@ -252,10 +235,9 @@ message DescribeUploadSessionResponse {
 }
 
 message DeliveryCapabilityItem {
-  common.v1.ActorContext actor = 1;
-  string asset_id = 2;
-  string revision_id = 3;
-  optional int32 max_dimension = 4;
+  string asset_id = 1;
+  string revision_id = 2;
+  optional int32 max_dimension = 3;
 }
 
 message MintCapabilitiesRequest {

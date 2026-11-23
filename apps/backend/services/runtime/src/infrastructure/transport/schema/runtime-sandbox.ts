@@ -534,19 +534,13 @@ export interface components {
       message: string;
     };
     SandboxScope: {
-      tenant_id: string;
-      workspace_id: string;
-      user_id: string;
-      conversation_id: string;
+      session_id: string;
       run_id: string;
       attempt_epoch: string;
     };
     SandboxStart: {
       scope: {
-        tenant_id: string;
-        workspace_id: string;
-        user_id: string;
-        conversation_id: string;
+        session_id: string;
         run_id: string;
         attempt_epoch: string;
       };
@@ -640,10 +634,7 @@ export interface components {
     };
     SandboxContinue: {
       scope: {
-        tenant_id: string;
-        workspace_id: string;
-        user_id: string;
-        conversation_id: string;
+        session_id: string;
         run_id: string;
         attempt_epoch: string;
       };

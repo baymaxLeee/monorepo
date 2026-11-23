@@ -29,8 +29,8 @@ export function useCanvasAssetUpload({
           onProgress: () => undefined,
           onSuccess: (response) => {
             const uploaded = response as UploadAssetResult | undefined;
-            if (uploaded?.SourceAssetID && uploaded.SourceRevisionID) resolve(uploaded);
-            else reject(new Error("missing Asset revision"));
+            if (uploaded?.UploadSessionID && uploaded.ClientRef) resolve(uploaded);
+            else reject(new Error("missing Canvas upload receipt"));
           },
         });
       }),
@@ -53,9 +53,8 @@ export function useCanvasAssetUpload({
           await createNode(nodeType, {
             position: position ? { x: position.x + index * 28, y: position.y + index * 28 } : undefined,
             uploadedAsset: {
-              SourceAssetID: uploaded.SourceAssetID,
-              SourceRevisionID: uploaded.SourceRevisionID,
-              FileName: file.name,
+              UploadSessionID: uploaded.UploadSessionID,
+              ClientRef: uploaded.ClientRef,
             },
           });
         }

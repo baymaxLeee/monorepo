@@ -504,7 +504,7 @@ export function materializeCanvasStandaloneAssetReference(
   targetPort: canvasnode.CanvasPort,
   position: canvasnode.CanvasNodePosition,
 ) {
-  const uploaded = "SourceRevisionID" in reference;
+  const uploaded = "UploadSessionID" in reference;
   return canvasMaterializeAssetReference(
     projectId,
     canvasId,
@@ -514,9 +514,8 @@ export function materializeCanvasStandaloneAssetReference(
       asset_id: uploaded ? undefined : reference.AssetID,
       uploaded_asset: uploaded
         ? {
-            source_asset_id: reference.SourceAssetID,
-            source_revision_id: reference.SourceRevisionID,
-            file_name: reference.FileName,
+            upload_session_id: reference.UploadSessionID,
+            client_ref: reference.ClientRef,
           }
         : undefined,
       target_port: targetPort,

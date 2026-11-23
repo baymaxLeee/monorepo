@@ -33,6 +33,32 @@ func (q *Queries) ApplyClaimDelta(ctx context.Context, arg ApplyClaimDeltaParams
 	return err
 }
 
+const claimAuthorizesRevision = `-- name: ClaimAuthorizesRevision :one
+SELECT EXISTS(SELECT 1 FROM asset_claims
+WHERE owner_service=$1 AND asset_id=$2
+AND revision_id=$3::uuid AND status='active'
+AND (kind IN ('strong','snapshot') OR (kind='lease' AND expires_at >= $4)))
+`
+
+type ClaimAuthorizesRevisionParams struct {
+	OwnerService string
+	AssetID      string
+	RevisionID   string
+	ValidUntil   *time.Time
+}
+
+func (q *Queries) ClaimAuthorizesRevision(ctx context.Context, arg ClaimAuthorizesRevisionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, claimAuthorizesRevision,
+		arg.OwnerService,
+		arg.AssetID,
+		arg.RevisionID,
+		arg.ValidUntil,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const decrementBlockingClaims = `-- name: DecrementBlockingClaims :exec
 UPDATE assets SET blocking_claim_count=blocking_claim_count-1,state_version=state_version+1,updated_at=$1 WHERE id=$2
 `
@@ -47,14 +73,36 @@ func (q *Queries) DecrementBlockingClaims(ctx context.Context, arg DecrementBloc
 	return err
 }
 
+const getClaimReleaseFence = `-- name: GetClaimReleaseFence :one
+SELECT released_generation FROM claim_release_fences
+WHERE owner_service=$1 AND owner_type=$2 AND owner_id=$3 AND slot=$4
+`
+
+type GetClaimReleaseFenceParams struct {
+	OwnerService string
+	OwnerType    string
+	OwnerID      string
+	Slot         string
+}
+
+func (q *Queries) GetClaimReleaseFence(ctx context.Context, arg GetClaimReleaseFenceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getClaimReleaseFence,
+		arg.OwnerService,
+		arg.OwnerType,
+		arg.OwnerID,
+		arg.Slot,
+	)
+	var released_generation int64
+	err := row.Scan(&released_generation)
+	return released_generation, err
+}
+
 const lockClaim = `-- name: LockClaim :one
-SELECT id,tenant_id,workspace_id,owner_service,owner_type,owner_id,slot,asset_id,COALESCE(revision_id::text,'')::text AS revision_id,kind,status,generation,expires_at FROM asset_claims
-WHERE tenant_id=$1 AND workspace_id=$2 AND owner_service=$3 AND owner_type=$4 AND owner_id=$5 AND slot=$6 FOR UPDATE
+SELECT id,owner_service,owner_type,owner_id,slot,asset_id,revision_id::text AS revision_id,kind,status,generation,expires_at FROM asset_claims
+WHERE owner_service=$1 AND owner_type=$2 AND owner_id=$3 AND slot=$4 FOR UPDATE
 `
 
 type LockClaimParams struct {
-	TenantID     string
-	WorkspaceID  string
 	OwnerService string
 	OwnerType    string
 	OwnerID      string
@@ -63,8 +111,6 @@ type LockClaimParams struct {
 
 type LockClaimRow struct {
 	ID           string
-	TenantID     string
-	WorkspaceID  string
 	OwnerService string
 	OwnerType    string
 	OwnerID      string
@@ -79,8 +125,6 @@ type LockClaimRow struct {
 
 func (q *Queries) LockClaim(ctx context.Context, arg LockClaimParams) (LockClaimRow, error) {
 	row := q.db.QueryRow(ctx, lockClaim,
-		arg.TenantID,
-		arg.WorkspaceID,
 		arg.OwnerService,
 		arg.OwnerType,
 		arg.OwnerID,
@@ -89,8 +133,6 @@ func (q *Queries) LockClaim(ctx context.Context, arg LockClaimParams) (LockClaim
 	var i LockClaimRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
-		&i.WorkspaceID,
 		&i.OwnerService,
 		&i.OwnerType,
 		&i.OwnerID,
@@ -107,15 +149,13 @@ func (q *Queries) LockClaim(ctx context.Context, arg LockClaimParams) (LockClaim
 
 const lockClaimAssets = `-- name: LockClaimAssets :many
 SELECT id::text,state FROM assets
-WHERE (id=$1 OR id=NULLIF($2::text,'')::uuid) AND tenant_id=$3 AND workspace_id=$4
+WHERE id=$1 OR id=NULLIF($2::text,'')::uuid
 ORDER BY id FOR UPDATE
 `
 
 type LockClaimAssetsParams struct {
 	AssetID         string
 	PreviousAssetID string
-	TenantID        string
-	WorkspaceID     string
 }
 
 type LockClaimAssetsRow struct {
@@ -124,12 +164,7 @@ type LockClaimAssetsRow struct {
 }
 
 func (q *Queries) LockClaimAssets(ctx context.Context, arg LockClaimAssetsParams) ([]LockClaimAssetsRow, error) {
-	rows, err := q.db.Query(ctx, lockClaimAssets,
-		arg.AssetID,
-		arg.PreviousAssetID,
-		arg.TenantID,
-		arg.WorkspaceID,
-	)
+	rows, err := q.db.Query(ctx, lockClaimAssets, arg.AssetID, arg.PreviousAssetID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,13 +183,40 @@ func (q *Queries) LockClaimAssets(ctx context.Context, arg LockClaimAssetsParams
 	return items, nil
 }
 
+const lockClaimAuthorization = `-- name: LockClaimAuthorization :one
+SELECT id FROM asset_claims
+WHERE owner_service=$1 AND asset_id=$2
+AND revision_id=$3::uuid AND status='active'
+AND (kind IN ('strong','snapshot') OR (kind='lease' AND expires_at >= $4))
+ORDER BY id
+LIMIT 1
+FOR UPDATE
+`
+
+type LockClaimAuthorizationParams struct {
+	OwnerService string
+	AssetID      string
+	RevisionID   string
+	ValidUntil   *time.Time
+}
+
+func (q *Queries) LockClaimAuthorization(ctx context.Context, arg LockClaimAuthorizationParams) (string, error) {
+	row := q.db.QueryRow(ctx, lockClaimAuthorization,
+		arg.OwnerService,
+		arg.AssetID,
+		arg.RevisionID,
+		arg.ValidUntil,
+	)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockClaimSlot = `-- name: LockClaimSlot :exec
-SELECT pg_advisory_xact_lock(hashtextextended(concat_ws(E'\x1f',$1::text,$2::text,$3::text,$4::text,$5::text,$6::text),0))
+SELECT pg_advisory_xact_lock(hashtextextended(concat_ws(E'\x1f',$1::text,$2::text,$3::text,$4::text),0))
 `
 
 type LockClaimSlotParams struct {
-	TenantID     string
-	WorkspaceID  string
 	OwnerService string
 	OwnerType    string
 	OwnerID      string
@@ -163,8 +225,6 @@ type LockClaimSlotParams struct {
 
 func (q *Queries) LockClaimSlot(ctx context.Context, arg LockClaimSlotParams) error {
 	_, err := q.db.Exec(ctx, lockClaimSlot,
-		arg.TenantID,
-		arg.WorkspaceID,
 		arg.OwnerService,
 		arg.OwnerType,
 		arg.OwnerID,
@@ -174,13 +234,11 @@ func (q *Queries) LockClaimSlot(ctx context.Context, arg LockClaimSlotParams) er
 }
 
 const lockExistingClaim = `-- name: LockExistingClaim :one
-SELECT id,asset_id,COALESCE(revision_id::text,'')::text AS revision_id,kind,status,generation,expires_at FROM asset_claims
-WHERE tenant_id=$1 AND workspace_id=$2 AND owner_service=$3 AND owner_type=$4 AND owner_id=$5 AND slot=$6 FOR UPDATE
+SELECT id,asset_id,revision_id::text AS revision_id,kind,status,generation,expires_at FROM asset_claims
+WHERE owner_service=$1 AND owner_type=$2 AND owner_id=$3 AND slot=$4 FOR UPDATE
 `
 
 type LockExistingClaimParams struct {
-	TenantID     string
-	WorkspaceID  string
 	OwnerService string
 	OwnerType    string
 	OwnerID      string
@@ -199,8 +257,6 @@ type LockExistingClaimRow struct {
 
 func (q *Queries) LockExistingClaim(ctx context.Context, arg LockExistingClaimParams) (LockExistingClaimRow, error) {
 	row := q.db.QueryRow(ctx, lockExistingClaim,
-		arg.TenantID,
-		arg.WorkspaceID,
 		arg.OwnerService,
 		arg.OwnerType,
 		arg.OwnerID,
@@ -315,17 +371,23 @@ func (q *Queries) RevisionExists(ctx context.Context, arg RevisionExistsParams) 
 }
 
 const setClaimStatus = `-- name: SetClaimStatus :exec
-UPDATE asset_claims SET status=$1::varchar,updated_at=$2::pg_catalog.timestamptz,released_at=CASE WHEN $1::text='released' THEN $2::pg_catalog.timestamptz ELSE NULL::pg_catalog.timestamptz END WHERE id=$3
+UPDATE asset_claims SET status=$1::varchar,generation=$2,updated_at=$3::pg_catalog.timestamptz,released_at=CASE WHEN $1::text='released' THEN $3::pg_catalog.timestamptz ELSE NULL::pg_catalog.timestamptz END WHERE id=$4
 `
 
 type SetClaimStatusParams struct {
-	Status    string
-	UpdatedAt time.Time
-	ID        string
+	Status     string
+	Generation int64
+	UpdatedAt  time.Time
+	ID         string
 }
 
 func (q *Queries) SetClaimStatus(ctx context.Context, arg SetClaimStatusParams) error {
-	_, err := q.db.Exec(ctx, setClaimStatus, arg.Status, arg.UpdatedAt, arg.ID)
+	_, err := q.db.Exec(ctx, setClaimStatus,
+		arg.Status,
+		arg.Generation,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	return err
 }
 
@@ -346,16 +408,14 @@ func (q *Queries) UpdateClaimCount(ctx context.Context, arg UpdateClaimCountPara
 
 const upsertClaim = `-- name: UpsertClaim :exec
 INSERT INTO asset_claims
-(id,tenant_id,workspace_id,owner_service,owner_type,owner_id,slot,asset_id,revision_id,kind,status,generation,expires_at,created_at,updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9::text,'')::uuid,$10,'pending',$11,$12,$13,$13)
-ON CONFLICT (tenant_id,workspace_id,owner_service,owner_type,owner_id,slot) DO UPDATE SET
+(id,owner_service,owner_type,owner_id,slot,asset_id,revision_id,kind,status,generation,expires_at,created_at,updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7::uuid,$8,'pending',$9,$10,$11,$11)
+ON CONFLICT (owner_service,owner_type,owner_id,slot) DO UPDATE SET
 asset_id=EXCLUDED.asset_id,revision_id=EXCLUDED.revision_id,kind=EXCLUDED.kind,status='pending',generation=EXCLUDED.generation,expires_at=EXCLUDED.expires_at,updated_at=EXCLUDED.updated_at,released_at=NULL
 `
 
 type UpsertClaimParams struct {
 	ID           string
-	TenantID     string
-	WorkspaceID  string
 	OwnerService string
 	OwnerType    string
 	OwnerID      string
@@ -371,8 +431,6 @@ type UpsertClaimParams struct {
 func (q *Queries) UpsertClaim(ctx context.Context, arg UpsertClaimParams) error {
 	_, err := q.db.Exec(ctx, upsertClaim,
 		arg.ID,
-		arg.TenantID,
-		arg.WorkspaceID,
 		arg.OwnerService,
 		arg.OwnerType,
 		arg.OwnerID,
@@ -385,4 +443,36 @@ func (q *Queries) UpsertClaim(ctx context.Context, arg UpsertClaimParams) error 
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const upsertClaimReleaseFence = `-- name: UpsertClaimReleaseFence :one
+INSERT INTO claim_release_fences
+(owner_service,owner_type,owner_id,slot,released_generation,updated_at)
+VALUES ($1,$2,$3,$4,$5,$6)
+ON CONFLICT (owner_service,owner_type,owner_id,slot) DO UPDATE SET
+released_generation=GREATEST(claim_release_fences.released_generation,EXCLUDED.released_generation),updated_at=EXCLUDED.updated_at
+RETURNING released_generation
+`
+
+type UpsertClaimReleaseFenceParams struct {
+	OwnerService       string
+	OwnerType          string
+	OwnerID            string
+	Slot               string
+	ReleasedGeneration int64
+	UpdatedAt          time.Time
+}
+
+func (q *Queries) UpsertClaimReleaseFence(ctx context.Context, arg UpsertClaimReleaseFenceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, upsertClaimReleaseFence,
+		arg.OwnerService,
+		arg.OwnerType,
+		arg.OwnerID,
+		arg.Slot,
+		arg.ReleasedGeneration,
+		arg.UpdatedAt,
+	)
+	var released_generation int64
+	err := row.Scan(&released_generation)
+	return released_generation, err
 }

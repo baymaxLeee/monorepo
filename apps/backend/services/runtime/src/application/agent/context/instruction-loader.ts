@@ -1,19 +1,9 @@
 import type { InstructionInput, MemoryDatum } from "@repo/agent-runtime";
 
-import { listActiveMemories } from "../memory/repository.js";
-
-export async function loadInstructionContext(params: { userId: string }): Promise<InstructionInput> {
-  const memories = await listActiveMemories(params.userId);
-
-  const memoryData: MemoryDatum[] = memories.map((memory) => ({
-    id: memory.id,
-    category: memory.category,
-    confidence: memory.confidence,
-    content: memory.content,
-  }));
-
+/** Product memory is projected by the upper host, never loaded from Runtime-owned identity state. */
+export function loadInstructionContext(memories: readonly MemoryDatum[]): InstructionInput {
   return {
-    memories: memoryData,
+    memories: [...memories],
     activatedSkill: null,
   };
 }

@@ -52,10 +52,8 @@ export async function batchSubmitAssetReviews(
       asset_id: source.AssetID,
       upload: source.Upload
         ? {
-            source_asset_id: source.Upload.SourceAssetID,
-            source_revision_id: source.Upload.SourceRevisionID,
-            client_id: source.Upload.ClientID,
-            file_name: source.Upload.FileName,
+            upload_session_id: source.Upload.UploadSessionID,
+            client_ref: source.Upload.ClientRef,
           }
         : undefined,
     })),

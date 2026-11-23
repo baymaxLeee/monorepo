@@ -14,38 +14,24 @@ export function forkMessageContent(
     sourceId: string;
     sessionId: string;
     messageId: string;
-    documentIds: Record<string, string>;
     fileIds: Record<string, string>;
   },
 ): PersistedThreadItemContent {
-  const { sourceId, sessionId, documentIds, fileIds } = input;
+  const { sourceId, sessionId, fileIds } = input;
   function remap(value: unknown, key = ""): unknown {
     if (Array.isArray(value)) return value.map((entry) => remap(entry, key));
     if (record(value))
       return Object.fromEntries(Object.entries(value).map(([name, entry]) => [name, remap(entry, name)]));
     if (typeof value !== "string") return value;
-    if (key === "document_id" || key === "documentId") return documentIds[value] ?? value;
     if (key === "file_id" || key === "fileId") return fileIds[value] ?? value;
     if (key === "url") {
-      const url = new URL(value, "http://fork.internal");
-      const documentPrefix = `/sessions/${sourceId}/documents/`;
       const filePrefix = `/sessions/${sourceId}/files/`;
-      const documentId = url.searchParams.get("document_id");
       const fileId = sessionFileIdFromUrl(value, sourceId);
-      if (value.includes(documentPrefix)) {
-        if (!documentId || !documentIds[documentId]) throw new ConflictError("历史附件已不可用，无法创建完整分支");
-        url.pathname = url.pathname.replace(
-          `${documentPrefix}${documentId}`,
-          `/sessions/${sessionId}/documents/${documentIds[documentId]}`,
-        );
-        url.searchParams.set("document_id", documentIds[documentId]);
-      } else if (value.includes(filePrefix)) {
+      if (value.includes(filePrefix)) {
         if (!fileId || !fileIds[fileId]) throw new ConflictError("历史文件已不可用，无法创建完整分支");
         return sessionFileUrl(sessionId, fileIds[fileId]!);
-      } else {
-        return value;
       }
-      return value.startsWith("/") ? `${url.pathname}${url.search}${url.hash}` : url.href;
+      return value;
     }
     return value;
   }

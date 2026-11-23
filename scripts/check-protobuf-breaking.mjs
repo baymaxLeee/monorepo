@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const FILE_REPLACEMENT = "FILE_REPLACEMENT";
 
 export function parseAgainst(value) {
   const match = /^\.git#ref=([^,]+),subdir=(.+)$/.exec(value);
@@ -13,10 +14,17 @@ export function parseAgainst(value) {
 }
 
 export function unexpectedDiagnostics(diagnostics, allowlist, baselineHashes) {
+  const fileReplacements = allowlist.filter(
+    (entry) => entry.type === FILE_REPLACEMENT && baselineHashes.get(entry.baselinePath) === entry.baselineSha256,
+  );
   const remaining = [...allowlist];
   return diagnostics.filter((diagnostic) => {
+    if (diagnostic.path && fileReplacements.some((entry) => diagnostic.path.endsWith(entry.baselinePath))) {
+      return false;
+    }
     const index = remaining.findIndex(
       (entry) =>
+        entry.type !== FILE_REPLACEMENT &&
         baselineHashes.get(entry.baselinePath) === entry.baselineSha256 &&
         diagnostic.type === entry.type &&
         diagnostic.message === entry.message &&
@@ -61,7 +69,7 @@ export function checkBreaking(against, root = ROOT, spawn = spawnSync) {
     for (const diagnostic of unexpected) process.stderr.write(`${JSON.stringify(diagnostic)}\n`);
     return result.status ?? 1;
   }
-  process.stdout.write(`Accepted ${diagnostics.length} explicitly approved protobuf deletions.\n`);
+  process.stdout.write(`Accepted ${diagnostics.length} explicitly approved protobuf breaking changes.\n`);
   return 0;
 }
 

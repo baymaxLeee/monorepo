@@ -75,7 +75,7 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen on storage RPC port: %w", err)
 	}
-	rpcServer := innerruntime.NewServer(innerruntime.ServerOptions{Authorizer: rpcapi.Authorizer()})
+	rpcServer := innerruntime.NewServer(innerruntime.ServerOptions{Authorizer: rpcapi.Authorizer(cfg.RPCAllowedCallers)})
 	rpcapi.Register(rpcServer, service, delivery, func(session application.UploadSession) string {
 		return httpapi.UploadSessionURL(cfg.SigningKey, session)
 	})

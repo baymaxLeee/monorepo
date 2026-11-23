@@ -9,8 +9,6 @@ data:
   POSTGRES_DATABASE: "runtime"
   REDIS_PORT: "6379"
   REDIS_DB: "2"
-  ADMIN_RPC_TARGET: "admin:9001"
-  KNOWLEDGE_RPC_TARGET: "knowledge:9010"
   KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"
   CANVAS_SERVICE_URL: "http://canvas:8012"
   STORAGE_RPC_TARGET: "storage:9013"

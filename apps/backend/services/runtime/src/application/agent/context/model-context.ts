@@ -131,9 +131,6 @@ async function saveCheckpoint(
 export async function projectModelContext(input: {
   owner: RunLeaseToken;
   sessionId: string;
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
   provider: LanguageProviderSnapshot & { supportsImageInput: boolean };
   historyRevision: number;
   historyDigest: string;
@@ -234,9 +231,6 @@ export async function projectModelContext(input: {
     },
     prepareRecent: (messages) =>
       transformFilePartsForModel(messages, {
-        userId: input.userId,
-        tenantId: input.tenantId,
-        workspaceId: input.workspaceId,
         sessionId: input.sessionId,
         supportsImageInput: input.provider.supportsImageInput,
         signal: input.abortSignal,

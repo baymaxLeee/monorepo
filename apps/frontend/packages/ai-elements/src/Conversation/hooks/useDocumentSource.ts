@@ -1,8 +1,5 @@
-import {
-  authorizeConversationFileDelivery,
-  authorizeConversationDocumentDelivery,
-  type ConversationDocumentDetail,
-} from "@repo/api/chat";
+import { authorizeConversationFileDelivery } from "@repo/api/chat";
+import { type Document, authorizeDocumentDelivery } from "@repo/api/knowledge";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;
@@ -12,6 +9,8 @@ export type DocumentSourceOptions = {
   version?: string;
   maxDim?: number;
 };
+
+type ConversationDocumentDetail = Document & { content_md?: string };
 
 const sourceCache = new Map<string, Promise<Blob>>();
 
@@ -53,8 +52,11 @@ export function fetchCachedDocumentSource(
     }
   }
 
-  const authorize = kind === "file" ? authorizeConversationFileDelivery : authorizeConversationDocumentDelivery;
-  const request = authorize(conversationId, documentId, maxDim ? { max_dim: maxDim } : undefined)
+  const request = (
+    kind === "file"
+      ? authorizeConversationFileDelivery(conversationId, documentId, maxDim ? { max_dim: maxDim } : undefined)
+      : authorizeDocumentDelivery(documentId)
+  )
     .then(async (capability) => {
       const response = await fetch(capability.url, { credentials: "omit", referrerPolicy: "no-referrer" });
       if (!response.ok) throw new Error(`document download failed: ${response.status}`);

@@ -11,10 +11,6 @@ import type { components, paths } from "./schema/runtime-worker.js";
 
 export type Task = components["schemas"]["Task"];
 export type CreateTaskInput = components["schemas"]["CreateTaskInput"];
-export type VideoProductionProjection = components["schemas"]["VideoProductionProjection"];
-export type ProductionDecision = components["schemas"]["ProductionDecision"];
-export type VideoProductionDetail =
-  paths["/video-productions/{id}"]["get"]["responses"][200]["content"]["application/json"];
 export type TaskWatchFrame = components["schemas"]["TaskWatchFrame"];
 
 export interface RuntimeWorkerClientOptions {
@@ -58,6 +54,22 @@ export class RuntimeWorkerClient {
     throw toTransportError(response, error);
   }
 
+  async getTask(id: string, owner: { owner_service: string; owner_ref: string }): Promise<Task> {
+    const { data, error, response } = await this.client.GET("/tasks/{id}", {
+      params: {
+        path: { id },
+        query: {
+          owner_service: owner.owner_service,
+          owner_ref: owner.owner_ref,
+        },
+      },
+    });
+    if (data) {
+      return data;
+    }
+    throw toTransportError(response, error);
+  }
+
   async *watchTask(
     id: string,
     owner: { owner_service: string; owner_ref: string },
@@ -80,27 +92,6 @@ export class RuntimeWorkerClient {
         yield JSON.parse(event.data) as TaskWatchFrame;
       }
     }
-  }
-
-  async getVideoProduction(id: string): Promise<VideoProductionDetail> {
-    const { data, error, response } = await this.client.GET("/video-productions/{id}", {
-      params: { path: { id } },
-    });
-    if (data) {
-      return data;
-    }
-    throw toTransportError(response, error);
-  }
-
-  async decideVideoProduction(id: string, decision: ProductionDecision): Promise<VideoProductionProjection> {
-    const { data, error, response } = await this.client.POST("/video-productions/{id}/decisions", {
-      params: { path: { id } },
-      body: decision,
-    });
-    if (data) {
-      return data;
-    }
-    throw toTransportError(response, error);
   }
 }
 

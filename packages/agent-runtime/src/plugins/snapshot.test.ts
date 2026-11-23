@@ -9,9 +9,8 @@ test("persisted plugin snapshot strips grants and unknown secret-bearing fields"
     schemaVersion: 1,
     snapshotId: "snapshot-1",
     snapshotDigest: `sha256:${"a".repeat(64)}`,
-    tenantId: "host-owned-tenant",
-    workspaceId: "host-owned-workspace",
-    workspaceRevision: 7,
+    hostPrivateContext: "host-owned-private-context",
+    hostPrivateRevision: 7,
     resolvedAt: "2026-11-19T00:00:00.000Z",
     plugins: [
       {

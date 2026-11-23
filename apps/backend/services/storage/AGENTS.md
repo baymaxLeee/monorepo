@@ -10,16 +10,27 @@ exclusive local filesystem volume containing durable bytes.
   paths, buckets, or object keys.
 - Product meaning and owner existence remain authoritative in the caller. Storage
   stores the lifecycle claim projection and never reads another service's DB.
+- Storage protocol, persistence and production models never accept or persist
+  tenant, workspace or business-user identity. `x-caller-service` is a
+  deployment-allowlisted workload namespace declaration on the internal RPC
+  transport, not cryptographic workload authentication. Claim owner fields are caller-local
+  opaque identifiers rather than product identity columns.
 - Upload and download bodies are streamed. Never use `io.ReadAll` or parse a
   complete multipart body.
 - A cached claim count is only a scan hint. Collection rechecks claim rows and
   fails closed.
-- Filesystem deletion is an idempotent durable effect. Quota is released only
-  after deletion is confirmed.
+- Filesystem deletion is an idempotent durable effect. Destructive metadata
+  cleanup happens only after byte deletion is confirmed.
 - The filesystem adapter is supported for single-VPS production and requires a
   single writer. Future object stores implement the same application port.
 
 Follow the parent backend rules and docs/ADR/files-and-assets.md.
 
-- Resource owners authorize reads before internal capability minting. Public delivery accepts only signed capabilities; workspace identity alone never grants file access.
+- Resource owners authorize reads before internal capability minting. Minting
+  requires an active strong/snapshot Claim, or a lease covering the capability
+  lifetime, owned by the calling workload for the exact revision. A new Claim
+  must derive from that same authority; a completed upload creates the caller's
+  24-hour exact-revision lease as its initial authorization root. Public upload
+  and delivery accept only short-lived signed capabilities; an Asset, Revision
+  or UploadSession ID alone never grants public access.
 - Image variants are bounded derivatives; original bytes remain immutable and streamed.

@@ -57,8 +57,8 @@ import styles from "./ResourceDialog.module.css";
 import dialogSizing from "@/components/DialogSizing.module.css";
 
 interface PendingResourceFile {
-  sourceAssetId?: string;
-  sourceRevisionId?: string;
+  uploadSessionId?: string;
+  clientRef?: string;
   file: File;
   id: string;
   name: string;
@@ -211,8 +211,8 @@ export function ResourceDialog({
             file.id === item.id
               ? {
                   ...file,
-                  sourceAssetId: uploaded.SourceAssetID,
-                  sourceRevisionId: uploaded.SourceRevisionID,
+                  uploadSessionId: uploaded.UploadSessionID,
+                  clientRef: uploaded.ClientRef,
                   status: "ready",
                 }
               : file,
@@ -325,11 +325,10 @@ export function ResourceDialog({
           description,
           type,
           files: pendingFiles
-            .filter((file) => file.status === "ready" && file.sourceAssetId && file.sourceRevisionId)
+            .filter((file) => file.status === "ready" && file.uploadSessionId && file.clientRef)
             .map((file) => ({
-              sourceAssetId: file.sourceAssetId as string,
-              sourceRevisionId: file.sourceRevisionId as string,
-              fileName: file.file.name,
+              uploadSessionId: file.uploadSessionId as string,
+              clientRef: file.clientRef as string,
               name: file.name,
             })),
         });

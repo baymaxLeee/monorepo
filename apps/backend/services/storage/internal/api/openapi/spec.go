@@ -14,7 +14,7 @@ func document() map[string]any {
 		"servers": []map[string]string{{"url": "/api/storage-server"}},
 		"paths": map[string]any{
 			"/upload-sessions/{uploadID}/content":             map[string]any{"put": map[string]any{"operationId": "storageUploadSessionContent", "summary": "Upload bytes through a domain-authorized capability", "parameters": []any{pathID("uploadID"), query("expires"), query("signature")}, "requestBody": map[string]any{"required": true, "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}, "responses": map[string]any{"201": jsonResponse(map[string]any{"$ref": "#/components/schemas/UploadResult"}), "400": problemResponse(), "403": problemResponse(), "409": problemResponse()}}},
-			"/media/{assetID}/revisions/{revisionID}/content": map[string]any{"parameters": []any{pathID("assetID"), pathID("revisionID"), query("tenant_id"), query("workspace_id"), query("expires"), query("signature"), maxDimQuery()}, "get": contentOperation("storageReadCapabilityContent"), "head": contentOperation("storageHeadCapabilityContent")},
+			"/media/{assetID}/revisions/{revisionID}/content": map[string]any{"parameters": []any{pathID("assetID"), pathID("revisionID"), query("expires"), query("signature"), maxDimQuery()}, "get": contentOperation("storageReadCapabilityContent"), "head": contentOperation("storageHeadCapabilityContent")},
 		},
 		"components": map[string]any{"schemas": map[string]any{
 			"Problem":      problem,

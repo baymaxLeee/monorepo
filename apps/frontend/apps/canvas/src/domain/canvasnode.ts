@@ -337,11 +337,10 @@ export interface CanvasNodePositionUpdate {
   Position: CanvasNodePosition;
 }
 
-/** CanvasUploadedAsset 是由节点创建或素材物化直接消费的平台 Asset revision。 */
+/** CanvasUploadedAsset 是由节点创建或素材物化消费的 Canvas 上传凭据。 */
 export interface CanvasUploadedAsset {
-  SourceAssetID: string;
-  SourceRevisionID: string;
-  FileName: string;
+  UploadSessionID: string;
+  ClientRef: string;
 }
 
 export interface ConfirmCanvasNodeDraftsRequest {
@@ -390,9 +389,8 @@ export interface CreateCanvasAssetRequest {
   WorkspaceID?: string;
   ProjectID: string;
   CanvasID: string;
-  SourceAssetID: string;
-  SourceRevisionID: string;
-  FileName: string;
+  UploadSessionID: string;
+  ClientRef: string;
 }
 
 export interface CreateCanvasAssetResponse {

@@ -88,6 +88,13 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 		"type": "object", "required": []any{"title"}, "additionalProperties": false,
 		"properties": map[string]any{"title": map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(200)}},
 	}
+	schemas["UpdateConversationModelInput"] = map[string]any{
+		"type": "object", "required": []any{"provider_id", "reasoning_effort"}, "additionalProperties": false,
+		"properties": map[string]any{
+			"provider_id":      map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(32)},
+			"reasoning_effort": map[string]any{"$ref": "#/components/schemas/ReasoningEffort"},
+		},
+	}
 	schemas["Conversation"] = map[string]any{
 		"type":     "object",
 		"required": []any{"id", "user_id", "tenant_id", "workspace_id", "title", "plugin_selections", "created_at", "updated_at"},
@@ -111,6 +118,30 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 	conversationDetail["properties"] = detailProperties
 	schemas["ConversationDetail"] = conversationDetail
 
+	localConfigPath := object(projectedPaths["/local-inference/config"])
+	localConfigOperation := object(localConfigPath["post"])
+	delete(localConfigOperation, "requestBody")
+	localConfigOperation["operationId"] = "getLocalInferenceConfig"
+	localConfigOperation["parameters"] = []any{
+		map[string]any{"name": "provider_id", "in": "query", "required": true, "schema": stringSchema},
+		map[string]any{"name": "reasoning_effort", "in": "query", "required": true, "schema": map[string]any{"$ref": "#/components/schemas/ReasoningEffort"}},
+	}
+	delete(localConfigPath, "post")
+	localConfigPath["get"] = localConfigOperation
+	projectedPaths["/local-inference/config"] = localConfigPath
+
+	localStreamPath := object(projectedPaths["/local-inference/stream"])
+	localStreamOperation := object(localStreamPath["post"])
+	localStreamRequestBody := object(localStreamOperation["requestBody"])
+	localStreamContent := object(localStreamRequestBody["content"])
+	localStreamJSON := object(localStreamContent["application/json"])
+	localStreamJSON["schema"] = object(object(schemas["LocalInferenceStreamRequest"])["properties"])["request"]
+	localStreamContent["application/json"] = localStreamJSON
+	localStreamRequestBody["content"] = localStreamContent
+	localStreamOperation["requestBody"] = localStreamRequestBody
+	localStreamPath["post"] = localStreamOperation
+	projectedPaths["/local-inference/stream"] = localStreamPath
+
 	contextCategory := object(schemas["ConversationContextCategory"])
 	contextProperties := object(contextCategory["properties"])
 	contextID := object(contextProperties["id"])
@@ -128,6 +159,7 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 		"type": "object", "required": []any{"id", "project_id", "canvas_id"},
 		"properties": map[string]any{"id": stringSchema, "project_id": stringSchema, "canvas_id": stringSchema},
 	}
+	addMemorySchemas(schemas)
 	components["schemas"] = schemas
 	contract["components"] = components
 
@@ -145,6 +177,18 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 		}},
 	}
 	projectedPaths["/conversations/{conversation_id}"] = conversationPath
+	conversationsPath := object(projectedPaths["/conversations"])
+	conversationsPath["get"] = map[string]any{
+		"operationId": "listConversations",
+		"responses": map[string]any{"200": map[string]any{
+			"description": "conversations visible in the authenticated product scope", "content": map[string]any{
+				"application/json": map[string]any{"schema": map[string]any{
+					"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Conversation"},
+				}},
+			},
+		}},
+	}
+	projectedPaths["/conversations"] = conversationsPath
 	projectedPaths["/conversations/canvas"] = map[string]any{"post": map[string]any{
 		"operationId": "createCanvasConversation",
 		"requestBody": map[string]any{"required": true, "content": map[string]any{
@@ -156,7 +200,96 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 			},
 		}},
 	}}
+	addMemoryPaths(projectedPaths)
 	return json.MarshalIndent(contract, "", "  ")
+}
+
+func addMemorySchemas(schemas map[string]any) {
+	ref := func(name string) map[string]any { return map[string]any{"$ref": "#/components/schemas/" + name} }
+	schemas["MemoryCategory"] = map[string]any{
+		"type": "string", "enum": []any{"preference", "profile", "project", "instruction"},
+	}
+	schemas["UserMemory"] = map[string]any{
+		"type": "object", "required": []any{"id", "category", "content", "confidence"},
+		"properties": map[string]any{
+			"id": map[string]any{"type": "string"}, "category": ref("MemoryCategory"),
+			"content": map[string]any{"type": "string"}, "confidence": map[string]any{"type": "integer"},
+		},
+	}
+	schemas["MemoryCandidate"] = map[string]any{
+		"type": "object", "required": []any{"id", "category", "content", "reason", "supersedesId", "createdAt"},
+		"properties": map[string]any{
+			"id": map[string]any{"type": "string"}, "category": ref("MemoryCategory"),
+			"content": map[string]any{"type": "string"}, "reason": map[string]any{"type": "string", "nullable": true},
+			"supersedesId": map[string]any{"type": "string", "nullable": true},
+			"createdAt":    map[string]any{"type": "string", "format": "date-time"},
+		},
+	}
+	schemas["UserMemoryList"] = objectListSchema("memories", ref("UserMemory"))
+	schemas["MemoryCandidateList"] = objectListSchema("candidates", ref("MemoryCandidate"))
+	schemas["UpdateMemoryCandidate"] = map[string]any{
+		"type": "object", "minProperties": float64(1),
+		"properties": map[string]any{
+			"category": ref("MemoryCategory"),
+			"content":  map[string]any{"type": "string", "minLength": float64(5), "maxLength": float64(500)},
+		},
+	}
+	schemas["UpdatedMemoryCandidate"] = objectPropertySchema("candidate", ref("MemoryCandidate"))
+	schemas["ApprovedMemory"] = objectPropertySchema("memory", ref("UserMemory"))
+	schemas["RejectedMemory"] = objectPropertySchema("rejected", map[string]any{"type": "boolean"})
+	schemas["DeletedMemory"] = objectPropertySchema("deleted", map[string]any{"type": "boolean"})
+}
+
+func addMemoryPaths(paths map[string]any) {
+	response := func(description, schema string) map[string]any {
+		return map[string]any{"200": map[string]any{
+			"description": description,
+			"content": map[string]any{"application/json": map[string]any{
+				"schema": map[string]any{"$ref": "#/components/schemas/" + schema},
+			}},
+		}}
+	}
+	idParameter := []any{map[string]any{
+		"name": "id", "in": "path", "required": true, "schema": map[string]any{"type": "string"},
+	}}
+	paths["/memories"] = map[string]any{"get": map[string]any{
+		"operationId": "listActiveMemories", "responses": response("list active user memories", "UserMemoryList"),
+	}}
+	paths["/memories/candidates"] = map[string]any{"get": map[string]any{
+		"operationId": "listMemoryCandidates", "responses": response("list pending memory candidates", "MemoryCandidateList"),
+	}}
+	paths["/memories/candidates/{id}"] = map[string]any{"patch": map[string]any{
+		"operationId": "updateMemoryCandidate", "parameters": idParameter,
+		"requestBody": map[string]any{"required": true, "content": map[string]any{
+			"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/UpdateMemoryCandidate"}},
+		}},
+		"responses": response("edit a pending memory candidate before approval", "UpdatedMemoryCandidate"),
+	}}
+	paths["/memories/candidates/{id}/approve"] = map[string]any{"post": map[string]any{
+		"operationId": "approveMemoryCandidate", "parameters": idParameter,
+		"responses": response("approve a memory candidate into active memory", "ApprovedMemory"),
+	}}
+	paths["/memories/candidates/{id}/reject"] = map[string]any{"post": map[string]any{
+		"operationId": "rejectMemoryCandidate", "parameters": idParameter,
+		"responses": response("reject a memory candidate", "RejectedMemory"),
+	}}
+	paths["/memories/{id}"] = map[string]any{"delete": map[string]any{
+		"operationId": "deleteMemory", "parameters": idParameter,
+		"responses": response("delete a stored memory", "DeletedMemory"),
+	}}
+}
+
+func objectListSchema(name string, item map[string]any) map[string]any {
+	return map[string]any{
+		"type": "object", "required": []any{name},
+		"properties": map[string]any{name: map[string]any{"type": "array", "items": item}},
+	}
+}
+
+func objectPropertySchema(name string, property map[string]any) map[string]any {
+	return map[string]any{
+		"type": "object", "required": []any{name}, "properties": map[string]any{name: property},
+	}
 }
 
 func ProjectFile(path string) ([]byte, error) {

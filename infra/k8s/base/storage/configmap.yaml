@@ -6,6 +6,7 @@ data:
   ENVIRONMENT: "development"
   PORT: "8013"
   RPC_PORT: "9013"
+  STORAGE_RPC_ALLOWED_CALLERS: "admin,canvas,runtime,knowledge"
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "storage"
   POSTGRES_SSLMODE: "disable"

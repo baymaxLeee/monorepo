@@ -22,11 +22,9 @@ const textProvider: LanguageProviderSnapshot = {
 const context: HostPluginContext = {
   turnId: "turn",
   threadId: "thread",
-  userId: "user",
-  tenantId: "tenant",
-  workspaceId: "workspace",
-  workspaceRole: "workspace_admin",
 };
+
+const providers = { textProvider, media: { providers: [] } };
 
 const snapshot: ResolvedTurnPluginSnapshot = {
   schemaVersion: 1,
@@ -53,7 +51,7 @@ function loader(load: TurnPluginLoader["load"] = async () => pluginSet()): TurnP
 }
 
 void test("tool catalog exposes the current inline research and sandbox workflow", async () => {
-  const resolved = await new ToolCatalog(loader()).resolve(context, { textProvider }, snapshot);
+  const resolved = await new ToolCatalog(loader()).resolve(context, providers, snapshot);
   try {
     const subagents = resolved.manifests.find((manifest) => manifest.name === "subagents");
     assert.equal(subagents?.policy.uiKind, "subagent");
@@ -62,17 +60,7 @@ void test("tool catalog exposes the current inline research and sandbox workflow
       assert.ok(resolved.activeTools.includes(name), `${name} should be active`);
     }
     assert.deepEqual(Object.keys(resolved.toolCallers).sort(), ["web_fetch", "web_search"]);
-    for (const name of [
-      "code_mode",
-      "subagents",
-      "refresh_session_sources",
-      "list_media_models",
-      "prepare_media_generation",
-      "generate_images",
-      "create_video_production",
-      "create_memory",
-      "update_memory",
-    ]) {
+    for (const name of ["code_mode", "subagents", "refresh_session_sources"]) {
       assert.equal(
         resolved.manifests.find((manifest) => manifest.name === name)?.tool?.deferLoading,
         true,
@@ -102,7 +90,7 @@ void test("core tool catalog does not install plugins outside the resolved Turn 
       receivedSnapshot = value;
       return pluginSet();
     }),
-  ).resolve(context, { textProvider }, snapshot);
+  ).resolve(context, providers, snapshot);
   try {
     assert.equal(receivedSnapshot, snapshot);
     assert.equal(
@@ -149,7 +137,7 @@ void test("plugin skills use the host immutable loader through progressive discl
     } satisfies PluginSkillAssetLoader,
   );
 
-  const resolved = await catalog.resolve(context, { textProvider }, snapshot);
+  const resolved = await catalog.resolve(context, providers, snapshot);
   try {
     assert.equal(loaded, 0);
     assert.deepEqual(resolved.contributions.skills, [
@@ -169,7 +157,7 @@ void test("plugin skills use the host immutable loader through progressive discl
   } finally {
     await resolved.dispose();
   }
-  const resumed = await catalog.resolve(context, { textProvider }, snapshot, {
+  const resumed = await catalog.resolve(context, providers, snapshot, {
     activeSkillName: "knowledge@platform:Research",
     skills: [{ id: "ws", name: "Research", description: "workspace skill", loadBody: async () => "workspace" }],
   });
@@ -194,7 +182,7 @@ void test("catalog reports cleanup failures and releases each acquired resource 
       }),
     ),
   );
-  const resolved = await catalog.resolve(context, { textProvider }, snapshot);
+  const resolved = await catalog.resolve(context, providers, snapshot);
   await assert.rejects(resolved.dispose(), /plugin disconnect failed/);
   await resolved.dispose();
   assert.equal(releases, 1);

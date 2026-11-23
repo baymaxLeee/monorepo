@@ -11,7 +11,7 @@ import (
 	"github.com/example/monorepo/chat/internal/application"
 )
 
-func TestClientForwardsScopeQueryBodyAndChatIdentity(t *testing.T) {
+func TestClientForwardsRequestMetadataAndUsesOnlyChatIdentity(t *testing.T) {
 	var captured *http.Request
 	var capturedBody string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -24,8 +24,13 @@ func TestClientForwardsScopeQueryBodyAndChatIdentity(t *testing.T) {
 	client := New(server.URL, "chat-token")
 	headers := make(http.Header)
 	headers.Set("X-Auth-User-ID", "user")
+	headers.Set("X-Auth-Name", "User")
+	headers.Set("X-Auth-Email", "user@example.com")
 	headers.Set("X-Auth-Tenant-ID", "tenant")
 	headers.Set("X-Auth-Workspace-ID", "workspace")
+	headers.Set("X-Auth-Workspace-Role", "member")
+	headers.Set("X-Auth-Roles", "user")
+	headers.Set("X-Auth-Unrecognized", "untrusted")
 	headers.Set("Content-Type", "application/json")
 	headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 	headers.Set("tracestate", "vendor=value")
@@ -48,13 +53,26 @@ func TestClientForwardsScopeQueryBodyAndChatIdentity(t *testing.T) {
 		t.Fatalf("request URI = %q", captured.URL.RequestURI())
 	}
 	for name, want := range map[string]string{
-		"X-Caller-Service": "chat", "X-Internal-Token": "chat-token", "X-Auth-User-ID": "user",
-		"X-Auth-Tenant-ID": "tenant", "X-Auth-Workspace-ID": "workspace", "Content-Type": "application/json",
+		"X-Caller-Service": "chat", "X-Internal-Token": "chat-token", "Content-Type": "application/json",
 		"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 		"tracestate":  "vendor=value", "X-Trace-Id": "trace-id",
 	} {
 		if got := captured.Header.Get(name); got != want {
 			t.Fatalf("%s = %q, want %q", name, got, want)
+		}
+	}
+	for _, name := range []string{
+		"X-Auth-User-ID",
+		"X-Auth-Name",
+		"X-Auth-Email",
+		"X-Auth-Tenant-ID",
+		"X-Auth-Workspace-ID",
+		"X-Auth-Workspace-Role",
+		"X-Auth-Roles",
+		"X-Auth-Unrecognized",
+	} {
+		if got := captured.Header.Get(name); got != "" {
+			t.Fatalf("%s = %q, want empty", name, got)
 		}
 	}
 	if capturedBody != `{"ok":true}` {

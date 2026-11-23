@@ -16,12 +16,3 @@ export {
   replayAgentSseStream,
   type ReplayAgentStreamOptions,
 } from "./streams/service.js";
-export {
-  approveCandidate,
-  createMemoryCandidate,
-  deleteMemory,
-  listActiveMemories,
-  listPendingCandidates,
-  rejectCandidate,
-  updateCandidate,
-} from "./memory/repository.js";

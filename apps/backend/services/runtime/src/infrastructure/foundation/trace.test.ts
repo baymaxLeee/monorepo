@@ -4,12 +4,15 @@ import { setImmediate } from "node:timers/promises";
 
 import { propagationHeaders, runWithContext } from "./trace.js";
 
-test("concurrent request contexts do not leak tenant or trace headers", async () => {
+test("concurrent request contexts do not leak trace headers", async () => {
   await Promise.all(
-    ["tenant-a", "tenant-b"].map((tenantId) =>
-      runWithContext({ tenantId, traceId: `trace-${tenantId}` }, async () => {
+    ["a", "b"].map((suffix) =>
+      runWithContext({ traceId: `trace-${suffix}`, traceState: `vendor=${suffix}` }, async () => {
         await setImmediate();
-        assert.deepEqual(propagationHeaders(), { "X-Tenant-Id": tenantId, "X-Trace-Id": `trace-${tenantId}` });
+        assert.deepEqual(propagationHeaders(), {
+          "X-Trace-Id": `trace-${suffix}`,
+          tracestate: `vendor=${suffix}`,
+        });
       }),
     ),
   );

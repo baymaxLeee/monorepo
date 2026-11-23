@@ -47,18 +47,15 @@ type Plan struct {
 }
 
 type CreateUploadSessionInput struct {
-	TenantID, WorkspaceID, UserID string
-	Filename, MediaType, Category string
-	IdempotencyKey                string
-	SizeBytes                     int64
+	Filename, MediaType string
+	IdempotencyKey      string
+	SizeBytes           int64
 }
 
 type UploadSession struct {
 	UploadSessionID string
 	IntentID        string
 	State           string
-	UserID          string
-	Category        string
 	Filename        string
 	MediaType       string
 	SizeBytes       int64
@@ -68,13 +65,27 @@ type UploadSession struct {
 	RevisionID      string
 }
 
-type SessionCreator interface {
+type SessionStore interface {
 	CreateUploadSession(context.Context, CreateUploadSessionInput) (UploadSession, error)
+	GetUploadSession(context.Context, string) (UploadSession, error)
 }
 
-type Service struct{ sessions SessionCreator }
+type Service struct{ sessions SessionStore }
 
-func New(sessions SessionCreator) *Service { return &Service{sessions: sessions} }
+func New(sessions SessionStore) *Service { return &Service{sessions: sessions} }
+
+type ResolveInput struct {
+	Scope
+	ClientRef       string
+	Purpose         Purpose
+	UploadSessionID string
+}
+
+type ResolvedUpload struct {
+	AssetID, RevisionID string
+	Filename, MediaType string
+	SizeBytes           int64
+}
 
 func (s *Service) Prepare(ctx context.Context, input PrepareInput) (Plan, error) {
 	input.TenantID = strings.TrimSpace(input.TenantID)
@@ -87,15 +98,12 @@ func (s *Service) Prepare(ctx context.Context, input PrepareInput) (Plan, error)
 		input.Filename == "" || input.MediaType == "" || input.SizeBytes <= 0 || len(input.ClientRef) > 255 {
 		return Plan{}, errno.New(errno.ErrInvalidArgument)
 	}
-	category, err := validatePolicy(input.Purpose, input.MediaType, input.SizeBytes)
-	if err != nil {
+	if err := validatePolicy(input.Purpose, input.MediaType, input.SizeBytes); err != nil {
 		return Plan{}, err
 	}
-	digest := sha256.Sum256([]byte(input.TenantID + "\x00" + input.WorkspaceID + "\x00" + input.UserID + "\x00" + string(input.Purpose) + "\x00" + input.ClientRef))
-	intentID := "canvas-" + string(input.Purpose) + ":" + hex.EncodeToString(digest[:])
+	intentID := uploadIntentID(input.Scope, input.Purpose, input.ClientRef)
 	session, err := s.sessions.CreateUploadSession(ctx, CreateUploadSessionInput{
-		TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
-		Filename: input.Filename, MediaType: input.MediaType, Category: category,
+		Filename: input.Filename, MediaType: input.MediaType,
 		IdempotencyKey: intentID, SizeBytes: input.SizeBytes,
 	})
 	if err != nil {
@@ -108,16 +116,50 @@ func (s *Service) Prepare(ctx context.Context, input PrepareInput) (Plan, error)
 	}, nil
 }
 
-func validatePolicy(purpose Purpose, mediaType string, sizeBytes int64) (string, error) {
+func (s *Service) Resolve(ctx context.Context, input ResolveInput) (ResolvedUpload, error) {
+	input.TenantID = strings.TrimSpace(input.TenantID)
+	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.ClientRef = strings.TrimSpace(input.ClientRef)
+	input.UploadSessionID = strings.TrimSpace(input.UploadSessionID)
+	if s == nil || s.sessions == nil || input.TenantID == "" || input.UserID == "" || input.ClientRef == "" ||
+		input.UploadSessionID == "" || len(input.ClientRef) > 255 {
+		return ResolvedUpload{}, errno.New(errno.ErrInvalidArgument)
+	}
+	session, err := s.sessions.GetUploadSession(ctx, input.UploadSessionID)
+	if err != nil {
+		return ResolvedUpload{}, err
+	}
+	if session.IntentID != uploadIntentID(input.Scope, input.Purpose, input.ClientRef) {
+		return ResolvedUpload{}, errno.New(errno.ErrForbidden)
+	}
+	if session.State != "completed" || session.AssetID == "" || session.RevisionID == "" {
+		return ResolvedUpload{}, errno.New(errno.ErrInvalidArgument)
+	}
+	if err = validatePolicy(input.Purpose, session.MediaType, session.SizeBytes); err != nil {
+		return ResolvedUpload{}, err
+	}
+	return ResolvedUpload{
+		AssetID: session.AssetID, RevisionID: session.RevisionID, Filename: session.Filename,
+		MediaType: session.MediaType, SizeBytes: session.SizeBytes,
+	}, nil
+}
+
+func uploadIntentID(scope Scope, purpose Purpose, clientRef string) string {
+	digest := sha256.Sum256([]byte(scope.TenantID + "\x00" + scope.WorkspaceID + "\x00" + scope.UserID + "\x00" + string(purpose) + "\x00" + clientRef))
+	return "canvas-" + string(purpose) + ":" + hex.EncodeToString(digest[:])
+}
+
+func validatePolicy(purpose Purpose, mediaType string, sizeBytes int64) error {
 	switch purpose {
 	case PurposeCover:
 		if sizeBytes > applicationcoverimage.MaximumBytes {
-			return "", errno.New(errno.ErrAssetTooLarge)
+			return errno.New(errno.ErrAssetTooLarge)
 		}
 		if !applicationcoverimage.SupportedMediaType(mediaType) {
-			return "", errno.New(errno.ErrUnsupportedAssetFormat)
+			return errno.New(errno.ErrUnsupportedAssetFormat)
 		}
-		return "canvas-cover", nil
+		return nil
 	case PurposeSource:
 		var kind domainasset.MediaType
 		switch {
@@ -128,17 +170,17 @@ func validatePolicy(purpose Purpose, mediaType string, sizeBytes int64) (string,
 		case strings.HasPrefix(mediaType, "audio/"):
 			kind = domainasset.MediaAudio
 		default:
-			return "", errno.New(errno.ErrUnsupportedAssetFormat)
+			return errno.New(errno.ErrUnsupportedAssetFormat)
 		}
 		limit, ok := kind.SizeLimitBytes()
 		if !ok {
-			return "", errno.Wrap(errno.ErrInternalError, errors.New("missing media size policy"))
+			return errno.Wrap(errno.ErrInternalError, errors.New("missing media size policy"))
 		}
 		if sizeBytes > limit {
-			return "", errno.New(errno.ErrAssetTooLarge)
+			return errno.New(errno.ErrAssetTooLarge)
 		}
-		return "canvas-source", nil
+		return nil
 	default:
-		return "", errno.New(errno.ErrInvalidArgument)
+		return errno.New(errno.ErrInvalidArgument)
 	}
 }

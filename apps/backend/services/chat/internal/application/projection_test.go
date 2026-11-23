@@ -42,27 +42,28 @@ func TestRuntimeRunBodyRejectsMismatchedConversationAndUsesStoredPluginSelection
 		PluginID: "canvas@platform",
 		Bindings: map[string]string{"project_id": "project", "canvas_id": "canvas"},
 	}}
-	if _, err := RuntimeRunBody(product, map[string]any{"id": "another"}); err == nil {
+	capabilities := TurnCapabilities{Provider: RuntimeProviderCapability{ID: "provider"}, Plugins: map[string]any{"snapshotId": "snapshot"}, Skills: []map[string]any{}}
+	if _, err := RuntimeRunBody(product, map[string]any{"id": "another"}, capabilities); err == nil {
 		t.Fatal("mismatched conversation id was accepted")
 	}
 	got, err := RuntimeRunBody(product, map[string]any{
 		"request_id":         "retry",
 		"host_context":       map[string]any{"project_id": "untrusted"},
 		"plugin_activations": []any{map[string]any{"plugin_id": "attacker@external"}},
-	})
+	}, capabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]any{
 		"id": product.RuntimeThreadID, "request_id": "retry", "generate_title": false,
-		"plugin_activations": product.PluginSelections,
+		"capabilities": capabilities,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("run body = %#v, want %#v", got, want)
 	}
 
 	product.Title = "新对话"
-	got, err = RuntimeRunBody(product, map[string]any{"request_id": "first", "generate_title": false})
+	got, err = RuntimeRunBody(product, map[string]any{"request_id": "first", "generate_title": false}, capabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestRuntimeRunBodyResolvesUserAttachmentInMappedSession(t *testing.T) {
 	product := testConversation()
 	submit := func(raw string) (map[string]any, error) {
 		part := map[string]any{"type": "file", "url": raw}
-		return RuntimeRunBody(product, map[string]any{"message": map[string]any{"role": "user", "parts": []any{part}}})
+		return RuntimeRunBody(product, map[string]any{"message": map[string]any{"role": "user", "parts": []any{part}}}, TurnCapabilities{})
 	}
 	result, err := submit("/api/chat-server/conversations/chat-conversation/files/upload/content")
 	if err != nil {

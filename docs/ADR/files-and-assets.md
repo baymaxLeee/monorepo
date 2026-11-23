@@ -6,19 +6,40 @@
 
 Storage 管理逻辑文件 Asset、不可变 Revision、内容寻址 Blob、Claim、上传、delivery 与物理回收。Knowledge 管理语义文档、解析索引与检索。Runtime 管理 Session、消息以及 `thread_files`/Plan 对不可变 Asset revision 的业务引用。Canvas 管理项目、画布、节点、素材及生成历史；Admin 管理 Skill 文件树/发布。这些服务保存 `asset_id + revision_id`，不保存 Storage 的物理 locator。
 
+Storage 是业务无关的原子存储服务：Proto、数据库、领域和生产实现都不包含 tenant、workspace 或
+业务 user identity，也不读取 IAM。`x-caller-service` 是内部 gRPC transport 注入并经部署配置
+allowlist 检查的 workload 命名空间声明；消费者名单不编译进 Storage。当前 h2c transport 没有 mTLS/SPIFFE 等密码学 workload 认证，K8s
+通过 9013 端口 NetworkPolicy 缩小可达面，但获准 sibling 仍可能伪造 metadata。它不能替代业务授权，
+也不能作为公开访问凭据。Claim 的 `owner_type/owner_id/slot` 是 workload 自己定义的不透明键，
+Storage 只把它与 `owner_service`、generation 和精确 Asset/revision 一起维护，不解释产品语义。
+
 本地文件系统 adapter 支持单 writer 持久卷；多副本写入前必须另选具备一致性语义的存储。数据库与 byte volume 要作为一致恢复点备份。字节流式处理，不把整个视频/上传体加载进内存。
 
 ## 上传、引用与回收
 
-浏览器先调用资源所属服务的 prepare，拿到绑定用途与身份的 upload session，再向 Storage 上传，最后由资源所属服务 finalize。浏览器不能自行挑选 category 调用通用上传入口。稳定 client_ref 支持中断重试；finalize 前不是可见业务资源。
+浏览器先调用资源所属服务的 prepare；owner 在自己的授权边界把业务身份、用途和稳定 `client_ref`
+绑定为不透明 intent，再让 Storage 创建 caller-scoped upload session。浏览器只能使用带过期时间与
+HMAC 的 upload capability 上传，裸 session ID 不授权；最后由 owner 根据原 intent finalize。浏览器
+不能绕过 owner 直接构造通用上传。稳定 client_ref 支持中断重试；finalize 前不是可见业务资源。
 
 Web Chat 通过已授权的产品会话申请上传。Runtime 将身份、Session 和前端的 `client_ref` 绑定到 Storage 上传凭据。上传完成后，Runtime 校验归属和状态，在同一个事务中登记固定 revision 的会话文件和 strong Claim intent。重复完成会返回同一个 `file_id`。同名文件按上传 ID 分目录，原件在沙箱中的稳定只读路径为 `/workspace/sources/attachments/<upload-id>/<filename>`。
 
 消息只保存 AI SDK 原生 `file` 引用。Chat 将当前产品会话的文件路由映射到 Runtime Session，Runtime 从文件记录取得文件名、类型和路径。模型通过工作区工具读取普通文件，视觉输入按需从 Storage 的原件生成有尺寸上限的图片。Knowledge 在显式导入知识或生成媒体时管理文档。这一设计沿用 Codex 分开保存附件与按引用解析模型输入的做法。[Codex AttachmentStore](https://github.com/openai/codex/blob/main/codex-rs/attachment-store/src/lib.rs)
 
-服务上传使用 caller-scoped 幂等键；相同键/元数据重放返回已有 revision，冲突元数据拒绝。业务事务同时保存资源与 Claim intent，独立 relay 至少一次投递，接收方按 owner identity 和 generation 幂等处理。跨库一致性通过收敛实现。
+服务上传使用 caller-scoped 幂等键；相同键/元数据重放返回已有 revision，冲突元数据拒绝。上传完成
+时 Storage 为 caller 创建覆盖精确 revision 的 24 小时 active lease，作为该 workload 接纳资源的
+初始授权根。业务事务同时保存资源与 Claim intent，独立 relay 至少一次投递，Storage 按
+`owner_service + owner identity + generation` 幂等处理。active intent 先 Prepare 再 Activate；released
+intent 直接 Release，目标 Claim 尚不存在也视为已收敛，因此资源创建后、active intent 投递前的业务
+删除不会被强迫创建一个 Claim。跨库一致性通过收敛实现。
 
-Claim 的 strong/snapshot/lease/weak 语义分别表达当前所有权、固定版本、临时使用和非保留引用。缓存计数仅是扫描提示，回收重新检查权威 Claim 并 fail closed。删除使用租约/状态 fencing；物理删除确认前保留责任元数据，失败可重试。删除业务记录不等于立即删除 bytes；共享引用和保留窗口仍有效。
+Claim 必须绑定精确 revision；strong/snapshot/lease/weak 分别表达当前所有权、固定版本、临时使用和
+非保留引用。Prepare 新 generation 或换 revision 时，同一 workload 必须已经持有该精确 revision 的
+active strong/snapshot Claim，或仍有效的 upload lease；仅知道 Asset/Revision ID 会得到 NotFound。
+授权检查与 Claim 写入在同一数据库事务中锁定来源 Claim。当前没有通用跨 workload Claim 转移 RPC，
+调用链必须在资源产生时为最终 owner 建立授权根，不能用裸 ID 交接来绕过这一边界。缓存计数仅是扫描
+提示，回收重新检查权威 Claim 并 fail closed。删除使用租约/状态 fencing；物理删除确认前保留责任
+元数据，失败可重试。删除业务记录不等于立即删除 bytes；共享引用和保留窗口仍有效。
 
 持久文件身份是 Asset/revision，不是过期 capability URL、provider URL 或 base64。下载经过鉴权或短期 scoped capability；模型读取与浏览器呈现都是派生视图。
 
@@ -36,8 +57,10 @@ HTML 的浏览器依赖由产物作者负责交付。Bash 中安装包或访问 
 
 会话消息保存文档/文件标识与元数据，不持久化临时 capability。AI SDK 原生 assistant `file/reasoning-file` 也先进入 Storage，再登记为 Chat conversation file；普通文本、代码或二进制文件不会因此创建 Knowledge document。Knowledge 文档点击先请求文档详情
 `include_content=false`；Runtime-owned 文件直接按 conversation/user/tenant/workspace/file id 校验。对应业务 owner 授权后再调用 Storage 内部统一签发接口。
-Storage 不提供仅依赖工作区身份的公开签发或原件读取接口。默认签发 6 小时 scoped capability，
-以 Redis 缓存结果；每次签发先检查 tenant/workspace 和资源状态，缓存不可用时仍可签发。
+Storage 不提供仅依赖工作区身份、workload 身份或裸资源 ID 的公开签发/原件接口。owner 完成业务
+授权后调用内部签发；Storage 再要求该 workload 对精确 revision 持有未释放且未过期的 Claim，
+默认签发 6 小时 scoped capability。Redis 只缓存签发结果，每次返回前仍复验 Claim；缓存不可用
+可以直接签发，但不能跳过 Claim。Capability 绑定 Asset、revision、可选变换、过期时间与 HMAC。
 浏览器直接访问 Storage 的 capability URL；Knowledge 不签名、不代理原件或媒体字节。
 
 ChatArtifactPreview 统一处理 URL 获取、文本下载、请求取消、失败展示与续签；HTML 使用沙箱 iframe 的 src，图片、音视频和 PDF 直接使用 URL，音视频使用 HTTP Range。Markdown 只读快照使用 Streamdown，其他文本/代码使用只读 CodeEditor，保持原始文本而不将 JSON 转换为对象。原件下载直接交给浏览器并使用 attachment disposition。Chat 会话文件透传 asset_id/revision_id，由 Runtime 验证会话权限后请求 Storage 签发；editable_source 标记的 Knowledge Markdown 从 Storage 加载原文交给 MarkdownEditor，编辑提交仍由 Knowledge 的文档接口负责。

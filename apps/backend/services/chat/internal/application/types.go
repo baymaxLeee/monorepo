@@ -9,9 +9,10 @@ import (
 )
 
 type AuthContext struct {
-	UserID      string
-	TenantID    string
-	WorkspaceID string
+	UserID        string
+	TenantID      string
+	WorkspaceID   string
+	WorkspaceRole string
 }
 
 type Conversation struct {
@@ -109,4 +110,55 @@ type RuntimeRequest struct {
 
 type RuntimeClient interface {
 	Do(context.Context, RuntimeRequest) (*http.Response, error)
+}
+
+type RuntimeProviderCapability struct {
+	ID                 string         `json:"id"`
+	Name               string         `json:"name"`
+	Model              string         `json:"model"`
+	BaseURL            string         `json:"baseUrl"`
+	APIKey             string         `json:"apiKey"`
+	ExtraBody          map[string]any `json:"extraBody"`
+	ContextWindow      int            `json:"contextWindow"`
+	MaxOutputTokens    int            `json:"maxOutputTokens"`
+	SupportsImageInput bool           `json:"supportsImageInput"`
+	ProviderKind       string         `json:"providerKind,omitempty"`
+}
+
+type RuntimeProviderPricing struct {
+	Currency        string `json:"currency"`
+	Unit            string `json:"unit"`
+	UnitPriceMicros int64  `json:"unitPriceMicros"`
+}
+
+type RuntimeMediaProviderCapability struct {
+	ID              string                  `json:"id"`
+	Name            string                  `json:"name"`
+	Model           string                  `json:"model"`
+	BaseURL         string                  `json:"baseUrl"`
+	APIKey          string                  `json:"apiKey"`
+	ExtraBody       map[string]any          `json:"extraBody"`
+	ContextWindow   int                     `json:"contextWindow"`
+	MaxOutputTokens int                     `json:"maxOutputTokens"`
+	Pricing         *RuntimeProviderPricing `json:"pricing"`
+	ProviderKind    string                  `json:"providerKind"`
+	IsDefault       bool                    `json:"isDefault"`
+}
+
+type RuntimeMediaCapabilities struct {
+	Providers []RuntimeMediaProviderCapability `json:"providers"`
+}
+
+type TurnCapabilities struct {
+	Provider RuntimeProviderCapability `json:"provider"`
+	Media    RuntimeMediaCapabilities  `json:"media"`
+	Plugins  map[string]any            `json:"plugins"`
+	Skills   []map[string]any          `json:"skills"`
+	Memories []UserMemory              `json:"memories"`
+}
+
+type TurnCapabilityResolver interface {
+	ResolveTurn(context.Context, AuthContext, *string, []ConversationPluginSelection) (TurnCapabilities, error)
+	ResolveProvider(context.Context, AuthContext, *string) (RuntimeProviderCapability, error)
+	ResolvePlugins(context.Context, AuthContext, []ConversationPluginSelection) (map[string]any, error)
 }

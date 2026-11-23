@@ -98,7 +98,7 @@ func (q *Queries) LockAssetBlobs(ctx context.Context, assetID string) ([]LockAss
 }
 
 const lockDeletionCandidates = `-- name: LockDeletionCandidates :many
-SELECT a.id,a.tenant_id,a.state_version FROM assets a
+SELECT a.id,a.state_version FROM assets a
 WHERE ((a.state='candidate' AND a.delete_after <= $1) OR (a.state='deleting' AND a.delete_after <= $1))
 AND NOT EXISTS (SELECT 1 FROM asset_claims c WHERE c.asset_id=a.id AND c.status IN ('pending','active') AND c.kind IN ('strong','snapshot','lease'))
 ORDER BY a.delete_after,a.id FOR UPDATE SKIP LOCKED LIMIT $2
@@ -111,7 +111,6 @@ type LockDeletionCandidatesParams struct {
 
 type LockDeletionCandidatesRow struct {
 	ID           string
-	TenantID     string
 	StateVersion int64
 }
 
@@ -124,7 +123,7 @@ func (q *Queries) LockDeletionCandidates(ctx context.Context, arg LockDeletionCa
 	items := []LockDeletionCandidatesRow{}
 	for rows.Next() {
 		var i LockDeletionCandidatesRow
-		if err := rows.Scan(&i.ID, &i.TenantID, &i.StateVersion); err != nil {
+		if err := rows.Scan(&i.ID, &i.StateVersion); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

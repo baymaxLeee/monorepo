@@ -10,7 +10,7 @@ The admin configuration microservice. Manages providers, skills, applications an
 - IAM identity, tenants/workspaces, membership and roles (→ iam). Resource
   authorization and business audit remain the owning service's responsibility.
 - Skill attachment/archive bytes, physical retention, signed delivery, and GC
-  (→ asset service). Admin stores exact Asset revision references and owns
+  (→ Storage service). Admin stores exact Asset revision references and owns
   editable skill-tree and publication semantics.
 
 ## Entry points

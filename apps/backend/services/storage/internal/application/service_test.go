@@ -32,7 +32,7 @@ type repositoryStub struct {
 
 type revisionRepositoryStub struct{ Repository }
 
-func (revisionRepositoryStub) GetRevision(context.Context, string, string, string, string) (domain.Asset, domain.Revision, string, error) {
+func (revisionRepositoryStub) GetRevision(context.Context, string, string) (domain.Asset, domain.Revision, string, error) {
 	return domain.Asset{ID: "asset"}, domain.Revision{ID: "revision"}, "storage-key", nil
 }
 
@@ -54,8 +54,7 @@ func (stub *repositoryStub) CreateUploadSession(_ context.Context, input CreateU
 	stub.createdSession = input
 	if stub.session.ID == "" {
 		stub.session = UploadSession{
-			ID: id, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
-			CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Category: input.Category,
+			ID: id, CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey,
 			Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes, State: "pending", ExpiresAt: expiresAt,
 		}
 	}
@@ -64,7 +63,7 @@ func (stub *repositoryStub) CreateUploadSession(_ context.Context, input CreateU
 func (stub *repositoryStub) ClaimUploadSession(context.Context, string, time.Time) (UploadSession, error) {
 	return stub.session, nil
 }
-func (stub *repositoryStub) GetUploadSession(context.Context, string, string, string, string) (UploadSession, error) {
+func (stub *repositoryStub) GetUploadSession(context.Context, string, string) (UploadSession, error) {
 	return stub.session, nil
 }
 func (stub *repositoryStub) FailUpload(context.Context, string, string, time.Time) error { return nil }
@@ -87,6 +86,9 @@ func (stub *repositoryStub) ActivateClaim(_ context.Context, input ClaimMutation
 func (stub *repositoryStub) ReleaseClaim(_ context.Context, input ClaimMutationInput, _ time.Time) (domain.Claim, error) {
 	stub.mutated = input
 	return domain.Claim{Status: "released"}, nil
+}
+func (stub *repositoryStub) ClaimAuthorizesRevision(context.Context, ClaimAuthorizationInput) (bool, error) {
+	return true, nil
 }
 
 type blobStoreStub struct {
@@ -112,7 +114,7 @@ func TestServiceUpload(t *testing.T) {
 
 	t.Run("rejects a blank filename", func(t *testing.T) {
 		service := NewService(&repositoryStub{}, &blobStoreStub{}, fixedClock{now}, 1024)
-		_, _, err := service.Upload(context.Background(), CreateUploadInput{TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "   ", Category: "document", CallerService: "test"}, strings.NewReader("data"))
+		_, _, err := service.Upload(context.Background(), CreateUploadInput{Filename: "   ", CallerService: "test"}, strings.NewReader("data"))
 		if !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("error = %v, want ErrInvalidInput", err)
 		}
@@ -120,7 +122,7 @@ func TestServiceUpload(t *testing.T) {
 
 	t.Run("requires an idempotency key for service uploads", func(t *testing.T) {
 		service := NewService(&repositoryStub{}, &blobStoreStub{}, fixedClock{now}, 1024)
-		_, _, err := service.Upload(context.Background(), CreateUploadInput{TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "note.md", Category: "document", CallerService: "test"}, strings.NewReader("data"))
+		_, _, err := service.Upload(context.Background(), CreateUploadInput{Filename: "note.md", CallerService: "test"}, strings.NewReader("data"))
 		if !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("error = %v, want ErrInvalidInput", err)
 		}
@@ -132,7 +134,7 @@ func TestServiceUpload(t *testing.T) {
 		}}
 		storage := &blobStoreStub{staged: StagedBlob{TemporaryKey: "staging/upload.part", SHA256: strings.Repeat("a", 64), SizeBytes: 4, DetectedMediaType: "text/plain; charset=utf-8"}}
 		service := NewService(repository, storage, fixedClock{now}, 1024)
-		asset, revision, err := service.Upload(context.Background(), CreateUploadInput{TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "folder/note.md", Category: "document", CallerService: "test", IdempotencyKey: "upload-1"}, strings.NewReader("data"))
+		asset, revision, err := service.Upload(context.Background(), CreateUploadInput{Filename: "folder/note.md", CallerService: "test", IdempotencyKey: "upload-1"}, strings.NewReader("data"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,14 +144,17 @@ func TestServiceUpload(t *testing.T) {
 		if repository.created.Filename != "note.md" || repository.completed.Filename != "note.md" {
 			t.Fatalf("filename was not normalized: %#v %#v", repository.created, repository.completed)
 		}
-		if strings.Contains(repository.completed.StorageKey, "tenant") {
-			t.Fatalf("storage key leaks tenant ID: %s", repository.completed.StorageKey)
+		if !strings.HasPrefix(repository.completed.StorageKey, "blobs/") {
+			t.Fatalf("storage key is not content addressed: %s", repository.completed.StorageKey)
 		}
 		if len(storage.deleted) != 1 || storage.deleted[0] != "blobs/private-copy" {
 			t.Fatalf("deleted = %v", storage.deleted)
 		}
 		if repository.completed.UploadClaimID == "" {
 			t.Fatal("upload protection claim ID was not created")
+		}
+		if repository.completed.UploadLeaseOwnerService != "test" {
+			t.Fatalf("upload lease owner = %q, want caller workload", repository.completed.UploadLeaseOwnerService)
 		}
 		if want := now.Add(24 * time.Hour); !repository.completed.UploadLeaseExpiresAt.Equal(want) {
 			t.Fatalf("upload lease expires at %s, want %s", repository.completed.UploadLeaseExpiresAt, want)
@@ -162,8 +167,8 @@ func TestServiceUpload(t *testing.T) {
 		storage := &blobStoreStub{}
 		service := NewService(repository, storage, fixedClock{now}, 1024)
 		asset, revision, err := service.Upload(context.Background(), CreateUploadInput{
-			TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "video.mp4",
-			Category: "generated-video", CallerService: "runtime", IdempotencyKey: "step-1",
+			Filename:      "video.mp4",
+			CallerService: "runtime", IdempotencyKey: "step-1",
 		}, strings.NewReader("retry body"))
 		if err != nil {
 			t.Fatal(err)
@@ -177,7 +182,7 @@ func TestServiceUpload(t *testing.T) {
 		repository := &repositoryStub{completeErr: errors.New("commit outcome unknown")}
 		storage := &blobStoreStub{staged: StagedBlob{TemporaryKey: "staging/upload.part", SHA256: strings.Repeat("b", 64), SizeBytes: 4, DetectedMediaType: "application/octet-stream"}}
 		service := NewService(repository, storage, fixedClock{now}, 1024)
-		_, _, err := service.Upload(context.Background(), CreateUploadInput{TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "note.md", MediaType: "text/markdown", Category: "document", CallerService: "test", IdempotencyKey: "upload-1"}, strings.NewReader("data"))
+		_, _, err := service.Upload(context.Background(), CreateUploadInput{Filename: "note.md", MediaType: "text/markdown", CallerService: "test", IdempotencyKey: "upload-1"}, strings.NewReader("data"))
 		if err == nil {
 			t.Fatal("expected database error")
 		}
@@ -190,7 +195,7 @@ func TestServiceUpload(t *testing.T) {
 func TestServiceAppendRevision(t *testing.T) {
 	now := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
 	valid := AppendRevisionInput{
-		TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "chat",
+		CallerService:  "chat",
 		IdempotencyKey: "save-1", AssetID: "asset", BaseRevisionID: "revision-1", Filename: "note.md",
 		MediaType: "text/markdown", OwnerType: "conversation_file", OwnerID: "conversation", Slot: "file", Generation: 3,
 	}
@@ -241,13 +246,13 @@ func TestServiceAppendRevision(t *testing.T) {
 func TestBrowserUploadSession(t *testing.T) {
 	now := time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC)
 
-	t.Run("creates a domain-scoped session with normalized metadata", func(t *testing.T) {
+	t.Run("creates a caller-scoped session with normalized metadata", func(t *testing.T) {
 		repository := &repositoryStub{}
 		service := NewService(repository, &blobStoreStub{}, fixedClock{now}, 1024)
 		session, err := service.CreateUploadSession(context.Background(), CreateUploadSessionInput{
-			TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
+			CallerService:  "knowledge",
 			IdempotencyKey: "intent-1", Filename: "folder/source.pdf", MediaType: "application/pdf",
-			Category: "knowledge-source", SizeBytes: 12,
+			SizeBytes: 12,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -262,9 +267,9 @@ func TestBrowserUploadSession(t *testing.T) {
 
 	t.Run("rejects a payload whose byte count differs from the plan", func(t *testing.T) {
 		repository := &repositoryStub{session: UploadSession{
-			ID: "upload", TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
+			ID: "upload", CallerService: "knowledge",
 			IdempotencyKey: "intent-1", Filename: "source.pdf", MediaType: "application/pdf",
-			Category: "knowledge-source", SizeBytes: 12, State: "uploading", ExpiresAt: now.Add(time.Hour),
+			SizeBytes: 12, State: "uploading", ExpiresAt: now.Add(time.Hour),
 		}}
 		storage := &blobStoreStub{staged: StagedBlob{TemporaryKey: "staging/upload.part", SHA256: strings.Repeat("a", 64), SizeBytes: 11}}
 		service := NewService(repository, storage, fixedClock{now}, 1024)
@@ -275,11 +280,11 @@ func TestBrowserUploadSession(t *testing.T) {
 
 	t.Run("does not expose an expired completed session for domain finalize", func(t *testing.T) {
 		repository := &repositoryStub{session: UploadSession{
-			ID: "upload", TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
+			ID: "upload", CallerService: "knowledge",
 			State: "completed", ExpiresAt: now,
 		}}
 		service := NewService(repository, &blobStoreStub{}, fixedClock{now}, 1024)
-		if _, err := service.DescribeUploadSession(context.Background(), "knowledge", "tenant", "workspace", "upload"); !errors.Is(err, ErrConflict) {
+		if _, err := service.DescribeUploadSession(context.Background(), "knowledge", "upload"); !errors.Is(err, ErrConflict) {
 			t.Fatalf("error = %v, want ErrConflict", err)
 		}
 	})
@@ -287,7 +292,7 @@ func TestBrowserUploadSession(t *testing.T) {
 
 func TestServicePrepareClaim(t *testing.T) {
 	now := time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC)
-	valid := PrepareClaimInput{TenantID: "tenant", WorkspaceID: "workspace", OwnerService: "chat", OwnerType: "message", OwnerID: "message-1", Slot: "attachment-1", AssetID: "asset", Kind: domain.ClaimStrong, Generation: 1}
+	valid := PrepareClaimInput{OwnerService: "chat", OwnerType: "message", OwnerID: "message-1", Slot: "attachment-1", AssetID: "asset", RevisionID: "revision", Kind: domain.ClaimStrong, Generation: 1}
 
 	t.Run("accepts a complete strong claim", func(t *testing.T) {
 		repository := &repositoryStub{}
@@ -312,6 +317,15 @@ func TestServicePrepareClaim(t *testing.T) {
 					t.Fatalf("error = %v, want ErrInvalidInput", err)
 				}
 			})
+		}
+	})
+
+	t.Run("requires an exact revision", func(t *testing.T) {
+		input := valid
+		input.RevisionID = ""
+		service := NewService(&repositoryStub{}, &blobStoreStub{}, fixedClock{now}, 1024)
+		if _, err := service.PrepareClaim(context.Background(), input); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("error = %v, want ErrInvalidInput", err)
 		}
 	})
 }

@@ -63,8 +63,17 @@ func Run(ctx context.Context) error {
 		return err
 	}
 	defer storageConnection.Close()
+	storageClient := storage.New(
+		storagev1.NewUploadSessionServiceClient(storageConnection),
+		storagev1.NewAssetServiceClient(storageConnection),
+		storagev1.NewClaimServiceClient(storageConnection),
+		storagev1.NewDeliveryServiceClient(storageConnection),
+	)
+	go runAssetClaimRelay(ctx, application.NewAssetClaimRelay(
+		persistence.AssetClaimIntentRepository{Pool: pool}, storageClient, utcClock{},
+	))
 	skills := application.SkillService{
-		Repository: persistence.SkillRepository{Pool: pool}, Assets: storage.New(storagev1.NewUploadSessionServiceClient(storageConnection), storagev1.NewAssetServiceClient(storageConnection), storagev1.NewDeliveryServiceClient(storageConnection)), Errors: errorClassifier,
+		Repository: persistence.SkillRepository{Pool: pool}, Assets: storageClient, Errors: errorClassifier,
 		ArchiveMaxBytes: 256 * 1024 * 1024, ArchiveExpandedBytes: 512 * 1024 * 1024, AttachmentMaxBytes: 32 * 1024 * 1024,
 	}
 	benefitPackages := application.BenefitPackageService{

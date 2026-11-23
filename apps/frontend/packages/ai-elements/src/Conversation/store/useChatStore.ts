@@ -21,12 +21,6 @@ export type ImagePreviewState = {
   index: number;
 };
 
-export type VideoProductionWorkspaceState = {
-  open: boolean;
-  conversationId: string | null;
-  productionId: string | null;
-};
-
 export type ChatUIState = {
   memoryPanelOpen: boolean;
   setMemoryPanelOpen: (open: boolean) => void;
@@ -43,9 +37,6 @@ export type ChatUIState = {
   openArtifactPreview: (conversationId: string, documentId: string) => void;
   openFilePreview: (conversationId: string, fileId: string) => void;
   closeArtifactPreview: () => void;
-  videoProductionWorkspace: VideoProductionWorkspaceState;
-  openVideoProductionWorkspace: (conversationId: string, productionId: string) => void;
-  closeVideoProductionWorkspace: () => void;
   imagePreview: ImagePreviewState;
   openImagePreview: (conversationId: string, images: ImagePreviewRef[], index: number) => void;
   closeImagePreview: () => void;
@@ -69,12 +60,6 @@ const CLOSED_IMAGE_PREVIEW: ImagePreviewState = {
   index: 0,
 };
 
-const CLOSED_VIDEO_PRODUCTION_WORKSPACE: VideoProductionWorkspaceState = {
-  open: false,
-  conversationId: null,
-  productionId: null,
-};
-
 export const useChatStore = create<ChatUIState>()((set) => ({
   memoryPanelOpen: false,
   setMemoryPanelOpen: (memoryPanelOpen) =>
@@ -86,7 +71,6 @@ export const useChatStore = create<ChatUIState>()((set) => ({
           ? {
               tracePanelOpen: false,
               artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-              videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
             }
           : {}),
       });
@@ -105,7 +89,6 @@ export const useChatStore = create<ChatUIState>()((set) => ({
         tracePanelOpen: true,
         memoryPanelOpen: false,
         artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-        videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
         traceConversationId: conversationId,
         traceRunId: state.traceConversationId === conversationId ? state.traceRunId : null,
       }));
@@ -119,7 +102,6 @@ export const useChatStore = create<ChatUIState>()((set) => ({
           ? {
               memoryPanelOpen: false,
               artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-              videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
             }
           : {}),
         traceConversationId: tracePanelOpen ? state.traceConversationId : null,
@@ -143,7 +125,6 @@ export const useChatStore = create<ChatUIState>()((set) => ({
           fileId: null,
           token: state.artifactPreview.token + 1,
         },
-        videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
       }));
     }),
   openFilePreview: (conversationId, fileId) =>
@@ -159,30 +140,12 @@ export const useChatStore = create<ChatUIState>()((set) => ({
           fileId,
           token: state.artifactPreview.token + 1,
         },
-        videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
       }));
     }),
   closeArtifactPreview: () =>
     void allowArtifactNavigation().then((allowed) => {
       if (allowed) set({ artifactPreview: CLOSED_ARTIFACT_PREVIEW });
     }),
-
-  videoProductionWorkspace: { ...CLOSED_VIDEO_PRODUCTION_WORKSPACE },
-  openVideoProductionWorkspace: (conversationId, productionId) =>
-    void allowArtifactNavigation().then((allowed) => {
-      if (!allowed) return;
-      set({
-        memoryPanelOpen: false,
-        tracePanelOpen: false,
-        artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-        videoProductionWorkspace: {
-          open: true,
-          conversationId,
-          productionId,
-        },
-      });
-    }),
-  closeVideoProductionWorkspace: () => set({ videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE }),
 
   imagePreview: { ...CLOSED_IMAGE_PREVIEW },
   openImagePreview: (conversationId, images, index) =>

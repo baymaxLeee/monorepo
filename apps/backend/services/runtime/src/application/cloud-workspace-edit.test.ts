@@ -33,18 +33,12 @@ const workspace = {
   sandboxId: "sandbox",
   state: "active",
   scope: {
-    tenant_id: "tenant",
-    workspace_id: "workspace",
-    user_id: "user",
     session_id: "session",
     run_id: "run",
     attempt_epoch: "1",
   },
 };
 const input = {
-  userId: "user",
-  tenantId: "tenant",
-  workspaceId: "workspace",
   sessionId: "session",
   fileId: "file",
   expectedEtag: file.etag,

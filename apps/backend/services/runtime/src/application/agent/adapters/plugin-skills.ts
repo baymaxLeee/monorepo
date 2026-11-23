@@ -6,13 +6,7 @@ import { storageClient } from "../../../infrastructure/clients/storage.js";
 import type { HostPluginContext } from "../tools/catalog.js";
 
 export interface PluginSkillContentSource {
-  content(input: {
-    tenantId: string;
-    workspaceId: string;
-    assetId: string;
-    revisionId: string;
-    signal?: AbortSignal;
-  }): Promise<ReadableStream<Uint8Array>>;
+  content(input: { assetId: string; revisionId: string; signal?: AbortSignal }): Promise<ReadableStream<Uint8Array>>;
 }
 
 /** Runtime host adapter for immutable plugin skill bodies stored as exact Storage revisions. */
@@ -25,8 +19,6 @@ export class RuntimePluginSkillAssetLoader {
 
   async loadBody(skill: ResolvedPluginSkillContribution, context: HostPluginContext): Promise<string> {
     const stream = await (this.#source ?? storageClient()).content({
-      tenantId: context.tenantId,
-      workspaceId: context.workspaceId,
       assetId: skill.assetId,
       revisionId: skill.revisionId,
       signal: context.signal,

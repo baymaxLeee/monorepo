@@ -8,14 +8,10 @@ import type { SessionFile } from "../../session-files.js";
 import { transformFilePartsForModel } from "./model-files.js";
 
 const context = {
-  userId: "user",
-  tenantId: "tenant",
-  workspaceId: "workspace",
   sessionId: "session",
   supportsImageInput: true,
   signal: new AbortController().signal,
 };
-const url = "/api/chat-server/sessions/session/documents/doc/content?document_id=doc";
 const fileUrl = "/api/chat-server/sessions/session/files/file/content";
 
 test("assistant files and reasoning files replay through the real SDK without changing the journal", async () => {
@@ -27,25 +23,29 @@ test("assistant files and reasoning files replay through the real SDK without ch
         {
           type: "file",
           mediaType: "image/png",
-          url,
+          url: fileUrl,
           filename: "result.png",
           providerMetadata: { test: { itemId: "item" } },
         },
-        { type: "reasoning-file", mediaType: "image/png", url },
+        { type: "reasoning-file", mediaType: "image/png", url: fileUrl },
       ],
     },
   ];
   const journal = structuredClone(messages);
   let reads = 0;
-  const projected = await transformFilePartsForModel(messages, context, async (userId, documentId, options) => {
-    assert.equal(userId, context.userId);
-    assert.equal(documentId, "doc");
-    assert.equal(options?.sessionId, context.sessionId);
-    assert.equal(options?.signal, context.signal);
-    assert.equal(options?.maxDim, 1536);
-    reads++;
-    return { bytes: new Uint8Array([1, 2, 3]), mimeType: "image/png" };
-  });
+  const projected = await transformFilePartsForModel(
+    messages,
+    context,
+    async (readContext, source, maxDim) => {
+      assert.equal(readContext.sessionId, context.sessionId);
+      assert.equal(readContext.signal, context.signal);
+      assert.equal(source.id, "file");
+      assert.equal(maxDim, 1536);
+      reads++;
+      return { bytes: new Uint8Array([1, 2, 3]), mimeType: "image/png" };
+    },
+    async () => ({ ...file, mime_type: "image/png" }),
+  );
   assert.equal(reads, 1);
   assert.deepEqual(messages, journal);
   const model = await convertToModelMessages(projected);
@@ -63,7 +63,7 @@ test("user-controlled provider references are rejected before SDK model projecti
         {
           type: "file",
           mediaType: "image/png",
-          url,
+          url: fileUrl,
           providerReference: { provider: "untrusted-reference" },
         },
       ],
@@ -101,25 +101,17 @@ test("user files are resolved in scope, read through workspace tools, and kept a
   const messages: UIMessage[] = [
     { id: "user", role: "user", parts: [{ type: "file", mediaType: "image/png", url: fileUrl }] },
   ];
-  const projected = await transformFilePartsForModel(
-    messages,
-    context,
-    undefined,
-    async () => assert.fail("text file bytes must stay out of the prompt"),
-    undefined,
-    async (scope, id, fileId) => {
-      assert.equal(scope.userId, "user");
-      assert.equal(id, "session");
-      assert.equal(fileId, "file");
-      return file;
-    },
-  );
+  const projected = await transformFilePartsForModel(messages, context, undefined, undefined, async (id, fileId) => {
+    assert.equal(id, "session");
+    assert.equal(fileId, "file");
+    return file;
+  });
   const part = projected[0]?.parts[0];
   assert.ok(part?.type === "text");
   assert.match(part.text, /sources\/attachments\/transfer\/note.txt/);
   assert.equal(messages[0]?.parts[0]?.type, "file");
   await assert.rejects(
-    transformFilePartsForModel(messages, context, undefined, undefined, undefined, async () => {
+    transformFilePartsForModel(messages, context, undefined, undefined, async () => {
       throw new Error("denied");
     }),
     /denied/,
@@ -137,11 +129,10 @@ test("model image input reads the authorized attachment revision and retains the
   const result = await transformFilePartsForModel(
     messages,
     context,
-    undefined,
-    async (scope, source, maxDim) => {
+    async (readContext, source, maxDim) => {
       assert.equal(source.revision_id, "revision");
       assert.equal(maxDim, 1536);
-      assert.equal(scope.signal, context.signal);
+      assert.equal(readContext.signal, context.signal);
       return { bytes: new Uint8Array([1, 2, 3]), mimeType: "image/jpeg" };
     },
     undefined,
@@ -159,12 +150,7 @@ test("assistant session files read exact Storage bytes without Knowledge", async
   const projected = await transformFilePartsForModel(
     messages,
     context,
-    async () => {
-      assert.fail("Chat files must not read through Knowledge");
-    },
-    async (scope, source, maxDim) => {
-      assert.equal(scope.tenantId, "tenant");
-      assert.equal(scope.workspaceId, "workspace");
+    async (_readContext, source, maxDim) => {
       assert.equal(source.id, "file");
       assert.equal(maxDim, undefined);
       return { bytes: new TextEncoder().encode("saved"), mimeType: "text/plain" };
@@ -185,7 +171,6 @@ test("an unsupported image derivative leaves the original available to workspace
     transformFilePartsForModel(
       messages,
       context,
-      undefined,
       async () => {
         throw new InnerApiError(code, "variant unavailable");
       },

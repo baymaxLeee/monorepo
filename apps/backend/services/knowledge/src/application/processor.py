@@ -81,8 +81,6 @@ async def _convert_once(document_id: str, *, provider_id: str | None) -> str:
             markdown = cached_markdown
         else:
             content = await get_storage_client().read(
-                tenant_id=tenant_id,
-                workspace_id=workspace_id,
                 asset_id=asset_id,
                 revision_id=source_revision_id,
                 max_bytes=get_settings().attachment_max_upload_bytes,

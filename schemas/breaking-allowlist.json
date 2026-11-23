@@ -34,5 +34,11 @@
     "baselineSha256": "05d5606794b036f139439b0b18127eca2332fd82436b0ecd0b9f08d831fc2331",
     "type": "SERVICE_NO_DELETE",
     "message": "Previously present service \"AgentConfigurationService\" was deleted from file."
+  },
+  {
+    "baselinePath": "storage/v1/storage.proto",
+    "baselineSha256": "8dfb8e00382fcc2c343143ac690e82db28b375fed839dafc6f3f356b1fa85baf",
+    "type": "FILE_REPLACEMENT",
+    "message": "Storage v1 is intentionally replaced as a greenfield contract with no wire compatibility."
   }
 ]

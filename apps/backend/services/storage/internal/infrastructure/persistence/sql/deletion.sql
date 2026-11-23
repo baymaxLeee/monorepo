@@ -7,7 +7,7 @@ ORDER BY a.updated_at,a.id FOR UPDATE SKIP LOCKED LIMIT sqlc.arg(batch_size)
 FROM candidates c WHERE a.id=c.id;
 
 -- name: LockDeletionCandidates :many
-SELECT a.id,a.tenant_id,a.state_version FROM assets a
+SELECT a.id,a.state_version FROM assets a
 WHERE ((a.state='candidate' AND a.delete_after <= sqlc.arg(delete_after)) OR (a.state='deleting' AND a.delete_after <= sqlc.arg(delete_after)))
 AND NOT EXISTS (SELECT 1 FROM asset_claims c WHERE c.asset_id=a.id AND c.status IN ('pending','active') AND c.kind IN ('strong','snapshot','lease'))
 ORDER BY a.delete_after,a.id FOR UPDATE SKIP LOCKED LIMIT sqlc.arg(batch_size);

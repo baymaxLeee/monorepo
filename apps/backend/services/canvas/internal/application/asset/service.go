@@ -10,6 +10,7 @@ import (
 
 	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
+	applicationuploadintent "github.com/example/monorepo/canvas/internal/application/uploadintent"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
@@ -41,6 +42,7 @@ type Service struct {
 	storageQuota    StorageQuota
 	transactions    TransactionManager
 	claimIntents    ClaimIntentStore
+	uploadIntents   *applicationuploadintent.Service
 }
 
 type Option func(*Service)
@@ -78,6 +80,13 @@ func WithClaimIntents(store ClaimIntentStore, transactions TransactionManager) O
 	}
 }
 
+// WithUploadIntents installs the Canvas-owned admission boundary for public
+// uploads. Storage revision IDs alone never prove that the current business
+// caller prepared the upload.
+func WithUploadIntents(intents *applicationuploadintent.Service) Option {
+	return func(service *Service) { service.uploadIntents = intents }
+}
+
 func NewService(repository Repository, owners OwnerResolver, revisions RevisionStore, ids IDGenerator, clock Clock, options ...Option) *Service {
 	service := &Service{repository: repository, owners: owners, revisions: revisions, ids: ids, clock: clock}
 	for _, option := range options {
@@ -88,13 +97,12 @@ func NewService(repository Repository, owners OwnerResolver, revisions RevisionS
 
 type CreateInput struct {
 	Scope
-	ProjectID        *string
-	OwnerType        domainasset.OwnerType
-	OwnerID          string
-	CreationKey      string
-	SourceAssetID    string
-	SourceRevisionID string
-	FileName         string
+	ProjectID       *string
+	OwnerType       domainasset.OwnerType
+	OwnerID         string
+	CreationKey     string
+	UploadSessionID string
+	ClientRef       string
 }
 
 type CreateFromArtifactInput struct {
@@ -111,9 +119,8 @@ type CreateFromArtifactInput struct {
 }
 
 type CreateManyItem struct {
-	SourceAssetID    string
-	SourceRevisionID string
-	FileName         string
+	UploadSessionID string
+	ClientRef       string
 }
 
 type CreateManyInput struct {
@@ -130,6 +137,13 @@ type CreateManyResult struct {
 }
 
 type PrepareCreateItem struct {
+	UploadSessionID string
+	ClientRef       string
+}
+
+// ArtifactPrepareCreateItem is reserved for Canvas-owned workers whose output
+// was produced inside an already-authorized application workflow.
+type ArtifactPrepareCreateItem struct {
 	SourceAssetID    string
 	SourceRevisionID string
 	FileName         string
@@ -228,6 +242,30 @@ func (s *Service) PrepareResourceOwnedCreates(ctx context.Context, scope Scope, 
 	if !isValidScope(scope) || strings.TrimSpace(resourceID) == "" || len(items) == 0 {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
+	artifacts := make([]ArtifactPrepareCreateItem, 0, len(items))
+	for _, item := range items {
+		uploaded, err := s.resolveUploadedSource(ctx, scope, item.UploadSessionID, item.ClientRef)
+		if err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, ArtifactPrepareCreateItem{
+			SourceAssetID: uploaded.AssetID, SourceRevisionID: uploaded.RevisionID, FileName: uploaded.Filename,
+		})
+	}
+	return s.prepareResourceOwnedCreatesFromArtifacts(ctx, scope, projectID, resourceID, artifacts)
+}
+
+// PrepareResourceOwnedCreatesFromArtifacts is the trusted counterpart used by
+// Canvas workers after their own task/run authorization has admitted outputs.
+func (s *Service) PrepareResourceOwnedCreatesFromArtifacts(ctx context.Context, scope Scope, projectID *string, resourceID string, items []ArtifactPrepareCreateItem) ([]PreparedCreate, error) {
+	scope = normalizeScope(scope)
+	if !isValidScope(scope) || strings.TrimSpace(resourceID) == "" || len(items) == 0 {
+		return nil, errno.New(errno.ErrInvalidArgument)
+	}
+	return s.prepareResourceOwnedCreatesFromArtifacts(ctx, scope, projectID, resourceID, items)
+}
+
+func (s *Service) prepareResourceOwnedCreatesFromArtifacts(ctx context.Context, scope Scope, projectID *string, resourceID string, items []ArtifactPrepareCreateItem) ([]PreparedCreate, error) {
 	prepared := make([]PreparedCreate, 0, len(items))
 	createdAt := s.clock.Now()
 	for _, item := range items {
@@ -238,15 +276,12 @@ func (s *Service) PrepareResourceOwnedCreates(ctx context.Context, scope Scope, 
 		if err != nil {
 			return nil, errno.Wrap(errno.ErrInternalError, err)
 		}
-		resolved, err := s.revisions.Resolve(ctx, scope.TenantID, workspaceValue(scope.WorkspaceID), RevisionRef{SourceAssetID: item.SourceAssetID, SourceRevisionID: item.SourceRevisionID})
+		resolved, err := s.revisions.Resolve(ctx, RevisionRef{SourceAssetID: item.SourceAssetID, SourceRevisionID: item.SourceRevisionID})
 		if err != nil {
 			return nil, classifyArtifactError(err)
 		}
 		if !resolved.MediaType.Valid() || strings.TrimSpace(resolved.ContentType) == "" {
 			return nil, errno.New(errno.ErrUnsupportedAssetFormat)
-		}
-		if resolved.Category != "canvas-source" || resolved.CreatedBy != scope.CallerID {
-			return nil, errno.New(errno.ErrForbidden)
 		}
 		prepared = append(prepared, PreparedCreate{
 			Scope: scope, ProjectID: projectID, ID: id, OwnerType: domainasset.OwnerResource, OwnerID: resourceID,
@@ -365,6 +400,10 @@ func (s *Service) CreateIdempotent(ctx context.Context, input CreateInput) (doma
 	if err := s.owners.Validate(ctx, scope, input.OwnerType, input.OwnerID); err != nil {
 		return domainasset.Asset{}, false, classifyOwnerError(err)
 	}
+	uploaded, err := s.resolveUploadedSource(ctx, scope, input.UploadSessionID, input.ClientRef)
+	if err != nil {
+		return domainasset.Asset{}, false, err
+	}
 	creationKey := strings.TrimSpace(input.CreationKey)
 	if creationKey != "" {
 		existing, getErr := s.repository.GetByCreationKey(ctx, scope, input.OwnerType, input.OwnerID, creationKey)
@@ -379,17 +418,14 @@ func (s *Service) CreateIdempotent(ctx context.Context, input CreateInput) (doma
 	if err != nil {
 		return domainasset.Asset{}, false, errno.Wrap(errno.ErrInternalError, err)
 	}
-	resolved, err := s.revisions.Resolve(ctx, scope.TenantID, workspaceValue(scope.WorkspaceID), RevisionRef{
-		SourceAssetID: input.SourceAssetID, SourceRevisionID: input.SourceRevisionID,
+	resolved, err := s.revisions.Resolve(ctx, RevisionRef{
+		SourceAssetID: uploaded.AssetID, SourceRevisionID: uploaded.RevisionID,
 	})
 	if err != nil {
 		return domainasset.Asset{}, false, classifyArtifactError(err)
 	}
 	if !resolved.MediaType.Valid() || strings.TrimSpace(resolved.ContentType) == "" || resolved.SizeBytes <= 0 {
 		return domainasset.Asset{}, false, errno.New(errno.ErrUnsupportedAssetFormat)
-	}
-	if resolved.Category != "canvas-source" || resolved.CreatedBy != scope.CallerID {
-		return domainasset.Asset{}, false, errno.New(errno.ErrForbidden)
 	}
 	limit, _ := resolved.MediaType.SizeLimitBytes()
 	if resolved.SizeBytes > limit {
@@ -398,8 +434,8 @@ func (s *Service) CreateIdempotent(ctx context.Context, input CreateInput) (doma
 	item, err := domainasset.New(domainasset.NewInput{
 		ID: id, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
 		OwnerType: input.OwnerType, OwnerID: input.OwnerID, CreationKey: creationKey,
-		SourceAssetID: input.SourceAssetID, SourceRevisionID: input.SourceRevisionID,
-		FileName: input.FileName, MediaType: resolved.MediaType, ContentType: resolved.ContentType,
+		SourceAssetID: uploaded.AssetID, SourceRevisionID: uploaded.RevisionID,
+		FileName: uploaded.Filename, MediaType: resolved.MediaType, ContentType: resolved.ContentType,
 		SizeBytes: resolved.SizeBytes, CreatedBy: scope.CallerID, Now: s.clock.Now(),
 	})
 	if err != nil {
@@ -645,7 +681,7 @@ func (s *Service) CreateMany(ctx context.Context, input CreateManyInput) ([]Crea
 			}
 			asset, err := s.Create(ctx, CreateInput{
 				Scope: scope, ProjectID: input.ProjectID, OwnerType: input.OwnerType, OwnerID: input.OwnerID,
-				SourceAssetID: item.SourceAssetID, SourceRevisionID: item.SourceRevisionID, FileName: item.FileName,
+				UploadSessionID: item.UploadSessionID, ClientRef: item.ClientRef,
 			})
 			results[index] = CreateManyResult{Asset: asset, Err: err}
 		}()
@@ -873,7 +909,6 @@ func (s *Service) presignAssets(ctx context.Context, inputScope Scope, requested
 	if len(sourceAssetIDs) == 0 {
 		return results, nil
 	}
-	scope := normalizeScope(inputScope)
 	presigned := make(map[string]PresignedArtifact, len(sourceAssetIDs))
 	var presignErr error
 	refs := make([]RevisionRef, 0, len(assets))
@@ -888,7 +923,7 @@ func (s *Service) presignAssets(ctx context.Context, inputScope Scope, requested
 			}
 		}
 	}
-	resolved, resolveErr := s.revisions.BatchDeliveryURLs(ctx, scope.TenantID, workspaceValue(scope.WorkspaceID), refs)
+	resolved, resolveErr := s.revisions.BatchDeliveryURLs(ctx, refs)
 	for key, capability := range resolved {
 		presigned[key] = capability
 	}
@@ -1070,9 +1105,32 @@ func sameScope(left, right Scope) bool {
 
 func isValidCreateInput(scope Scope, input CreateInput) bool {
 	return isValidScope(scope) && input.OwnerType.Valid() &&
-		strings.TrimSpace(input.OwnerID) != "" && strings.TrimSpace(input.SourceAssetID) != "" &&
-		strings.TrimSpace(input.SourceRevisionID) != "" &&
-		strings.TrimSpace(input.FileName) != "" && len(strings.TrimSpace(input.CreationKey)) <= 255
+		strings.TrimSpace(input.OwnerID) != "" && strings.TrimSpace(input.UploadSessionID) != "" &&
+		strings.TrimSpace(input.ClientRef) != "" && len(strings.TrimSpace(input.CreationKey)) <= 255
+}
+
+func (s *Service) resolveUploadedSource(
+	ctx context.Context,
+	scope Scope,
+	uploadSessionID string,
+	clientRef string,
+) (applicationuploadintent.ResolvedUpload, error) {
+	if s.uploadIntents == nil {
+		return applicationuploadintent.ResolvedUpload{}, errno.New(errno.ErrConfigurationError)
+	}
+	resolved, err := s.uploadIntents.Resolve(ctx, applicationuploadintent.ResolveInput{
+		Scope: applicationuploadintent.Scope{
+			TenantID: scope.TenantID, WorkspaceID: workspaceValue(scope.WorkspaceID), UserID: scope.CallerID,
+		},
+		Purpose: applicationuploadintent.PurposeSource, ClientRef: clientRef, UploadSessionID: uploadSessionID,
+	})
+	if err != nil {
+		return applicationuploadintent.ResolvedUpload{}, err
+	}
+	if strings.TrimSpace(resolved.AssetID) == "" || strings.TrimSpace(resolved.RevisionID) == "" || strings.TrimSpace(resolved.Filename) == "" {
+		return applicationuploadintent.ResolvedUpload{}, errno.New(errno.ErrInvalidArgument)
+	}
+	return resolved, nil
 }
 
 func workspaceValue(workspaceID *string) string {

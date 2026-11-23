@@ -101,12 +101,6 @@ func (relay *Relay) RunOnce(ctx context.Context, limit int) (int, error) {
 
 func (relay *Relay) deliver(ctx context.Context, intent Intent) error {
 	if intent.DesiredState == DesiredReleased {
-		// A local aggregate can be created and deleted before its active intent is
-		// ever delivered. Preparing the exact generation first makes release
-		// convergent for both that case and an already-active remote Claim.
-		if err := relay.client.PrepareAssetClaim(ctx, intent); err != nil {
-			return err
-		}
 		return relay.client.ReleaseAssetClaimIntent(ctx, intent)
 	}
 	if err := relay.client.PrepareAssetClaim(ctx, intent); err != nil {

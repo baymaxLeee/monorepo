@@ -38,21 +38,21 @@ flowchart LR
 
 每个 Turn 是一个 shared `RuntimeTurn`，内部只创建一个 AI SDK `ToolLoopAgent`，不是 Workflow run。模型 step、普通 Bash、artifact、workspace 保存、搜索、普通工具调用和 Agent 审批都在 `runtime-server` 进程内执行。Session/lease/journal finalizer 由 Runtime host 拥有；input queue、context projection/compaction、tool admission 和 loop adapter 由 shared kernel 拥有，边界见 [Agent runtime](agent-runtime.md)。浏览器断线只影响订阅，不改变已经受理的 Turn。
 
-Workflow 只用于脱离当前 Turn 后仍必须跨进程、重启、部署或长等待继续的 Job，例如多阶段媒体生成、provider 长轮询与持久等待。工具提交 Job 后得到稳定 task/job ID；主 Agent 可以继续或结束 Turn。不得为了“可能耗时”把普通工具或整个 Agent loop 包进 Workflow，也不引入 `WorkflowAgent`。
+Workflow 只用于必须跨进程、重启、部署或长等待继续的 durable operation；它不承载整个 Agent loop。durable operation 可以被 detached Job 消费，也可以由当前 tool call 持续附着直到终态。图片和视频生成采用后者：`generate_images` / `generate_video` 用稳定 owner identity 提交一次任务，断流后读取同一任务并重新订阅，直到生成结果发布为普通 Session file 才向模型返回。模型在调用前用 `ask_user` 补齐缺失选择；Runtime 不再维护 storyboard、production projection、审批工作台或“提交后先跳过工具结果”的特殊路径。不得为了“可能耗时”把普通工具或整个 Agent loop 包进 Workflow，也不引入 `WorkflowAgent`。
 
 Server 通过内部 role transport 调用 worker。Worker 先把幂等 task admission 写入 Runtime 业务库，再启动 Workflow；`owner_service=runtime` 与稳定 `owner_ref` 防止同一 tool call 重复创建任务。Workflow World 是引擎恢复数据，不是 messages 或 Job 业务真源，Runtime 代码不得查询 World 表来回答产品 API。
 
 Worker 不可用时，普通 Turn 和 inline tools 仍可运行。确定未受理的提交可以失败；请求超时或响应丢失则必须按原幂等键查询，不能假定未受理，也不能换键重提。已有 admission 可以是 queued，不能伪装成执行中。Workflow step 的 at-least-once 语义不等于外部副作用 exactly-once；付费或不可逆操作必须使用稳定 operation ID、远端幂等键或可查询关联 ID。
 
-Job admission 与 dispatch intent 必须在同一 Runtime 事务提交；worker 用持久派发记录恢复启动。`start()` 异常可能表示结果未知，不能直接记为确定失败。run 绑定在等待期间持续有效；重复 run 的唯一 claim 不能代替同一 run 内每次副作用的取消、授权与幂等检查。完成/失败通过幂等 settlement 写入业务状态，reconciler 修复引擎终态与业务未收口的窗口，不能仅依赖内存 completion watcher。
+Job admission 与 dispatch intent 必须在同一 Runtime 事务提交；worker 用持久派发记录恢复启动。`start()` 异常可能表示结果未知，不能直接记为确定失败。run 绑定在等待期间持续有效；重复 run 的唯一 claim 不能代替同一 run 内每次副作用的取消、冻结 execution capability 与幂等检查。完成/失败通过幂等 settlement 写入业务状态，reconciler 修复引擎终态与业务未收口的窗口，不能仅依赖内存 completion watcher。
 
-审批和外部结果先写持久状态及待唤醒记录，再恢复 Hook；早到决策、重复 resume、丢响应都需对账。Workflow replay 不会重新执行已成功的权限检查 step，因此敏感副作用实际执行前必须重查当前权限和取消状态。未知付费结果无法查询时进入 reconciliation，不能由默认 step retry 再次收费。
+审批和外部结果先写持久状态及待唤醒记录，再恢复 Hook；早到决策、重复 resume、丢响应都需对账。Workflow replay 不会重新执行已成功的 execution-capability 检查 step，因此敏感副作用实际执行前必须重新验证已冻结 capability 的 operation/resource binding 与取消状态。产品用户授权由上层 App 在签发 capability 前完成，Runtime 不在 replay 中反查 tenant、workspace 或用户。未知付费结果无法查询时进入 reconciliation，不能由默认 step retry 再次收费。
 
 ## Session 与 Chat 边界
 
-Runtime 内部 API 以 `/v1/sessions` 为根，只有 `chat` workload identity 可以调用当前云端入口。Session 保存完整 messages、run/stream 状态、工具结果、文件/Artifact 引用、memory 与执行关系。
+Runtime 内部 API 以 `/v1/sessions` 为根，由受信上层 App 的 workload identity 调用。Session 只保存 messages、run/stream 状态、工具结果、文件/Artifact 引用与执行关系；用户 memory、租户配额和产品领域状态不属于 Runtime Session。
 
-一个宿主对象可以映射一个 Runtime Session；对 Web Chat 而言，该宿主对象是 product conversation。Runtime 不保存或理解 conversation 聚合，Session 才是全部执行事实的聚合根。messages、Turn、工具、审批、Job 与 workspace 都归属于 Session；独立状态机、分表或局部版本控制不改变归属。Chat 的 product conversation 是产品入口与展示投影，不是第二份执行会话。workload identity 只认证调用服务；每次读写仍校验最终用户的 tenant/workspace/user scope、Session 归属和对象关联，不能把可信 BFF 等同于任意用户授权。
+一个宿主对象可以映射一个 Runtime Session；对 Web Chat 而言，该宿主对象是 product conversation。Runtime 不保存或理解 conversation 聚合，Session 才是全部执行事实的聚合根。messages、Turn、工具、审批、Job 与 workspace 都归属于 Session；独立状态机、分表或局部版本控制不改变归属。Chat 的 product conversation 是产品入口与展示投影，不是第二份执行会话。上层 App 根据自己的 tenant/workspace/user 模型校验映射与 membership；Runtime 只校验 workload caller、Session 关联和宿主签发的细粒度 capability，不接收或持久化这些业务 scope。
 
 Chat 继续向浏览器提供 `/conversations` 产品 API：
 
@@ -61,17 +61,18 @@ Chat 继续向浏览器提供 `/conversations` 产品 API：
 - 列表、标题、项目/Canvas 绑定等产品投影留在 Chat；
 - fork 先让 Runtime 复制 Session 历史与文件快照，再为新 Session 建立 product conversation 映射；对浏览器只返回新的 conversation ID；
 - Chat 不持久化 messages、run journal、tool execution、Sandbox 或 Job；
-- Chat 不调用 Admin、Knowledge、Storage、Canvas、worker 或 sandbox，所有这些依赖只由 Runtime 使用。
+- Chat 或其他产品宿主负责解析 Admin/Knowledge/Storage/Canvas 的业务授权，并向 Runtime 投影短期 capability；Runtime worker/sandbox 只消费 tenant-neutral 的 Session/资源能力。
 
 Chat 与 Runtime 使用独立 PostgreSQL database，并明确禁止通过 XA/2PC、共享数据库或跨库事务把两个服务重新耦合。创建是一段最终一致的业务流程：Chat 使用稳定 `request_id` 调用 Runtime 创建/返回同一 Session，再幂等写入本地映射；响应丢失按原键重试。进程若在 Runtime 成功后、本地映射提交前崩溃，当前实现仍需要识别并回收孤立 Session；它尚未持久化 create/delete saga。未来增强方向是 Chat 本地持久化 intent/outbox、补偿和 reconciliation，不是追求跨库 ACID。删除先请求 Runtime，再删除本地映射，未知结果必须沿原身份对账，不能先删映射而失去 Runtime 清理责任。
 
-产品标题、项目/Canvas 绑定以 Chat 为权威，不进入 Runtime Session 表。Canvas 产品宿主只在每次
-Agent run 通过 `plugin_activations` 激活 `canvas@platform`，并携带 manifest 已声明的
-`project_id`/`canvas_id` 非秘密 binding；Runtime 将解析出的 immutable release 与 activation 冻结为
-Turn snapshot，不把 binding 升级为 Session 元数据。产品 conversation 的创建/删除/查询始终经已授权
-映射，禁止直接信任客户端传入的 runtime_session_id。
+产品标题、项目/Canvas 绑定以 Chat/Canvas 为权威，不进入 Runtime Session 表。产品宿主在每次
+Agent run 前解析业务资源、模型、skills 与 plugins，把结果投影为 tenant-neutral 的
+`TurnCapabilities = { provider, media, plugins, skills, memories }`；其中 `memories` 只是上层已授权内容的
+冻结投影，不携带用户身份。Runtime 只冻结并消费这份执行 capability，不把
+`project_id`、`canvas_id` 或其他业务 binding 升级为 Session 元数据。产品 conversation 的
+创建/删除/查询始终经上层已授权映射，禁止直接信任客户端传入的 `runtime_session_id`。
 
-fresh baseline 仅用于全新数据库。现有已应用 baseline 不得改写；存量部署使用版本化迁移，任何数据清除是另行授权的部署操作。不维护旧 API 兼容层不等于可以丢弃用户资产或未对账的外部副作用。
+本次 Runtime 绿地重构已明确授权丢弃并重建现有 Runtime 1.0.0 数据，因此直接重写 fresh baseline，不提供旧 Runtime Session schema 的迁移或兼容读取。数据删除只由部署时的显式 reset 执行，运行时代码不自行 drop 数据；外部资产和未决副作用仍必须由各自 owner 对账，不能因 Runtime 重建而假定已经撤销。
 
 ## Messages 查询与交互恢复
 
@@ -85,7 +86,7 @@ snapshot、分支 revision 与流恢复位置必须能够一致衔接，订阅/�
 
 Cloud 已将一个用户任务保持为唯一 `turns.id`；client-tool/approval continuation 把前 attempt 结算为 `waiting`、追加新 `turn_attempts.attempt_epoch`，而不是新建 Turn。`turn_steps`、`tool_effects`、`turn_leases`、Sandbox execution 和 workspace writer 都绑定精确 attempt；一个 Session 的 `waiting/running/cancel_requested` Turn 受同一 one-active-Turn 约束，只有匹配的 continuation 能把 waiting Turn 重新置为 running。
 
-每个 Cloud attempt 在模型请求或 host effect 前写入不可变、无 secret 的 `turn_resume_envelopes`。它绑定 Session、history item/revision/digest、instruction/tool catalog/workspace digest、compactor version、remote binding，以及冻结的 auth scope、provider/model、operation、reasoning、skills/plugin activation、approval/permission 和 assistant item identity。provider secret 与 plugin grants 不进入 envelope，恢复时从权威 owner 重新取得。
+每个 Cloud attempt 在模型请求或 host effect 前写入不可变、无 secret 的 `turn_resume_envelopes`。它绑定 Session、history item/revision/digest、instruction/tool catalog/workspace digest、compactor version、remote binding，以及冻结的 provider/model binding、operation、reasoning、skills/plugin activation、approval/permission 和 assistant item identity。tenant/workspace/user 或产品 auth scope 不进入 envelope；secret-bearing `TurnCapabilities` 由上层宿主在恢复前重新签发。
 
 Cloud tool effect 的稳定身份是 `(turn_id, tool_call_id)`；execute wrapper 在进入 host code 前原子 claim，完整 canonical input digest 负责身份判等，截断/redacted `input_json` 只用于观察。completed effect 可跨 attempt 返回已持久化结果，tool/digest 改变直接冲突，任何已存在的 `running` claim 都视为 unconfirmed：同 attempt 的重复进入也不能执行第二次，跨 attempt 则必须 reconciliation。
 
@@ -97,7 +98,7 @@ Cloud tool effect 的稳定身份是 `(turn_id, tool_call_id)`；execute wrapper
 4. 取消、缺失/漂移 envelope、unconfirmed effect，以及 committed effect 没有 journaled SDK step 都转为 `interrupted`，绝不猜测或重放；
 5. 旧 attempt Sandbox 的 finalization/release 先于新 recovery runner 启动，新 attempt 不继承旧 PID、终端、stream 或未确认工作区写入。
 
-`resumeClaimedAgentRun()` 只接受已经事务 claim 的 attempt。它重新读取 Session、provider secret 与 plugin grants，核对 provider binding，并在 context projection 前验证 instruction、tool catalog、workspace、compactor 和 remote generation 与 envelope 完全一致；任何 drift 返回 `resume_generation_conflict` 并收口新 attempt。验证通过后构造新的 `RuntimeTurn`，重新进入唯一 AI SDK `ToolLoopAgent`，并主动消费 response 直到完成或失败。该语义是“同一 logical Turn 从已提交 model boundary 自动恢复”，不是透明续接 JavaScript、旧 provider stream 或 shell。
+`resumeClaimedAgentRun()` 只接受已经事务 claim 的 attempt。它要求上层宿主为该 attempt 续期 `TurnCapabilities`，核对 provider、plugin 与 skill binding，并在 context projection 前验证 instruction、tool catalog、workspace、compactor 和 remote generation 与 envelope 完全一致；Runtime 不从业务 identity 反查 Admin，缺少续期 capability 或任一 drift 都 fail closed 并收口新 attempt。验证通过后构造新的 `RuntimeTurn`，重新进入唯一 AI SDK `ToolLoopAgent`，并主动消费 response 直到完成或失败。该语义是“同一 logical Turn 从已提交 model boundary 自动恢复”，不是透明续接 JavaScript、旧 provider stream 或 shell。
 
 Desktop 启动时仍把残留 `running` Turn 标记为 `interrupted`；它尚无等价 physical-attempt envelope、generation validation 和 restart claim。这是当前 cross-host 缺口，不允许用 SQLite 双轨或第二套 loop 绕过。浏览器断线仍只释放订阅；持久取消先阻止新执行，再传播 AbortSignal 和清理责任。
 
@@ -121,10 +122,10 @@ Runtime PostgreSQL 的 logical Turn/physical attempt/tool effect/recovery genera
 
 | 逻辑对象 | 状态 | 持久语义 |
 | --- | --- | --- |
-| Session / item graph (`threads`, `thread_items`) | current | 用户与 tenant/workspace、selected item、history revision、append-only UIMessage graph；attempt envelope/checkpoint 持久化所选 history binding 与 digest |
+| Session / item graph (`threads`, `thread_items`) | current | Session metadata、selected item、history revision、append-only UIMessage graph；attempt envelope/checkpoint 持久化所选 history binding 与 digest，不保存 tenant/workspace/user |
 | `turns` | current | 逻辑用户任务及终态；`waiting/running/cancel_requested` 共用 one-active-Turn guard，不再存 request/operation/attempt 字段 |
 | `turn_attempts` | current | 每次物理 owner 的单调 epoch、request/fingerprint、operation、history binding、waiting/终态 |
-| `turn_resume_envelopes` | current | 每 attempt 不可变、无 secret 的 reconstruction snapshot；绑定 auth/execution snapshot 与 history/instruction/catalog/workspace/compactor/remote generation |
+| `turn_resume_envelopes` | current | 每 attempt 不可变、无 secret 的 reconstruction snapshot；绑定 execution/capability digest 与 history/instruction/catalog/workspace/compactor/remote generation，不保存产品 auth scope |
 | `turn_steps` | observability projection | step 记录受 attempt fencing，但不能单独成为 crash resume point；恢复 boundary 以 canonical journal item + envelope/effect facts 为准 |
 | `turn_inputs` | current | `follow-up/next-turn` admission 与 delivered/not-delivered/unconfirmed 结算 |
 | `tool_effects` | current with limits | `(turn_id, tool_call_id)` 身份、attempt owner、canonical `input_digest`、redacted `input_json`、running/completed/failed 与 result；effect class、外部 operation ID 和对账引用仍按工具补齐 |
@@ -148,7 +149,7 @@ Chat 只保留产品映射 schema。Workflow 使用自管理 PostgreSQL World �
 - server TypeScript source 与共享 runtime libraries；
 - Nitro 编译的顶层 `.output`；
 - sandbox controller 所需的 Docker/kubectl client；
-- worker 媒体步骤需要的 ffmpeg。
+- worker durable Job 与其冻结 capability。
 
 角色启动命令分别为：
 
@@ -191,7 +192,7 @@ durable Job 必须能跨正常部署继续：绑定 definition/release，兼容�
 
 完成门槛包括 Runtime/Chat tests 与 builds、三份 OpenAPI contract、transport codegen、fresh migration integration、service graph、K8s render、Single-VPS Compose、同一 Linux image 启动三个角色。类型检查或 mock 单测不能替代 Workflow World、Docker/gVisor/Kubernetes 与多进程故障验证。
 
-当前实现已要求 Chat 与 Runtime 复用稳定 `request_id`，Runtime 以调用 scope 和请求键返回同一 Session、异参冲突；durable task 的 `(owner_service, owner_ref)` 同时绑定 type 与规范化 payload。业务 task row 也是持久 dispatch intent：`start()` 结果未知时保持 queued，周期恢复可启动候选 run，首个 `claimTaskStep` 原子绑定唯一 run，其他候选在副作用前失败。仍待补齐的 Session 边界是：Chat 尚未把创建/删除意图作为可恢复状态持久化，当前依靠稳定请求键重试和后续孤立 Session 回收收敛。该缺口应通过本地 saga 状态、reconciliation 和 cleanup 修复；跨数据库 ACID 不是目标，也不是完成标准。
+当前实现已要求 Chat 与 Runtime 复用稳定 `request_id`。Runtime 先按 workload caller 与请求键查询既有 Session：同键同 canonical fingerprint 返回原结果，同键异参明确冲突；该键不含 tenant/workspace/user，也不把 workspace 当进程锁、并发锁或请求唯一键。durable task 的 `(owner_service, owner_ref)` 同时绑定 type 与规范化 payload。业务 task row 也是持久 dispatch intent：`start()` 结果未知时保持 queued，周期恢复可启动候选 run，首个 `claimTaskStep` 原子绑定唯一 run，其他候选在副作用前失败。仍待补齐的 Session 边界是：Chat 尚未把创建/删除意图作为可恢复状态持久化，当前依靠稳定请求键重试和后续孤立 Session 回收收敛。该缺口应通过本地 saga 状态、reconciliation 和 cleanup 修复；跨数据库 ACID 不是目标，也不是完成标准。
 
 当前本地证据覆盖 Runtime/Chat 单测、两者构建、三份 OpenAPI/codegen、全仓 lint/typecheck、migration checksum、service graph、Kubernetes render 与 Single-VPS Compose 解析。Runtime 测试中的 PostgreSQL/Redis integration case 在未启用集成环境时跳过；真实 Postgres World 恢复、Docker/gVisor/Kubernetes guest 生命周期和同一 Linux image 三入口启动仍是部署验收项，不能由本地类型检查替代。
 
@@ -201,8 +202,8 @@ durable Job 必须能跨正常部署继续：绑定 definition/release，兼容�
 
 - [Codex App Server](https://openai.com/index/unlocking-the-codex-harness/)：借鉴 Thread/Turn/Item、稳定 Item 生命周期与服务端会话历史；不推导跨进程透明恢复或固定进程数。
 - [Anthropic Managed Agents](https://www.anthropic.com/research/managed-agents)：借鉴 Session、harness、Sandbox 的生命周期分离；会话聚合与计算隔离可以同时成立，不照搬托管内部保证。
-- [AI SDK ToolLoopAgent](https://ai-sdk.dev/docs/reference/ai-sdk-core/tool-loop-agent)：复用 SDK-owned loop 与原生消息/工具协议，持久授权和执行事实仍由 Runtime 负责。
+- [AI SDK ToolLoopAgent](https://ai-sdk.dev/docs/reference/ai-sdk-core/tool-loop-agent)：复用 SDK-owned loop 与原生消息/工具协议；Runtime 只持久化执行许可事实与冻结 capability binding，产品授权仍由上层 App 负责。
 - [Workflow 幂等](https://workflow-sdk.dev/docs/foundations/idempotency)、[版本管理](https://workflow-sdk.dev/docs/foundations/versioning)：区分 run 去重与副作用幂等；接口必须核对安装版本，托管版本路由不能套用于自托管 World。
 - [Postgres World](https://github.com/vercel/workflow/blob/main/packages/world-postgres/README.md)、[Hono integration](https://workflow-sdk.dev/docs/getting-started/hono)：验证自托管鉴权、shutdown、重投与官方构建路径。
 
-三角色、Session 聚合、权限与业务状态是本项目决策；公开实践用于验证边界，不替代代码和目标环境验收。
+三角色、Session 聚合、执行权限与上层业务状态的分界是本项目决策；公开实践用于验证边界，不替代代码和目标环境验收。

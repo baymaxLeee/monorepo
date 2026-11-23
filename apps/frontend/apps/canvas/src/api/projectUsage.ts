@@ -6,6 +6,14 @@ export type ProjectUsageDetail = project.ProjectDetail & { UsageLimit?: number; 
 export type CreateProjectWithUsageRequest = project.CreateProjectRequest & { UsageLimit?: number };
 export type UpdateProjectWithUsageRequest = project.UpdateProjectRequest & { UsageLimit?: number };
 
+const coverUpload = (receipt?: project.CoverUpload) =>
+  receipt
+    ? {
+        upload_session_id: receipt.UploadSessionID,
+        client_ref: receipt.ClientRef,
+      }
+    : undefined;
+
 const present = (value: Awaited<ReturnType<typeof canvasAdminGetProject>>["project"]): ProjectUsageDetail => ({
   ProjectID: value.project_id,
   Name: value.name,
@@ -29,8 +37,7 @@ export async function createProjectWithUsage(request: CreateProjectWithUsageRequ
   const response = await canvasCreateProject({
     name: request.Name,
     member_user_ids: request.MemberUserIDs,
-    cover_image_asset_id: request.CoverImageAssetID,
-    cover_image_revision_id: request.CoverImageRevisionID,
+    cover_upload: coverUpload(request.CoverUpload),
     usage_limit: request.UsageLimit,
   });
   return { Project: present(response.project) };
@@ -40,8 +47,8 @@ export async function updateProjectWithUsage(request: UpdateProjectWithUsageRequ
   const response = await canvasAdminUpdateProject(request.ProjectID, {
     name: request.Name,
     member_user_ids: request.MemberUserIDs,
-    cover_image_asset_id: request.CoverImageAssetID,
-    cover_image_revision_id: request.CoverImageRevisionID,
+    cover_upload: coverUpload(request.CoverUpload),
+    clear_cover_image: request.ClearCoverImage,
     usage_limit: request.UsageLimit,
   });
   return { Project: present(response.project) };

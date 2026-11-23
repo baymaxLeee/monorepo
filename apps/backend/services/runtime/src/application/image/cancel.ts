@@ -1,12 +1,12 @@
 import type { ImageGenerationInput } from "../../../workflows/image-generation.js";
-import { deleteDocument } from "../../infrastructure/clients/knowledge-media.js";
+import { releaseTaskAsset } from "../../infrastructure/clients/storage-media.js";
 import type { TaskProgress } from "../tasks/types.js";
 
 export async function cancelImageGeneration(
-  input: ImageGenerationInput,
+  _input: ImageGenerationInput,
   progress: TaskProgress | null,
-  _context: { taskId: string },
-  removeDocument: typeof deleteDocument = deleteDocument,
+  context: { taskId: string },
+  releaseAsset: typeof releaseTaskAsset = releaseTaskAsset,
 ): Promise<void> {
-  await Promise.all((progress?.externalTaskIds ?? []).map((documentId) => removeDocument(input.userId, documentId)));
+  await Promise.all((progress?.externalTaskIds ?? []).map((slot) => releaseAsset(context.taskId, slot)));
 }
