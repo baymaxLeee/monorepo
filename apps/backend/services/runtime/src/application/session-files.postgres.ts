@@ -9,6 +9,7 @@ import {
   assetClaimIntents,
   threadFiles as sessionFiles,
   threadFileSaveOperations as sessionFileSaveOperations,
+  turnAttempts as sessionRunAttempts,
   turnLeases as sessionRunLeases,
   threads as sessions,
   turns,
@@ -257,6 +258,14 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
       userId: scope.userId,
       status: "running",
       createdAt: new Date(),
+      startedAt: new Date(),
+    });
+    await getDb().insert(sessionRunAttempts).values({
+      turnId,
+      attemptEpoch: 1n,
+      threadId: seeded.sessionId,
+      operation: "internal",
+      status: "running",
       startedAt: new Date(),
     });
     await getDb()

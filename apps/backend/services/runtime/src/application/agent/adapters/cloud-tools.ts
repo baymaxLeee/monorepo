@@ -37,6 +37,7 @@ function cloudPermissionProfile(id: BuiltInPermissionProfileId): PermissionProfi
     profile.fileSystem.entries.push(
       { path: "/workspace/sources", access: "read" },
       { path: "/workspace/.home", access: "deny" },
+      { path: "/run/output", access: "read" },
       { path: "/run/control", access: "deny" },
       { path: "/run/egress", access: "deny" },
     );

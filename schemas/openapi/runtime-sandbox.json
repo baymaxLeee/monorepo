@@ -1094,6 +1094,9 @@
           "pipe_stdin": {
             "type": "boolean"
           },
+          "retain_output": {
+            "type": "boolean"
+          },
           "yield_time_ms": {
             "default": 1000,
             "type": "integer",
@@ -1398,6 +1401,10 @@
           },
           "stderr_truncated": {
             "type": "boolean"
+          },
+          "retained_output_path": {
+            "type": "string",
+            "pattern": "^\\/run\\/output\\/[a-f0-9]{32}\\.log$"
           },
           "truncated": {
             "type": "boolean"

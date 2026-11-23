@@ -1,8 +1,10 @@
 # Session Runtime：单一执行内核与三运行角色
 
-状态：**架构已采用，生命周期验收尚未完成**。三角色与 BFF 分工已进入工作区实现；下文的可靠性要求是实施门槛，不能仅凭目录迁移视为已满足。不保留旧执行服务的长期兼容层。
+状态：**current with explicit residual boundaries**。三角色与 BFF owner、shared `RuntimeTurn`、journal/lease/Sandbox finalizer 已实现；Cloud 已分开 logical Turn/physical attempt，并实施 waiting continuation、attempt-fenced step/effect/lease/Sandbox、immutable resume envelope、generation validation 和安全 model-boundary auto-resume。Desktop restart auto-resume、未知外部 effect reconciliation 与生产隔离环境验收仍未完成。下文分别标记当前事实与残余边界，不以旧 ADR、目录迁移或 mock 测试冒充完成。不保留旧执行服务或旧数据库模型的长期兼容层。
 
 决策键：如何让交互式 Agent loop、消息、Sandbox 与 detached durable Job 具有一个 owner，同时保持执行恢复与高权限计算的进程隔离？
+
+本文按源码重新建模，不把此前 ADR 或当前 PostgreSQL 表形状当成前置约束。事实先看 Codex/Pi/AI SDK 当前实现与本仓库运行代码；下文标为 target 的能力允许绿地替换现有 API、schema 和状态机，标为 current 的能力必须能指向真实实现。
 
 ## 决定
 
@@ -81,7 +83,23 @@ snapshot、分支 revision 与流恢复位置必须能够一致衔接，订阅/�
 
 同一 Session 最多一个 active Turn。steer 进入明确目标 Turn 的 inbox，queue 等待后续 Turn，二者不自动互换；accepted 不等于 delivered。待答工具/审批恢复同一 Turn，客户端不能替 server tool 提交执行结果。进程失联后旧 owner 的迟到写入必须被租约/执行代际拒绝，不能假定租约过期就已杀死旧进程。
 
-server 重启从已提交消息、工具结果和文件状态恢复上下文。完整 step 或明确 waiting 边界可重新发起 SDK invocation；未知外部副作用必须先对账。纯模型输出中断可按预算重新生成，但不得冒充原调用无损续跑。浏览器断线只释放订阅；持久取消先阻止新执行，再传播 AbortSignal 和清理责任。
+Cloud 已将一个用户任务保持为唯一 `turns.id`；client-tool/approval continuation 把前 attempt 结算为 `waiting`、追加新 `turn_attempts.attempt_epoch`，而不是新建 Turn。`turn_steps`、`tool_effects`、`turn_leases`、Sandbox execution 和 workspace writer 都绑定精确 attempt；一个 Session 的 `waiting/running/cancel_requested` Turn 受同一 one-active-Turn 约束，只有匹配的 continuation 能把 waiting Turn 重新置为 running。
+
+每个 Cloud attempt 在模型请求或 host effect 前写入不可变、无 secret 的 `turn_resume_envelopes`。它绑定 Session、history item/revision/digest、instruction/tool catalog/workspace digest、compactor version、remote binding，以及冻结的 auth scope、provider/model、operation、reasoning、skills/plugin activation、approval/permission 和 assistant item identity。provider secret 与 plugin grants 不进入 envelope，恢复时从权威 owner 重新取得。
+
+Cloud tool effect 的稳定身份是 `(turn_id, tool_call_id)`；execute wrapper 在进入 host code 前原子 claim，完整 canonical input digest 负责身份判等，截断/redacted `input_json` 只用于观察。completed effect 可跨 attempt 返回已持久化结果，tool/digest 改变直接冲突，任何已存在的 `running` claim 都视为 unconfirmed：同 attempt 的重复进入也不能执行第二次，跨 attempt 则必须 reconciliation。
+
+`reconcileOrphanedRuns()` 对失去 lease 的 Turn 先在一个事务中锁定 journal owner、Turn、latest attempt、lease、resume envelope 和 effect 状态，再调用 shared `classifyTurnRecovery()`：
+
+1. `resume-waiting` 保持稳定等待，不创建 recovery invocation；周期 orphan scan 本身不把 waiting Turn 当成失主执行；
+2. `resume-next-step` 从已提交 assistant journal item 继续下一 model boundary；`regenerate-model` 从冻结的 input/history boundary 发起一次明确的新采样；
+3. 只有这两个 replay-safe 分支会原子结束旧 attempt、递增 epoch、复制 immutable envelope 并领取新 lease；
+4. 取消、缺失/漂移 envelope、unconfirmed effect，以及 committed effect 没有 journaled SDK step 都转为 `interrupted`，绝不猜测或重放；
+5. 旧 attempt Sandbox 的 finalization/release 先于新 recovery runner 启动，新 attempt 不继承旧 PID、终端、stream 或未确认工作区写入。
+
+`resumeClaimedAgentRun()` 只接受已经事务 claim 的 attempt。它重新读取 Session、provider secret 与 plugin grants，核对 provider binding，并在 context projection 前验证 instruction、tool catalog、workspace、compactor 和 remote generation 与 envelope 完全一致；任何 drift 返回 `resume_generation_conflict` 并收口新 attempt。验证通过后构造新的 `RuntimeTurn`，重新进入唯一 AI SDK `ToolLoopAgent`，并主动消费 response 直到完成或失败。该语义是“同一 logical Turn 从已提交 model boundary 自动恢复”，不是透明续接 JavaScript、旧 provider stream 或 shell。
+
+Desktop 启动时仍把残留 `running` Turn 标记为 `interrupted`；它尚无等价 physical-attempt envelope、generation validation 和 restart claim。这是当前 cross-host 缺口，不允许用 SQLite 双轨或第二套 loop 绕过。浏览器断线仍只释放订阅；持久取消先阻止新执行，再传播 AbortSignal 和清理责任。
 
 ## Sandbox 边界
 
@@ -95,7 +113,35 @@ workspace 是 Session 的持久文件状态，guest 是临时计算资源。命�
 
 ## 数据与部署
 
-Runtime 业务 schema 统一在 `apps/backend/services/runtime/migrations/v1.0.0/v1.0.0.0.up.sql`。Chat 只保留产品映射 baseline。Workflow 使用自管理 PostgreSQL World 和官方 schema setup；业务迁移与 World migration 分开执行、备份和恢复。
+### Runtime server 数据库采用绿地建模
+
+Runtime PostgreSQL 的 logical Turn/physical attempt/tool effect/recovery generation 模型已直接进入 fresh-install `v1.0.0.0` baseline，不是基于旧表的增量迁移。baseline 从建库起就由 `turn_attempts` 持有 request/operation/history binding，step/effect/lease/Sandbox 绑定精确 epoch，副作用 ledger 命名为 `tool_effects`，attempt-scoped `turn_resume_envelopes` 与 generation-bound `context_checkpoints` 同时建立。旧混合模型、`tool_executions` 和中间 migration 都不保留。
+
+聚合保持小而明确，不建设通用 event store。下表描述逻辑 owner 及当前实现度；物理表名可随 owner 语义收口，但不得重新混淆 identity、generation 和终态不变量：
+
+| 逻辑对象 | 状态 | 持久语义 |
+| --- | --- | --- |
+| Session / item graph (`threads`, `thread_items`) | current | 用户与 tenant/workspace、selected item、history revision、append-only UIMessage graph；attempt envelope/checkpoint 持久化所选 history binding 与 digest |
+| `turns` | current | 逻辑用户任务及终态；`waiting/running/cancel_requested` 共用 one-active-Turn guard，不再存 request/operation/attempt 字段 |
+| `turn_attempts` | current | 每次物理 owner 的单调 epoch、request/fingerprint、operation、history binding、waiting/终态 |
+| `turn_resume_envelopes` | current | 每 attempt 不可变、无 secret 的 reconstruction snapshot；绑定 auth/execution snapshot 与 history/instruction/catalog/workspace/compactor/remote generation |
+| `turn_steps` | observability projection | step 记录受 attempt fencing，但不能单独成为 crash resume point；恢复 boundary 以 canonical journal item + envelope/effect facts 为准 |
+| `turn_inputs` | current | `follow-up/next-turn` admission 与 delivered/not-delivered/unconfirmed 结算 |
+| `tool_effects` | current with limits | `(turn_id, tool_call_id)` 身份、attempt owner、canonical `input_digest`、redacted `input_json`、running/completed/failed 与 result；effect class、外部 operation ID 和对账引用仍按工具补齐 |
+| `context_checkpoints` | current | coverage/revision、source history revision/digest、instruction/catalog/workspace digest、compactor version、remote binding 与 estimated usage；不单独证明 effect 可恢复 |
+| `turn_leases` | current | 精确绑定当前 attempt 的 fencing token；过期只表示 owner 可替换，不表示副作用安全重放 |
+| Workspace file / operation | current with limits | `thread_files` 和 `thread_file_save_operations` 拥有 stable path、content/path generation、etag、tombstone/save identity；resume envelope 绑定当前 live workspace digest，跨 Storage 未决写回仍由 reconciliation 收敛 |
+| Sandbox attempt (`turn_sandbox_executions`) | current | 精确所属 `(turn_id, attempt_epoch)`、restoring/active/finalizing/releasing 与持久 cleanup responsibility |
+
+当前由数据库约束/事务承担的不变量包括：每个 Session 至多一个 `waiting/running/cancel_requested` logical Turn；每个 Turn 的 attempt epoch 唯一且递增；lease、step 和 Sandbox 精确绑定 attempt；tool-call identity 只在 logical Turn 内稳定且输入不可变；live workspace path 在 Session 内唯一，旧 writer/attempt 不能推进当前文件；只有持有完整 immutable envelope 且 generation 未漂移的 replay-safe boundary 才能 claim recovery。跨 Storage/Sandbox/Workflow 的结果继续通过 intent + reconciliation 收敛，不伪造跨服务事务。
+
+`resume envelope` 是以上权威行在 attempt admission 时冻结的 reconstruction snapshot，不复制 UIMessage transcript 或第二份可变状态机。恢复时仍在事务中交叉核对 Turn/attempt/journal/effect 与 envelope，并在进入模型前重新计算 context generation；stream chunk、Redis replay、provider response id、PID 与 Sandbox session id 都不能成为恢复真源。UIMessage 正文留在 `thread_items`，tool/step 表只保存执行控制事实，避免把同一 transcript 再编码一遍。
+
+当前一个用户任务只有一个 `turns.id`，continuation 只追加 `turn_attempts`；recovery 也必须沿用这一身份，不得退回新建 Turn。`turn_steps` 与 `tool_effects` 不允许恢复时把 terminal row 重置为 running；相同 identity 的异参写入直接冲突，unconfirmed effect 只有对账或显式新操作可以推进。
+
+绿地表示**模型和 API 无兼容包袱**。当前 local/VPS Runtime 业务数据被明确列为可重建，因此该 release 只保留重写后的 `v1.0.0.0`，不提供从旧 Runtime schema 的 upgrade/down 路径。部署时由显式 reset 动作重建 Runtime 数据库；运行时代码不自行 drop 数据。该 baseline 被真正作为不可重建的发布投产后，后续结构变更再恢复版本化 migration 规则。
+
+Chat 只保留产品映射 schema。Workflow 使用自管理 PostgreSQL World 和官方 schema setup；Runtime 业务迁移与 World migration 分开执行、备份和恢复。
 
 同一 Runtime image 必须同时包含：
 

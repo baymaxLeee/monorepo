@@ -12,8 +12,8 @@
 | Node.js、Python、Go 服务的内部 HTTP 契约、生成 client 与 transport policy | [inner-api-transport](inner-api-transport.md) |
 | 主 Agent、上下文、工具与流 | [agent-runtime](agent-runtime.md) |
 | Agent 插件的 catalog、release、installation、activation、Turn snapshot 与 MCP 生命周期 | [agent-plugins](agent-plugins.md) |
-| Runtime App Server：统一 Agent/tool/Sandbox 与 durable Job，一 app 多进程（拟议） | [session-runtime](session-runtime.md) |
-| 参考 Codex 核心模型的本地/云端 Sandbox、文件与恢复（零兼容重构，实施与验收边界见正文） | [sandbox-execution-modes](sandbox-execution-modes.md) |
+| Runtime App Server：统一 Agent/tool/Sandbox 与 durable Job；Cloud 已有 generation-fenced model-boundary recovery，Desktop restart 仍 fail closed | [session-runtime](session-runtime.md) |
+| 吸收 Codex 安全语义与 Pi 小核心的本地/云端 Sandbox、文件、attempt fencing 与恢复边界（非代码复刻） | [sandbox-execution-modes](sandbox-execution-modes.md) |
 | Chat UIMessage 协议、消息操作与呈现 | [chat-ui-protocol](chat-ui-protocol.md) |
 | Chat 活跃流恢复、Redis 生命周期与容量边界 | [chat-stream-resumption](chat-stream-resumption.md) |
 | Workflow、耐久任务、取消与审批 | [durable-execution](durable-execution.md) |

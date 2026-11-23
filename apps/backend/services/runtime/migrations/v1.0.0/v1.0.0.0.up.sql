@@ -23,6 +23,8 @@ CREATE TABLE public.threads (
     model varchar(120) NOT NULL DEFAULT '',
     provider_id varchar(32) NOT NULL DEFAULT '',
     reasoning_effort varchar(16) NOT NULL DEFAULT 'medium',
+    approval_policy varchar(24) NOT NULL DEFAULT 'on-request',
+    permission_profile varchar(32) NOT NULL DEFAULT ':workspace',
     execution_mode varchar(20) NOT NULL DEFAULT 'cloud',
     turn_sequence bigint NOT NULL DEFAULT 0 CHECK (turn_sequence >= 0),
     item_sequence bigint NOT NULL DEFAULT 0 CHECK (item_sequence >= 0),
@@ -51,13 +53,6 @@ CREATE TABLE public.turns (
     error text,
     input_item_id varchar(32),
     output_item_id varchar(32),
-    request_id varchar(64),
-    request_fingerprint varchar(64),
-    operation varchar(32),
-    target_item_id varchar(32),
-    history_item_id varchar(32),
-    history_revision bigint,
-    attempt_epoch bigint NOT NULL DEFAULT 1 CHECK (attempt_epoch > 0),
     input_tokens integer,
     output_tokens integer,
     cached_input_tokens integer,
@@ -67,16 +62,7 @@ CREATE TABLE public.turns (
     started_at timestamptz NOT NULL,
     completed_at timestamptz,
     CONSTRAINT turns_status_check CHECK (
-        status IN ('running', 'cancel_requested', 'completed', 'failed', 'cancelled', 'interrupted')
-    ),
-    CONSTRAINT turns_operation_check CHECK (
-        operation IS NULL OR operation IN (
-            'submit-message', 'edit-message', 'regenerate-message', 'tool-continuation'
-        )
-    ),
-    CONSTRAINT turns_request_binding_check CHECK (
-        (request_id IS NULL AND request_fingerprint IS NULL AND operation IS NULL)
-        OR (request_id IS NOT NULL AND request_fingerprint IS NOT NULL AND operation IS NOT NULL)
+        status IN ('running', 'cancel_requested', 'waiting', 'completed', 'failed', 'cancelled', 'interrupted')
     ),
     CONSTRAINT turns_token_usage_check CHECK (
         (input_tokens IS NULL OR input_tokens >= 0)
@@ -86,16 +72,14 @@ CREATE TABLE public.turns (
         AND (total_tokens IS NULL OR total_tokens >= 0)
     ),
     CONSTRAINT ux_turns_thread_id UNIQUE (thread_id, id),
-    CONSTRAINT ux_turns_thread_ordinal UNIQUE (thread_id, ordinal),
-    CONSTRAINT ux_turns_thread_request UNIQUE (thread_id, request_id)
+    CONSTRAINT ux_turns_thread_ordinal UNIQUE (thread_id, ordinal)
 );
 
 CREATE UNIQUE INDEX ux_turns_one_active
     ON public.turns (thread_id)
-    WHERE status IN ('running', 'cancel_requested');
+    WHERE status IN ('running', 'cancel_requested', 'waiting');
 CREATE INDEX ix_turns_thread_created ON public.turns (thread_id, created_at);
 CREATE INDEX ix_turns_user_id ON public.turns (user_id);
-CREATE INDEX ix_turns_history_item_id ON public.turns (history_item_id);
 
 CREATE TABLE public.turn_plugin_snapshots (
     turn_id varchar(32) PRIMARY KEY REFERENCES public.turns(id) ON DELETE CASCADE,
@@ -148,15 +132,88 @@ ALTER TABLE public.turns
     ADD CONSTRAINT fk_turns_output_item
         FOREIGN KEY (thread_id, output_item_id)
         REFERENCES public.thread_items(thread_id, id)
-        DEFERRABLE INITIALLY DEFERRED,
-    ADD CONSTRAINT fk_turns_target_item
+        DEFERRABLE INITIALLY DEFERRED;
+
+CREATE TABLE public.turn_attempts (
+    turn_id varchar(32) NOT NULL,
+    attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
+    thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
+    request_id varchar(64),
+    request_fingerprint varchar(64),
+    operation varchar(32) NOT NULL,
+    target_item_id varchar(32),
+    history_item_id varchar(32),
+    history_revision bigint,
+    status varchar(20) NOT NULL,
+    error text,
+    started_at timestamptz NOT NULL,
+    completed_at timestamptz,
+    PRIMARY KEY (turn_id, attempt_epoch),
+    CONSTRAINT fk_turn_attempts_turn
+        FOREIGN KEY (thread_id, turn_id)
+        REFERENCES public.turns(thread_id, id) ON DELETE CASCADE,
+    CONSTRAINT fk_turn_attempts_target_item
         FOREIGN KEY (thread_id, target_item_id)
         REFERENCES public.thread_items(thread_id, id)
         DEFERRABLE INITIALLY DEFERRED,
-    ADD CONSTRAINT fk_turns_history_item
+    CONSTRAINT fk_turn_attempts_history_item
         FOREIGN KEY (thread_id, history_item_id)
         REFERENCES public.thread_items(thread_id, id)
-        DEFERRABLE INITIALLY DEFERRED;
+        DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT turn_attempts_status_check CHECK (
+        status IN ('running', 'waiting', 'completed', 'failed', 'cancelled', 'interrupted')
+    ),
+    CONSTRAINT turn_attempts_operation_check CHECK (
+        operation IN (
+            'submit-message', 'edit-message', 'regenerate-message', 'tool-continuation',
+            'internal', 'recovery'
+        )
+    ),
+    CONSTRAINT turn_attempts_request_binding_check CHECK (
+        (request_id IS NULL AND request_fingerprint IS NULL AND operation IN ('internal', 'recovery'))
+        OR (request_id IS NOT NULL AND request_fingerprint IS NOT NULL
+            AND operation NOT IN ('internal', 'recovery'))
+    )
+);
+
+CREATE UNIQUE INDEX ux_turn_attempts_thread_request
+    ON public.turn_attempts (thread_id, request_id);
+CREATE INDEX ix_turn_attempts_turn_started
+    ON public.turn_attempts (turn_id, started_at);
+CREATE INDEX ix_turn_attempts_history_item
+    ON public.turn_attempts (history_item_id);
+
+CREATE TABLE public.turn_resume_envelopes (
+    turn_id varchar(32) NOT NULL,
+    attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
+    thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
+    history_item_id varchar(32) NOT NULL,
+    history_revision bigint NOT NULL CHECK (history_revision > 0),
+    history_digest varchar(64) NOT NULL CHECK (history_digest ~ '^[a-f0-9]{64}$'),
+    instruction_digest varchar(64) NOT NULL CHECK (instruction_digest ~ '^[a-f0-9]{64}$'),
+    tool_catalog_digest varchar(64) NOT NULL CHECK (tool_catalog_digest ~ '^[a-f0-9]{64}$'),
+    workspace_digest varchar(64) NOT NULL CHECK (workspace_digest ~ '^[a-f0-9]{64}$'),
+    compactor_version varchar(64) NOT NULL,
+    remote_binding text,
+    snapshot_json jsonb NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    PRIMARY KEY (turn_id, attempt_epoch),
+    CONSTRAINT fk_turn_resume_envelopes_attempt
+        FOREIGN KEY (turn_id, attempt_epoch)
+        REFERENCES public.turn_attempts(turn_id, attempt_epoch) ON DELETE CASCADE,
+    CONSTRAINT fk_turn_resume_envelopes_history_item
+        FOREIGN KEY (thread_id, history_item_id)
+        REFERENCES public.thread_items(thread_id, id)
+        DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT turn_resume_envelopes_snapshot_check CHECK (
+        jsonb_typeof(snapshot_json) = 'object'
+        AND snapshot_json ->> 'schemaVersion' = '1'
+    )
+);
+
+CREATE INDEX ix_turn_resume_envelopes_thread
+    ON public.turn_resume_envelopes (thread_id, created_at);
 
 CREATE TABLE public.turn_inputs (
     turn_id varchar(32) NOT NULL,
@@ -188,6 +245,13 @@ CREATE TABLE public.context_checkpoints (
     covered_item_id varchar(32) NOT NULL,
     summary text NOT NULL,
     state_json jsonb NOT NULL,
+    source_history_revision bigint NOT NULL CHECK (source_history_revision > 0),
+    source_history_digest varchar(64) NOT NULL CHECK (source_history_digest ~ '^[a-f0-9]{64}$'),
+    instruction_digest varchar(64) NOT NULL CHECK (instruction_digest ~ '^[a-f0-9]{64}$'),
+    tool_catalog_digest varchar(64) NOT NULL CHECK (tool_catalog_digest ~ '^[a-f0-9]{64}$'),
+    workspace_digest varchar(64) NOT NULL CHECK (workspace_digest ~ '^[a-f0-9]{64}$'),
+    compactor_version varchar(64) NOT NULL,
+    remote_binding text,
     estimated_tokens integer NOT NULL DEFAULT 0 CHECK (estimated_tokens >= 0),
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
@@ -204,12 +268,16 @@ CREATE TABLE public.turn_leases (
     expires_at timestamptz NOT NULL,
     CONSTRAINT fk_turn_leases_turn
         FOREIGN KEY (thread_id, turn_id)
-        REFERENCES public.turns(thread_id, id) ON DELETE CASCADE
+        REFERENCES public.turns(thread_id, id) ON DELETE CASCADE,
+    CONSTRAINT fk_turn_leases_attempt
+        FOREIGN KEY (turn_id, attempt_epoch)
+        REFERENCES public.turn_attempts(turn_id, attempt_epoch) ON DELETE CASCADE
 );
 
 CREATE TABLE public.turn_steps (
     id varchar(32) PRIMARY KEY,
     turn_id varchar(32) NOT NULL REFERENCES public.turns(id) ON DELETE CASCADE,
+    attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
     step_index integer NOT NULL CHECK (step_index >= 0),
     kind varchar(32) NOT NULL,
     status varchar(20) NOT NULL,
@@ -220,7 +288,10 @@ CREATE TABLE public.turn_steps (
     total_tokens integer,
     created_at timestamptz NOT NULL,
     completed_at timestamptz,
-    CONSTRAINT ux_turn_steps_turn_step UNIQUE (turn_id, step_index),
+    CONSTRAINT ux_turn_steps_turn_attempt_step UNIQUE (turn_id, attempt_epoch, step_index),
+    CONSTRAINT fk_turn_steps_attempt
+        FOREIGN KEY (turn_id, attempt_epoch)
+        REFERENCES public.turn_attempts(turn_id, attempt_epoch) ON DELETE CASCADE,
     CONSTRAINT turn_steps_token_usage_check CHECK (
         (input_tokens IS NULL OR input_tokens >= 0)
         AND (output_tokens IS NULL OR output_tokens >= 0)
@@ -230,29 +301,35 @@ CREATE TABLE public.turn_steps (
 
 CREATE INDEX ix_turn_steps_turn_id ON public.turn_steps (turn_id);
 
-CREATE TABLE public.tool_executions (
-    id varchar(64) PRIMARY KEY,
+CREATE TABLE public.tool_effects (
+    id varchar(64) NOT NULL,
     turn_id varchar(32) NOT NULL REFERENCES public.turns(id) ON DELETE CASCADE,
+    attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
     item_id varchar(32),
     step_index integer,
     tool_name varchar(80) NOT NULL,
     status varchar(20) NOT NULL,
+    input_digest varchar(64) NOT NULL,
     input_json jsonb,
     output_json jsonb,
     error text,
     duration_ms integer,
     created_at timestamptz NOT NULL,
     completed_at timestamptz,
-    CONSTRAINT fk_tool_executions_item
+    PRIMARY KEY (turn_id, id),
+    CONSTRAINT fk_tool_effects_item
         FOREIGN KEY (item_id)
         REFERENCES public.thread_items(id) ON DELETE SET NULL
         DEFERRABLE INITIALLY DEFERRED,
-    CONSTRAINT tool_executions_step_check CHECK (step_index IS NULL OR step_index >= 0),
-    CONSTRAINT tool_executions_duration_check CHECK (duration_ms IS NULL OR duration_ms >= 0)
+    CONSTRAINT fk_tool_effects_attempt
+        FOREIGN KEY (turn_id, attempt_epoch)
+        REFERENCES public.turn_attempts(turn_id, attempt_epoch) ON DELETE CASCADE,
+    CONSTRAINT tool_effects_step_check CHECK (step_index IS NULL OR step_index >= 0),
+    CONSTRAINT tool_effects_duration_check CHECK (duration_ms IS NULL OR duration_ms >= 0)
 );
 
-CREATE INDEX ix_tool_executions_turn_id ON public.tool_executions (turn_id);
-CREATE INDEX ix_tool_executions_tool_name ON public.tool_executions (tool_name);
+CREATE INDEX ix_tool_effects_turn_id ON public.tool_effects (turn_id);
+CREATE INDEX ix_tool_effects_tool_name ON public.tool_effects (tool_name);
 
 CREATE TABLE public.turn_sandbox_executions (
     turn_id varchar(32) NOT NULL,
@@ -271,6 +348,9 @@ CREATE TABLE public.turn_sandbox_executions (
     CONSTRAINT fk_turn_sandbox_executions_turn
         FOREIGN KEY (thread_id, turn_id)
         REFERENCES public.turns(thread_id, id) ON DELETE CASCADE,
+    CONSTRAINT fk_turn_sandbox_executions_attempt
+        FOREIGN KEY (turn_id, attempt_epoch)
+        REFERENCES public.turn_attempts(turn_id, attempt_epoch) ON DELETE CASCADE,
     CONSTRAINT turn_sandbox_executions_state_check CHECK (
         state IN ('restoring', 'active', 'finalizing', 'releasing')
     ),
@@ -282,6 +362,20 @@ CREATE TABLE public.turn_sandbox_executions (
 
 CREATE INDEX ix_turn_sandbox_executions_releasing
     ON public.turn_sandbox_executions (state, updated_at);
+
+CREATE TABLE public.sandbox_workspace_checkout (
+    turn_id varchar(32) NOT NULL,
+    attempt_epoch bigint NOT NULL,
+    workspace_path text NOT NULL,
+    file_id varchar(32) NOT NULL,
+    path_generation bigint NOT NULL,
+    etag text NOT NULL,
+    sha256 text NOT NULL,
+    size_bytes bigint NOT NULL,
+    PRIMARY KEY (turn_id, attempt_epoch, workspace_path),
+    FOREIGN KEY (turn_id, attempt_epoch)
+        REFERENCES public.turn_sandbox_executions (turn_id, attempt_epoch) ON DELETE CASCADE
+);
 
 CREATE TABLE public.thread_files (
     id varchar(32) PRIMARY KEY,

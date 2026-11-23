@@ -73,6 +73,7 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
         output(chunk) {
           text += chunk;
         },
+        retainOutput() {},
         stdin(write) {
           void write("hello\n", "request");
         },
@@ -80,6 +81,51 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
     );
     expect(result).toMatchObject({ type: "exit", exitCode: 0 });
     expect(text).toContain("answer=hello");
+  });
+
+  it("retains complete streamed bytes in a thread-private read-only output file", async () => {
+    const attachmentRoot = join(sandbox.options.root, "control", "attachments", "retained-thread");
+    const complete = "x".repeat(100000);
+    await mkdir(attachmentRoot, { recursive: true });
+    let preview = "";
+    let retainedPath: string | undefined;
+    const result = await sandbox.execute(
+      { ...attempt(), attachmentRoot },
+      "/bin/sh",
+      ["-c", "python3 -c 'import sys; sys.stdout.write(\"x\" * 100000)'"],
+      undefined,
+      undefined,
+      5000,
+      undefined,
+      {
+        tty: false,
+        signal: new AbortController().signal,
+        output(chunk) {
+          preview += chunk;
+        },
+        retainOutput({ path }) {
+          retainedPath = path;
+        },
+        stdin() {
+          throw new Error("non-interactive command registered stdin");
+        },
+      },
+    );
+    expect(result).toMatchObject({ type: "exit", exitCode: 0 });
+    expect(preview).toBe(complete);
+    expect(retainedPath).toMatch(/\/\.runtime-output\/[a-f0-9-]+\.log$/u);
+    expect(await readFile(retainedPath!)).toEqual(Buffer.from(complete));
+
+    const read = await sandbox.execute({ ...attempt(), attachmentRoot }, "/bin/cat", [retainedPath!]);
+    expect(read).toMatchObject({ type: "exit", exitCode: 0, stdout: complete });
+    const write = await sandbox.execute({ ...attempt(), attachmentRoot }, "/bin/sh", [
+      "-c",
+      'printf corrupt > "$1"',
+      "sh",
+      retainedPath!,
+    ]);
+    expect(write.type === "exit" && write.exitCode !== 0).toBe(true);
+    expect(await readFile(retainedPath!, "utf8")).toBe(complete);
   });
 
   it("allows authorized writes and rejects outside reads, writes and symlink escapes", async () => {

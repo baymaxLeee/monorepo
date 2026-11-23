@@ -632,6 +632,7 @@ export interface components {
       tty: boolean;
       binary_io?: boolean;
       pipe_stdin?: boolean;
+      retain_output?: boolean;
       /** @default 1000 */
       yield_time_ms: number;
       /** @default 120000 */
@@ -711,6 +712,7 @@ export interface components {
       stderr_offset: number;
       stdout_truncated?: boolean;
       stderr_truncated?: boolean;
+      retained_output_path?: string;
       truncated: boolean;
     };
     SandboxSession: {

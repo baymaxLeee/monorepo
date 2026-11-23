@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { realpath, stat } from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { createWriteStream, type WriteStream } from "node:fs";
+import { mkdir, realpath, rm, stat } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { finished } from "node:stream/promises";
 import { StringDecoder } from "node:string_decoder";
 
 import {
@@ -188,6 +190,28 @@ export class LocalSandbox {
       marker,
       attempt.attachmentRoot,
     );
+    let retainedOutput: WriteStream | undefined;
+    let retainedOutputDone: Promise<void> | undefined;
+    if (io && attempt.attachmentRoot) {
+      const outputDirectory = join(attempt.attachmentRoot, ".runtime-output");
+      await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
+      const outputPath = join(outputDirectory, `${randomUUID()}.log`);
+      retainedOutput = createWriteStream(outputPath, { flags: "wx", mode: 0o400 });
+      await new Promise<void>((accept, reject) => {
+        retainedOutput!.once("open", () => accept());
+        retainedOutput!.once("error", reject);
+      });
+      retainedOutputDone = finished(retainedOutput);
+      void retainedOutputDone.catch(() => undefined);
+      try {
+        io.retainOutput({ path: outputPath });
+      } catch (error) {
+        retainedOutput.destroy();
+        await retainedOutputDone.catch(() => undefined);
+        await rm(outputPath, { force: true });
+        throw error;
+      }
+    }
     return new Promise<SandboxAttemptResult>((resolve, reject) => {
       const child = spawn(this.options.supervisor, [marker, profile, ...(io?.tty ? ["--pty"] : []), command, ...args], {
         cwd: workingDirectory,
@@ -211,6 +235,15 @@ export class LocalSandbox {
         failure ??= error;
         child.stdin.destroy();
       };
+      retainedOutput?.on("error", (error) => {
+        stop(new Error(`完整命令输出保留失败：${error.message}`, { cause: error }));
+      });
+      retainedOutput?.on("drain", () => {
+        if (!failure && !operationSignal.aborted) {
+          child.stdout.resume();
+          child.stderr.resume();
+        }
+      });
       const cancel = () => stop();
       this.active.add(cancel);
       if (io?.tty)
@@ -232,6 +265,10 @@ export class LocalSandbox {
       };
       const collect = (chunk: Buffer, channel: "stdout" | "stderr") => {
         if (io) {
+          if (retainedOutput && !retainedOutput.write(chunk)) {
+            child.stdout.pause();
+            child.stderr.pause();
+          }
           const fragment = decoders[channel].write(chunk);
           io.output(fragment);
           if (channel === "stderr" || io.tty) diagnostic = (diagnostic + fragment).slice(-8192);
@@ -252,12 +289,17 @@ export class LocalSandbox {
       });
       child.once("error", (error) => {
         cleanup();
+        retainedOutput?.destroy();
         reject(error);
       });
       child.once("close", (code) => {
         cleanup();
-        if (failure) reject(failure);
-        else {
+        retainedOutput?.end();
+        const finish = () => {
+          if (failure) {
+            reject(failure);
+            return;
+          }
           const output = { stdout: stdout + decoders.stdout.end(), stderr: stderr + decoders.stderr.end() };
           if (io) io.output(output.stdout + output.stderr);
           const errorText = io ? diagnostic : output.stderr;
@@ -271,7 +313,12 @@ export class LocalSandbox {
           ) {
             resolve({ type: "sandbox-violation", violation: violationHint, ...output });
           } else resolve({ type: "exit", exitCode: code ?? 128, ...output });
-        }
+        };
+        if (retainedOutputDone) {
+          void retainedOutputDone.then(finish, (error) => {
+            reject(new Error(`完整命令输出保留失败：${error.message}`, { cause: error }));
+          });
+        } else finish();
       });
       if (input) child.stdin.write(`${input}\n`);
       if (operationSignal.aborted) cancel();

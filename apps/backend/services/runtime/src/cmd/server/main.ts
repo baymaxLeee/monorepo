@@ -6,6 +6,7 @@ import { serve } from "@hono/node-server";
 
 import { configureOpenTelemetry, shutdownOpenTelemetry } from "#runtime/foundation";
 
+import { ToolCatalog } from "../../application/agent/tools/catalog.js";
 import { createApp } from "../../bootstrap/server-app.js";
 import { bootstrapServer } from "../../bootstrap/server-runtime.js";
 import { getServerSettings } from "../../config/server.js";
@@ -15,14 +16,15 @@ import { closeRedisClient } from "../../infrastructure/redis/index.js";
 
 configureOpenTelemetry("runtime");
 
-const app = createApp();
+const toolCatalog = new ToolCatalog();
+const app = createApp({ toolCatalog });
 const { port } = getServerSettings();
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   logger.info({ port: info.port }, "listening");
 });
 
-void bootstrapServer().catch(() => undefined);
+void bootstrapServer(toolCatalog).catch(() => undefined);
 
 let shutdown: Promise<void> | undefined;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

@@ -138,7 +138,7 @@ export async function finishModelStep(input: {
   });
 }
 
-function sanitizeToolInput(toolName: string, input: unknown): unknown {
+export function sanitizeToolInput(toolName: string, input: unknown): unknown {
   const truncate = (value: string) =>
     value.length <= 400 ? value : `${value.slice(0, 400).trimEnd()}\n...[truncated ${value.length} chars]`;
   if (typeof input === "string") {
@@ -149,24 +149,6 @@ function sanitizeToolInput(toolName: string, input: unknown): unknown {
   }
   const source = input as Record<string, unknown>;
   return input;
-}
-
-export async function recordToolStart(input: {
-  runId: string;
-  attemptEpoch: bigint;
-  toolCallId: string;
-  stepNumber: number;
-  toolName: string;
-  toolInput: unknown;
-}): Promise<void> {
-  await recordToolCallStart({
-    runId: input.runId,
-    attemptEpoch: input.attemptEpoch,
-    toolCallId: input.toolCallId,
-    stepIndex: input.stepNumber,
-    toolName: input.toolName,
-    toolInput: sanitizeToolInput(input.toolName, input.toolInput),
-  });
 }
 
 export async function recordToolEnd(input: {
@@ -205,13 +187,14 @@ export async function recordRejectedToolCall(input: {
   code: "INVALID_TOOL_INPUT" | "NO_SUCH_TOOL";
   error: unknown;
 }): Promise<void> {
-  await recordToolStart({
+  await recordToolCallStart({
     runId: input.runId,
     attemptEpoch: input.attemptEpoch,
     toolCallId: input.toolCallId,
-    stepNumber: input.stepNumber,
+    stepIndex: input.stepNumber,
     toolName: input.toolName,
     toolInput: input.toolInput,
+    observedToolInput: sanitizeToolInput(input.toolName, input.toolInput),
   });
   const message = input.error instanceof Error ? input.error.message : String(input.error);
   await recordToolCallFinish({

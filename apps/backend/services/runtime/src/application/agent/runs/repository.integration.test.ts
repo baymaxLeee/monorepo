@@ -11,10 +11,12 @@ import {
   assetClaimIntents,
   threadItems,
   threads,
-  toolExecutions,
+  toolEffects,
+  turnAttempts,
   turnInputs,
   turnLeases,
   turnPluginSnapshots,
+  turnResumeEnvelopes,
   turns,
   turnSteps,
 } from "../../../infrastructure/persistence/schema.js";
@@ -27,15 +29,19 @@ import {
   selectSessionHistory,
 } from "../../sessions.js";
 import { readWorkspaceCheckout } from "../../workspace-checkout.js";
-import { acquireRunLease, cancelRun, registerRunController, releaseRun } from "./lease.js";
+import { acquireRunLease, cancelRun, reconcileOrphanedRuns, registerRunController, releaseRun } from "./lease.js";
 import {
+  claimToolEffect,
+  claimOrphanedTurnRecovery,
   claimAgentRunOperation,
   finalizeAgentRunJournal,
   persistCompletedStep,
   finishAgentRun,
   interruptRuns,
   persistAgentRunPluginSnapshot,
+  persistTurnResumeEnvelope,
   readAgentRunPluginSnapshot,
+  recordToolCallFinish,
   requestAgentRunCancellation,
 } from "./repository.js";
 import { sandboxExecutionLifecycle } from "./sandbox-executions.js";
@@ -49,6 +55,54 @@ function identifier(prefix: string): string {
 
 function lease(claim: { runId: string; attemptEpoch: bigint }) {
   return { runId: claim.runId, attemptEpoch: claim.attemptEpoch };
+}
+
+function resumeEnvelope(
+  claim: { historyMessageId: string; historyRevision: number },
+  auth: Awaited<ReturnType<typeof createSession>>["auth"],
+) {
+  return {
+    sessionId: "",
+    historyMessageId: claim.historyMessageId,
+    historyRevision: claim.historyRevision,
+    historyDigest: "1".repeat(64),
+    instructionDigest: "2".repeat(64),
+    toolCatalogDigest: "3".repeat(64),
+    workspaceDigest: "4".repeat(64),
+    compactorVersion: "runtime-context-projection-v1",
+    remoteBinding: null,
+    snapshot: {
+      schemaVersion: 1 as const,
+      auth: {
+        userId: auth.userId,
+        tenantId: auth.tenantId,
+        workspaceId: auth.workspaceId,
+        workspaceRole: auth.workspaceRole,
+      },
+      execution: {
+        operation: "submit-message" as const,
+        assistantMessageId: identifier("assistant"),
+        reasoningEffort: "medium",
+        approvalPolicy: "on-request",
+        permissionProfile: ":workspace",
+        pluginActivations: [],
+        skills: [],
+        generateTitle: false,
+        activeSkillName: null,
+        instructions: null,
+        providerBinding: {
+          id: "test-provider",
+          model: "test-model",
+          baseUrl: "https://example.test/v1",
+          extraBody: {},
+          contextWindow: 128_000,
+          maxOutputTokens: 8_000,
+          supportsImageInput: false,
+          providerKind: "chat",
+        },
+      },
+    },
+  };
 }
 
 async function createSession(): Promise<{
@@ -230,6 +284,115 @@ test("lease takeover increments the epoch and fences the old Turn owner", { skip
     await releaseRun(next);
   } finally {
     await cleanup(sessionId);
+  }
+});
+
+test(
+  "completed tool effects replay across attempts and changed identities fail closed",
+  { skip: !enabled },
+  async () => {
+    const { sessionId, userId } = await createSession();
+    let current: ReturnType<typeof lease> | undefined;
+    try {
+      const claim = await claimSubmit(sessionId, userId);
+      const effect = {
+        runId: claim.runId,
+        attemptEpoch: claim.attemptEpoch,
+        toolCallId: identifier("tool"),
+        toolName: "test_tool",
+        toolInput: { value: 1 },
+        observedToolInput: { redacted: true },
+      };
+      assert.deepEqual(await claimToolEffect(effect), { state: "execute" });
+      await assert.rejects(
+        claimToolEffect(effect),
+        (error: unknown) => error instanceof ConflictError && error.code === "tool_effect_unconfirmed",
+      );
+      await recordToolCallFinish({
+        ...effect,
+        status: "completed",
+        output: { ok: true, value: 2 },
+        durationMs: 1,
+      });
+      await getDb()
+        .update(turnLeases)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(turnLeases.turnId, claim.runId));
+      current = await acquireRunLease(sessionId, claim.runId);
+      assert.deepEqual(await claimToolEffect({ ...effect, ...current }), {
+        state: "replay",
+        output: { ok: true, value: 2 },
+      });
+      await assert.rejects(
+        claimToolEffect({ ...effect, ...current, toolInput: { value: 3 }, observedToolInput: { redacted: true } }),
+        (error: unknown) => error instanceof ConflictError && error.code === "tool_effect_identity_conflict",
+      );
+      assert.equal((await getDb().select().from(toolEffects).where(eq(toolEffects.id, effect.toolCallId))).length, 1);
+    } finally {
+      if (current) await releaseRun(current);
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test("an unconfirmed tool effect from an older attempt requires reconciliation", { skip: !enabled }, async () => {
+  const { sessionId, userId } = await createSession();
+  let current: ReturnType<typeof lease> | undefined;
+  try {
+    const claim = await claimSubmit(sessionId, userId);
+    const effect = {
+      runId: claim.runId,
+      attemptEpoch: claim.attemptEpoch,
+      toolCallId: identifier("tool"),
+      toolName: "test_tool",
+      toolInput: { value: 1 },
+    };
+    assert.deepEqual(await claimToolEffect(effect), { state: "execute" });
+    await getDb()
+      .update(turnLeases)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(turnLeases.turnId, claim.runId));
+    current = await acquireRunLease(sessionId, claim.runId);
+    await assert.rejects(
+      claimToolEffect({ ...effect, ...current }),
+      (error: unknown) => error instanceof ConflictError && error.code === "tool_effect_unconfirmed",
+    );
+  } finally {
+    if (current) await releaseRun(current);
+    await cleanup(sessionId);
+  }
+});
+
+test("provider tool-call ids are scoped to a logical Turn", { skip: !enabled }, async () => {
+  const first = await createSession();
+  const second = await createSession();
+  try {
+    const [left, right] = await Promise.all([
+      claimSubmit(first.sessionId, first.userId),
+      claimSubmit(second.sessionId, second.userId),
+    ]);
+    const toolCallId = identifier("tool");
+    assert.deepEqual(
+      await claimToolEffect({
+        ...lease(left),
+        toolCallId,
+        toolName: "test_tool",
+        toolInput: { side: "left" },
+      }),
+      { state: "execute" },
+    );
+    assert.deepEqual(
+      await claimToolEffect({
+        ...lease(right),
+        toolCallId,
+        toolName: "test_tool",
+        toolInput: { side: "right" },
+      }),
+      { state: "execute" },
+    );
+    assert.equal((await getDb().select().from(toolEffects).where(eq(toolEffects.id, toolCallId))).length, 2);
+  } finally {
+    await Promise.all([cleanup(first.sessionId), cleanup(second.sessionId)]);
   }
 });
 
@@ -467,14 +630,18 @@ test("journal finalization rolls tool updates back with message failure", { skip
   try {
     const claim = await claimSubmit(sessionId, userId);
     const toolCallId = identifier("tool");
-    await getDb().insert(toolExecutions).values({
-      id: toolCallId,
-      turnId: claim.runId,
-      toolName: "test_tool",
-      status: "running",
-      inputJson: {},
-      createdAt: new Date(),
-    });
+    await getDb()
+      .insert(toolEffects)
+      .values({
+        id: toolCallId,
+        turnId: claim.runId,
+        attemptEpoch: claim.attemptEpoch,
+        toolName: "test_tool",
+        status: "running",
+        inputDigest: "0".repeat(64),
+        inputJson: {},
+        createdAt: new Date(),
+      });
 
     const output = { ok: true, status: "completed", data: { value: 1 } };
     await assert.rejects(
@@ -491,7 +658,7 @@ test("journal finalization rolls tool updates back with message failure", { skip
       }),
     );
 
-    const [toolCall] = await getDb().select().from(toolExecutions).where(eq(toolExecutions.id, toolCallId));
+    const [toolCall] = await getDb().select().from(toolEffects).where(eq(toolEffects.id, toolCallId));
     const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
     const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
     const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
@@ -523,21 +690,25 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
       },
     };
     await getDb()
-      .insert(toolExecutions)
+      .insert(toolEffects)
       .values([
         {
           id: runningToolId,
           turnId: claim.runId,
+          attemptEpoch: claim.attemptEpoch,
           toolName: "client_tool",
           status: "running",
+          inputDigest: "0".repeat(64),
           inputJson: {},
           createdAt: new Date(),
         },
         {
           id: todoToolId,
           turnId: claim.runId,
+          attemptEpoch: claim.attemptEpoch,
           toolName: "update_plan",
           status: "completed",
+          inputDigest: "0".repeat(64),
           inputJson: {},
           outputJson: todoOutput,
           createdAt: new Date(),
@@ -570,7 +741,7 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
 
     assert.deepEqual(duplicate, first);
     assert.equal(first.outputMessageId, outputMessageId);
-    const toolCalls = await getDb().select().from(toolExecutions).where(eq(toolExecutions.turnId, claim.runId));
+    const toolCalls = await getDb().select().from(toolEffects).where(eq(toolEffects.turnId, claim.runId));
     const running = toolCalls.find((row) => row.id === runningToolId);
     const todo = toolCalls.find((row) => row.id === todoToolId);
     assert.equal(running?.status, "failed");
@@ -623,13 +794,14 @@ test("client continuation validation and journal merge share the claim transacti
       },
       toolMetadata: { agent: { execution: "client" } },
     };
-    await finalizeAgentRunJournal({
+    const waiting = await finalizeAgentRunJournal({
       ...lease(claim),
       parts: [awaiting],
       aborted: false,
       status: "completed",
       message: { id: assistantId, status: "ok", content: { version: 2, parts: [awaiting] } },
     });
+    assert.equal(waiting.status, "waiting");
     const operation = {
       sessionId,
       userId,
@@ -661,14 +833,99 @@ test("client continuation validation and journal merge share the claim transacti
     assert.deepEqual(message?.content.parts, [awaiting]);
     assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, sessionId))).length, 1);
     assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId))).length, 0);
+
+    await getDb().update(turns).set({ status: "completed", completedAt: new Date() }).where(eq(turns.id, claim.runId));
+    await assert.rejects(
+      claimAgentRunOperation({
+        ...operation,
+        requestId: identifier("req"),
+        continuationMessage: response("late"),
+      }),
+      (error: unknown) => error instanceof ConflictError && error.code === "turn_not_waiting",
+    );
+    await getDb().update(turns).set({ status: "waiting", completedAt: null }).where(eq(turns.id, claim.runId));
+
     const valid = { ...operation, continuationMessage: response("a") };
     const continued = await claimAgentRunOperation(valid);
+    assert.equal(continued.runId, claim.runId, "tool continuation must retain the logical Turn identity");
+    assert.equal(continued.attemptEpoch, claim.attemptEpoch + 1n);
+    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, sessionId))).length, 1);
+    const attempts = await getDb()
+      .select()
+      .from(turnAttempts)
+      .where(eq(turnAttempts.turnId, claim.runId))
+      .orderBy(turnAttempts.attemptEpoch);
+    assert.deepEqual(
+      attempts.map((attempt) => [attempt.attemptEpoch, attempt.status]),
+      [
+        [1n, "waiting"],
+        [2n, "running"],
+      ],
+    );
     assert.deepEqual(await readAgentRunPluginSnapshot(lease(continued)), frozen);
     const retried = await claimAgentRunOperation(valid);
     assert.equal(retried.runId, continued.runId);
     assert.equal(retried.duplicate, true);
     const [merged] = await getDb().select().from(threadItems).where(eq(threadItems.id, assistantId));
     assert.deepEqual(merged?.content.parts, valid.continuationMessage.parts);
+  } finally {
+    await cleanup(sessionId);
+  }
+});
+
+test("a waiting logical Turn blocks admission of a second Turn", { skip: !enabled }, async () => {
+  const { sessionId, userId } = await createSession();
+  try {
+    const claim = await claimSubmit(sessionId, userId);
+    await persistAgentRunPluginSnapshot(lease(claim), {
+      schemaVersion: 1,
+      snapshotId: identifier("frozen"),
+      snapshotDigest: `sha256:${"2".repeat(64)}`,
+      workspaceRevision: 1,
+      tenantId: "tenant",
+      workspaceId: "workspace",
+      resolvedAt: new Date().toISOString(),
+      plugins: [],
+      connectionGrants: [],
+    });
+    const assistantId = identifier("msg");
+    const awaiting = {
+      type: "tool-ask_user" as const,
+      toolCallId: "question",
+      state: "input-available" as const,
+      input: {
+        questions: [
+          { id: "q", header: "Choice", question: "Choose", options: [{ label: "A", description: "First option" }] },
+        ],
+      },
+      toolMetadata: { agent: { execution: "client" } },
+    };
+    await finalizeAgentRunJournal({
+      ...lease(claim),
+      parts: [awaiting],
+      aborted: false,
+      status: "completed",
+      message: { id: assistantId, status: "ok", content: { version: 2, parts: [awaiting] } },
+    });
+
+    await assert.rejects(
+      claimAgentRunOperation({
+        sessionId,
+        userId,
+        providerId: "test-provider",
+        model: "test-model",
+        requestId: identifier("req"),
+        expectedRevision: 1,
+        operation: "submit-message",
+        inputMessage: {
+          id: identifier("msg"),
+          role: "user",
+          content: { version: 2, parts: [{ type: "text", text: "start another task" }] },
+        },
+      }),
+      (error: unknown) => error instanceof ConflictError && error.code === "active_run_exists",
+    );
+    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, sessionId))).length, 1);
   } finally {
     await cleanup(sessionId);
   }
@@ -751,6 +1008,7 @@ test("a trace completion gap cannot override the SDK outcome or leave a running 
       .values({
         id: identifier("step"),
         turnId: claim.runId,
+        attemptEpoch: claim.attemptEpoch,
         stepIndex: 0,
         kind: "model",
         status: "running",
@@ -788,14 +1046,18 @@ test("cancellation committed after the stream snapshot wins in journal finalizat
     const claim = await claimSubmit(sessionId, userId);
     const toolCallId = identifier("tool");
     const parts = [{ type: "tool-ask_user", toolCallId, state: "input-available", input: {} }];
-    await getDb().insert(toolExecutions).values({
-      id: toolCallId,
-      turnId: claim.runId,
-      toolName: "ask_user",
-      status: "running",
-      inputJson: {},
-      createdAt: new Date(),
-    });
+    await getDb()
+      .insert(toolEffects)
+      .values({
+        id: toolCallId,
+        turnId: claim.runId,
+        attemptEpoch: claim.attemptEpoch,
+        toolName: "ask_user",
+        status: "running",
+        inputDigest: "0".repeat(64),
+        inputJson: {},
+        createdAt: new Date(),
+      });
     await requestAgentRunCancellation(claim.runId);
     const messageId = identifier("msg");
     await finalizeAgentRunJournal({
@@ -811,7 +1073,7 @@ test("cancellation committed after the stream snapshot wins in journal finalizat
     });
     const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
     const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, messageId));
-    const [toolCall] = await getDb().select().from(toolExecutions).where(eq(toolExecutions.id, toolCallId));
+    const [toolCall] = await getDb().select().from(toolEffects).where(eq(toolEffects.id, toolCallId));
     assert.equal(run?.status, "cancelled");
     assert.equal(message?.status, "failed");
     assert.equal(message?.content.metadata?.status, "cancelled");
@@ -860,6 +1122,7 @@ test("a reaper waiting behind a takeover cannot interrupt the new owner", { skip
       .where(eq(turnLeases.turnId, claim.runId));
     await getSql().begin(async (tx) => {
       const [owner] = await tx`select pg_backend_pid() as pid`;
+      await tx`select id from threads where id = ${sessionId} for update`;
       await tx`select id from turns where id = ${claim.runId} for update`;
       pending = interruptRuns([claim.runId]);
       const deadline = Date.now() + 5_000;
@@ -870,7 +1133,21 @@ test("a reaper waiting behind a takeover cannot interrupt the new owner", { skip
         assert.ok(Date.now() < deadline, "reaper did not wait on the owner");
         await delay(10);
       }
-      await tx`update turns set attempt_epoch = attempt_epoch + 1 where id = ${claim.runId}`;
+      await tx`
+        insert into turn_attempts (
+          turn_id, attempt_epoch, thread_id, operation, target_item_id,
+          history_item_id, history_revision, status, started_at
+        )
+        select turn_id, attempt_epoch + 1, thread_id, 'recovery', target_item_id,
+          history_item_id, history_revision, 'running', now()
+        from turn_attempts
+        where turn_id = ${claim.runId} and attempt_epoch = ${claim.attemptEpoch.toString()}::bigint
+      `;
+      await tx`
+        update turn_attempts
+        set status = 'interrupted', completed_at = now()
+        where turn_id = ${claim.runId} and attempt_epoch = ${claim.attemptEpoch.toString()}::bigint
+      `;
       await tx`update turn_leases set attempt_epoch = attempt_epoch + 1, expires_at = now() + interval '10 minutes' where turn_id = ${claim.runId}`;
     });
     assert.deepEqual(await pending, []);
@@ -898,6 +1175,206 @@ test("orphan reconciliation rechecks a renewed lease before interrupting", { ski
     assert.equal(run?.status, "interrupted");
   } finally {
     await cleanup(sessionId);
+  }
+});
+
+test(
+  "attempt resume envelopes are immutable and copied into an atomically fenced recovery",
+  { skip: !enabled },
+  async () => {
+    const { sessionId, userId, auth } = await createSession();
+    try {
+      const claim = await claimSubmit(sessionId, userId);
+      const envelope = { ...resumeEnvelope(claim, auth), sessionId };
+      const stored = await persistTurnResumeEnvelope(lease(claim), envelope);
+      assert.deepEqual(await persistTurnResumeEnvelope(lease(claim), envelope), stored);
+      await assert.rejects(
+        persistTurnResumeEnvelope(lease(claim), { ...envelope, workspaceDigest: "5".repeat(64) }),
+        (error: unknown) => error instanceof ConflictError && error.code === "resume_envelope_conflict",
+      );
+
+      await getDb()
+        .update(turnLeases)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(turnLeases.turnId, claim.runId));
+      const recovery = await claimOrphanedTurnRecovery(claim.runId);
+      assert.equal(recovery?.state, "claimed");
+      if (recovery?.state !== "claimed") throw new Error("expected a recovery claim");
+      assert.equal(recovery.decision, "regenerate-model");
+      assert.equal(recovery.token.attemptEpoch, claim.attemptEpoch + 1n);
+      assert.deepEqual(recovery.envelope.snapshot, envelope.snapshot);
+
+      const attempts = await getDb()
+        .select()
+        .from(turnAttempts)
+        .where(eq(turnAttempts.turnId, claim.runId))
+        .orderBy(turnAttempts.attemptEpoch);
+      assert.deepEqual(
+        attempts.map((attempt) => [attempt.attemptEpoch, attempt.status, attempt.operation]),
+        [
+          [1n, "interrupted", "submit-message"],
+          [2n, "running", "recovery"],
+        ],
+      );
+      const envelopes = await getDb()
+        .select()
+        .from(turnResumeEnvelopes)
+        .where(eq(turnResumeEnvelopes.turnId, claim.runId))
+        .orderBy(turnResumeEnvelopes.attemptEpoch);
+      assert.deepEqual(
+        envelopes.map((item) => [item.attemptEpoch, item.historyDigest]),
+        [
+          [1n, envelope.historyDigest],
+          [2n, envelope.historyDigest],
+        ],
+      );
+    } finally {
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test(
+  "orphan reconciliation cleans the old sandbox before handing off the fenced attempt",
+  { skip: !enabled },
+  async () => {
+    const { sessionId, userId, auth } = await createSession();
+    try {
+      const claim = await claimSubmit(sessionId, userId);
+      await persistTurnResumeEnvelope(lease(claim), { ...resumeEnvelope(claim, auth), sessionId });
+      await getDb()
+        .update(turnLeases)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(turnLeases.turnId, claim.runId));
+
+      const order: string[] = [];
+      let runnerError: unknown;
+      let resolveRunner!: () => void;
+      const runnerFinished = new Promise<void>((resolve) => {
+        resolveRunner = resolve;
+      });
+      await reconcileOrphanedRuns(
+        async (recovery) => {
+          order.push("runner");
+          try {
+            const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+            const [activeLease] = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
+            assert.equal(run?.status, "running", "takeover must not interrupt the logical Turn");
+            assert.equal(recovery.token.attemptEpoch, claim.attemptEpoch + 1n);
+            assert.equal(activeLease?.attemptEpoch, recovery.token.attemptEpoch);
+          } catch (error) {
+            runnerError = error;
+          } finally {
+            resolveRunner();
+          }
+        },
+        {
+          reconcileSandboxes: async () => {
+            order.push("sandbox-cleanup");
+          },
+          deactivateStream: async () => {
+            assert.fail("replay-safe recovery must retain its resumable stream");
+          },
+        },
+      );
+      await runnerFinished;
+      if (runnerError) throw runnerError;
+      assert.deepEqual(order, ["sandbox-cleanup", "runner"]);
+    } finally {
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test("a committed SDK step resumes at the next step instead of regenerating it", { skip: !enabled }, async () => {
+  const { sessionId, userId, auth } = await createSession();
+  try {
+    const claim = await claimSubmit(sessionId, userId);
+    const envelope = { ...resumeEnvelope(claim, auth), sessionId };
+    await persistTurnResumeEnvelope(lease(claim), envelope);
+    await persistCompletedStep(lease(claim), envelope.snapshot.execution.assistantMessageId, {
+      version: 2,
+      parts: [{ type: "text", text: "committed model step" }],
+    });
+    await getDb()
+      .update(turnLeases)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(turnLeases.turnId, claim.runId));
+
+    const recovery = await claimOrphanedTurnRecovery(claim.runId);
+    assert.equal(recovery?.state, "claimed");
+    if (recovery?.state === "claimed") assert.equal(recovery.decision, "resume-next-step");
+  } finally {
+    await cleanup(sessionId);
+  }
+});
+
+test("a committed effect without its journaled SDK step is interrupted", { skip: !enabled }, async () => {
+  const { sessionId, userId, auth } = await createSession();
+  try {
+    const claim = await claimSubmit(sessionId, userId);
+    await persistTurnResumeEnvelope(lease(claim), { ...resumeEnvelope(claim, auth), sessionId });
+    const effect = {
+      ...lease(claim),
+      toolCallId: identifier("tool"),
+      toolName: "side_effect",
+      toolInput: { value: 1 },
+    };
+    assert.deepEqual(await claimToolEffect(effect), { state: "execute" });
+    await recordToolCallFinish({ ...effect, status: "completed", output: { committed: true } });
+    await getDb()
+      .update(turnLeases)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(turnLeases.turnId, claim.runId));
+
+    assert.deepEqual(await claimOrphanedTurnRecovery(claim.runId), {
+      state: "interrupted",
+      decision: "interrupt",
+    });
+  } finally {
+    await cleanup(sessionId);
+  }
+});
+
+test("missing envelopes and unconfirmed effects interrupt instead of guessing", { skip: !enabled }, async () => {
+  const missing = await createSession();
+  try {
+    const claim = await claimSubmit(missing.sessionId, missing.userId);
+    await getDb()
+      .update(turnLeases)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(turnLeases.turnId, claim.runId));
+    assert.deepEqual(await claimOrphanedTurnRecovery(claim.runId), {
+      state: "interrupted",
+      decision: "interrupt",
+    });
+  } finally {
+    await cleanup(missing.sessionId);
+  }
+
+  const uncertain = await createSession();
+  try {
+    const claim = await claimSubmit(uncertain.sessionId, uncertain.userId);
+    await persistTurnResumeEnvelope(lease(claim), {
+      ...resumeEnvelope(claim, uncertain.auth),
+      sessionId: uncertain.sessionId,
+    });
+    await claimToolEffect({
+      ...lease(claim),
+      toolCallId: identifier("tool"),
+      toolName: "side_effect",
+      toolInput: { value: 1 },
+    });
+    await getDb()
+      .update(turnLeases)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(turnLeases.turnId, claim.runId));
+    assert.deepEqual(await claimOrphanedTurnRecovery(claim.runId), {
+      state: "interrupted",
+      decision: "reconcile-effect",
+    });
+  } finally {
+    await cleanup(uncertain.sessionId);
   }
 });
 

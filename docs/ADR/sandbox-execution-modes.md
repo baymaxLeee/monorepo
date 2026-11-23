@@ -1,16 +1,16 @@
-# 以 Codex App 核心模型构建本地与云端 Sandbox
+# 吸收 Codex 与 Pi 核心语义的本地/云端 Sandbox
 
-状态：核心执行链已实现，环境验收中。共享 runtime 已按 `PermissionProfile → ExecPolicy → ApprovalRequirement → SandboxAttempt → ProcessManager` 重构；Desktop 与 Cloud 使用同一审批冻结、typed denial、单次升级重试和进程身份语义，旧三档 `ApprovalMode`、原始命令正则和旧执行入口已经删除。Docker guest 已加入 bubblewrap 命令级文件视图和逐命令网络 broker。尚未完成的是 `granular` 的分类配置、macOS 与 Kubernetes 的逐 host 网络 broker，以及真实 Docker/gVisor/Kubernetes 和正式签名 macOS 包的环境验收。当前事实见 [Runtime sandbox role](../微服务/sandbox.md) 和 [会话文件编辑](editable-conversation-files.md)。
+状态：核心执行链已实现，环境验收中。共享 runtime 已按 `PermissionProfile → ExecPolicy → ApprovalRequirement → SandboxAttempt → ProcessManager` 重构；Desktop 与 Cloud 使用同一审批冻结、typed denial、单次升级重试、进程身份与完整输出保留语义，旧三档 `ApprovalMode`、原始命令正则和旧执行入口已经删除。Cloud 数据库已将 logical Turn 与 physical attempt 分开，Sandbox execution、workspace writer、lease、step 和 tool effect 均受 attempt fencing，并已对 replay-safe orphan 实施 immutable envelope + generation-fenced auto-resume；`waiting` Turn 仍占用 one-active-Turn 身份。Docker guest 已加入 bubblewrap 命令级文件视图和逐命令网络 broker。尚未完成的是 Desktop restart auto-resume、`granular` 的分类配置、macOS 与 Kubernetes 的逐 host 网络 broker，以及真实 Docker/gVisor/Kubernetes 和正式签名 macOS 包的环境验收。当前事实见 [Runtime sandbox role](../微服务/sandbox.md) 和 [会话文件编辑](editable-conversation-files.md)。
 
 决策键：如何全面参考 Codex App 的核心模型，零兼容重构本地与云端会话、执行、工作区和权限，并在用户与 Agent 编辑同一文件的前提下管理持久化、恢复和云端资源成本。
 
-## 首要原则：以 Codex App 的核心模型重新建模
+## 首要原则：吸收不变量，不复刻实现
 
-以本地 `~/projects/codex` 当前 `main` 源码及其公开 App Server 模型为主参考，覆盖客户端与运行时分离、Thread/Turn/Item、工作区与执行位置、命令进程、权限与审批、会话继续和文件操作。不是只模仿本地/云端选择器，也不是在现有 `RunSandbox` 上增加一个 local provider。
+以本地 `~/projects/codex` 源码及其公开 App Server 模型为安全主参考，覆盖客户端与运行时分离、Thread/Turn/Item、工作区与执行位置、命令进程、权限与审批、会话继续和文件操作；以本地 `~/projects/pi` 补充 Bash-first、小热工具面、窄 execution port 和输出保留设计。两者都只是架构证据，不是待搬迁的目录或协议。
 
 设计从这些模型及本项目的产品约束出发，现有数据库形状、HTTP 路由、工具接口、状态机、目录结构和类名都不是必须保留的约束。不要求旧客户端、旧 API、旧工具调用或旧运行状态兼容；不建立长期双轨或兼容适配层。保留已有实现必须因为其符合目标模型，而非为了减小改动。
 
-核心按 Codex 的 crate、模块、工具输入输出和资源所有权从 Rust 迁到 TypeScript，保留上游许可与声明。`PermissionProfile → ExecPolicy → ApprovalRequirement → SandboxAttempt → ProcessManager` 是不可替换的核心链路；本项目只在 AI SDK 工具接入、云端 workspace 持久化和产品 UI 上做边界适配。Anthropic 的当前官方 sandbox 文档与开源 `sandbox-runtime` 用于补齐网络代理、凭据隔离、配置来源信任和 violation 归因，不替换 Codex 主模型。
+本项目保留 `PermissionProfile → ExecPolicy → ApprovalRequirement → SandboxAttempt → ProcessManager` 这条安全责任链，但类型、工具 schema、进程 adapter 和持久化协议由本仓库边界决定。只有确实逐行移植的算法才承担上游许可与声明；概念、状态不变量和测试思路不伪装成代码 fork。AI SDK 原生 tool/approval/message 仍是唯一模型协议，Cloud/Desktop 通过窄 host port 实施各自隔离。Anthropic 的当前官方 sandbox 文档与开源 `sandbox-runtime` 只用于补齐网络代理、凭据隔离、配置来源信任和 violation 归因，不替换上述 owner。
 
 | Codex 参考概念 | 本项目的目标语义 | 必须区分的边界 |
 | --- | --- | --- |
@@ -25,7 +25,7 @@
 | Permissions / approvals / sandbox | 权限策略确定可访问能力，审批决定是否允许动作，sandbox 执行限制 | `cwd`、提示词或用户点过同意不能替代 OS/执行环境隔离 |
 | Resume / fork | 继续既有会话与创建独立会话是不同操作 | 对话恢复不等于进程恢复；不要求跨模式恢复或迁移 |
 
-工具暴露 Codex wire 字段，由 AI SDK 执行采样、工具分发和流式输出。工程上的执行 attempt、租约、恢复清单及存储引用是实现对象，不冒充 Codex 公开核心原语，也不成为额外的用户工作流。审批/工具结果续接应保持原 Turn 归属；新的独立用户请求创建新 Turn，不能只按 HTTP 请求次数划分逻辑执行。
+工具保持本项目的 AI SDK schema 与原生结果；不暴露或翻译成 Codex wire 字段。工程上的执行 attempt、租约、恢复清单及存储引用是实现对象，不冒充 Codex/Pi 公开原语，也不成为额外的用户工作流。Cloud 的审批/工具结果续接已保持原 Turn 归属并追加 attempt；新的独立用户请求才创建新 Turn，且等待中的 Turn 会拒绝第二个 Turn admission。
 
 ## 背景与决策
 
@@ -74,7 +74,7 @@
 
 `packages/agent-runtime` 是两个执行位置唯一的 Turn/context kernel，使用官方 AI SDK 的工具执行、审批与流原语。Bash 定义、网页读取、网页检索契约、Code Mode、tool search、Ask User、Todo、Skill loader 与 subagent 核心等非业务原子能力均归该包；其中 `createPortableToolRegistry` 是所有宿主复用的唯一公共定义注册表，宿主不能维护第二份公共名单或增加 Agent profile 选择层。Runtime 与 Desktop 直接追加各自宿主 manifests 和 Turn-frozen plugin manifests，重名能力失败关闭；本地与云端 Bash 由各自 execution host 追加，而不是分叉 Agent 能力模型。Runtime 只保留 Memory、Media、Storage 发布、文件投影及 provider 等真实 host adapter；Knowledge search、Canvas 和外部 MCP tools 统一走 [Agent plugin lifecycle](agent-plugins.md)。Backend `application/agent/runtime/cloud-turn.ts` 注入云端资源和观测；Electron `electron/runtime/session-manager.ts` 注入本地 sandbox、relay 和 journal。两者都创建 shared `RuntimeTurn`，不能直接创建 `ToolLoopAgent`。宿主不自定义第二套输入队列、上下文策略、终止策略或工具结果协议；暂不支持 SDK client-tool continuation 的宿主必须显式声明该协议差异，而不是复制其余公共工具。
 
-两端通过同一个 `ExecutionHost` 公开 `bash`、`read_file`、`apply_patch`、`write_file` 与 `upload_artifacts`；云端在存在只读外部 source 时再追加 `refresh_session_sources`。Bash 以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染；原生文件工具在 admission 时冻结精确路径集合，并与 Bash 一样进入下述 `ToolOrchestrator + ProcessManager`。manifest metadata 不能自行决定审批或绕过 sandbox，文件 helper 也不能从 Node `fs` 旁路这一边界。`read_file` 返回 SHA-256 和有界完整行；`write_file` 的 overwrite 强制携带该内容身份；`apply_patch` 在执行前解析全部 source/destination，用 `@@ change_context` 和单调原文件游标定位有序 hunk，只替换 add/remove 区间以保留未触碰缩进与逐行 terminator；重复上下文使用从游标起的首次匹配，EOF 标记要求尾部匹配。多文件失败或写入后取消都返回已提交变更而不虚构回滚。运行中的命令以 `session_id` 标识；同一个 `bash` 用 `session_id` 和可选 `stdin` 续接或轮询，不再公开第二个终端工具。模型用 `max_output_tokens` 指定输出预算；完整日志可写入工作区。两端用同一 `upload_artifacts({ paths })` 指定交付文件。云端基于工作区导入时的文件身份、ETag 和路径代际提交；本地校验授权目录中的普通文件并生成本地引用。两个宿主将工具结果投影为同一 `data-file`，草稿留在工作区。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
+两端通过同一个 `ExecutionHost` 公开 `bash`、`read_file`、`apply_patch`、`write_file` 与 `upload_artifacts`；云端在存在只读外部 source 时再追加 `refresh_session_sources`。Bash 以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染；原生文件工具在 admission 时冻结精确路径集合，并与 Bash 一样进入下述 `ToolOrchestrator + ProcessManager`。manifest metadata 不能自行决定审批或绕过 sandbox，文件 helper 也不能从 Node `fs` 旁路这一边界。`read_file` 返回 SHA-256 和有界完整行；`write_file` 的 overwrite 强制携带该内容身份；`apply_patch` 在执行前解析全部 source/destination，用 `@@ change_context` 和单调原文件游标定位有序 hunk，只替换 add/remove 区间以保留未触碰缩进与逐行 terminator；重复上下文使用从游标起的首次匹配，EOF 标记要求尾部匹配。多文件失败或写入后取消都返回已提交变更而不虚构回滚。运行中的命令以 `session_id` 标识；同一个 `bash` 用 `session_id` 和可选 `stdin` 续接或轮询，不再公开第二个终端工具。模型用 `max_output_tokens` 指定当前读取窗口；实际截断时同一 Bash 结果附带 host-owned 完整日志路径，可按 byte offset/limit 读取。日志不进入业务 workspace，也不自动成为 artifact。两端用同一 `upload_artifacts({ paths })` 指定交付文件。云端基于工作区导入时的文件身份、ETag 和路径代际提交；本地校验授权目录中的普通文件并生成本地引用。两个宿主将工具结果投影为同一 `data-file`，草稿留在工作区。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
 
 初始 model step 只携带高频且可直接完成工作的热工具。Code Mode、subagents、Runtime Media/Memory、source refresh 和 plugin/MCP 等低频或大 schema 工具使用 AI SDK 原生 `deferLoading + tool_search` 渐进激活；`web_search`/`web_fetch`、Ask User、Todo 和 artifact publication 保持直接可见。延迟加载不移出 Turn-frozen catalog，不建立 per-Agent 能力选择，也不改变 tool approval 或 executor admission。
 
@@ -90,9 +90,9 @@
 
 `application/local-inference` 已移除。`application/inference/provider.ts` 统一模型构造，服务端直连与原生 relay 共用 provider 设置；relay 只传输单次推理，不拥有 Agent-loop。现有 `/local-inference/*` HTTP 地址是 Runtime 的受限传输入口，由 Chat 保留产品侧代理，不对应独立运行时。
 
-## Sandbox 管理内核：严格复刻 Codex 执行链
+## Sandbox 管理内核：保留 Codex 执行不变量
 
-本地与云端共用一个 sandbox manager 内核。它拥有权限编译、命令策略、审批、sandbox 选择、执行 attempt、网络 broker、进程和 violation；AI SDK 只负责产生工具调用和承载原生审批 part，宿主 adapter 不能直接执行命令。Turn 开始时冻结权限及策略来源快照，每条命令只在该快照上计算；配置变化只影响后续 Turn，不能在一次执行中悄悄扩大权限。
+本地与云端共用一个 sandbox admission 内核。它拥有权限编译、命令策略、审批要求、执行 attempt identity、进程所有权和 violation 语义；真正的 Seatbelt、guest、network broker、文件持久化与进程启动由窄 host adapter 实施。AI SDK 只负责产生工具调用和承载原生审批 part，宿主 adapter 不能绕过 admission 直接执行命令。Turn 开始时冻结权限及策略来源快照，每条命令只在该快照上计算；配置变化只影响后续 Turn，不能在一次执行中悄悄扩大权限。这里追求可观察语义等价，不要求 Cloud 与 Desktop 或 Codex 使用相同内部类型和调用栈。
 
 ```mermaid
 flowchart LR
@@ -174,7 +174,7 @@ credential policy 独立列出文件和环境变量的 `deny | mask`。`deny` �
 
 ### 桌面入口与资源加载
 
-Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MFE 提供。日常 `just dev` 仍启动 Web，不自动启动桌面；`just desktop-dev` 显式通过 URL 打开 localhost 或受控远端 Platform，`just desktop-package` 生产构建并内置 Platform、Chat、Admin、Canvas 后生成 macOS `.app`。正式包从标准、安全的 `app://platform` 协议读取 ASAR 内资源，只把同源 `/api/*` 请求流式转发到构建时固定的 API authority；renderer origin 与 API/journal authority 分离。preload 能力仍只开放给精确 renderer origin 和主 frame，renderer 不获得 Node、任意文件或通用 HTTP 代理。
+Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MFE 提供。日常 `just dev` 仍只启动 Web；`just app` 默认托管本地 `just dev` 并在 Platform 就绪后启动 Electron，`just app vps` 直接打开受控远端 Platform；`just desktop-package` 生产构建并内置 Platform、Chat、Admin、Canvas 后生成 macOS `.app`。正式包从标准、安全的 `app://platform` 协议读取 ASAR 内资源，只把同源 `/api/*` 请求流式转发到构建时固定的 API authority；renderer origin 与 API/journal authority 分离。preload 能力仍只开放给精确 renderer origin 和主 frame，renderer 不获得 Node、任意文件或通用 HTTP 代理。
 
 当前内部正式包使用 ad-hoc 签名，尚未完成 Developer ID、hardened runtime、Apple 公证、升级回滚及完整离线历史验收。内置页面不意味着 IAM 和远端推理可以离线使用。具体命令和发行待办见 [Desktop README](../../apps/frontend/apps/desktop/README.md)。
 
@@ -366,9 +366,9 @@ Runtime 拥有权威 `workspace_path`、文件存活/删除状态和并发代际
 
 Storage 不决定业务文件的“当前内容”。跨服务不假设数据库与对象写入原子提交；上传后失败由同一操作恢复，冲突不覆盖现有引用。恢复清单引用不可变内容，旧执行者只能留下候选，不能推进当前文件指针。
 
-### Fresh baseline
+### Greenfield baseline
 
-Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、Asset/revision 引用与执行 fencing，不读取或回填旧 Chat/Sandbox 数据。路径必须从创建时即经过安全分量、长度和唯一性校验；同名文件不能静默覆盖。当前重构不保留旧 API、旧临时目录、旧数据库或双轨兼容层。
+Runtime server 数据库按 [Session Runtime 的绿地模型](session-runtime.md#runtime-server-数据库采用绿地建模) 维护稳定 workspace path、generation、tombstone、Asset/revision 引用与执行 fencing。logical Turn/attempt/effect 切分、Sandbox/workspace attempt FK、checkout、immutable resume envelope 与 history/instruction/catalog/workspace/compactor/remote generation binding 已直接合并进 fresh-install `v1.0.0.0`；不保留旧表或中间 migration。路径必须从创建时即经过安全分量、长度和唯一性校验；同名文件不能静默覆盖。
 
 ## 用户编辑与 Agent 感知
 
@@ -428,7 +428,8 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 
 ## 公开实践与证据边界
 
-- Sandbox 管理内核的第一手工程依据是本地 `~/projects/codex` 在 `d1d1ba0b837d34f314b7f469896e8babbc91f949` 的源码快照： `codex-rs/core/src/tools/orchestrator.rs` 与 `tools/sandboxing.rs` 定义 approval、sandbox selection、`SandboxAttempt` 和一次升级重试；`core/src/exec_policy.rs`、 `protocol/src/permissions.rs` 与 `protocol/src/models.rs` 定义 token policy、文件/网络权限和 `Managed | Disabled | External`；`core/src/unified_exec/process_manager.rs`、 `linux-sandbox/src/{bwrap,seccomp}.rs` 与 `process-hardening/src/lib.rs` 定义进程、Linux adapter 与宿主加固。目标复制这些可见层次、状态语义和 fail-closed 行为，不复制 Rust 文本，也不推断未开源的 Codex Cloud 调度器。
+- Sandbox 管理内核的第一手工程依据是本地 `~/projects/codex@1145028ae4`，并已对照 2026-11-23 upstream `5f645d732c`：`codex-rs/core/src/tools/orchestrator.rs` 与 `tools/sandboxing.rs` 定义 approval、sandbox selection、`SandboxAttempt` 和一次升级重试；`core/src/exec_policy.rs`、`protocol/src/permissions.rs` 与 `protocol/src/models.rs` 定义 token policy、文件/网络权限和 `Managed | Disabled | External`；`core/src/unified_exec/process_manager.rs`、`linux-sandbox/src/{bwrap,seccomp}.rs` 与 `process-hardening/src/lib.rs` 定义进程、Linux adapter 与宿主加固。本项目吸收 owner、状态语义和 fail-closed 不变量，不复制 Rust 类型层次，也不推断未开源的 Codex Cloud 调度器。
+- Pi 的第一手补充依据是本地 `~/projects/pi` 的 `packages/agent/src/agent-loop.ts`、`packages/coding-agent/src/core/session-manager.ts` 与 `core/tools/{bash,output-accumulator,truncate}.ts`，并已对照 2026-11-23 upstream `69a6993486`。采用的是薄 loop 端口、小热工具面和完整输出/有界尾部的分离；不采用 Pi 自己的 loop、JSONL session、extension protocol 或未隔离的 host filesystem 假设。
 - [Codex 环境](https://learn.chatgpt.com/docs/environments/modes)、 [Cloud 保存状态](https://learn.chatgpt.com/docs/environments/cloud-environments#reuse-and-update-saved-state)、 [App Server](https://learn.chatgpt.com/docs/app-server)和 [Windows App](https://learn.chatgpt.com/docs/windows/windows-app#share-config-auth-and-sessions-with-wsl) 只用于验证产品模型：执行位置、环境、task workspace、稳定 Codex home 与独立 runtime。会话模式不可变、云端按 run 回收和 `runtime.sqlite` 格式仍是本项目决策，不能从产品 UI 或公开文档推断供应商内部契约。
 - [Codex Sandboxing](https://learn.chatgpt.com/docs/sandboxing#prerequisites)和 [Permission modes](https://learn.chatgpt.com/docs/permissions)用于交叉检查平台支持与权限/审批的用户语义；代码级真相以前述固定 revision 为准。本项目首发只交付 macOS 本地执行，不能把 Codex 的平台矩阵当作已实现能力。
 - Anthropic 的当前[官方 sandbox 文档](https://code.claude.com/docs/en/sandboxing.md)明确文件与网络双重隔离、严格 sandbox、配置来源优先级和 `failIfUnavailable`；开源 [`sandbox-runtime`](https://github.com/anthropics/sandbox-runtime)展示 Seatbelt/bubblewrap、无 guest 直连路由的 HTTP/SOCKS proxy、Unix socket 限制、credential `deny | mask` 与 opaque command ID violation 归因。本项目采用这些加固点，但不采用普通失败后的默认 unsandboxed retry，也不让项目配置放宽 managed/user 安全 floor；审批和 attempt 状态仍严格以 Codex 内核为主。
@@ -470,11 +471,12 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 
 本地侧已实现 Electron utility runtime、Seatbelt 执行边界、受约束 inference/plugin relay、新 `runtime.sqlite` journal/进程生命周期及 UI 接入；正式签名、真实 provider、真实外部 MCP 与支持的 macOS 版本矩阵仍待环境验收。当前 [Admin client](../../apps/backend/services/runtime/src/infrastructure/clients/admin.ts) 的内部 provider snapshot 包含 `apiKey`，不能直接复用为桌面配置契约；插件 resolve 则使用独立的 activation/snapshot contract，grants 不进入 preload 或 SQLite。
 
-执行策略内核现已按本 ADR 一次替换：
+当前源码可确认的执行策略边界如下；这些实现事实用于校准本文，不以本文存在本身证明完成：
 
 - [permission compiler](../../packages/agent-runtime/src/execution/permissions.ts) 实现 `Managed | Disabled | External`、三个内置 profile、路径/host 规范化、同路径 `deny > write > read` 和不削弱 deny-read 的 additional permissions； [exec policy](../../packages/agent-runtime/src/execution/exec-policy.ts) 将 shell 输入降为 canonical argv/segments，使用 token prefix rule 和保守危险命令 classifier。普通 allow rule 不隐式 bypass，只有显式 `bypassSandbox` 且 profile 不含 deny-read 才能解除隔离。
 - [ToolOrchestrator](../../packages/agent-runtime/src/execution/orchestrator.ts) 按完整输入 identity 冻结 AI SDK admission，生成 typed `SandboxAttempt`，只为 typed violation 发放一次 `retryId`，并验证第二次 authority 覆盖原 denial；[ProcessManager](../../packages/agent-runtime/src/execution/process-manager.ts) 使用 `processId + entryId` 防止复用后的 stale handle，并在 Turn close 与异步完成竞争时拒绝迟到成功。
-- [Bash tool](../../packages/agent-runtime/src/execution/shell-tools.ts) 以一个 `bash` manifest 统一启动命令与 `session_id` 续接。终端在 [CommandSessions](../../packages/agent-runtime/src/execution/command-sessions.ts) 中保留输出、输入与退出状态。桌面由 Thread 持有进程，云端由当前 Turn attempt 持有。两个宿主从 [host tools](../../packages/agent-runtime/src/execution/host-tools.ts) 注册同一套执行与文件工具。云端回收按数据库 checkout 中记录的文件身份、ETag 和路径代际写回。模型原生产物按 `/workspace/outputs/<turn>/<ordinal>/<filename>` 寻址，先发布持久文件，再向活动沙箱写入副本并记录 checkout。回收时用路径、SHA-256 和字节数识别已经发布的副本。新一轮或新 attempt 取得写权限后，旧 guest 的写入会被拒绝。回收器依次锁定 Thread、Turn 和租约，再复核所有权。Storage 回执与冻结清单的大小或摘要不符时，Runtime 保留 guest 和待完成的写回记录。控制器明确返回 `sandbox_not_found` 后，回收器才能按实例已消失结案。
+- [Bash tool](../../packages/agent-runtime/src/execution/shell-tools.ts) 以一个 `bash` manifest 统一启动命令与 `session_id` 续接。[CommandSessions](../../packages/agent-runtime/src/execution/command-sessions.ts) 只保留有界模型窗口并接收窄 `retainOutput` host port；实际截断时才返回完整日志引用。Cloud trusted supervisor 从进程启动起把原始 stdout/stderr 串行写入独立 root-owned `/run/output` mount，受限 guest 只读，写失败终止命令且不发布引用；日志随 Turn Sandbox 回收且不进入 workspace snapshot。Desktop 写入 Thread attachment root 下的 `.runtime-output`，Seatbelt 只读，删除 Thread 时递归清理。两个宿主从 [host tools](../../packages/agent-runtime/src/execution/host-tools.ts) 注册同一套执行与文件工具。云端回收按数据库 checkout 中记录的文件身份、ETag 和路径代际写回。模型原生产物按 `/workspace/outputs/<turn>/<ordinal>/<filename>` 寻址，先发布持久文件，再向活动沙箱写入副本并记录 checkout。回收时用路径、SHA-256 和字节数识别已经发布的副本。新一轮或新 attempt 取得写权限后，旧 guest 的写入会被拒绝。回收器依次锁定 Thread、Turn 和租约，再复核所有权。Storage 回执与冻结清单的大小或摘要不符时，Runtime 保留 guest 和待完成的写回记录。控制器明确返回 `sandbox_not_found` 后，回收器才能按实例已消失结案。
+- Cloud [run repository](../../apps/backend/services/runtime/src/application/agent/runs/repository.ts) 由 execute wrapper 在进入 host code 前原子 claim tool effect，并将 completed effect 按 `(turn_id, tool_call_id)` 跨 attempt replay；完整 canonical input digest/tool identity 改变会拒绝，redacted input 只供观察，重复或跨 attempt 的 `running` claim 都返回 `tool_effect_unconfirmed`。shared [recovery classifier](../../packages/agent-runtime/src/turn/recovery.ts) 只从持久事实输出五类判定；Cloud orphan path 已按判定原子 claim 新 attempt、先清理旧 Sandbox，再校验 generation 并重新进入 AI SDK。Desktop restart 尚未接入该恢复执行路径。
 - [Desktop sandbox](../../apps/frontend/apps/desktop/electron/sandbox.ts) 从 attempt profile 编译 Seatbelt，默认断网并返回 typed termination；[Cloud sandbox contract](../../apps/backend/services/runtime/src/sandbox/contracts.ts) 强制携带 attempt、sandboxed、permission profile 和 process identity。Linux [runner](../../apps/backend/services/runtime/sandbox-assets/runtime/runner.py) 从只读根构造 bubblewrap 文件视图，清理环境并经随机 Basic-token 的逐命令 broker 连接只读 Unix socket；不存在的 deny path 若位于可写父目录下会在启动前 fail closed。Docker 的 `seccomp=unconfined + systempaths=unconfined` 与 Kubernetes 的 `seccompProfile: Unconfined + procMount: Unmasked` 只服务于不含 `SYS_ADMIN` 的 trusted runner 启动 user/mount/PID namespace 和 fresh procfs；bubblewrap 随后清空 capabilities，guest helper 在 `exec bash` 前设置 `PR_SET_NO_NEW_PRIVS` 并加载命令级 libseccomp。restricted/proxy 分别收紧网络 syscall/address family，且都拒绝 ptrace、跨进程内存、keyring request 与 io_uring；任一加固步骤失败都返回 `sandbox-unavailable`，不执行命令。
 
 旧枚举、raw-command regex、schema 和 UI 值已经删除；不双读、不映射旧值、不保留旧执行入口。旧 journal metadata 只能被拒绝。云端 run/workspace lifecycle、本地 Thread/Turn/journal、Storage 文件权威、guest runner 既有的幂等与清理机制继续保留，并从新 orchestrator 接收 frozen policy 和 attempt authority。
@@ -483,11 +485,13 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 
 - `granular` 仍是单值 policy，尚未承载 Codex `GranularApprovalConfig` 的 exec rule、sandbox escalation、permission request、MCP elicitation 等分类开关；现有 UI 不得暗示这些类别已可分别配置。
 - Docker guest 已有逐命令 broker；Kubernetes 部署没有等价的 `SANDBOX_PROXY_SOCKET`，请求额外网络 authority 会返回 `sandbox-unavailable`。macOS Seatbelt 可关闭或整体开启网络，但 restricted host allowlist 尚无本地 broker，不能退化为仅注入 `HTTP_PROXY` 后声称隔离。
+- Cloud 的 replay-safe orphan 已使用 immutable envelope、generation validation 和新 attempt 自动恢复；Desktop restart 仍以 `interrupted` 收口。两端都不重用旧 guest、PID、stream 或未确认命令，unknown effect 仍需 owner-specific reconciliation。
+- Pi 式“完整输出 + 有界模型窗口”已通过 shared host port 落地；Cloud 引用只在 Turn Sandbox 存活期有效，Desktop 当前随 Thread 保留。Desktop 的线程级配额/GC/可观测性仍是残余边界，不能把临时日志误述为持久 artifact 或会话 journal。
 - Python runner 测试不能替代真实容器边界；本地 runc Docker 集成也不能替代 runsc/gVisor、Kubernetes 故障场景或正式签名 macOS 包验收。在对应环境通过前，这些能力只能按代码边界说明，不能宣称完成生产验证。
 
 所有权落点：Runtime 负责云端 Session、消息、文件路径/引用、Agent loop、durable Job 与编辑协调；Admin 保留配置和 provider secret；Gateway 仅执行认证与路由；Storage 负责内容与保留；Runtime sandbox role 负责云端实例、进程及文件桥；本地运行时负责本地会话、Agent loop、工具及 OS 隔离。Chat 只保留 Web 产品投影。前端消费明确的文件和执行结果；新增流字段须遵守 [UIMessage 契约](../../schemas/streaming/chat-uimessage-stream.md)。
 
-本次整体重构不保留旧会话/run 划分、API、工具调用形式、临时目录布局、数据库或旧 sandbox 状态，也不保留兼容层或过渡双轨。Runtime 和 Chat 的初始表结构位于各自的 `v1.0.0.0`，后续结构变更由同一目录下的版本化迁移维护。
+整体重构不保留旧会话/run 混合语义、旧 API、旧工具调用形式、临时目录布局或旧 sandbox 状态的兼容层。Runtime server 的 fresh-install `v1.0.0.0` 直接定义 Turn/attempt/effect 与 Sandbox/workspace fencing，Chat 仍只保存产品映射。local/VPS 的旧 Runtime 数据库通过明确 reset 重建，不保留 upgrade/down 路径；运行时本身不偷偷清库。
 
 | 验收场景 | 应观察到的结果 |
 | --- | --- |
@@ -521,7 +525,7 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 | 旧 worker 迟到、删除会话、并发新 run | 旧写入和错误实例删除被拒绝 |
 | 配额、缓存和垃圾回收 | 不截断文件，不删有效引用，不保留无界实例或历史对象 |
 
-云端 [SandboxLease](../../apps/backend/services/runtime/src/application/agent/adapters/sandbox-lease.ts) 在首次使用时先登记 attempt 所有权，再创建 guest 并恢复 workspace。关闭期间等待创建结果，撤销进程句柄，发布 workspace，最后释放 guest。登记失败时不会删除实例；已取得实例遇到可恢复的保存失败时由 journal 记录，留给恢复流程处理。共享 [ProcessManager](../../packages/agent-runtime/src/execution/process-manager.ts) 先移除全部进程 ID，再逐个调用终止回调，确保回调重入与个别终止失败都不能留下可寻址的旧句柄。此顺序对照 [Codex unified exec](https://github.com/openai/codex/blob/d1d1ba0b837d34f314b7f469896e8babbc91f949/codex-rs/core/src/unified_exec/process_manager.rs)。
+云端 [SandboxLease](../../apps/backend/services/runtime/src/application/agent/adapters/sandbox-lease.ts) 在首次使用时先登记 attempt 所有权，再创建 guest 并恢复 workspace。关闭期间等待创建结果，撤销进程句柄，发布 workspace，最后释放 guest。登记失败时不会删除实例；已取得实例遇到可恢复的保存失败时由 journal 记录，留给恢复流程处理。共享 [ProcessManager](../../packages/agent-runtime/src/execution/process-manager.ts) 先移除全部进程 ID，再逐个调用终止回调，确保回调重入与个别终止失败都不能留下可寻址的旧句柄。此顺序对照 [Codex unified exec](https://github.com/openai/codex/blob/1145028ae47e8119955323d38ce34122d418f951/codex-rs/core/src/unified_exec/process_manager.rs)。
 
 现有测试入口包括 [cloud sandbox tests](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-sandbox.test.ts)、[Engine tests](../../apps/backend/services/runtime/src/sandbox/engine.test.ts)、[runtime tests](../../apps/backend/services/runtime/src/sandbox/runtime.test.ts) 和 [Docker integration](../../apps/backend/services/runtime/sandbox-assets/integration/docker.ts)。新增行为需增加能复现失败的测试，不能把已有 suite 当作目标能力已验证。
 

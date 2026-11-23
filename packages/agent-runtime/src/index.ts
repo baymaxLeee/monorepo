@@ -1,6 +1,7 @@
 export { RuntimeTurn, type TurnScope } from "./turn/turn.js";
 export { createRuntimeInputQueue, type RuntimeInputQueue, type RuntimeInputMode } from "./turn/input-queue.js";
 export type { RuntimeTurnSettings } from "./turn/settings.js";
+export { classifyTurnRecovery, type TurnRecoveryBoundary, type TurnRecoveryDecision } from "./turn/recovery.js";
 export {
   MODEL_STREAM_RETRIES,
   MODEL_STREAM_IDLE_TIMEOUT_MS,
@@ -150,7 +151,12 @@ export {
 } from "./execution/host-tools.js";
 export { SessionServices } from "./execution/session-services.js";
 export { ProcessManager, type ProcessIdentity, type ProcessState } from "./execution/process-manager.js";
-export { CommandSessions, type ExecCommandOutput, type ProcessIO } from "./execution/command-sessions.js";
+export {
+  CommandSessions,
+  type ExecCommandOutput,
+  type ProcessIO,
+  type RetainedOutputReference,
+} from "./execution/command-sessions.js";
 export { bashArgs, commandForPolicy, type BashArgs, type BashCommandArgs } from "./execution/shell-tools.js";
 
 export { PluginManager } from "./plugins/manager.js";

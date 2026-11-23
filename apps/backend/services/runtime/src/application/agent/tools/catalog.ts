@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   PluginManager,
   type AgentPluginContext,
@@ -38,6 +40,20 @@ export interface PluginSkillAssetLoader {
 
 function domainManifests(): AgentToolManifest[] {
   return [...createMediaToolManifests(), ...createMemoryToolManifests()].map(deferAgentToolLoading);
+}
+
+function catalogDigest(manifests: AgentToolManifest[]): string {
+  const projection = manifests
+    .map((manifest) => ({
+      name: manifest.name,
+      availability: manifest.availability,
+      policy: manifest.policy,
+      planning: manifest.planning,
+      description: manifest.tool?.description ?? null,
+      deferred: manifest.tool && "deferLoading" in manifest.tool ? manifest.tool.deferLoading === true : false,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  return createHash("sha256").update(JSON.stringify(projection)).digest("hex");
 }
 
 /** Runtime-owned assembly of core tools plus an already authorized Turn plugin snapshot. */
@@ -100,6 +116,7 @@ export class ToolCatalog {
     const resources = acquired.move();
     return {
       ...catalog,
+      catalogDigest: catalogDigest(catalog.manifests),
       activatedSkill,
       contributions: { skills: [...portableTools.skills] },
       environment: cloudAdapters.environment,

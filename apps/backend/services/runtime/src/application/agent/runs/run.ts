@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import {
   RuntimeTurn,
@@ -43,7 +43,7 @@ import { chatDataSchemas, chatMessageMetadataSchema, type ChatUIDataTypes } from
 import type { ContextCategoryId } from "../context/context-snapshot.js";
 import { activatedSkillNameFromParts, sessionFileIdFromUrl } from "../context/file-parts.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
-import { projectModelContext } from "../context/model-context.js";
+import { CONTEXT_COMPACTOR_VERSION, projectModelContext } from "../context/model-context.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
 import {
   addUsage,
@@ -81,10 +81,14 @@ import {
   getRunTrace,
   isRunActive,
   persistAgentRunPluginSnapshot,
+  persistTurnResumeEnvelope,
   readAgentRunPluginSnapshot,
   type AgentRunOperation,
   type AgentRunTrace,
+  type ClaimedAgentRun,
+  type OrphanedTurnRecovery,
   type RunLeaseToken,
+  type TurnResumeEnvelope,
 } from "./repository.js";
 import { startAgentRunInputInbox } from "./steering.js";
 import { terminalStreamError } from "./stream-outcome.js";
@@ -102,6 +106,25 @@ export interface RunAgentInput {
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
+
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, child]) => child !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, canonicalValue(child)]),
+    );
+  }
+  return value;
+}
+
+function stableDigest(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalValue(value)))
+    .digest("hex");
+}
 
 interface ChatMessageMetadata extends Record<string, unknown> {
   runId: string;
@@ -254,7 +277,6 @@ export async function createAgentRunResponse(
     throw new RequestError("selected provider is not a chat model provider");
   }
 
-  const startedAt = performance.now();
   const session = await getSessionRow(auth, sessionId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({
     messages: uiMessagesInput,
@@ -317,6 +339,40 @@ export async function createAgentRunResponse(
   if (claim.duplicate) {
     return createAgentReplayResponse(session.id, claim.runId, { isRunLive: isRunActive });
   }
+  return executeClaimedAgentRunResponse({
+    auth,
+    session,
+    provider,
+    claim,
+    operation,
+    input,
+    toolCatalog,
+    approvalPolicy: session.approvalPolicy as ApprovalPolicy,
+    permissionProfile: session.permissionProfile as BuiltInPermissionProfileId,
+  });
+}
+
+interface ClaimedAgentRunExecution {
+  auth: AuthContext;
+  session: Awaited<ReturnType<typeof getSessionRow>>;
+  provider: ProviderSnapshot & LanguageProviderSnapshot;
+  claim: ClaimedAgentRun;
+  operation: AgentRunOperation;
+  input: RunAgentInput;
+  toolCatalog: ToolCatalog;
+  approvalPolicy: ApprovalPolicy;
+  permissionProfile: BuiltInPermissionProfileId;
+  resume?: {
+    decision: "resume-next-step" | "regenerate-model";
+    envelope: TurnResumeEnvelope;
+    leafMessageId: string;
+  };
+}
+
+async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecution): Promise<Response> {
+  const { auth, session, provider, claim, operation, input, toolCatalog, approvalPolicy, permissionProfile, resume } =
+    execution;
+  const startedAt = performance.now();
   const runId = claim.runId;
   const leaseToken: RunLeaseToken = { runId, attemptEpoch: claim.attemptEpoch };
   let resumable = false;
@@ -332,11 +388,22 @@ export async function createAgentRunResponse(
   let contextUsage: UsageTokens = EMPTY_USAGE;
   try {
     const [persistedMessages, instructionInput] = await Promise.all([
-      listMessages(session.id, claim.historyMessageId),
+      listMessages(session.id, resume?.leafMessageId ?? claim.historyMessageId),
       loadInstructionContext({
         userId: session.userId,
       }),
     ]);
+
+    if (resume) {
+      const baseMessages =
+        resume.leafMessageId === claim.historyMessageId
+          ? persistedMessages
+          : await listMessages(session.id, claim.historyMessageId);
+      const baseDigest = stableDigest(persistedMessagesToModelUiMessages(baseMessages));
+      if (baseDigest !== resume.envelope.historyDigest) {
+        throw new Error("turn recovery history no longer matches its resume envelope");
+      }
+    }
 
     const firstPersistedUser = persistedMessages.find((message) => message.role === "user");
     const titleSourceText = firstPersistedUser
@@ -352,7 +419,7 @@ export async function createAgentRunResponse(
     let continuedSkill: ContinuedSkillReference | null = null;
     if (operation === "tool-continuation") {
       const continuationIndex = modelUiMessages.findIndex(
-        (message) => message.id === latestMessage.id && message.role === "assistant",
+        (message) => message.id === claim.historyMessageId && message.role === "assistant",
       );
       if (continuationIndex < 0) {
         throw new RequestError("client tool continuation message was not found");
@@ -365,7 +432,8 @@ export async function createAgentRunResponse(
     const memorySourceText = latestUser ? textFromUiMessage(latestUser) : "";
 
     const assistantMessageId =
-      operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex");
+      resume?.envelope.snapshot.execution.assistantMessageId ??
+      (operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex"));
     const pendingModelRetryEvents: ModelRetryEvent[] = [];
     let modelRetrySink: ((event: ModelRetryEvent) => void) | null = null;
     const publishModelRetry = (event: ModelRetryEvent) => {
@@ -413,6 +481,7 @@ export async function createAgentRunResponse(
       await persistAgentRunPluginSnapshot(leaseToken, pluginSnapshot);
       const lineage = await getLatestResponseLineage({
         runId,
+        attemptEpoch: claim.attemptEpoch,
         sessionId: session.id,
         providerId: provider.id,
         model: provider.model,
@@ -452,8 +521,8 @@ export async function createAgentRunResponse(
           continuation: persistedContinuation,
           provider,
           reasoningEffort: input.reasoningEffort,
-          approvalPolicy: session.approvalPolicy as ApprovalPolicy,
-          permissionProfile: session.permissionProfile as BuiltInPermissionProfileId,
+          approvalPolicy,
+          permissionProfile,
           onCompactionUsage: (usage) => {
             contextUsage = addUsage(contextUsage, usage);
           },
@@ -483,6 +552,10 @@ export async function createAgentRunResponse(
         tenantId: session.tenantId,
         workspaceId: session.workspaceId,
         provider,
+        historyRevision: claim.historyRevision,
+        historyDigest: stableDigest(modelUiMessages),
+        instructionDigest: stableDigest(prepared.settings.instructions ?? null),
+        toolCatalogDigest: prepared.host.catalogDigest,
         abortSignal: scope.signal,
         tools: prepared.settings.tools,
         remoteBinding: prepared.settings.remoteCompactionBinding,
@@ -498,7 +571,66 @@ export async function createAgentRunResponse(
         },
         compactionRetry: prepared.settings.compactionRetry,
         onCompaction: publishCompaction,
+        ...(resume
+          ? {
+              expectedGeneration: {
+                instructionDigest: resume.envelope.instructionDigest,
+                toolCatalogDigest: resume.envelope.toolCatalogDigest,
+                workspaceDigest: resume.envelope.workspaceDigest,
+                compactorVersion: resume.envelope.compactorVersion,
+                remoteBinding: resume.envelope.remoteBinding,
+              },
+            }
+          : {}),
       });
+      if (resume) {
+        if (resume.envelope.snapshot.execution.activeSkillName !== currentSkillName) {
+          throw new Error("turn recovery active skill no longer matches its resume envelope");
+        }
+      } else {
+        await persistTurnResumeEnvelope(leaseToken, {
+          sessionId: session.id,
+          historyMessageId: claim.historyMessageId,
+          historyRevision: claim.historyRevision,
+          historyDigest: projected.binding.historyDigest,
+          instructionDigest: projected.binding.instructionDigest,
+          toolCatalogDigest: projected.binding.toolCatalogDigest,
+          workspaceDigest: projected.binding.workspaceDigest,
+          compactorVersion: projected.binding.compactorVersion,
+          remoteBinding: projected.binding.remoteBinding,
+          snapshot: {
+            schemaVersion: 1,
+            auth: {
+              userId: session.userId,
+              tenantId: auth.tenantId,
+              workspaceId: auth.workspaceId,
+              workspaceRole: auth.workspaceRole,
+            },
+            execution: {
+              operation,
+              assistantMessageId,
+              reasoningEffort: input.reasoningEffort,
+              approvalPolicy,
+              permissionProfile,
+              pluginActivations: input.pluginActivations ?? [],
+              skills,
+              generateTitle: input.generateTitle === true,
+              activeSkillName: currentSkillName,
+              instructions: prepared.settings.instructions ?? null,
+              providerBinding: {
+                id: provider.id,
+                model: provider.model,
+                baseUrl: provider.baseUrl,
+                extraBody: provider.extraBody,
+                contextWindow: provider.contextWindow,
+                maxOutputTokens: provider.maxOutputTokens,
+                supportsImageInput: provider.supportsImageInput,
+                providerKind: provider.providerKind,
+              },
+            },
+          },
+        });
+      }
       if (projected.checkpointAdvanced) prepared.settings.onHistoryReplacement?.();
       contextCompacted = projected.compacted;
       contextUsage = projected.compactionUsage;
@@ -621,7 +753,8 @@ export async function createAgentRunResponse(
         const aborted = capacityError == null && (runSignal.aborted || currentRun?.status === "cancel_requested");
         const streamError = stepJournalError ?? capacityError ?? terminalStreamError(outcome, finishReason);
         try {
-          if (isContinuation !== (operation === "tool-continuation")) {
+          const expectsContinuation = operation === "tool-continuation" || resume?.decision === "resume-next-step";
+          if (isContinuation !== expectsContinuation) {
             throw new Error("SDK continuation identity does not match the claimed operation");
           }
           const parts = aborted ? finalizeCancelledParts(responseMessage.parts) : responseMessage.parts;
@@ -737,6 +870,130 @@ export async function createAgentRunResponse(
       },
     });
     throw failure;
+  }
+}
+
+const REASONING_EFFORTS = new Set<ReasoningEffort>(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const APPROVAL_POLICIES = new Set<ApprovalPolicy>(["never", "on-request", "unless-trusted", "granular"]);
+const PERMISSION_PROFILES = new Set<BuiltInPermissionProfileId>([":read-only", ":workspace", ":danger-full-access"]);
+
+function providerResumeBinding(provider: ProviderSnapshot & LanguageProviderSnapshot) {
+  return {
+    id: provider.id,
+    model: provider.model,
+    baseUrl: provider.baseUrl,
+    extraBody: provider.extraBody,
+    contextWindow: provider.contextWindow,
+    maxOutputTokens: provider.maxOutputTokens,
+    supportsImageInput: provider.supportsImageInput,
+    providerKind: provider.providerKind,
+  };
+}
+
+export interface ClaimedRecoveryDependencies {
+  getSession: typeof getSessionRow;
+  getProvider: typeof getProvider;
+  getRun: typeof getAgentRunById;
+  execute(execution: ClaimedAgentRunExecution): Promise<Pick<Response, "arrayBuffer">>;
+  fail(token: RunLeaseToken, error: unknown): Promise<void>;
+  release(token: RunLeaseToken): Promise<void>;
+}
+
+const claimedRecoveryDefaults: ClaimedRecoveryDependencies = {
+  getSession: getSessionRow,
+  getProvider,
+  getRun: getAgentRunById,
+  execute: executeClaimedAgentRunResponse,
+  fail: async (token, error) => {
+    await failAgentRun({ ...token, error });
+  },
+  release: releaseRun,
+};
+
+/** Re-enter only a transactionally claimed physical attempt. The provider secret
+ * and plugin grants are reacquired, while every non-secret generation must still
+ * match the frozen envelope before the SDK or a host effect can run. */
+export async function resumeClaimedAgentRun(
+  recovery: Extract<OrphanedTurnRecovery, { state: "claimed" }>,
+  toolCatalog: ToolCatalog,
+  deps: ClaimedRecoveryDependencies = claimedRecoveryDefaults,
+): Promise<void> {
+  const { envelope, token, decision } = recovery;
+  try {
+    const execution = envelope.snapshot.execution;
+    if (envelope.compactorVersion !== CONTEXT_COMPACTOR_VERSION) {
+      throw new Error("turn recovery compactor version no longer matches its resume envelope");
+    }
+    if (!REASONING_EFFORTS.has(execution.reasoningEffort as ReasoningEffort)) {
+      throw new Error("turn recovery contains an invalid reasoning effort");
+    }
+    if (!APPROVAL_POLICIES.has(execution.approvalPolicy as ApprovalPolicy)) {
+      throw new Error("turn recovery contains an invalid approval policy");
+    }
+    if (!PERMISSION_PROFILES.has(execution.permissionProfile as BuiltInPermissionProfileId)) {
+      throw new Error("turn recovery contains an invalid permission profile");
+    }
+    const auth: AuthContext = {
+      userId: envelope.snapshot.auth.userId,
+      username: envelope.snapshot.auth.userId,
+      email: "",
+      tenantId: envelope.snapshot.auth.tenantId,
+      workspaceId: envelope.snapshot.auth.workspaceId,
+      workspaceRole: envelope.snapshot.auth.workspaceRole,
+      roles: [],
+    };
+    const [session, provider, run] = await Promise.all([
+      deps.getSession(auth, envelope.sessionId),
+      deps.getProvider(auth.tenantId, auth.workspaceId, execution.providerBinding.id),
+      deps.getRun(token.runId),
+    ]);
+    if (!run || run.sessionId !== envelope.sessionId || run.userId !== auth.userId) {
+      throw new Error("turn recovery run no longer matches its resume envelope");
+    }
+    if (stableDigest(providerResumeBinding(provider)) !== stableDigest(execution.providerBinding)) {
+      throw new Error("turn recovery provider binding changed after the attempt was admitted");
+    }
+    const leafMessageId = decision === "resume-next-step" ? run.outputMessageId : envelope.historyMessageId;
+    if (!leafMessageId) throw new Error("turn recovery has no committed journal boundary");
+    const response = await deps.execute({
+      auth,
+      session,
+      provider,
+      claim: {
+        runId: token.runId,
+        attemptEpoch: token.attemptEpoch,
+        duplicate: false,
+        historyRevision: envelope.historyRevision,
+        historyMessageId: envelope.historyMessageId,
+        inputMessageId: null,
+      },
+      operation: execution.operation,
+      input: {
+        reasoningEffort: execution.reasoningEffort as ReasoningEffort,
+        skills: execution.skills,
+        pluginActivations: execution.pluginActivations,
+        trigger: execution.operation === "regenerate-message" ? "regenerate-message" : "submit-message",
+        ...(execution.operation === "tool-continuation" || execution.operation === "edit-message"
+          ? { messageId: envelope.historyMessageId }
+          : {}),
+        expectedRevision: envelope.historyRevision,
+        requestId: `recovery-${token.runId}-${token.attemptEpoch.toString()}`,
+        generateTitle: false,
+      },
+      toolCatalog,
+      approvalPolicy: execution.approvalPolicy as ApprovalPolicy,
+      permissionProfile: execution.permissionProfile as BuiltInPermissionProfileId,
+      resume: { decision, envelope, leafMessageId },
+    });
+    await response.arrayBuffer();
+  } catch (error) {
+    await deps
+      .fail(token, error)
+      .catch((finishError) =>
+        logger.error({ err: finishError, runId: token.runId }, "failed to terminalize recovered run"),
+      );
+    await deps.release(token).catch(() => undefined);
+    throw error;
   }
 }
 

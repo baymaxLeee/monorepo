@@ -1,5 +1,6 @@
 export {
   createAgentRunResponse,
+  resumeClaimedAgentRun,
   getAgentRunTrace,
   getSessionContext,
   type SessionContextView,

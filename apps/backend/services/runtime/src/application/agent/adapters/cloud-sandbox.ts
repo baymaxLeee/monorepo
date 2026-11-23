@@ -384,6 +384,7 @@ export class RunSandbox implements Experimental_SandboxSession {
         workdir: options.workingDirectory ?? "/workspace/work",
         env: options.env ?? {},
         tty: options.io?.tty ?? false,
+        retain_output: Boolean(options.io),
         yield_time_ms: options.io ? 0 : 10_000,
         timeout_ms: options.timeoutMs ?? 120_000,
         scope: this.scope,
@@ -402,8 +403,10 @@ export class RunSandbox implements Experimental_SandboxSession {
       },
     };
     const capture = (chunk: SandboxProcess) => {
-      if (options.io) options.io.output(chunk.stdout + chunk.stderr);
-      else appendProcessOutput(output, chunk);
+      if (options.io) {
+        if (chunk.retained_output_path) options.io.retainOutput({ path: chunk.retained_output_path });
+        options.io.output(chunk.stdout + chunk.stderr);
+      } else appendProcessOutput(output, chunk);
     };
     capture(process);
     const processId = process.session_id;

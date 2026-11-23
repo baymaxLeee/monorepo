@@ -464,7 +464,7 @@ class Output:
 
 
 class Process:
-    def __init__(self, request, root, uid, gid, output_limit, max_timeout, expire, pids):
+    def __init__(self, request, root, output_root, uid, gid, output_limit, max_timeout, expire, pids):
         self.id = uuid.uuid4().hex
         self.request = {
             k: request.get(k)
@@ -478,6 +478,7 @@ class Process:
                 "timeout_ms",
                 "sandbox",
                 "violation_hint",
+                "retain_output",
             )
         }
         self.condition = threading.Condition()
@@ -490,6 +491,20 @@ class Process:
         self.pty_fd = None
         self.process = None
         self.proxy = None
+        self.retention_error = None
+        self.retained_output = None
+        self.retained_output_path = None
+        if request.get("retain_output"):
+            try:
+                output_root.mkdir(mode=0o755, parents=True, exist_ok=True)
+                os.chmod(output_root, 0o755)
+                self.retained_output_path = output_root / f"{self.id}.log"
+                descriptor = os.open(self.retained_output_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o444)
+                self.retained_output = os.fdopen(descriptor, "wb", buffering=0)
+            except OSError as error:
+                self.retained_output_path = None
+                self.finish_start_error("start-error", f"failed to retain complete command output: {error}")
+                return
         workdir = request.get("workdir") or "/workspace"
         relative = pathlib.PurePosixPath(workdir).relative_to("/workspace")
         cwd = (root / str(relative)).resolve()
@@ -591,6 +606,10 @@ class Process:
         self.waiter.start()
 
     def finish_start_error(self, kind, message):
+        if self.retained_output is not None:
+            with suppress(OSError):
+                self.retained_output.close()
+            self.retained_output = None
         self.termination = {"type": kind, "message": message[:4096] or kind}
         self.readers = []
         self.waiter = threading.Thread(target=lambda: None, daemon=True)
@@ -605,6 +624,18 @@ class Process:
             if not chunk:
                 break
             with self.condition:
+                if self.retained_output is not None:
+                    try:
+                        remaining = memoryview(chunk)
+                        while remaining:
+                            written = self.retained_output.write(remaining)
+                            if not written:
+                                raise OSError("retained output write made no progress")
+                            remaining = remaining[written:]
+                    except OSError as error:
+                        self.retention_error = error
+                        self.kill()
+                        break
                 output.append(chunk)
 
     def kill(self):
@@ -632,13 +663,24 @@ class Process:
             self.kill()
         for reader in self.readers:
             reader.join(timeout=2)
+        if self.retained_output is not None:
+            try:
+                self.retained_output.close()
+            except OSError as error:
+                self.retention_error = error
+            self.retained_output = None
         if self.pty_fd is not None:
             os.close(self.pty_fd)
         for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
             if stream:
                 stream.close()
         stderr = bytes(self.stderr.data).lower()
-        if "termination" not in locals():
+        if self.retention_error is not None:
+            termination = {
+                "type": "start-error",
+                "message": f"failed to retain complete command output: {self.retention_error}"[:4096],
+            }
+        elif "termination" not in locals():
             if code != 0 and any(signature in stderr for signature in BWRAP_FAILURE_SIGNATURES):
                 termination = {
                     "type": "sandbox-unavailable",
@@ -693,7 +735,7 @@ class Process:
             binary = self.request["binary_io"]
             out, out_cursor, out_truncated = self.stdout.read(request.get("stdout_offset", 0), binary)
             err, err_cursor, err_truncated = self.stderr.read(request.get("stderr_offset", 0), binary)
-            return {
+            result = {
                 "session_id": self.id,
                 "stdout": out,
                 "stderr": err,
@@ -704,6 +746,9 @@ class Process:
                 "stderr_truncated": err_truncated,
                 "truncated": out_truncated or err_truncated,
             }
+            if self.retained_output_path is not None and self.retention_error is None:
+                result["retained_output_path"] = str(self.retained_output_path)
+            return result
 
     def write(self, request):
         chars = request.get("chars", "")
@@ -753,6 +798,7 @@ class Runtime:
         self,
         root,
         *,
+        output_root=None,
         uid=1000,
         gid=1000,
         output_limit=65536,
@@ -762,6 +808,7 @@ class Runtime:
         workspace_edit_wait=10,
     ):
         self.root = pathlib.Path(root)
+        self.output_root = pathlib.Path(output_root) if output_root is not None else self.root / ".runtime-output"
         self.uid, self.gid = uid, gid
         self.output_limit, self.max_timeout, self.max_processes = output_limit, max_timeout, max_processes
         self.processes, self.requests = OrderedDict(), {}
@@ -831,6 +878,7 @@ class Runtime:
                     process = Process(
                         request,
                         self.root,
+                        self.output_root,
                         self.uid,
                         self.gid,
                         self.output_limit,
@@ -930,6 +978,7 @@ def serve():
     (root / "sources").mkdir(exist_ok=True)
     runtime = Runtime(
         root,
+        output_root=pathlib.Path("/run/output"),
         output_limit=int(os.environ.get("OUTPUT_BYTES", "65536")),
         max_timeout=int(os.environ.get("COMMAND_TIMEOUT_MS", "1800000")),
         max_processes=int(os.environ.get("MAX_COMMANDS", "64")),

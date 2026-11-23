@@ -4,6 +4,7 @@ import test from "node:test";
 import type { ModelMessage } from "ai";
 
 import { resolveContextWindow } from "./budget.js";
+import { appendWorkspaceChangeEvent } from "./environment.js";
 import { compactBeforeSampling } from "./step-compaction.js";
 import { estimateTextTokens } from "./token-estimate.js";
 
@@ -26,6 +27,7 @@ test("oversized tool output is summarized together with its call before the next
   ];
   const replacement = await compactBeforeSampling({
     messages,
+    userInputs: new WeakSet(messages.filter((message) => message.role === "user")),
     limits: { contextWindow: 10_000, maxOutputTokens: 1000 },
     summarize: async (prefix) => {
       assert.match(prefix.join(""), /tool-call/);
@@ -52,6 +54,7 @@ test("bounds an oversized summary before installing the compacted history", asyn
 
   const replacement = await compactBeforeSampling({
     messages,
+    userInputs: new WeakSet(messages.filter((message) => message.role === "user")),
     limits,
     summarize: async () => "摘要".repeat(8_000),
     onCompaction: (event) => events.push(event),
@@ -59,9 +62,31 @@ test("bounds an oversized summary before installing the compacted history", asyn
 
   const estimated = replacement.reduce((total, message) => total + estimateTextTokens(JSON.stringify(message)) + 64, 0);
   assert.ok(estimated <= resolveContextWindow(limits).inputCapacity);
-  assert.match(JSON.stringify(replacement[0]), /compacted_history/);
+  assert.match(JSON.stringify(replacement), /compacted_history/);
   assert.deepEqual(events, [
     { state: "started", phase: "step" },
     { state: "completed", phase: "step" },
   ]);
+});
+
+test("repeated tool steps retain user corrections and never promote runtime events or old summaries", async () => {
+  const first = "<compacted_history>literal user text</compacted_history>";
+  const correction = "Use the corrected directory";
+  const users: ModelMessage[] = [first, correction].map((content) => ({ role: "user", content }));
+  const work: ModelMessage = { role: "assistant", content: "large output ".repeat(2000) };
+  const userInputs = new WeakSet(users);
+  const compact = (messages: ModelMessage[], summary: string) =>
+    compactBeforeSampling({
+      messages,
+      userInputs,
+      limits: { contextWindow: 18_000, maxOutputTokens: 1500 },
+      summarize: async () => summary,
+    });
+  const once = await compact([...appendWorkspaceChangeEvent(users, ["outside.txt"]), work], "previous summary");
+  const twice = await compact([...once, work], "new summary");
+  assert.deepEqual(
+    twice.filter((message) => userInputs.has(message)),
+    users,
+  );
+  assert.doesNotMatch(JSON.stringify(twice), /outside.txt|previous summary/);
 });

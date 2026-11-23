@@ -7,6 +7,7 @@ import { formatExecOutput } from "./shell-tools.js";
 test("bounded output retains a UTF-8 tail, its original size and the exit status", async () => {
   const sessions = new CommandSessions();
   const result = await sessions.start({ tty: false, reviewInput: false, yieldMs: 250, tokens: 3 }, async (io) => {
+    io.retainOutput({ path: "/host-private/complete.log" });
     io.output("界".repeat(100) + "end");
     return { stdout: "", stderr: "", termination: { type: "exit", exitCode: 7 } };
   });
@@ -16,4 +17,8 @@ test("bounded output retains a UTF-8 tail, its original size and the exit status
   assert.match(result.output.output, /界end$/);
   assert.doesNotMatch(result.output.output, /�/);
   assert.match(formatExecOutput(result.output), /Process exited with code 7/);
+  assert.match(
+    formatExecOutput(result.output),
+    /\[Full output: \/host-private\/complete\.log \(read it with Bash using byte offsets\/limits\)\]$/,
+  );
 });

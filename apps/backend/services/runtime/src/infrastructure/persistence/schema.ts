@@ -21,6 +21,38 @@ export interface PersistedThreadItemContent {
   metadata?: Record<string, unknown>;
 }
 
+export interface PersistedTurnResumeSnapshot {
+  schemaVersion: 1;
+  auth: {
+    userId: string;
+    tenantId: string;
+    workspaceId: string;
+    workspaceRole: string;
+  };
+  execution: {
+    operation: "submit-message" | "edit-message" | "regenerate-message" | "tool-continuation";
+    assistantMessageId: string;
+    reasoningEffort: string;
+    approvalPolicy: string;
+    permissionProfile: string;
+    pluginActivations: Array<{ pluginId: string; bindings?: Record<string, string> }>;
+    skills: Array<{ id: string; name: string; description: string }>;
+    generateTitle: boolean;
+    activeSkillName: string | null;
+    instructions: string | null;
+    providerBinding: {
+      id: string;
+      model: string;
+      baseUrl: string;
+      extraBody: Record<string, unknown>;
+      contextWindow: number;
+      maxOutputTokens: number;
+      supportsImageInput: boolean;
+      providerKind?: string;
+    };
+  };
+}
+
 /** Canonical conversation metadata. Mutable execution state belongs to Turns. */
 export const threads = pgTable(
   "threads",
@@ -66,13 +98,6 @@ export const turns = pgTable(
     error: text("error"),
     inputItemId: varchar("input_item_id", { length: 32 }),
     outputItemId: varchar("output_item_id", { length: 32 }),
-    requestId: varchar("request_id", { length: 64 }),
-    requestFingerprint: varchar("request_fingerprint", { length: 64 }),
-    operation: varchar("operation", { length: 32 }),
-    targetItemId: varchar("target_item_id", { length: 32 }),
-    historyItemId: varchar("history_item_id", { length: 32 }),
-    historyRevision: bigint("history_revision", { mode: "bigint" }),
-    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull().default(1n),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     cachedInputTokens: integer("cached_input_tokens"),
@@ -84,13 +109,11 @@ export const turns = pgTable(
   },
   (t) => [
     uniqueIndex("ux_turns_thread_ordinal").on(t.threadId, t.ordinal),
-    uniqueIndex("ux_turns_thread_request").on(t.threadId, t.requestId),
     uniqueIndex("ux_turns_one_active")
       .on(t.threadId)
-      .where(sql`${t.status} IN ('running', 'cancel_requested')`),
+      .where(sql`${t.status} IN ('running', 'cancel_requested', 'waiting')`),
     index("ix_turns_thread_created").on(t.threadId, t.createdAt),
     index("ix_turns_user_id").on(t.userId),
-    index("ix_turns_history_item_id").on(t.historyItemId),
   ],
 );
 
@@ -130,6 +153,82 @@ export const threadItems = pgTable(
   ],
 );
 
+/** One physical invocation of a logical Turn. Retries, recovery and client continuations get a new epoch. */
+export const turnAttempts = pgTable(
+  "turn_attempts",
+  {
+    turnId: varchar("turn_id", { length: 32 }).notNull(),
+    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
+    threadId: varchar("thread_id", { length: 32 })
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    requestId: varchar("request_id", { length: 64 }),
+    requestFingerprint: varchar("request_fingerprint", { length: 64 }),
+    operation: varchar("operation", { length: 32 }).notNull(),
+    targetItemId: varchar("target_item_id", { length: 32 }),
+    historyItemId: varchar("history_item_id", { length: 32 }),
+    historyRevision: bigint("history_revision", { mode: "bigint" }),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    startedAt: timestamp("started_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    completedAt: timestamp("completed_at", { mode: "date", withTimezone: true, precision: 6 }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.turnId, t.attemptEpoch] }),
+    foreignKey({
+      columns: [t.threadId, t.turnId],
+      foreignColumns: [turns.threadId, turns.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.threadId, t.targetItemId],
+      foreignColumns: [threadItems.threadId, threadItems.id],
+    }),
+    foreignKey({
+      columns: [t.threadId, t.historyItemId],
+      foreignColumns: [threadItems.threadId, threadItems.id],
+    }),
+    uniqueIndex("ux_turn_attempts_thread_request").on(t.threadId, t.requestId),
+    index("ix_turn_attempts_turn_started").on(t.turnId, t.startedAt),
+    index("ix_turn_attempts_history_item").on(t.historyItemId),
+  ],
+);
+
+/** Frozen, non-secret reconstruction facts for one physical attempt. A recovery
+ * claim copies this envelope to its new epoch before any host resource starts. */
+export const turnResumeEnvelopes = pgTable(
+  "turn_resume_envelopes",
+  {
+    turnId: varchar("turn_id", { length: 32 }).notNull(),
+    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
+    threadId: varchar("thread_id", { length: 32 })
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    historyItemId: varchar("history_item_id", { length: 32 }).notNull(),
+    historyRevision: bigint("history_revision", { mode: "bigint" }).notNull(),
+    historyDigest: varchar("history_digest", { length: 64 }).notNull(),
+    instructionDigest: varchar("instruction_digest", { length: 64 }).notNull(),
+    toolCatalogDigest: varchar("tool_catalog_digest", { length: 64 }).notNull(),
+    workspaceDigest: varchar("workspace_digest", { length: 64 }).notNull(),
+    compactorVersion: varchar("compactor_version", { length: 64 }).notNull(),
+    remoteBinding: text("remote_binding"),
+    snapshot: jsonb("snapshot_json").$type<PersistedTurnResumeSnapshot>().notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.turnId, t.attemptEpoch] }),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.threadId, t.historyItemId],
+      foreignColumns: [threadItems.threadId, threadItems.id],
+    }),
+    index("ix_turn_resume_envelopes_thread").on(t.threadId, t.createdAt),
+  ],
+);
+
 /** Synchronous input admission and delivery state for a live Turn. */
 export const turnInputs = pgTable(
   "turn_inputs",
@@ -164,6 +263,13 @@ export const contextCheckpoints = pgTable("context_checkpoints", {
   coveredItemId: varchar("covered_item_id", { length: 32 }).notNull(),
   summary: text("summary").notNull(),
   stateJson: jsonb("state_json").$type<Record<string, unknown>>().notNull(),
+  sourceHistoryRevision: bigint("source_history_revision", { mode: "bigint" }).notNull(),
+  sourceHistoryDigest: varchar("source_history_digest", { length: 64 }).notNull(),
+  instructionDigest: varchar("instruction_digest", { length: 64 }).notNull(),
+  toolCatalogDigest: varchar("tool_catalog_digest", { length: 64 }).notNull(),
+  workspaceDigest: varchar("workspace_digest", { length: 64 }).notNull(),
+  compactorVersion: varchar("compactor_version", { length: 64 }).notNull(),
+  remoteBinding: text("remote_binding"),
   estimatedTokens: integer("estimated_tokens").notNull().default(0),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
@@ -183,7 +289,13 @@ export const turnLeases = pgTable(
     heartbeatAt: timestamp("heartbeat_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
-  (t) => [uniqueIndex("ux_turn_leases_turn_id").on(t.turnId)],
+  (t) => [
+    uniqueIndex("ux_turn_leases_turn_id").on(t.turnId),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
+  ],
 );
 
 /** Model/tool trace projection. It is observable state, not the journal authority. */
@@ -194,6 +306,7 @@ export const turnSteps = pgTable(
     turnId: varchar("turn_id", { length: 32 })
       .notNull()
       .references(() => turns.id, { onDelete: "cascade" }),
+    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
     stepIndex: integer("step_index").notNull(),
     kind: varchar("kind", { length: 32 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
@@ -207,21 +320,27 @@ export const turnSteps = pgTable(
   },
   (t) => [
     index("ix_turn_steps_turn_id").on(t.turnId),
-    uniqueIndex("ux_turn_steps_turn_step").on(t.turnId, t.stepIndex),
+    uniqueIndex("ux_turn_steps_turn_attempt_step").on(t.turnId, t.attemptEpoch, t.stepIndex),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
   ],
 );
 
-export const toolExecutions = pgTable(
-  "tool_executions",
+export const toolEffects = pgTable(
+  "tool_effects",
   {
-    id: varchar("id", { length: 64 }).primaryKey(),
+    id: varchar("id", { length: 64 }).notNull(),
     turnId: varchar("turn_id", { length: 32 })
       .notNull()
       .references(() => turns.id, { onDelete: "cascade" }),
+    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
     itemId: varchar("item_id", { length: 32 }).references(() => threadItems.id, { onDelete: "set null" }),
     stepIndex: integer("step_index"),
     toolName: varchar("tool_name", { length: 80 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
+    inputDigest: varchar("input_digest", { length: 64 }).notNull(),
     inputJson: jsonb("input_json").$type<unknown>(),
     outputJson: jsonb("output_json").$type<unknown>(),
     error: text("error"),
@@ -229,7 +348,15 @@ export const toolExecutions = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     completedAt: timestamp("completed_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
-  (t) => [index("ix_tool_executions_turn_id").on(t.turnId), index("ix_tool_executions_tool_name").on(t.toolName)],
+  (t) => [
+    primaryKey({ columns: [t.turnId, t.id] }),
+    index("ix_tool_effects_turn_id").on(t.turnId),
+    index("ix_tool_effects_tool_name").on(t.toolName),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
+  ],
 );
 
 export const turnSandboxExecutions = pgTable(
@@ -255,6 +382,10 @@ export const turnSandboxExecutions = pgTable(
   (t) => [
     primaryKey({ columns: [t.turnId, t.attemptEpoch] }),
     index("ix_turn_sandbox_executions_releasing").on(t.state, t.updatedAt),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
   ],
 );
 

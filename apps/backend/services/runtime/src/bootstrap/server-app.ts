@@ -15,9 +15,9 @@ import { getServerSettings } from "../config/server.js";
 import { checkReadiness, currentBootState, isBootReady } from "../infrastructure/health/readiness.js";
 import { logger } from "../infrastructure/observability/logger.js";
 
-export function createApp() {
+export function createApp(dependencies: { toolCatalog?: ToolCatalog } = {}) {
   const settings = getServerSettings();
-  const toolCatalog = new ToolCatalog();
+  const toolCatalog = dependencies.toolCatalog ?? new ToolCatalog();
   const app = new Hono();
 
   app.use("*", traceMiddleware());

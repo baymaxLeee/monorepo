@@ -2,6 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
 import {
+  classifyTurnRecovery,
+  type TurnRecoveryDecision,
   toPersistedTurnPluginSnapshot,
   type PersistedTurnPluginSnapshot,
   type PluginActivation,
@@ -16,23 +18,36 @@ import {
   contextCheckpoints,
   threadItems,
   threads,
-  toolExecutions,
+  toolEffects,
+  turnAttempts,
   turnInputs,
   turnLeases,
   turnPluginSnapshots,
+  turnResumeEnvelopes,
   turns,
   turnSteps,
 } from "../../../infrastructure/persistence/schema.js";
-import type { PersistedThreadItemContent } from "../../../infrastructure/persistence/schema.js";
+import type {
+  PersistedThreadItemContent,
+  PersistedTurnResumeSnapshot,
+} from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, RequestError } from "../../errors.js";
 import { parseSessionContextSnapshot, type SessionContextSnapshot } from "../context/context-snapshot.js";
 import { cancelPlanOutput, finalizeCancelledParts } from "./cancellation.js";
 import { mergeClientContinuation } from "./continuation.js";
 
-export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
+export type AgentRunStatus =
+  | "running"
+  | "cancel_requested"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "interrupted";
 export type AgentStepStatus = "running" | "completed" | "failed";
 export const RUN_LEASE_MS = 10 * 60_000;
 export type AgentRunOperation = "submit-message" | "edit-message" | "regenerate-message" | "tool-continuation";
+type AgentAttemptOperation = AgentRunOperation | "internal" | "recovery";
 
 export interface ClaimedAgentRun {
   runId: string;
@@ -48,6 +63,31 @@ export interface RunLeaseToken {
   attemptEpoch: bigint;
 }
 
+export interface TurnResumeEnvelope {
+  runId: string;
+  attemptEpoch: bigint;
+  sessionId: string;
+  historyMessageId: string;
+  historyRevision: number;
+  historyDigest: string;
+  instructionDigest: string;
+  toolCatalogDigest: string;
+  workspaceDigest: string;
+  compactorVersion: string;
+  remoteBinding: string | null;
+  snapshot: PersistedTurnResumeSnapshot;
+}
+
+export type OrphanedTurnRecovery =
+  | {
+      state: "claimed";
+      decision: "resume-next-step" | "regenerate-model";
+      token: RunLeaseToken;
+      envelope: TurnResumeEnvelope;
+    }
+  | { state: "stable"; decision: "resume-waiting" }
+  | { state: "interrupted"; decision: "interrupt" | "reconcile-effect" };
+
 export type RuntimeTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 async function requireOwnedRun(
@@ -56,10 +96,14 @@ async function requireOwnedRun(
   options: { allowTerminal?: boolean } = {},
 ): Promise<typeof turns.$inferSelect> {
   const [run] = await tx.select().from(turns).where(eq(turns.id, token.runId));
-  if (!run || run.attemptEpoch !== token.attemptEpoch) {
+  const [attempt] = await tx
+    .select({ status: turnAttempts.status })
+    .from(turnAttempts)
+    .where(and(eq(turnAttempts.turnId, token.runId), eq(turnAttempts.attemptEpoch, token.attemptEpoch)));
+  if (!run || !attempt) {
     throw new ConflictError("agent run ownership was lost", "run_lease_lost");
   }
-  if (options.allowTerminal && ["completed", "failed", "cancelled", "interrupted"].includes(run.status)) {
+  if (options.allowTerminal && ["waiting", "completed", "failed", "cancelled", "interrupted"].includes(run.status)) {
     return run;
   }
   const now = new Date();
@@ -74,7 +118,7 @@ async function requireOwnedRun(
       ),
     )
     .for("update");
-  if (!lease || !["running", "cancel_requested"].includes(run.status)) {
+  if (!lease || !["running", "cancel_requested"].includes(run.status) || attempt.status !== "running") {
     throw new ConflictError("agent run ownership was lost", "run_lease_lost");
   }
   return run;
@@ -106,6 +150,25 @@ function asJsonValue(value: unknown): unknown {
   } catch {
     return String(value);
   }
+}
+
+function canonicalJson(value: unknown): unknown {
+  const persisted = asJsonValue(value);
+  if (Array.isArray(persisted)) return persisted.map(canonicalJson);
+  if (persisted && typeof persisted === "object") {
+    return Object.fromEntries(
+      Object.entries(persisted as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, canonicalJson(child)]),
+    );
+  }
+  return persisted;
+}
+
+function toolInputDigest(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalJson(value)))
+    .digest("hex");
 }
 
 function errorText(error: unknown): string {
@@ -190,6 +253,91 @@ export async function persistAgentRunPluginSnapshot(
   });
 }
 
+const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+
+function turnResumeEnvelopeFromRow(row: typeof turnResumeEnvelopes.$inferSelect): TurnResumeEnvelope {
+  return {
+    runId: row.turnId,
+    attemptEpoch: row.attemptEpoch,
+    sessionId: row.threadId,
+    historyMessageId: row.historyItemId,
+    historyRevision: Number(row.historyRevision),
+    historyDigest: row.historyDigest,
+    instructionDigest: row.instructionDigest,
+    toolCatalogDigest: row.toolCatalogDigest,
+    workspaceDigest: row.workspaceDigest,
+    compactorVersion: row.compactorVersion,
+    remoteBinding: row.remoteBinding,
+    snapshot: row.snapshot,
+  };
+}
+
+/** Freeze the complete non-secret reconstruction boundary before host code can
+ * produce a model request or tool effect. Rewriting any fact fails closed. */
+export async function persistTurnResumeEnvelope(
+  token: RunLeaseToken,
+  input: Omit<TurnResumeEnvelope, "runId" | "attemptEpoch">,
+): Promise<TurnResumeEnvelope> {
+  for (const digest of [input.historyDigest, input.instructionDigest, input.toolCatalogDigest, input.workspaceDigest]) {
+    if (!SHA256_PATTERN.test(digest)) throw new Error("turn resume envelope contains an invalid digest");
+  }
+  if (input.snapshot.schemaVersion !== 1 || input.snapshot.auth.userId === "") {
+    throw new Error("turn resume envelope contains an invalid snapshot");
+  }
+  return getDb().transaction(async (tx) => {
+    const run = await requireOwnedRun(tx, token);
+    const [attempt] = await tx
+      .select()
+      .from(turnAttempts)
+      .where(and(eq(turnAttempts.turnId, token.runId), eq(turnAttempts.attemptEpoch, token.attemptEpoch)));
+    if (
+      !attempt ||
+      attempt.threadId !== input.sessionId ||
+      attempt.historyItemId !== input.historyMessageId ||
+      attempt.historyRevision !== BigInt(input.historyRevision) ||
+      run.threadId !== input.sessionId ||
+      run.userId !== input.snapshot.auth.userId
+    ) {
+      throw new ConflictError("turn resume envelope does not match its journal binding", "resume_envelope_conflict");
+    }
+    const now = new Date();
+    const value = {
+      turnId: token.runId,
+      attemptEpoch: token.attemptEpoch,
+      threadId: input.sessionId,
+      historyItemId: input.historyMessageId,
+      historyRevision: BigInt(input.historyRevision),
+      historyDigest: input.historyDigest,
+      instructionDigest: input.instructionDigest,
+      toolCatalogDigest: input.toolCatalogDigest,
+      workspaceDigest: input.workspaceDigest,
+      compactorVersion: input.compactorVersion,
+      remoteBinding: input.remoteBinding,
+      snapshot: input.snapshot,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const inserted = await tx
+      .insert(turnResumeEnvelopes)
+      .values(value)
+      .onConflictDoNothing({ target: [turnResumeEnvelopes.turnId, turnResumeEnvelopes.attemptEpoch] })
+      .returning();
+    if (inserted[0]) return turnResumeEnvelopeFromRow(inserted[0]);
+    const [existing] = await tx
+      .select()
+      .from(turnResumeEnvelopes)
+      .where(
+        and(eq(turnResumeEnvelopes.turnId, token.runId), eq(turnResumeEnvelopes.attemptEpoch, token.attemptEpoch)),
+      );
+    if (!existing) throw new Error(`turn ${token.runId} resume envelope could not be persisted`);
+    const expected = { ...value, createdAt: existing.createdAt, updatedAt: existing.updatedAt };
+    if (!isDeepStrictEqual(existing, expected)) {
+      throw new ConflictError("turn resume envelope is immutable", "resume_envelope_conflict");
+    }
+    return turnResumeEnvelopeFromRow(existing);
+  });
+}
+
 export async function claimAgentRunOperation(input: {
   sessionId: string;
   userId: string;
@@ -225,29 +373,30 @@ export async function claimAgentRunOperation(input: {
   return db.transaction(async (tx) => {
     const findExisting = async () => {
       const [existing] = await tx
-        .select()
-        .from(turns)
-        .where(and(eq(turns.threadId, input.sessionId), eq(turns.requestId, input.requestId)))
+        .select({ run: turns, attempt: turnAttempts })
+        .from(turnAttempts)
+        .innerJoin(turns, eq(turns.id, turnAttempts.turnId))
+        .where(and(eq(turnAttempts.threadId, input.sessionId), eq(turnAttempts.requestId, input.requestId)))
         .limit(1);
       if (!existing) return null;
       if (
-        existing.userId !== input.userId ||
-        existing.requestFingerprint !== requestFingerprint ||
-        existing.operation !== input.operation ||
-        (existing.targetItemId ?? null) !== (input.targetMessageId ?? null)
+        existing.run.userId !== input.userId ||
+        existing.attempt.requestFingerprint !== requestFingerprint ||
+        existing.attempt.operation !== input.operation ||
+        (existing.attempt.targetItemId ?? null) !== (input.targetMessageId ?? null)
       ) {
         throw new ConflictError("request_id is already bound to a different chat operation", "request_id_conflict");
       }
-      if (!existing.historyItemId || existing.historyRevision == null) {
-        throw new Error(`agent run ${existing.id} is missing its history binding`);
+      if (!existing.attempt.historyItemId || existing.attempt.historyRevision == null) {
+        throw new Error(`agent run ${existing.run.id} attempt is missing its history binding`);
       }
       return {
-        runId: existing.id,
-        attemptEpoch: existing.attemptEpoch,
+        runId: existing.run.id,
+        attemptEpoch: existing.attempt.attemptEpoch,
         duplicate: true,
-        historyRevision: Number(existing.historyRevision),
-        historyMessageId: existing.historyItemId,
-        inputMessageId: existing.inputItemId,
+        historyRevision: Number(existing.attempt.historyRevision),
+        historyMessageId: existing.attempt.historyItemId,
+        inputMessageId: existing.run.inputItemId,
       } satisfies ClaimedAgentRun;
     };
 
@@ -297,6 +446,16 @@ export async function claimAgentRunOperation(input: {
         .update(turns)
         .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
         .where(and(eq(turns.id, activeLease.turnId), inArray(turns.status, ["running", "cancel_requested"])));
+      await tx
+        .update(turnAttempts)
+        .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
+        .where(
+          and(
+            eq(turnAttempts.turnId, activeLease.turnId),
+            eq(turnAttempts.attemptEpoch, activeLease.attemptEpoch),
+            eq(turnAttempts.status, "running"),
+          ),
+        );
     }
     const byId = new Map(rows.map((row) => [row.id, row] as const));
     const selectedIds = new Set<string>();
@@ -310,6 +469,24 @@ export async function claimAgentRunOperation(input: {
     const target = input.targetMessageId ? byId.get(input.targetMessageId) : undefined;
     if (input.targetMessageId && (!target || !selectedIds.has(target.id))) {
       throw new ConflictError("target message is not on the selected history", "history_target_conflict");
+    }
+    const [unfinishedTurn] = await tx
+      .select({ id: turns.id, status: turns.status })
+      .from(turns)
+      .where(
+        and(eq(turns.threadId, input.sessionId), inArray(turns.status, ["running", "cancel_requested", "waiting"])),
+      )
+      .orderBy(desc(turns.ordinal))
+      .limit(1)
+      .for("update");
+    const resumesWaitingTurn =
+      input.operation === "tool-continuation" &&
+      unfinishedTurn?.status === "waiting" &&
+      target?.turnId === unfinishedTurn.id;
+    if (unfinishedTurn && !resumesWaitingTurn) {
+      throw new ConflictError("this session already has an active run", "active_run_exists", {
+        run_id: unfinishedTurn.id,
+      });
     }
 
     let historyMessageId: string;
@@ -377,56 +554,85 @@ export async function claimAgentRunOperation(input: {
     }
 
     const historyRevision = input.expectedRevision + 1;
-    const runId = id(16);
-    const turnOrdinal = session.turnSequence + 1n;
-    await tx.insert(turns).values({
-      id: runId,
+    let runId: string;
+    let attemptEpoch: bigint;
+    let turnOrdinal = session.turnSequence;
+    if (input.operation === "tool-continuation") {
+      const [source] = target?.turnId
+        ? await tx
+            .select({ run: turns, snapshot: turnPluginSnapshots.snapshot })
+            .from(turns)
+            .innerJoin(turnPluginSnapshots, eq(turns.id, turnPluginSnapshots.turnId))
+            .where(and(eq(turns.threadId, input.sessionId), eq(turns.id, target.turnId)))
+            .for("update", { of: turns })
+        : [];
+      if (!source) {
+        throw new ConflictError("tool continuation has no frozen plugin snapshot", "plugin_snapshot_missing");
+      }
+      if (source.run.status !== "waiting") {
+        throw new ConflictError("tool continuation is not waiting for client input", "turn_not_waiting");
+      }
+      if (source.run.providerId !== input.providerId || source.run.model !== input.model) {
+        throw new ConflictError("tool continuation cannot change the frozen model", "turn_snapshot_conflict");
+      }
+      const [previousAttempt] = await tx
+        .select({ attemptEpoch: turnAttempts.attemptEpoch })
+        .from(turnAttempts)
+        .where(eq(turnAttempts.turnId, source.run.id))
+        .orderBy(desc(turnAttempts.attemptEpoch))
+        .limit(1);
+      if (!previousAttempt) throw new Error(`logical Turn ${source.run.id} has no physical attempt`);
+      runId = source.run.id;
+      attemptEpoch = previousAttempt.attemptEpoch + 1n;
+      await tx.update(turns).set({ status: "running", error: null, completedAt: null }).where(eq(turns.id, runId));
+    } else {
+      runId = id(16);
+      attemptEpoch = 1n;
+      turnOrdinal += 1n;
+      await tx.insert(turns).values({
+        id: runId,
+        threadId: input.sessionId,
+        ordinal: turnOrdinal,
+        userId: input.userId,
+        providerId: input.providerId,
+        model: input.model,
+        status: "running",
+        inputItemId: inputMessageId,
+        createdAt: now,
+        startedAt: now,
+      });
+    }
+    await tx.insert(turnAttempts).values({
+      turnId: runId,
+      attemptEpoch,
       threadId: input.sessionId,
-      ordinal: turnOrdinal,
-      userId: input.userId,
-      providerId: input.providerId,
-      model: input.model,
-      status: "running",
       requestId: input.requestId,
       requestFingerprint,
       operation: input.operation,
       targetItemId: input.targetMessageId ?? null,
       historyItemId: historyMessageId,
       historyRevision: BigInt(historyRevision),
-      inputItemId: inputMessageId,
-      createdAt: now,
+      status: "running",
       startedAt: now,
     });
-    if (input.operation === "tool-continuation") {
-      const [source] = target?.turnId
-        ? await tx
-            .select({ snapshot: turnPluginSnapshots.snapshot })
-            .from(turnPluginSnapshots)
-            .innerJoin(turns, eq(turns.id, turnPluginSnapshots.turnId))
-            .where(and(eq(turns.threadId, input.sessionId), eq(turns.id, target.turnId)))
-        : [];
-      if (!source)
-        throw new ConflictError("tool continuation has no frozen plugin snapshot", "plugin_snapshot_missing");
-      await tx.insert(turnPluginSnapshots).values({ turnId: runId, snapshot: source.snapshot, createdAt: now });
-    }
     await tx.insert(turnLeases).values({
       threadId: input.sessionId,
       turnId: runId,
-      attemptEpoch: 1n,
+      attemptEpoch,
       heartbeatAt: now,
       expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
     });
     await tx
       .update(threads)
       .set({
-        turnSequence: turnOrdinal,
+        ...(input.operation === "tool-continuation" ? {} : { turnSequence: turnOrdinal }),
         itemSequence: inputMessageId ? session.itemSequence + 1n : session.itemSequence,
         historyRevision: BigInt(historyRevision),
         selectedItemId: selectedMessageId,
         updatedAt: now,
       })
       .where(eq(threads.id, input.sessionId));
-    return { runId, attemptEpoch: 1n, duplicate: false, historyRevision, historyMessageId, inputMessageId };
+    return { runId, attemptEpoch, duplicate: false, historyRevision, historyMessageId, inputMessageId };
   });
 }
 
@@ -441,22 +647,32 @@ export async function getAgentRunById(runId: string): Promise<{
   targetMessageId: string | null;
   historyMessageId: string | null;
   historyRevision: number | null;
+  outputMessageId: string | null;
 } | null> {
   const [row] = await getDb().select().from(turns).where(eq(turns.id, runId));
   if (!row) {
     return null;
   }
+  const [attempt] = await getDb()
+    .select()
+    .from(turnAttempts)
+    .where(eq(turnAttempts.turnId, runId))
+    .orderBy(desc(turnAttempts.attemptEpoch))
+    .limit(1);
+  const operation = attempt?.operation as AgentAttemptOperation | undefined;
   return {
     id: row.id,
     sessionId: row.threadId,
     userId: row.userId,
     providerId: row.providerId,
     status: row.status as AgentRunStatus,
-    requestId: row.requestId,
-    operation: row.operation as AgentRunOperation | null,
-    targetMessageId: row.targetItemId,
-    historyMessageId: row.historyItemId,
-    historyRevision: row.historyRevision == null ? null : Number(row.historyRevision),
+    requestId: attempt?.requestId ?? null,
+    operation:
+      operation && operation !== "internal" && operation !== "recovery" ? (operation as AgentRunOperation) : null,
+    targetMessageId: attempt?.targetItemId ?? null,
+    historyMessageId: attempt?.historyItemId ?? null,
+    historyRevision: attempt?.historyRevision == null ? null : Number(attempt.historyRevision),
+    outputMessageId: row.outputItemId,
   };
 }
 
@@ -475,12 +691,9 @@ export async function finishAgentRun(input: {
   await getDb().transaction(async (tx) => {
     const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, input.runId));
     if (!binding) return;
-    await tx.select({ id: threads.id }).from(threads).where(eq(threads.id, binding.threadId)).for("update");
+    const [thread] = await tx.select().from(threads).where(eq(threads.id, binding.threadId)).for("update");
     const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
     if (!run) return;
-    if (run.attemptEpoch !== input.attemptEpoch) {
-      throw new ConflictError("agent run ownership was lost", "run_lease_lost");
-    }
     if (!["running", "cancel_requested"].includes(run.status)) {
       return;
     }
@@ -500,7 +713,13 @@ export async function finishAgentRun(input: {
               : errorText(error).slice(0, 4000),
         completedAt: now,
       })
-      .where(and(eq(turnSteps.turnId, input.runId), eq(turnSteps.status, "running")));
+      .where(
+        and(
+          eq(turnSteps.turnId, input.runId),
+          eq(turnSteps.attemptEpoch, input.attemptEpoch),
+          eq(turnSteps.status, "running"),
+        ),
+      );
 
     await tx
       .update(turns)
@@ -516,6 +735,14 @@ export async function finishAgentRun(input: {
         completedAt: now,
       })
       .where(eq(turns.id, input.runId));
+    await tx
+      .update(turnAttempts)
+      .set({
+        status,
+        error: error == null ? null : errorText(error).slice(0, 4000),
+        completedAt: now,
+      })
+      .where(and(eq(turnAttempts.turnId, input.runId), eq(turnAttempts.attemptEpoch, input.attemptEpoch)));
     await tx
       .update(turnInputs)
       .set({ state: "not_delivered", reason: "finished", updatedAt: now })
@@ -535,10 +762,11 @@ type JournalMessage = { id: string; content: PersistedThreadItemContent; status:
 async function writeAssistantItem(
   tx: RuntimeTransaction,
   run: typeof turns.$inferSelect,
+  attempt: typeof turnAttempts.$inferSelect,
   sequence: bigint,
   message: JournalMessage,
 ) {
-  const existing = run.outputItemId ?? (run.operation === "tool-continuation" ? run.targetItemId : null);
+  const existing = run.outputItemId;
   const now = new Date();
   if (existing) {
     if (message.id !== existing) throw new Error("assistant output message id does not match its journal binding");
@@ -554,18 +782,18 @@ async function writeAssistantItem(
       .returning({ id: threadItems.id });
     if (!updated.length) throw new Error("assistant journal item is missing");
   } else {
-    if (!run.historyItemId) throw new Error("run has no journal parent");
+    if (!attempt.historyItemId) throw new Error("run attempt has no journal parent");
     const siblings = await tx
       .select({ index: threadItems.branchIndex })
       .from(threadItems)
-      .where(and(eq(threadItems.threadId, run.threadId), eq(threadItems.parentItemId, run.historyItemId)));
+      .where(and(eq(threadItems.threadId, run.threadId), eq(threadItems.parentItemId, attempt.historyItemId)));
     await tx.insert(threadItems).values({
       ...message,
       threadId: run.threadId,
       turnId: run.id,
       ordinal: sequence + 1n,
       role: "assistant",
-      parentItemId: run.historyItemId,
+      parentItemId: attempt.historyItemId,
       branchIndex: siblings.reduce((next, row) => Math.max(next, row.index + 1), 0),
       createdAt: now,
       updatedAt: now,
@@ -585,11 +813,28 @@ export async function persistCompletedStep(owner: RunLeaseToken, id: string, con
     if (!binding) throw new Error("missing run");
     const [thread] = await tx.select().from(threads).where(eq(threads.id, binding.threadId)).for("update");
     const [run] = await tx.select().from(turns).where(eq(turns.id, owner.runId)).for("update");
+    const [attempt] = await tx
+      .select()
+      .from(turnAttempts)
+      .where(and(eq(turnAttempts.turnId, owner.runId), eq(turnAttempts.attemptEpoch, owner.attemptEpoch)));
     await requireOwnedRun(tx, owner);
-    if (!thread || !run || run.historyRevision !== thread.historyRevision)
+    if (!thread || !run || !attempt || attempt.historyRevision !== thread.historyRevision)
       throw new ConflictError("run history binding is no longer current", "run_history_conflict");
-    await writeAssistantItem(tx, run, thread.itemSequence, { id, content, status: "ok" });
+    await writeAssistantItem(tx, run, attempt, thread.itemSequence, { id, content, status: "ok" });
     await tx.update(turns).set({ outputItemId: id }).where(eq(turns.id, run.id));
+  });
+}
+
+function awaitsClientContinuation(parts: unknown[]): boolean {
+  return parts.some((part) => {
+    if (!part || typeof part !== "object") return false;
+    const tool = part as Record<string, unknown>;
+    if (tool.state === "approval-requested") return true;
+    if (tool.state !== "input-available" || tool.providerExecuted === true) return false;
+    const metadata = tool.toolMetadata;
+    if (!metadata || typeof metadata !== "object") return false;
+    const agent = (metadata as Record<string, unknown>).agent;
+    return !!agent && typeof agent === "object" && (agent as Record<string, unknown>).execution === "client";
   });
 }
 
@@ -622,30 +867,36 @@ export async function finalizeAgentRunJournal(input: {
       .where(eq(threads.id, binding.threadId))
       .for("update");
     const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
-    if (!run || !run.operation || !run.historyItemId || run.historyRevision == null) {
+    const [attempt] = await tx
+      .select()
+      .from(turnAttempts)
+      .where(and(eq(turnAttempts.turnId, input.runId), eq(turnAttempts.attemptEpoch, input.attemptEpoch)))
+      .for("update");
+    if (!run || !attempt || !attempt.historyItemId || attempt.historyRevision == null) {
       throw new Error(`agent run ${input.runId} has no journal binding`);
     }
-    const historyRevision = Number(run.historyRevision);
-    if (run.attemptEpoch !== input.attemptEpoch) {
-      throw new ConflictError("agent run ownership was lost", "run_lease_lost");
-    }
-    if (["completed", "failed", "cancelled", "interrupted"].includes(run.status)) {
-      return { outputMessageId: run.outputItemId, historyRevision, status: run.status as AgentRunStatus };
+    const historyRevision = Number(attempt.historyRevision);
+    if (["waiting", "completed", "failed", "cancelled", "interrupted"].includes(attempt.status)) {
+      return { outputMessageId: run.outputItemId, historyRevision, status: attempt.status as AgentRunStatus };
     }
     await requireOwnedRun(tx, input);
 
-    if (!session || session.historyRevision !== run.historyRevision) {
+    if (!session || session.historyRevision !== attempt.historyRevision) {
       throw new ConflictError("run history binding is no longer current", "run_history_conflict");
     }
 
     const now = new Date();
     const aborted = input.aborted || run.status === "cancel_requested" || input.status === "cancelled";
-    const status = aborted ? "cancelled" : input.status;
+    const status: AgentRunStatus = aborted
+      ? "cancelled"
+      : input.status === "completed" && awaitsClientContinuation(input.parts)
+        ? "waiting"
+        : input.status;
     const error = input.error;
     const message: JournalMessage | null = input.message
       ? {
           ...input.message,
-          status: status === "completed" ? "ok" : "failed",
+          status: status === "completed" || status === "waiting" ? "ok" : "failed",
           content: {
             ...input.message.content,
             parts: aborted
@@ -655,19 +906,27 @@ export async function finalizeAgentRunJournal(input: {
               ? {
                   metadata: {
                     ...input.message.content.metadata,
-                    status: status === "completed" ? "completed" : status === "cancelled" ? "cancelled" : "failed",
+                    status:
+                      status === "completed" || status === "waiting"
+                        ? "completed"
+                        : status === "cancelled"
+                          ? "cancelled"
+                          : "failed",
                   },
                 }
               : {}),
           },
         }
       : null;
-    const toolCalls = await tx.select().from(toolExecutions).where(eq(toolExecutions.turnId, input.runId));
+    const toolCalls = await tx
+      .select()
+      .from(toolEffects)
+      .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.attemptEpoch, input.attemptEpoch)));
     if (aborted) {
       for (const toolCall of toolCalls) {
         if (toolCall.status === "running") {
           await tx
-            .update(toolExecutions)
+            .update(toolEffects)
             .set({
               status: "failed",
               error: "已取消。",
@@ -675,12 +934,12 @@ export async function finalizeAgentRunJournal(input: {
               completedAt: now,
               itemId: message?.id ?? null,
             })
-            .where(eq(toolExecutions.id, toolCall.id));
+            .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, toolCall.id)));
         } else if (toolCall.toolName === "update_plan" && toolCall.status === "completed") {
           await tx
-            .update(toolExecutions)
+            .update(toolEffects)
             .set({ outputJson: cancelPlanOutput(toolCall.outputJson), itemId: message?.id ?? null })
-            .where(eq(toolExecutions.id, toolCall.id));
+            .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, toolCall.id)));
         }
       }
     } else {
@@ -694,7 +953,7 @@ export async function finalizeAgentRunJournal(input: {
         const terminal = terminalById.get(toolCall.id);
         if (!terminal) continue;
         await tx
-          .update(toolExecutions)
+          .update(toolEffects)
           .set({
             status: terminal.status,
             outputJson: terminal.output === undefined ? undefined : asJsonValue(terminal.output),
@@ -703,15 +962,18 @@ export async function finalizeAgentRunJournal(input: {
             completedAt: now,
             itemId: message?.id ?? null,
           })
-          .where(eq(toolExecutions.id, toolCall.id));
+          .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, toolCall.id)));
       }
     }
 
     const outputMessageId = message
-      ? await writeAssistantItem(tx, run, session.itemSequence, message)
+      ? await writeAssistantItem(tx, run, attempt, session.itemSequence, message)
       : run.outputItemId;
     if (message)
-      await tx.update(toolExecutions).set({ itemId: message.id }).where(eq(toolExecutions.turnId, input.runId));
+      await tx
+        .update(toolEffects)
+        .set({ itemId: message.id })
+        .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.attemptEpoch, input.attemptEpoch)));
 
     // Trace gaps must not rewrite the authoritative SDK outcome.
     await tx
@@ -726,7 +988,13 @@ export async function finalizeAgentRunJournal(input: {
               : errorText(error).slice(0, 4000),
         completedAt: now,
       })
-      .where(and(eq(turnSteps.turnId, input.runId), eq(turnSteps.status, "running")));
+      .where(
+        and(
+          eq(turnSteps.turnId, input.runId),
+          eq(turnSteps.attemptEpoch, input.attemptEpoch),
+          eq(turnSteps.status, "running"),
+        ),
+      );
     await tx
       .update(turns)
       .set({
@@ -738,9 +1006,17 @@ export async function finalizeAgentRunJournal(input: {
         cachedInputTokens: input.cachedInputTokens ?? undefined,
         reasoningTokens: input.reasoningTokens ?? undefined,
         totalTokens: input.totalTokens ?? undefined,
-        completedAt: now,
+        completedAt: status === "waiting" ? null : now,
       })
       .where(eq(turns.id, input.runId));
+    await tx
+      .update(turnAttempts)
+      .set({
+        status,
+        error: error == null ? null : errorText(error).slice(0, 4000),
+        completedAt: now,
+      })
+      .where(and(eq(turnAttempts.turnId, input.runId), eq(turnAttempts.attemptEpoch, input.attemptEpoch)));
     await tx
       .delete(turnLeases)
       .where(and(eq(turnLeases.turnId, input.runId), eq(turnLeases.attemptEpoch, input.attemptEpoch)));
@@ -771,6 +1047,143 @@ export async function listOrphanedRuns(now = new Date()): Promise<Array<{ id: st
         or(isNull(turnLeases.turnId), lte(turnLeases.expiresAt, now)),
       ),
     );
+}
+
+/** Atomically classify an orphan from committed facts and, only for replay-safe
+ * boundaries, fence the old writer with a new physical attempt. */
+export async function claimOrphanedTurnRecovery(runId: string, now = new Date()): Promise<OrphanedTurnRecovery | null> {
+  return getDb().transaction(async (tx) => {
+    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, runId));
+    if (!binding) return null;
+    const [thread] = await tx.select().from(threads).where(eq(threads.id, binding.threadId)).for("update");
+    if (!thread) return null;
+    const [run] = await tx.select().from(turns).where(eq(turns.id, runId)).for("update");
+    if (!run || !["running", "cancel_requested", "waiting"].includes(run.status)) return null;
+    const [lease] = await tx.select().from(turnLeases).where(eq(turnLeases.turnId, runId)).for("update");
+    if (lease && lease.expiresAt > now) return null;
+    const [attempt] = await tx
+      .select()
+      .from(turnAttempts)
+      .where(eq(turnAttempts.turnId, runId))
+      .orderBy(desc(turnAttempts.attemptEpoch))
+      .limit(1)
+      .for("update");
+    if (!attempt) throw new Error(`logical Turn ${runId} has no physical attempt`);
+    if (lease && lease.attemptEpoch !== attempt.attemptEpoch) return null;
+    const [envelope] = await tx
+      .select()
+      .from(turnResumeEnvelopes)
+      .where(and(eq(turnResumeEnvelopes.turnId, runId), eq(turnResumeEnvelopes.attemptEpoch, attempt.attemptEpoch)));
+    const effects = await tx
+      .select({ status: toolEffects.status })
+      .from(toolEffects)
+      .where(eq(toolEffects.turnId, runId));
+    const toolEffect = effects.some((effect) => effect.status === "running")
+      ? "unconfirmed"
+      : effects.some((effect) => effect.status === "completed")
+        ? "committed"
+        : "none";
+    const hasResumeEnvelope =
+      envelope !== undefined &&
+      thread !== undefined &&
+      envelope.threadId === run.threadId &&
+      envelope.historyItemId === attempt.historyItemId &&
+      envelope.historyRevision === attempt.historyRevision &&
+      envelope.compactorVersion !== "" &&
+      envelope.snapshot.schemaVersion === 1 &&
+      envelope.snapshot.auth.userId === run.userId &&
+      envelope.snapshot.auth.tenantId === thread.tenantId &&
+      envelope.snapshot.auth.workspaceId === thread.workspaceId &&
+      envelope.snapshot.execution.providerBinding.id === run.providerId &&
+      envelope.snapshot.execution.providerBinding.model === run.model &&
+      (run.outputItemId === null || envelope.snapshot.execution.assistantMessageId === run.outputItemId);
+    const decision = classifyTurnRecovery({
+      hasResumeEnvelope,
+      cancellationRequested: run.status === "cancel_requested",
+      waitingForClient: run.status === "waiting",
+      committedStep: run.outputItemId !== null,
+      toolEffect,
+    });
+    if (decision === "resume-waiting") return { state: "stable", decision };
+
+    if (decision === "interrupt" || decision === "reconcile-effect") {
+      const error =
+        decision === "reconcile-effect"
+          ? "orphaned Turn has an unconfirmed tool effect"
+          : run.status === "cancel_requested"
+            ? "orphaned Turn was cancelled"
+            : toolEffect === "committed" && run.outputItemId === null
+              ? "orphaned Turn has a committed tool effect without a journaled SDK step"
+              : "orphaned Turn has no complete resume envelope";
+      await tx
+        .update(turnAttempts)
+        .set({ status: "interrupted", completedAt: now, error })
+        .where(
+          and(
+            eq(turnAttempts.turnId, runId),
+            eq(turnAttempts.attemptEpoch, attempt.attemptEpoch),
+            eq(turnAttempts.status, "running"),
+          ),
+        );
+      await tx
+        .update(turns)
+        .set({ status: "interrupted", completedAt: now, error })
+        .where(and(eq(turns.id, runId), inArray(turns.status, ["running", "cancel_requested"])));
+      if (lease) await tx.delete(turnLeases).where(eq(turnLeases.turnId, runId));
+      return { state: "interrupted", decision };
+    }
+
+    if (!envelope || !attempt.historyItemId || attempt.historyRevision == null) {
+      throw new Error(`logical Turn ${runId} lost its recovery binding after classification`);
+    }
+    const attemptEpoch = attempt.attemptEpoch + 1n;
+    await tx
+      .update(turnAttempts)
+      .set({ status: "interrupted", completedAt: now, error: "attempt lease expired" })
+      .where(
+        and(
+          eq(turnAttempts.turnId, runId),
+          eq(turnAttempts.attemptEpoch, attempt.attemptEpoch),
+          eq(turnAttempts.status, "running"),
+        ),
+      );
+    if (lease) await tx.delete(turnLeases).where(eq(turnLeases.turnId, runId));
+    await tx.insert(turnAttempts).values({
+      turnId: runId,
+      attemptEpoch,
+      threadId: run.threadId,
+      operation: "recovery",
+      targetItemId: attempt.targetItemId,
+      historyItemId: attempt.historyItemId,
+      historyRevision: attempt.historyRevision,
+      status: "running",
+      startedAt: now,
+    });
+    const [copied] = await tx
+      .insert(turnResumeEnvelopes)
+      .values({
+        ...envelope,
+        attemptEpoch,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+    if (!copied) throw new Error(`logical Turn ${runId} recovery envelope was not copied`);
+    await tx.insert(turnLeases).values({
+      threadId: run.threadId,
+      turnId: runId,
+      attemptEpoch,
+      heartbeatAt: now,
+      expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
+    });
+    await tx.update(turns).set({ status: "running", error: null, completedAt: null }).where(eq(turns.id, runId));
+    return {
+      state: "claimed",
+      decision,
+      token: { runId, attemptEpoch },
+      envelope: turnResumeEnvelopeFromRow(copied),
+    };
+  });
 }
 
 export async function interruptRuns(runIds: string[]): Promise<Array<{ id: string; sessionId: string }>> {
@@ -821,6 +1234,10 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
       .update(turnInputs)
       .set({ state: "unconfirmed", reason: "run ownership was lost before delivery was confirmed", updatedAt: now })
       .where(and(inArray(turnInputs.turnId, interruptedIds), eq(turnInputs.state, "dispatching")));
+    await tx
+      .update(turnAttempts)
+      .set({ status: "interrupted", error: "turn ownership was lost", completedAt: now })
+      .where(and(inArray(turnAttempts.turnId, interruptedIds), eq(turnAttempts.status, "running")));
     await tx.delete(turnLeases).where(inArray(turnLeases.turnId, interruptedIds));
     return interrupted;
   });
@@ -876,6 +1293,7 @@ export interface LatestSessionContextRecord {
 
 export async function getLatestResponseLineage(input: {
   runId: string;
+  attemptEpoch: bigint;
   sessionId: string;
   providerId: string;
   model: string;
@@ -883,28 +1301,36 @@ export async function getLatestResponseLineage(input: {
   const [latestRun] = await getDb()
     .select({
       id: turns.id,
-      status: turns.status,
+      attemptEpoch: turnAttempts.attemptEpoch,
       outputMessageId: turns.outputItemId,
       providerId: turns.providerId,
       model: turns.model,
     })
-    .from(turns)
-    .where(and(ne(turns.id, input.runId), eq(turns.threadId, input.sessionId)))
-    .orderBy(desc(turns.ordinal))
+    .from(turnAttempts)
+    .innerJoin(turns, eq(turns.id, turnAttempts.turnId))
+    .where(
+      and(
+        eq(turns.threadId, input.sessionId),
+        inArray(turnAttempts.status, ["waiting", "completed"]),
+        or(ne(turns.id, input.runId), sql`${turnAttempts.attemptEpoch} < ${input.attemptEpoch}`),
+      ),
+    )
+    .orderBy(desc(turns.ordinal), desc(turnAttempts.attemptEpoch))
     .limit(1);
-  if (
-    latestRun?.status !== "completed" ||
-    !latestRun.outputMessageId ||
-    latestRun.providerId !== input.providerId ||
-    latestRun.model !== input.model
-  ) {
+  if (!latestRun?.outputMessageId || latestRun.providerId !== input.providerId || latestRun.model !== input.model) {
     return null;
   }
   const [[row], [outputMessage]] = await Promise.all([
     getDb()
       .select({ metadata: turnSteps.metadata, inputTokens: turnSteps.inputTokens, status: turnSteps.status })
       .from(turnSteps)
-      .where(and(eq(turnSteps.turnId, latestRun.id), eq(turnSteps.kind, "model")))
+      .where(
+        and(
+          eq(turnSteps.turnId, latestRun.id),
+          eq(turnSteps.attemptEpoch, latestRun.attemptEpoch),
+          eq(turnSteps.kind, "model"),
+        ),
+      )
       .orderBy(desc(turnSteps.stepIndex))
       .limit(1),
     getDb()
@@ -934,12 +1360,16 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
   if (!run) {
     return null;
   }
-  const steps = await db.select().from(turnSteps).where(eq(turnSteps.turnId, runId)).orderBy(asc(turnSteps.stepIndex));
+  const steps = await db
+    .select()
+    .from(turnSteps)
+    .where(eq(turnSteps.turnId, runId))
+    .orderBy(asc(turnSteps.attemptEpoch), asc(turnSteps.stepIndex));
   const toolCalls = await db
     .select()
-    .from(toolExecutions)
-    .where(eq(toolExecutions.turnId, runId))
-    .orderBy(asc(toolExecutions.createdAt));
+    .from(toolEffects)
+    .where(eq(toolEffects.turnId, runId))
+    .orderBy(asc(toolEffects.createdAt));
   return {
     runId: run.id,
     status: run.status as AgentRunStatus,
@@ -978,6 +1408,7 @@ export async function getLatestSessionContextRecord(sessionId: string): Promise<
   const [row] = await getDb()
     .select({
       runId: turns.id,
+      attemptEpoch: turnSteps.attemptEpoch,
       stepId: turnSteps.id,
       providerId: turns.providerId,
       model: turns.model,
@@ -998,6 +1429,7 @@ export async function getLatestSessionContextRecord(sessionId: string): Promise<
     )
     .orderBy(
       desc(turns.ordinal),
+      desc(turnSteps.attemptEpoch),
       desc(sql<number>`CASE WHEN ${turnSteps.inputTokens} > 0 THEN 1 ELSE 0 END`),
       desc(turnSteps.stepIndex),
     )
@@ -1049,7 +1481,13 @@ export async function recordAgentStepContextSnapshot(
       .set({
         metadata: sql`COALESCE(${turnSteps.metadata}, '{}'::jsonb) || jsonb_build_object('context_snapshot', ${JSON.stringify(snapshot)}::jsonb)`,
       })
-      .where(and(eq(turnSteps.id, stepId), eq(turnSteps.turnId, token.runId)));
+      .where(
+        and(
+          eq(turnSteps.id, stepId),
+          eq(turnSteps.turnId, token.runId),
+          eq(turnSteps.attemptEpoch, token.attemptEpoch),
+        ),
+      );
   });
 }
 
@@ -1070,6 +1508,7 @@ export async function startAgentStep(input: {
       .values({
         id: stepId,
         turnId: input.runId,
+        attemptEpoch: input.attemptEpoch,
         stepIndex: input.stepIndex,
         kind: input.kind,
         status: "running",
@@ -1114,7 +1553,13 @@ export async function finishAgentStep(input: {
         totalTokens: input.totalTokens ?? undefined,
         completedAt: new Date(),
       })
-      .where(and(eq(turnSteps.id, input.stepId), eq(turnSteps.turnId, input.runId)));
+      .where(
+        and(
+          eq(turnSteps.id, input.stepId),
+          eq(turnSteps.turnId, input.runId),
+          eq(turnSteps.attemptEpoch, input.attemptEpoch),
+        ),
+      );
   });
 }
 
@@ -1125,34 +1570,80 @@ export async function recordToolCallStart(input: {
   stepIndex?: number | null;
   toolName: string;
   toolInput: unknown;
+  observedToolInput?: unknown;
 }): Promise<void> {
   await getDb().transaction(async (tx) => {
     await requireOwnedRun(tx, input);
     await tx
-      .insert(toolExecutions)
+      .insert(toolEffects)
       .values({
         id: input.toolCallId,
         turnId: input.runId,
+        attemptEpoch: input.attemptEpoch,
         stepIndex: input.stepIndex ?? null,
         toolName: input.toolName,
         status: "running",
-        inputJson: asJsonValue(input.toolInput),
+        inputDigest: toolInputDigest(input.toolInput),
+        inputJson: asJsonValue(input.observedToolInput ?? input.toolInput),
         createdAt: new Date(),
       })
-      .onConflictDoUpdate({
-        target: toolExecutions.id,
-        set: {
-          turnId: input.runId,
-          stepIndex: input.stepIndex ?? null,
-          toolName: input.toolName,
-          status: "running",
-          inputJson: asJsonValue(input.toolInput),
-          error: null,
-          completedAt: null,
-          durationMs: null,
-          outputJson: sql`NULL`,
-        },
+      .onConflictDoNothing({ target: [toolEffects.turnId, toolEffects.id] });
+  });
+}
+
+export type ToolEffectClaim = { state: "execute" } | { state: "replay"; output: unknown };
+
+/** Claim a provider tool-call identity before entering host code.
+ * Completed effects are replayed; every existing nonterminal claim fails closed. */
+export async function claimToolEffect(input: {
+  runId: string;
+  attemptEpoch: bigint;
+  toolCallId: string;
+  toolName: string;
+  toolInput: unknown;
+  observedToolInput?: unknown;
+  stepIndex?: number | null;
+}): Promise<ToolEffectClaim> {
+  return getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, input);
+    const inputDigest = toolInputDigest(input.toolInput);
+    const [existing] = await tx
+      .select()
+      .from(toolEffects)
+      .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, input.toolCallId)))
+      .for("update");
+    if (!existing) {
+      await tx.insert(toolEffects).values({
+        id: input.toolCallId,
+        turnId: input.runId,
+        attemptEpoch: input.attemptEpoch,
+        stepIndex: input.stepIndex ?? null,
+        toolName: input.toolName,
+        status: "running",
+        inputDigest,
+        inputJson: asJsonValue(input.observedToolInput ?? input.toolInput),
+        createdAt: new Date(),
       });
+      return { state: "execute" };
+    }
+    if (existing.toolName !== input.toolName || existing.inputDigest !== inputDigest) {
+      throw new ConflictError(
+        "tool effect identity is already bound to different input",
+        "tool_effect_identity_conflict",
+      );
+    }
+    if (existing.status === "completed") {
+      return { state: "replay", output: existing.outputJson };
+    }
+    if (existing.status === "failed") {
+      throw new ConflictError(existing.error ?? "tool effect previously failed", "tool_effect_failed");
+    }
+    throw new ConflictError(
+      existing.attemptEpoch === input.attemptEpoch
+        ? "tool effect is already claimed by this attempt"
+        : "tool effect from an older attempt requires reconciliation",
+      "tool_effect_unconfirmed",
+    );
   });
 }
 
@@ -1168,7 +1659,7 @@ export async function recordToolCallFinish(input: {
   await getDb().transaction(async (tx) => {
     await requireOwnedRun(tx, input);
     await tx
-      .update(toolExecutions)
+      .update(toolEffects)
       .set({
         status: input.status,
         outputJson: input.output === undefined ? undefined : asJsonValue(input.output),
@@ -1176,7 +1667,13 @@ export async function recordToolCallFinish(input: {
         durationMs: input.durationMs ?? null,
         completedAt: new Date(),
       })
-      .where(and(eq(toolExecutions.id, input.toolCallId), eq(toolExecutions.turnId, input.runId)));
+      .where(
+        and(
+          eq(toolEffects.id, input.toolCallId),
+          eq(toolEffects.turnId, input.runId),
+          eq(toolEffects.attemptEpoch, input.attemptEpoch),
+        ),
+      );
   });
 }
 

@@ -11,6 +11,7 @@ import {
 import { compactTranscript, type RuntimeCompactionState } from "../context/compaction.js";
 import { compactRemote, remoteCompactionMessage, type RemoteCheckpoint } from "../context/remote-compaction.js";
 import { compactBeforeSampling } from "../context/step-compaction.js";
+import { isUserInput } from "../context/user-retention.js";
 import type { RuntimeTurnSettings } from "./settings.js";
 
 type AgentLoopSettings<C extends Record<string, unknown>> = RuntimeTurnSettings<C>;
@@ -49,7 +50,14 @@ export function createAgentLoop<C extends Record<string, unknown>>(
     stepCheckpoint,
     ...settings
   } = options;
+  // SDK tool callers and workspace notifications also use the user role.
+  // Only the original transcript and delivered steering are user input.
+  const userInputs = new WeakSet<ModelMessage>();
   const prepareNextStep = async (step: Parameters<NonNullable<RuntimeTurnSettings<C>["prepareStep"]>>[0]) => {
+    if (step.stepNumber === 0) {
+      for (const message of step.initialMessages) if (isUserInput(message)) userInputs.add(message);
+    }
+    for (const message of step.experimental_steeringMessages ?? []) userInputs.add(message);
     const prepared = await prepareStep?.(step);
     const latest = step.steps.at(-1);
     if (contextLimits && latest) {
@@ -58,6 +66,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
       let toolCallIds: string[] = [];
       const bounded = await compactBeforeSampling({
         messages: local,
+        userInputs,
         limits: contextLimits,
         previousInputTokens: latest.usage.inputTokens,
         stepBoundary:

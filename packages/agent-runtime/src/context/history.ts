@@ -19,6 +19,7 @@ import {
 } from "./remote-compaction.js";
 import { estimateTextTokens } from "./token-estimate.js";
 import { EMPTY_RUNTIME_TOKEN_USAGE, type RuntimeTokenUsage } from "./usage.js";
+import { retainUserText, runtimeContextMessage, userTextBudget } from "./user-retention.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -110,19 +111,20 @@ function renderCompaction(state: RuntimeCompactionState, coveredThroughMessageId
   ].join("\n");
 }
 
-function prependCompactedHistory(messages: ModelMessage[], body: string): ModelMessage[] {
-  const first = messages[0];
-  if (!first || first.role !== "user") return [{ role: "user", content: body }, ...messages];
-  return [
-    {
-      ...first,
-      content:
-        typeof first.content === "string"
-          ? `${body}\n\n${first.content}`
-          : [{ type: "text", text: body }, ...first.content],
-    },
-    ...messages.slice(1),
-  ];
+function projectedTokenCount(messages: ModelMessage[]): number {
+  return messages.reduce((sum, message) => {
+    try {
+      return (
+        sum +
+        estimateTextTokens(
+          JSON.stringify(message, (key, value: unknown) => (key === "providerOptions" ? undefined : value)),
+        ) +
+        64
+      );
+    } catch {
+      return sum + 256;
+    }
+  }, 0);
 }
 
 /** Canonical journal -> bounded model window. The journal is never mutated. */
@@ -162,13 +164,15 @@ export async function projectRuntimeContext(input: {
   let coveredThroughMessageId = tail ? checkpoint!.coveredThroughMessageId : null;
   const pending = tail ?? input.messages;
   const sizes = pending.map(estimateMessageTokens);
-  const estimated = sizes.reduce(
-    (sum, size) => sum + size,
-    state && "summary" in state ? estimateTextTokens(state.summary) + 64 : 0,
-  );
+  const retentionBudget = userTextBudget(window.recentTailTokens);
+  const alreadyCovered = tail ? retainUserText(input.messages, covered + 1, retentionBudget, new Set(tail)).tokens : 0;
+  const estimated =
+    alreadyCovered +
+    sizes.reduce((sum, size) => sum + size, state && "summary" in state ? estimateTextTokens(state.summary) + 64 : 0);
   let splitAt = 0;
   if (Math.max(estimated, input.previousInputTokens ?? 0) >= window.compactAt) {
-    const budget = window.recentTailTokens;
+    const reserve = retainUserText(input.messages, input.messages.length - 1, retentionBudget).tokens;
+    const budget = window.recentTailTokens - reserve;
     splitAt = pending.length;
     let tailTokens = 0;
     while (splitAt > 0) {
@@ -234,25 +238,20 @@ export async function projectRuntimeContext(input: {
     reasoning: "before-last-message",
     emptyMessages: "remove",
   });
-  const projected =
-    state?.version === "responses-compaction-v2"
-      ? [remoteCompactionMessage(state), ...pruned]
-      : state && coveredThroughMessageId
-        ? prependCompactedHistory(pruned, renderCompaction(state, coveredThroughMessageId))
-        : pruned;
-  const projectedTokens = projected.reduce((sum, message) => {
-    try {
-      return (
-        sum +
-        estimateTextTokens(
-          JSON.stringify(message, (key, value: unknown) => (key === "providerOptions" ? undefined : value)),
-        ) +
-        64
-      );
-    } catch {
-      return sum + 256;
-    }
-  }, 0);
+  const projected = [...pruned];
+  let projectedTokens = projectedTokenCount(pruned);
+  if (state && coveredThroughMessageId) {
+    const checkpointMessage =
+      state.version === "responses-compaction-v2"
+        ? remoteCompactionMessage(state)
+        : runtimeContextMessage(renderCompaction(state, coveredThroughMessageId));
+    const end = input.messages.findIndex((message) => message.id === coveredThroughMessageId) + 1;
+    projectedTokens += projectedTokenCount([checkpointMessage]);
+    const room = window.compactAt - projectedTokens;
+    const retained = retainUserText(input.messages, end, Math.min(retentionBudget, room), new Set(recent));
+    projected.unshift(...retained.selected, checkpointMessage);
+    projectedTokens += retained.tokens;
+  }
   if (projectedTokens > window.inputCapacity) {
     throw new Error(
       `projected model context exceeds the safe input window (${projectedTokens} > ${window.inputCapacity})`,

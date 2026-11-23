@@ -1,19 +1,21 @@
 import { setTimeout as delay } from "node:timers/promises";
 
-import { and, eq, gt, lte } from "drizzle-orm";
+import { and, desc, eq, gt, lte } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { threads, turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
+import { threads, turnAttempts, turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
 import { deactivateAgentStream } from "../streams/service.js";
 import {
   assertRunLease,
+  claimOrphanedTurnRecovery,
   getAgentRunById,
   interruptRuns,
   listOrphanedRuns,
   requestAgentRunCancellation,
   RUN_LEASE_MS,
+  type OrphanedTurnRecovery,
   type RunLeaseToken,
 } from "./repository.js";
 import { markSandboxExecutionsReleasing, reconcileSandboxExecutions } from "./sandbox-executions.js";
@@ -55,11 +57,36 @@ export async function acquireRunLease(sessionId: string, runId: string): Promise
         run_id: active.turnId,
       });
     }
-    const reclaimedSameRun = expiredLeases.some((lease) => lease.turnId === runId);
-    const attemptEpoch = reclaimedSameRun ? run.attemptEpoch + 1n : run.attemptEpoch;
-    if (reclaimedSameRun) {
-      await tx.update(turns).set({ attemptEpoch }).where(eq(turns.id, runId));
+    const [latestAttempt] = await tx
+      .select()
+      .from(turnAttempts)
+      .where(eq(turnAttempts.turnId, runId))
+      .orderBy(desc(turnAttempts.attemptEpoch))
+      .limit(1);
+    const attemptEpoch = latestAttempt ? latestAttempt.attemptEpoch + 1n : 1n;
+    if (latestAttempt?.status === "running") {
+      await tx
+        .update(turnAttempts)
+        .set({ status: "interrupted", error: "attempt lease expired", completedAt: now })
+        .where(
+          and(
+            eq(turnAttempts.turnId, runId),
+            eq(turnAttempts.attemptEpoch, latestAttempt.attemptEpoch),
+            eq(turnAttempts.status, "running"),
+          ),
+        );
     }
+    await tx.insert(turnAttempts).values({
+      turnId: runId,
+      attemptEpoch,
+      threadId: sessionId,
+      operation: latestAttempt ? "recovery" : "internal",
+      targetItemId: latestAttempt?.targetItemId ?? null,
+      historyItemId: latestAttempt?.historyItemId ?? null,
+      historyRevision: latestAttempt?.historyRevision ?? null,
+      status: "running",
+      startedAt: now,
+    });
     try {
       await tx.insert(turnLeases).values({
         threadId: sessionId,
@@ -195,36 +222,74 @@ export async function cancelRun(sessionId: string, runId: string): Promise<boole
   return false;
 }
 
-export async function reconcileOrphanedRuns(): Promise<void> {
+export type ClaimedTurnRecoveryRunner = (
+  recovery: Extract<OrphanedTurnRecovery, { state: "claimed" }>,
+) => Promise<void>;
+
+interface OrphanRunReconcilerDependencies {
+  reconcileSandboxes(): Promise<void>;
+  deactivateStream(sessionId: string, runId: string): Promise<void>;
+}
+
+const orphanRunReconcilerDefaults: OrphanRunReconcilerDependencies = {
+  reconcileSandboxes: reconcileSandboxExecutions,
+  deactivateStream: deactivateAgentStream,
+};
+
+export async function reconcileOrphanedRuns(
+  recoverClaimed: ClaimedTurnRecoveryRunner,
+  deps: OrphanRunReconcilerDependencies = orphanRunReconcilerDefaults,
+): Promise<void> {
   const now = new Date();
   const orphaned = await listOrphanedRuns(now);
   if (orphaned.length === 0) {
     return;
   }
-  const interrupted = await interruptRuns(orphaned.map((run) => run.id));
-  if (interrupted.length === 0) return;
-  const runIds = interrupted.map((run) => run.id);
-  await markSandboxExecutionsReleasing(runIds);
-  await reconcileSandboxExecutions();
+  const outcomes = await Promise.all(
+    orphaned.map(async (run) => ({ run, recovery: await claimOrphanedTurnRecovery(run.id, now) })),
+  );
+  const interrupted = outcomes.filter(
+    (outcome): outcome is typeof outcome & { recovery: Extract<OrphanedTurnRecovery, { state: "interrupted" }> } =>
+      outcome.recovery?.state === "interrupted",
+  );
+  const claimed = outcomes.flatMap((outcome) => (outcome.recovery?.state === "claimed" ? [outcome.recovery] : []));
+  if (interrupted.length > 0) {
+    await markSandboxExecutionsReleasing(interrupted.map(({ run }) => run.id));
+  }
+  if (interrupted.length > 0 || claimed.length > 0) {
+    // Old-attempt sandboxes are finalized or released before a replacement host
+    // starts. The new attempt lease makes the old writer mechanically obsolete.
+    await deps.reconcileSandboxes();
+  }
   await Promise.all(
-    interrupted.map((run) =>
-      deactivateAgentStream(run.sessionId, run.id).catch((error) =>
-        logger.error({ runId: run.id, err: error }, "failed to clear stream flag for orphaned run"),
-      ),
+    interrupted.map(({ run }) =>
+      deps
+        .deactivateStream(run.sessionId, run.id)
+        .catch((error) => logger.error({ runId: run.id, err: error }, "failed to clear stream flag for orphaned run")),
     ),
   );
-  logger.info({ count: interrupted.length }, "reconciled orphaned runs");
+  for (const recovery of claimed) {
+    void recoverClaimed(recovery).catch((error) =>
+      logger.error(
+        { err: error, runId: recovery.token.runId, attemptEpoch: recovery.token.attemptEpoch.toString() },
+        "claimed Turn recovery failed",
+      ),
+    );
+  }
+  logger.info({ interrupted: interrupted.length, resumed: claimed.length }, "reconciled orphaned runs");
 }
 
 const ORPHAN_RECONCILE_MS = 5 * 60_000;
 let orphanReconcileTimer: ReturnType<typeof setInterval> | null = null;
 
-export function startOrphanRunReconciler(): void {
+export function startOrphanRunReconciler(recoverClaimed: ClaimedTurnRecoveryRunner): void {
   if (orphanReconcileTimer) {
     return;
   }
   orphanReconcileTimer = setInterval(() => {
-    void reconcileOrphanedRuns().catch((error) => logger.error({ err: error }, "periodic orphan run reconcile failed"));
+    void reconcileOrphanedRuns(recoverClaimed).catch((error) =>
+      logger.error({ err: error }, "periodic orphan run reconcile failed"),
+    );
   }, ORPHAN_RECONCILE_MS);
   orphanReconcileTimer.unref();
 }

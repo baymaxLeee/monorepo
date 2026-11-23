@@ -368,6 +368,42 @@ test("command continuation consumes output offsets and preserves streamed output
   await run.dispose();
 });
 
+test("streamed commands register the guest supervisor's host-owned full-output reference", async () => {
+  const f = fixture();
+  f.client.start = async () => ({
+    session_id: "retained",
+    stdout: "complete output",
+    stderr: "",
+    termination: { type: "exit", exit_code: 0 },
+    stdout_offset: 15,
+    stderr_offset: 0,
+    truncated: false,
+    retained_output_path: "/run/output/0123456789abcdef0123456789abcdef.log",
+  });
+  const run = new RunSandbox(context, f.deps);
+  let output = "";
+  let retainedPath: string | undefined;
+
+  await run.runAttempt(attempt(), {
+    command: "large-output",
+    io: {
+      signal: new AbortController().signal,
+      tty: false,
+      output: (chunk) => {
+        output += chunk;
+      },
+      retainOutput: ({ path }) => {
+        retainedPath = path;
+      },
+      stdin: () => assert.fail("non-interactive commands must not register stdin"),
+    },
+  });
+
+  assert.equal(output, "complete output");
+  assert.equal(retainedPath, "/run/output/0123456789abcdef0123456789abcdef.log");
+  await run.dispose();
+});
+
 test("command results preserve absolute output cursors and per-stream retention loss", async () => {
   const f = fixture();
   f.client.start = async () => ({

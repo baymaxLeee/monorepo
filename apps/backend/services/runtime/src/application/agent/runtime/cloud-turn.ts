@@ -30,10 +30,10 @@ import {
   extractUsageTokens,
   recordRejectedToolCall,
   recordToolEnd,
-  recordToolStart,
+  sanitizeToolInput,
   startModelStep,
 } from "../observability/lifecycle.js";
-import { assertRunLease } from "../runs/repository.js";
+import { assertRunLease, claimToolEffect } from "../runs/repository.js";
 import type { ToolCatalog } from "../tools/catalog.js";
 import type { AgentRuntimeContext, CloudTurnInput } from "./types.js";
 
@@ -78,7 +78,9 @@ function toolCallIdFromOptions(options: unknown): string | undefined {
 function withActiveToolSpans(
   tools: ToolSet,
   toolSpans: Map<string, ReturnType<typeof startSpan>>,
+  ownedToolEffects: Set<string>,
   input: CloudTurnInput,
+  stepNumber: () => number,
 ): ToolSet {
   return Object.fromEntries(
     Object.entries(tools).map(([name, definition]) => {
@@ -96,6 +98,19 @@ function withActiveToolSpans(
               await assertRunLease({ runId: input.runId, attemptEpoch: input.attemptEpoch });
               input.signal?.throwIfAborted();
               const toolCallId = toolCallIdFromOptions(args[1]);
+              if (toolCallId) {
+                const effect = await claimToolEffect({
+                  runId: input.runId,
+                  attemptEpoch: input.attemptEpoch,
+                  toolCallId,
+                  toolName: name,
+                  toolInput: args[0],
+                  observedToolInput: sanitizeToolInput(name, args[0]),
+                  stepIndex: stepNumber(),
+                });
+                if (effect.state === "replay") return effect.output;
+                ownedToolEffects.add(toolCallId);
+              }
               const span = toolCallId ? toolSpans.get(toolCallId) : undefined;
               if (!span) {
                 return await execute(...args);
@@ -165,7 +180,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   const contextEstimates = new Map<number, ContextEstimate>();
   const modelStepSpans = new Map<number, ReturnType<typeof startSpan>>();
   const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
-  const instrumentedTools = withActiveToolSpans(tools, toolSpans, input);
+  const ownedToolEffects = new Set<string>();
+  const instrumentedTools = withActiveToolSpans(tools, toolSpans, ownedToolEffects, input, () => currentStepNumber);
 
   // Stable workspace restore/persistence is host-owned; model-selected permissions
   // apply only to model-visible commands and file tools.
@@ -386,17 +402,6 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
           "agent.tool_name": event.toolCall.toolName,
         }),
       );
-      return observe(
-        "start tool",
-        recordToolStart({
-          runId: input.runId,
-          attemptEpoch: input.attemptEpoch,
-          toolCallId: event.toolCall.toolCallId,
-          stepNumber: currentStepNumber,
-          toolName: event.toolCall.toolName,
-          toolInput: event.toolCall.input,
-        }),
-      );
     },
     onToolExecutionEnd: (event) => {
       const executionSucceeded = event.toolOutput.type === "tool-result";
@@ -417,6 +422,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
           failure,
         );
       }
+      if (!ownedToolEffects.delete(event.toolCall.toolCallId)) return;
       return observe(
         "finish tool",
         recordToolEnd({
@@ -437,6 +443,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     sandbox,
     host: {
       sandbox,
+      catalogDigest: resolvedTools.catalogDigest,
       responseLineage: () => ({ responseId, parentResponseId }),
     },
   };

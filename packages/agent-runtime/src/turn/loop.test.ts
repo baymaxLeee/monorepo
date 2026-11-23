@@ -720,3 +720,33 @@ test("next-turn arriving during sampling does not preempt the active task", asyn
     stepNumber: 2,
   });
 });
+
+test("SDK sampling after compaction keeps the initial request and correction but drops synthetic user input", async () => {
+  let samples = 0;
+  let finalPrompt = "";
+  const agent = createAgentLoop({
+    tools: {
+      read: tool({ inputSchema: z.object({}), execute: async () => "large result ".repeat(1500) }),
+    },
+    contextLimits: { contextWindow: 18_000, maxOutputTokens: 1000 },
+    prepareStep: ({ messages, stepNumber }) =>
+      stepNumber === 0
+        ? {
+            messages: appendWorkspaceChangeEvent(messages, ["temporary-event.txt"]),
+          }
+        : {},
+    model: model((options) => {
+      if (!options.tools?.length) return text;
+      if (++samples === 1) return [{ type: "tool-call", toolCallId: "r", toolName: "read", input: "{}" }];
+      finalPrompt = JSON.stringify(options.prompt);
+      return text;
+    }),
+  });
+  await consume(agent, [
+    { id: "original", role: "user", parts: [{ type: "text", text: "Only edit the first directory." }] },
+    { id: "correction", role: "user", parts: [{ type: "text", text: "Use the second directory now." }] },
+  ]);
+  assert.equal(samples, 2);
+  assert.match(finalPrompt, /Only edit the first directory\..*compacted_history.*Use the second directory now\./s);
+  assert.doesNotMatch(finalPrompt, /temporary-event\.txt|large result/);
+});

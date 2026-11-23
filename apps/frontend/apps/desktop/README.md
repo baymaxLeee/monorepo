@@ -5,18 +5,19 @@ Electron 通过 URL 加载现有 Platform，并与 Web 渲染同一套 Chat 路�
 从仓库根目录运行：
 
 ```sh
-just desktop-dev --platform-url=http://localhost:3000
-just desktop-dev --platform-url=https://platform.example.com
-# 仅用于验证 HTTP VPS；该连接没有传输加密，不用于正式分发。
-just desktop-dev --platform-url=http://vps.example.com --allow-http
+just app                 # 默认 local：启动 just dev，等待 Platform 就绪后打开 Electron
+just app vps             # 使用默认单 VPS Platform，不启动本地 Web 服务
+DESKTOP_PLATFORM_URL=https://platform.example.com just app vps
+# 当前单 VPS 为 HTTP；仅用于受控开发验证，连接没有传输加密。
+DESKTOP_PLATFORM_URL=http://124.222.245.5:8080/ just app vps
 DESKTOP_PLATFORM_URL=http://124.222.245.5:8080/ just desktop-package
 # 可选：让 App 和未来同机 CLI 使用指定的稳定本地运行时目录
-MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just desktop-dev
+MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just app
 ```
 
 开发和打包都需要 macOS、Xcode Command Line Tools 与 `just install`。打包产物位于 `release/Monorepo-darwin-<arch>/Monorepo.app`，同时生成可下载的 `release/Monorepo-darwin-<arch>.zip`。正式打包会生产构建 Platform、Chat、Admin、Canvas，把资源写入 ASAR，并从受限 `app://platform` 协议加载；安装包不再依赖 VPS 上的前端静态文件，也不显示网关选择页。`DESKTOP_PLATFORM_URL` 是包内固定的 API authority，必须是 Platform 根地址；当前单 VPS 构建使用 `http://124.222.245.5:8080/`。自定义协议只把 `/api/*` 流式转发给该 authority，MFE 和其余资源只能从安装包读取。
 
-显式传给开发入口的 `--platform-url` 仍直接加载 URL，默认值为 `http://localhost:3000`；远程 HTTP 必须带 `--allow-http`。应用不提供浏览器通用文件或命令接口。当前包会做完整 ad-hoc 签名和签名校验，但未使用 Developer ID、hardened runtime 或 Apple 公证，因此是可安装的内部正式构建，不是可对外无提示分发的 macOS 公证版本。
+`just app` 本地模式托管根目录 `just dev` 的完整 Web 栈，在 Platform 可访问后启动 Electron；关闭 Electron 或按 Ctrl+C 会停止该次启动的开发栈。`just dev` 仍只启动 Web。`just app vps` 默认连接 `http://124.222.245.5:8080/`，也可通过 `DESKTOP_PLATFORM_URL` 指定其他 Platform 根地址；远程 HTTP 只在显式选择 VPS 模式时允许。应用不提供浏览器通用文件或命令接口。当前包会做完整 ad-hoc 签名和签名校验，但未使用 Developer ID、hardened runtime 或 Apple 公证，因此是可安装的内部正式构建，不是可对外无提示分发的 macOS 公证版本。
 
 登录后，Desktop App 与 Web 共享云端会话、历史、Artifact/视频 inspector 和 `/conversations/*` 路由。桌面端新会话 editor 按 Codex App 的上下文栏布局选择“此计算机”或“云端”，本地模式再选择经过 native 授权的项目。云端继续使用统一 Conversation/Storage 上传；本地 `+` 选择的文件作为受限 AI SDK `file` parts 进入本地 thread，不创建云端 conversation 或 Storage 文档。
 

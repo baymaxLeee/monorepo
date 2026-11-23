@@ -9,6 +9,7 @@ import {
   threadFiles as sessionFiles,
   threadFileSaveOperations as sessionFileSaveOperations,
   threads as sessions,
+  turnLeases,
   turns,
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "./errors.js";
@@ -136,15 +137,16 @@ async function lockFileWriter(tx: ChatTransaction, scope: FileScope) {
   const [owner] = await tx
     .select({ id: turns.id })
     .from(turns)
+    .innerJoin(turnLeases, and(eq(turnLeases.turnId, turns.id), eq(turnLeases.threadId, turns.threadId)))
     .where(
       and(
         eq(turns.threadId, scope.sessionId),
         eq(turns.ordinal, thread.ordinal),
         eq(turns.id, scope.sandboxAttempt.runId),
-        eq(turns.attemptEpoch, BigInt(scope.sandboxAttempt.attemptEpoch)),
+        eq(turnLeases.attemptEpoch, BigInt(scope.sandboxAttempt.attemptEpoch)),
       ),
     )
-    .for("share");
+    .for("share", { of: turns });
   if (!owner) throw new ConflictError("sandbox workspace writer has been superseded", "workspace_writer_superseded");
 }
 

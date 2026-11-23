@@ -80,6 +80,7 @@ export const startSchema = z
     tty: z.boolean().default(false),
     binary_io: z.boolean().optional(),
     pipe_stdin: z.boolean().optional(),
+    retain_output: z.boolean().optional(),
     yield_time_ms: z.number().int().min(0).max(10000).default(1000),
     timeout_ms: z.number().int().positive().default(120000),
   })
@@ -105,6 +106,10 @@ export const processSchema = z.object({
   stderr_offset: z.number(),
   stdout_truncated: z.boolean().optional(),
   stderr_truncated: z.boolean().optional(),
+  retained_output_path: z
+    .string()
+    .regex(/^\/run\/output\/[a-f0-9]{32}\.log$/)
+    .optional(),
   truncated: z.boolean(),
 });
 export const sessionSchema = z.object({ id: z.string(), workdir: z.string(), expires_at: z.string() });

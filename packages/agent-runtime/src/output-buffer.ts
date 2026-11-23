@@ -35,8 +35,9 @@ export class HeadTailBuffer {
     const originalTokens = Math.ceil(this.bytes / 4);
     const limit = Math.min(maxTokens * 4, this.capacity);
     const retained = this.retained();
+    const truncated = this.bytes > limit;
     let output: string;
-    if (this.bytes <= limit) {
+    if (!truncated) {
       output = retained.toString("utf8");
     } else {
       let headEnd = Math.floor(limit / 2);
@@ -60,7 +61,7 @@ export class HeadTailBuffer {
     this.data = undefined;
     this.bytes = this.tailOffset = this.newlines = 0;
     this.endsWithNewline = false;
-    return { output, originalTokens };
+    return { output, originalTokens, truncated };
   }
 
   private retained() {

@@ -233,11 +233,26 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(result["stdout"], "before")
 
     def test_output_is_bounded_at_collection(self):
-        result = self.start("python3 -c 'print(\"x\" * 10000)' ")
+        result = self.start("python3 -c 'import sys; sys.stdout.write(\"x\" * 10000)'", retain_output=True)
         self.assertLessEqual(len(result["stdout"].encode()), 128)
         self.assertTrue(result["truncated"])
         self.assertTrue(result["stdout_truncated"])
         self.assertFalse(result["stderr_truncated"])
+        retained = pathlib.Path(result["retained_output_path"])
+        self.assertEqual(retained.read_bytes(), b"x" * 10000)
+
+    def test_retained_output_failure_kills_the_command_and_never_publishes_an_incomplete_reference(self):
+        first = self.start("sleep 0.1; printf complete", retain_output=True, yield_time_ms=0)
+        process = self.runtime.processes[first["session_id"]]
+        process.retained_output.close()
+        process.retained_output = mock.Mock()
+        process.retained_output.write.side_effect = OSError("disk full")
+
+        result = self.runtime.request({"op": "poll", "session_id": first["session_id"], "yield_time_ms": 1000})
+
+        self.assertEqual(result["termination"]["type"], "start-error")
+        self.assertIn("failed to retain complete command output", result["termination"]["message"])
+        self.assertNotIn("retained_output_path", result)
 
     def test_exited_sessions_make_room_and_evicted_start_never_reexecutes(self):
         self.runtime.max_processes = 2

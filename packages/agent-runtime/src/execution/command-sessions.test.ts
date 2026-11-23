@@ -72,12 +72,26 @@ test("truncated command output retains the start and end across a hard buffer li
   const sessions = new CommandSessions();
   const text = "HEAD" + "😀".repeat(300_000) + "TAIL";
   const first = await sessions.start({ tty: false, reviewInput: false, yieldMs: 1, tokens: 4 }, async (io) => {
+    io.retainOutput({ path: "/host-private/complete.log" });
     io.output(text);
     return { stdout: "", stderr: "", termination: { type: "exit", exitCode: 0 } };
   });
   assert.equal(first.output.original_token_count, Buffer.byteLength(text) / 4);
   assert.match(first.output.output, /HEAD😀….* tokens truncated…😀TAIL/u);
   assert.doesNotMatch(first.output.output, /�/);
+  assert.deepEqual(first.output.full_output, { path: "/host-private/complete.log" });
+});
+
+test("a host-private full output reference is hidden when the returned output was not truncated", async () => {
+  const sessions = new CommandSessions();
+  const result = await sessions.start({ tty: false, reviewInput: false, yieldMs: 1, tokens: 100 }, async (io) => {
+    io.retainOutput({ path: "/host-private/complete.log" });
+    io.output("complete");
+    return { stdout: "", stderr: "", termination: { type: "exit", exitCode: 0 } };
+  });
+
+  assert.equal(result.output.output, "complete");
+  assert.equal(result.output.full_output, undefined);
 });
 
 test("closing a store invalidates unlaunched and future commands and waits for native cleanup", async () => {

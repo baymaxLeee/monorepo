@@ -99,6 +99,8 @@ test("Pod spec has no host mounts, service identity or writable root, and bounde
   });
   assert.equal(pod.spec.activeDeadlineSeconds, config.ttlSeconds);
   assert.ok(pod.spec.volumes.every((v) => "emptyDir" in v));
+  assert.ok(pod.spec.containers[0].volumeMounts.some((mount) => mount.mountPath === "/run/output"));
+  assert.ok(pod.spec.volumes.some((volume) => volume.name === "output"));
 });
 
 test("configuration fails closed for production runtime downgrade and malformed limits", () => {

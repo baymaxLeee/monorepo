@@ -98,10 +98,10 @@ dev-urls:
 build target="":
     @./scripts/build-target.sh "{{ target }}"
 
-# Keep Web development independent; explicitly opt into the Electron host.
+# Start Electron with the local dev stack (default), or with the deployed Platform.
 [positional-arguments]
-desktop-dev *args:
-    pnpm --dir apps/frontend/apps/desktop launch "$@"
+app *args:
+    @node scripts/app.mjs "$@"
 
 [positional-arguments]
 desktop-package *args:

@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { COMPACTION_STATE_VERSION } from "./compaction.js";
 import { projectRuntimeContext, type RuntimeContextCheckpointWrite } from "./history.js";
+import { estimateTextTokens } from "./token-estimate.js";
 
 const compactLimits = { contextWindow: 10_000, maxOutputTokens: 1_000, autoCompactTokenLimit: 1_000 };
 
@@ -64,10 +65,11 @@ test("compacts the old prefix, installs its checkpoint, and preserves the recent
   assert.equal(saved?.coveredThroughMessageId, "old");
   assert.deepEqual(saved?.state, { version: COMPACTION_STATE_VERSION, summary: "goal and completed work" });
   assert.equal(result.compactionUsage.totalTokens, 12);
-  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages.length, 3);
   assert.equal(result.messages[0]?.role, "user");
-  assert.match(JSON.stringify(result.messages[0]), /goal and completed work/);
-  assert.match(JSON.stringify(result.messages[0]), /continue here/);
+  assert.match(JSON.stringify(result.messages[1]), /goal and completed work/);
+  assert.match(JSON.stringify(result.messages[0]), /a{10,}.*truncated.*a{10,}/s);
+  assert.match(JSON.stringify(result.messages[2]), /continue here/);
   assert.deepEqual(events, [
     { state: "started", phase: "history" },
     { state: "completed", phase: "history" },
@@ -222,7 +224,7 @@ test("replay below the compaction watermark preserves unsummarized messages afte
     saveCheckpoint: async () => assert.fail("the replay did not cross the watermark"),
   });
   assert.match(JSON.stringify(result.messages), /known facts/);
-  assert.doesNotMatch(JSON.stringify(result.messages), /already compressed/);
+  assert.match(JSON.stringify(result.messages), /already compressed/);
   assert.match(JSON.stringify(result.messages), /a{800}/);
 });
 
@@ -360,4 +362,86 @@ test("restoring a step checkpoint keeps later steps and falls back on a differen
   );
   assert.doesNotMatch(parallel, /durable evidence/);
   assert.match(parallel, /parallel-tool/);
+});
+
+test("replays exact user requests in order after successive compactions and checkpoint recovery", async () => {
+  const first = "只改 runs/run-001。";
+  const correction = "现在改到 runs/run-002。";
+  const messages = [message("first", first)];
+  const evidence = (id: string): UIMessage => ({
+    id,
+    role: "assistant",
+    parts: [{ type: "text", text: "tool evidence ".repeat(500) }],
+  });
+  let saved: RuntimeContextCheckpointWrite | undefined;
+  const project = (revision: number) =>
+    projectRuntimeContext({
+      messages,
+      limits: { contextWindow: 16_000, maxOutputTokens: 1000, autoCompactTokenLimit: 3000 },
+      model: compactionModel("work in progress"),
+      checkpoint: saved ? { ...saved, revision } : null,
+      saveCheckpoint: async (next) => {
+        saved = next;
+      },
+    });
+  messages.push(evidence("work1"), message("correct", correction));
+  const once = await project(0);
+  messages.push(evidence("work2"), message("latest", "继续"));
+  const twice = await project(1);
+  const restored = await project(2);
+  assert.ok(once.checkpointAdvanced && twice.checkpointAdvanced && !restored.checkpointAdvanced);
+  assert.deepEqual(twice.messages, restored.messages);
+  const output = JSON.stringify(restored.messages);
+  for (const original of [first, correction]) assert.equal(output.split(original).length, 2, original);
+  assert.ok(output.indexOf(first) < output.indexOf(correction));
+});
+
+test("remote checkpoint replay spends the 20k carryover budget newest first on this branch's text", async () => {
+  const recent = message("recent", "重复。");
+  const other = message("other", "重复。");
+  const result = await projectRuntimeContext({
+    messages: [
+      message("oldest", "outside budget"),
+      message("boundary", "首句" + "😀".repeat(30_000) + "最后一句"),
+      other,
+      {
+        id: "files",
+        role: "user",
+        parts: [
+          { type: "text", text: "first part" },
+          { type: "file", mediaType: "image/png", url: "file:private" },
+          { type: "text", text: "second part" },
+        ],
+      },
+      recent,
+    ],
+    limits: { contextWindow: 128_000, maxOutputTokens: 1_000 },
+    checkpoint: {
+      revision: 4,
+      coveredThroughMessageId: "files",
+      state: { version: "responses-compaction-v2", binding: "provider", itemId: "cmp", encryptedContent: "sealed" },
+    },
+    remoteBinding: "provider",
+    model: compactionModel("unused"),
+    prepareRecent: async (tail) => {
+      assert.deepEqual(tail, [recent]);
+      return tail;
+    },
+    saveCheckpoint: async () => assert.fail("unexpected compaction"),
+  });
+  const output = JSON.stringify(result.messages);
+  assert.doesNotMatch(output, /outside budget|file:private|\\u[dD][89a-fA-F][0-9a-fA-F]{2}/);
+  assert.match(output, /首句.*truncated.*最后一句/);
+  assert.equal(output.split("重复。").length, 3);
+  assert.deepEqual(result.messages[2], {
+    role: "user",
+    content: [
+      { type: "text", text: "first part" },
+      { type: "text", text: "second part" },
+    ],
+  });
+  assert.equal(result.messages[3]?.role, "assistant");
+  const retained = result.messages.slice(0, 3);
+  const cost = retained.reduce((n, item) => n + estimateTextTokens(JSON.stringify(item)) + 64, 0);
+  assert.ok(cost <= 20_000 && cost >= 19_990);
 });

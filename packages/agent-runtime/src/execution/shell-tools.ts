@@ -120,6 +120,9 @@ export function formatExecOutput(data: ExecCommandOutput) {
     `Original token count: ${data.original_token_count}`,
     "Output:",
     data.output,
+    ...(data.full_output
+      ? [`[Full output: ${data.full_output.path} (read it with Bash using byte offsets/limits)]`]
+      : []),
   ].join("\n");
 }
 
@@ -147,7 +150,7 @@ export function createBashTool(
     "bash",
     tool({
       description:
-        "Run a Bash command in the authorized workspace. If it returns a session_id, call bash again with that session_id and optional stdin to interact with or poll the same process.",
+        "Run a Bash command in the authorized workspace. If it returns a session_id, call bash again with that session_id and optional stdin to interact with or poll the same process. Truncated output includes a host-owned full-output path that can be read with ordinary Bash tools.",
       inputSchema: bashArgs,
       toModelOutput,
       execute: async (input, options) =>

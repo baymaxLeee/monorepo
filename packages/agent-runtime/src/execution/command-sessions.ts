@@ -5,10 +5,16 @@ import { setTimeout as delay } from "node:timers/promises";
 import { HeadTailBuffer } from "../output-buffer.js";
 import type { OrchestratedCommandResult } from "./orchestrator.js";
 
+export interface RetainedOutputReference {
+  /** Host-owned, model-readable path. The command sandbox must not be able to replace it. */
+  path: string;
+}
+
 export interface ProcessIO {
   readonly signal: AbortSignal;
   readonly tty: boolean;
   output(chunk: string): void;
+  retainOutput(reference: RetainedOutputReference): void;
   stdin(writer: (chars: string, requestId: string) => Promise<void>): void;
 }
 
@@ -19,6 +25,7 @@ export interface ExecCommandOutput {
   session_id?: number;
   original_token_count: number;
   output: string;
+  full_output?: RetainedOutputReference;
 }
 
 interface Entry {
@@ -28,6 +35,7 @@ interface Entry {
   reviewInput: boolean;
   write?: (chars: string, requestId: string) => Promise<void>;
   output: HeadTailBuffer;
+  retainedOutput?: RetainedOutputReference;
   interaction: Promise<void>;
   streamed: boolean;
   result?: OrchestratedCommandResult;
@@ -97,6 +105,13 @@ export class CommandSessions {
               entry.output.push(text);
             }
           },
+          retainOutput: (reference) => {
+            if (!reference.path || reference.path.includes("\0")) throw new Error("Invalid retained output path");
+            if (entry.retainedOutput && entry.retainedOutput.path !== reference.path) {
+              throw new Error("Process retained output path changed");
+            }
+            entry.retainedOutput = { path: reference.path };
+          },
           stdin: (writer) => {
             entry.write = writer;
           },
@@ -152,7 +167,7 @@ export class CommandSessions {
       await Promise.race([entry.done, delay(yieldMs, undefined, { signal: timer.signal })]);
       entry.controller.signal.throwIfAborted();
       if (entry.error) throw entry.error;
-      const { output, originalTokens } = entry.output.drain(tokens);
+      const { output, originalTokens, truncated } = entry.output.drain(tokens);
       const terminal = entry.result?.termination;
       return {
         output: {
@@ -162,6 +177,7 @@ export class CommandSessions {
           ...(!terminal ? { session_id: entry.id } : {}),
           original_token_count: originalTokens,
           output,
+          ...(truncated && entry.retainedOutput ? { full_output: entry.retainedOutput } : {}),
         },
         termination: terminal,
       };
