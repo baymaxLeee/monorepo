@@ -23,7 +23,7 @@ test("Admin owns one app-registry seed used by local and Single-VPS bootstrap", 
 
 test("local application reset preserves Admin and IAM while clearing every disposable data owner", () => {
   const reset = readFileSync(resolve(root, "scripts/reset-application-data.sh"), "utf8");
-  const justfile = readFileSync(resolve(root, "Justfile"), "utf8");
+  const justfile = readFileSync(resolve(root, "justfile"), "utf8");
 
   assert.match(reset, /APPLICATION_DATABASES=\(canvas chat knowledge runtime storage telemetry\)/);
   assert.match(reset, /preserving PostgreSQL databases: admin, iam/);
