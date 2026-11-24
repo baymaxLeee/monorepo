@@ -20,3 +20,16 @@ test("Admin owns one app-registry seed used by local and Single-VPS bootstrap", 
   assert.match(localBootstrap, /ADMIN_SEED="\$SERVICES_DIR\/admin\/seed\/apps\.sql"/);
   assert.match(image, /COPY apps\/backend\/services\/admin\/seed\/apps\.sql \/seed\/admin\/apps\.sql/);
 });
+
+test("local application reset preserves Admin and IAM while clearing every disposable data owner", () => {
+  const reset = readFileSync(resolve(root, "scripts/reset-application-data.sh"), "utf8");
+  const justfile = readFileSync(resolve(root, "Justfile"), "utf8");
+
+  assert.match(reset, /APPLICATION_DATABASES=\(canvas chat knowledge runtime storage telemetry\)/);
+  assert.match(reset, /preserving PostgreSQL databases: admin, iam/);
+  assert.doesNotMatch(reset, /APPLICATION_DATABASES=.*\b(?:admin|iam)\b/);
+  assert.match(reset, /DROP DATABASE IF EXISTS "workflow" WITH \(FORCE\)/);
+  assert.match(reset, /redis-cli FLUSHALL/);
+  assert.match(reset, /DROP DATABASE IF EXISTS otel; CREATE DATABASE otel/);
+  assert.match(justfile, /reset-application-data:\n\s+@\.\/scripts\/reset-application-data\.sh/);
+});

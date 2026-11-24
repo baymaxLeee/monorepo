@@ -3,7 +3,7 @@ import { and, eq, gt } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { threads, turnInputs, turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
+import { threads, turnInputs, turnLeases, threadTurns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError } from "../../errors.js";
 import { withRunLease, type RunLeaseToken } from "./repository.js";
 
@@ -44,7 +44,7 @@ export async function acceptAgentRunInput(input: {
       .where(eq(threads.id, input.sessionId))
       .for("update");
     if (!session) throw new NotFoundError("session not found");
-    const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
+    const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, input.runId)).for("update");
     if (!run || run.threadId !== input.sessionId) {
       throw new NotFoundError("agent run not found");
     }
@@ -93,7 +93,7 @@ export async function getAgentRunInput(input: {
   const [row] = await getDb()
     .select({ input: turnInputs })
     .from(turnInputs)
-    .innerJoin(turns, eq(turns.id, turnInputs.turnId))
+    .innerJoin(threadTurns, eq(threadTurns.id, turnInputs.turnId))
     .where(
       and(
         eq(turnInputs.turnId, input.runId),
@@ -109,14 +109,14 @@ export async function listAgentRunInputs(input: { sessionId: string; runId: stri
   const rows = await getDb()
     .select({ input: turnInputs })
     .from(turnInputs)
-    .innerJoin(turns, eq(turns.id, turnInputs.turnId))
+    .innerJoin(threadTurns, eq(threadTurns.id, turnInputs.turnId))
     .where(and(eq(turnInputs.turnId, input.runId), eq(turnInputs.threadId, input.sessionId)))
     .orderBy(turnInputs.createdAt);
   if (rows.length === 0) {
     const [run] = await getDb()
-      .select({ id: turns.id })
-      .from(turns)
-      .where(and(eq(turns.id, input.runId), eq(turns.threadId, input.sessionId)));
+      .select({ id: threadTurns.id })
+      .from(threadTurns)
+      .where(and(eq(threadTurns.id, input.runId), eq(threadTurns.threadId, input.sessionId)));
     if (!run) throw new NotFoundError("agent run not found");
   }
   return rows.map((row) => view(row.input));

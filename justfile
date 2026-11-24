@@ -34,6 +34,10 @@ up-sandbox:
 reset-demo-data:
     @./scripts/reset-demo-data.sh
 
+# Recreate disposable local application data while retaining IAM and Admin.
+reset-application-data:
+    @./scripts/reset-application-data.sh
+
 # Apply pending migrations without resetting data. Empty target means latest.
 migrate-up service target="":
     @db="{{ service }}"; \

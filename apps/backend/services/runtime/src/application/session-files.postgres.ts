@@ -12,7 +12,7 @@ import {
   turnAttempts as sessionRunAttempts,
   turnLeases as sessionRunLeases,
   threads as sessions,
-  turns,
+  threadTurns,
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError } from "./errors.js";
 import { saveSessionFile, type SessionFileSaveCandidate } from "./session-files.js";
@@ -240,7 +240,7 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
   await t.test("the save primitive accepts a user commit after workspace coordination", async () => {
     const seeded = await seed();
     const turnId = id();
-    await getDb().insert(turns).values({
+    await getDb().insert(threadTurns).values({
       id: turnId,
       threadId: seeded.sessionId,
       ordinal: 1n,

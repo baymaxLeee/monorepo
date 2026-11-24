@@ -17,7 +17,7 @@ import {
   turnLeases,
   turnPluginSnapshots,
   turnResumeEnvelopes,
-  turns,
+  threadTurns,
   turnSteps,
 } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
@@ -151,7 +151,7 @@ test("concurrent claims for one Session reject the second active Turn explicitly
     assert.ok(rejected[0]?.reason instanceof ConflictError);
     assert.equal(rejected[0]?.reason.code, "active_run_exists");
 
-    const runs = await getDb().select().from(turns).where(eq(turns.threadId, sessionId));
+    const runs = await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, sessionId));
     const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
     const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId));
     assert.equal(runs.length, 1);
@@ -172,8 +172,11 @@ test("different Sessions can run concurrently without a shared workspace lock", 
     ]);
 
     assert.notEqual(firstClaim.runId, secondClaim.runId);
-    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, first.sessionId))).length, 1);
-    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, second.sessionId))).length, 1);
+    assert.equal((await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, first.sessionId))).length, 1);
+    assert.equal(
+      (await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, second.sessionId))).length,
+      1,
+    );
   } finally {
     await cleanup(first.sessionId);
     await cleanup(second.sessionId);
@@ -437,9 +440,9 @@ test("history selection reclaims terminal and expired run leases", { skip: !enab
       const claim = await claimSubmit(sessionId);
       if (staleKind === "terminal") {
         await getDb()
-          .update(turns)
+          .update(threadTurns)
           .set({ status: "completed", completedAt: new Date() })
-          .where(eq(turns.id, claim.runId));
+          .where(eq(threadTurns.id, claim.runId));
       } else {
         await getDb()
           .update(turnLeases)
@@ -453,7 +456,7 @@ test("history selection reclaims terminal and expired run leases", { skip: !enab
       });
       assert.equal(detail.selected_message_id, claim.inputMessageId);
       assert.equal(detail.revision, 2);
-      const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+      const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
       assert.equal(run?.status, staleKind === "terminal" ? "completed" : "interrupted");
       const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId));
       assert.equal(leases.length, 0);
@@ -476,9 +479,9 @@ test("terminal run cleanup and session deletion cannot leave blocking leases", {
 
     const deletedClaim = await claimSubmit(deleted.sessionId);
     await getDb()
-      .update(turns)
+      .update(threadTurns)
       .set({ status: "completed", completedAt: new Date() })
-      .where(eq(turns.id, deletedClaim.runId));
+      .where(eq(threadTurns.id, deletedClaim.runId));
     await deleteSession(deleted.sessionId);
     assert.equal((await getDb().select().from(threads).where(eq(threads.id, deleted.sessionId))).length, 0);
     assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, deleted.sessionId))).length, 0);
@@ -568,7 +571,7 @@ test("an exact request retry reuses its run while changed payload is rejected", 
       (error: unknown) => error instanceof ConflictError && error.code === "request_id_conflict",
     );
 
-    const runs = await getDb().select().from(turns).where(eq(turns.threadId, sessionId));
+    const runs = await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, sessionId));
     const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
     assert.equal(runs.length, 1);
     assert.equal(persistedMessages.length, 1);
@@ -611,7 +614,7 @@ test("journal finalization rolls tool updates back with message failure", { skip
     );
 
     const [toolCall] = await getDb().select().from(toolEffects).where(eq(toolEffects.id, toolCallId));
-    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
     const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
     const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
     assert.equal(toolCall?.status, "running");
@@ -707,7 +710,7 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
         ],
       },
     });
-    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
     const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
     const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
     assert.equal(run?.status, "cancelled");
@@ -778,10 +781,13 @@ test("client continuation validation and journal merge share the claim transacti
     const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, assistantId));
     assert.equal(unchanged?.historyRevision, 1n);
     assert.deepEqual(message?.content.parts, [awaiting]);
-    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, sessionId))).length, 1);
+    assert.equal((await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, sessionId))).length, 1);
     assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId))).length, 0);
 
-    await getDb().update(turns).set({ status: "completed", completedAt: new Date() }).where(eq(turns.id, claim.runId));
+    await getDb()
+      .update(threadTurns)
+      .set({ status: "completed", completedAt: new Date() })
+      .where(eq(threadTurns.id, claim.runId));
     await assert.rejects(
       claimAgentRunOperation({
         ...operation,
@@ -790,13 +796,16 @@ test("client continuation validation and journal merge share the claim transacti
       }),
       (error: unknown) => error instanceof ConflictError && error.code === "turn_not_waiting",
     );
-    await getDb().update(turns).set({ status: "waiting", completedAt: null }).where(eq(turns.id, claim.runId));
+    await getDb()
+      .update(threadTurns)
+      .set({ status: "waiting", completedAt: null })
+      .where(eq(threadTurns.id, claim.runId));
 
     const valid = { ...operation, continuationMessage: response("a") };
     const continued = await claimAgentRunOperation(valid);
     assert.equal(continued.runId, claim.runId, "tool continuation must retain the logical Turn identity");
     assert.equal(continued.attemptEpoch, claim.attemptEpoch + 1n);
-    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, sessionId))).length, 1);
+    assert.equal((await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, sessionId))).length, 1);
     const attempts = await getDb()
       .select()
       .from(turnAttempts)
@@ -867,7 +876,7 @@ test("a waiting logical Turn blocks admission of a second Turn", { skip: !enable
       }),
       (error: unknown) => error instanceof ConflictError && error.code === "active_run_exists",
     );
-    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, sessionId))).length, 1);
+    assert.equal((await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, sessionId))).length, 1);
   } finally {
     await cleanup(sessionId);
   }
@@ -903,7 +912,7 @@ test(
             setTimeout(resolve, 10);
           });
         }
-        await tx`select id from turns where id = ${claim.runId} for update nowait`;
+        await tx`select id from thread_turns where id = ${claim.runId} for update nowait`;
       });
     } finally {
       await finalizing;
@@ -932,7 +941,7 @@ test("terminal cleanup locks session before run and lease", { skip: !enabled }, 
           setTimeout(resolve, 10);
         });
       }
-      await tx`select id from turns where id = ${claim.runId} for update nowait`;
+      await tx`select id from thread_turns where id = ${claim.runId} for update nowait`;
       await tx`select turn_id from turn_leases where turn_id = ${claim.runId} for update nowait`;
     });
   } finally {
@@ -968,7 +977,7 @@ test("a trace completion gap cannot override the SDK outcome or leave a running 
         content: { version: 2, parts: [{ type: "text", text: "partial" }], metadata: { status: "completed" } },
       },
     });
-    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
     const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, messageId));
     const [step] = await getDb().select().from(turnSteps).where(eq(turnSteps.turnId, claim.runId));
     assert.equal(run?.status, "completed");
@@ -1013,7 +1022,7 @@ test("cancellation committed after the stream snapshot wins in journal finalizat
         content: { version: 2, parts, metadata: { status: "completed" } },
       },
     });
-    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
     const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, messageId));
     const [toolCall] = await getDb().select().from(toolEffects).where(eq(toolEffects.id, toolCallId));
     assert.equal(run?.status, "cancelled");
@@ -1042,10 +1051,10 @@ test(
         status: "completed",
       });
       await finishAgentRun({ ...lease(claim), status: "failed", error: "cleanup failed after commit" });
-      let [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+      let [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
       assert.equal(run?.status, "completed");
       await interruptRuns([claim.runId]);
-      [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+      [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
       assert.equal(run?.status, "completed");
     } finally {
       await cleanup(sessionId);
@@ -1065,7 +1074,7 @@ test("a reaper waiting behind a takeover cannot interrupt the new owner", { skip
     await getSql().begin(async (tx) => {
       const [owner] = await tx`select pg_backend_pid() as pid`;
       await tx`select id from threads where id = ${sessionId} for update`;
-      await tx`select id from turns where id = ${claim.runId} for update`;
+      await tx`select id from thread_turns where id = ${claim.runId} for update`;
       pending = interruptRuns([claim.runId]);
       const deadline = Date.now() + 5_000;
       while (true) {
@@ -1093,7 +1102,7 @@ test("a reaper waiting behind a takeover cannot interrupt the new owner", { skip
       await tx`update turn_leases set attempt_epoch = attempt_epoch + 1, expires_at = now() + interval '10 minutes' where turn_id = ${claim.runId}`;
     });
     assert.deepEqual(await pending, []);
-    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
     assert.equal(run?.status, "running");
   } finally {
     await pending;
@@ -1106,14 +1115,14 @@ test("orphan reconciliation rechecks a renewed lease before interrupting", { ski
   try {
     const claim = await claimSubmit(sessionId);
     await interruptRuns([claim.runId]);
-    let [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    let [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
     assert.equal(run?.status, "running");
     await getDb()
       .update(turnLeases)
       .set({ expiresAt: new Date(0) })
       .where(eq(turnLeases.turnId, claim.runId));
     await interruptRuns([claim.runId]);
-    [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
     assert.equal(run?.status, "interrupted");
   } finally {
     await cleanup(sessionId);
@@ -1199,7 +1208,7 @@ test(
         async (recovery) => {
           order.push("runner");
           try {
-            const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+            const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
             const [activeLease] = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
             assert.equal(run?.status, "running", "takeover must not interrupt the logical Turn");
             assert.equal(recovery.token.attemptEpoch, claim.attemptEpoch + 1n);
@@ -1358,7 +1367,7 @@ test(
 );
 
 test(
-  "workspace checkout is atomic with publication and fences superseded attempts and turns",
+  "workspace checkout is atomic with publication and fences superseded attempts and Turns",
   { skip: !enabled },
   async () => {
     const { sessionId } = await createSession();

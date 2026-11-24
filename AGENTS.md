@@ -113,14 +113,16 @@ authorization, concurrency and retry changes need failure/cleanup coverage.
 | `just lint-py [args...]` / `just fmt-py [args...]` | Native Ruff lint / format; checks do not rewrite unless requested |
 | `just check-py` | Repository-wide Ruff lint + format check and backend mypy |
 | `just pre-commit [--all-files]` | Read-only staged checks / all tracked files |
-| `just ci-plan [base]` / `just ci [base]` | Preview / execute local CI with logs; includes committed changes |
-| `just push [remote] [branch]` | Verify clean HEAD against fresh remote main, then push the verified SHA |
+| `just ci-plan [base]` / `just ci [base]` | Optional preview / diagnostic execution of the push gate |
+| `just push [remote] [branch]` | Run the clean-HEAD affected gate against fresh remote main, then push the verified SHA |
 | `just publish-images [services...] [--dry-run]` | Compare the current immutable GHCR release with Aliyun, sync mismatches and verify the complete image set |
 | `just publish-images-local <target> <sha-tag> [services...] [--from <source>] [--alias main]` | Advanced local build or exact registry-sync interface |
 | `just status` / `just doctor` | Repository/environment health |
 
-After code changes, run affected-target tests and builds. Test infrastructure
-changes require root `just test`; repository-wide changes require root `just lint`.
+After code changes, run affected-target tests and builds. Test runner/discovery
+changes that can alter every suite require root `just test`; local CI planner and
+verified-push changes require the tooling suite plus representative plan tests.
+Repository-wide quality-policy changes require root `just lint`.
 Contract changes require `just sync` and producer/consumer verification. Structural
 changes must keep affected install, infra, dev, build, sync and lint recipes
 working. Multi-phase/service work follows the
@@ -140,9 +142,11 @@ override a managed `core.hooksPath` to install them. Fix explicitly with native
 `--fix` or format commands, review the diff and stage it again.
 
 Before pushing, follow the [local CI loop](scripts/README.md#local-ci-and-verified-push).
-Fix failures, review the final diff, and run staged checks before an authorized
-commit. For an authorized push use `just push [remote] [branch]`; never bypass
-failed/incomplete checks with raw Git, `--no-verify`, force or hook overrides.
+Fix failures, review the final diff, run staged checks, and create the authorized
+commit. Then use `just push [remote] [branch]` as the single authoritative
+clean-HEAD gate; do not routinely run the same `just ci` gate immediately before
+it. `just ci-plan` and `just ci` remain optional diagnostics. Never bypass a
+failed/incomplete push gate with raw Git, `--no-verify`, force or hook overrides.
 Do not weaken tests or suppress missing suites to obtain a pass. Inspect remote
 CI for the pushed SHA; local success does not establish deployment success.
 This workflow does not itself authorize a commit or push.

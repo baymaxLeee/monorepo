@@ -9,7 +9,9 @@ Root `justfile` is the public CLI; scripts implement it. Read
 - Missing/ambiguous owners and incomplete dependency information must not produce
   a falsely narrow affected selection. Keep conservative fallback tests.
 - Test CLI behavior using temporary repositories and observable runner arguments,
-  exit codes and output. Run `just test tooling`; changes to test infrastructure
-  additionally require root `just test` per root policy.
+  exit codes and output. Run `just test tooling`; changes to `test.mjs`, discovery,
+  or native runner behavior that can affect every suite additionally require root
+  `just test`. Local CI planning/push changes use the tooling suite plus a
+  representative generated plan.
 - When changing shared script imports, update every affected CI path filter.
   Run `just check-repo` and root `just lint`. These Node scripts need no build.

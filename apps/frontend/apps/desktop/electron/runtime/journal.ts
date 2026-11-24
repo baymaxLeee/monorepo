@@ -81,12 +81,12 @@ export class LocalJournal {
   constructor(directory: string) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     chmodSync(directory, 0o700);
-    this.db = new DatabaseSync(join(directory, "runtime.sqlite"));
+    this.db = new DatabaseSync(join(directory, "runtime-v2.sqlite"));
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;");
     const version = Number(this.db.prepare("PRAGMA user_version").get()?.user_version ?? 0);
-    if (version !== 0 && version !== 1) {
+    if (version !== 0 && version !== 2) {
       this.db.close();
-      throw new Error("本地 runtime 数据由更新版本创建，请升级桌面应用");
+      throw new Error("本地 runtime 数据版本不兼容，请升级桌面应用");
     }
     if (version === 0) {
       this.db.exec(`BEGIN IMMEDIATE;
@@ -94,7 +94,7 @@ export class LocalJournal {
           id TEXT PRIMARY KEY,
           metadata TEXT NOT NULL
         );
-        CREATE TABLE turns (
+        CREATE TABLE thread_turns (
           id TEXT PRIMARY KEY,
           thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
           status TEXT NOT NULL,
@@ -102,12 +102,12 @@ export class LocalJournal {
           finished_at TEXT,
           error TEXT
         );
-        CREATE INDEX turns_thread_created ON turns(thread_id, created_at);
+        CREATE INDEX thread_turns_thread_created ON thread_turns(thread_id, created_at);
         CREATE TABLE items (
           thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
           id TEXT NOT NULL,
           sequence INTEGER NOT NULL,
-          turn_id TEXT REFERENCES turns(id),
+          turn_id TEXT REFERENCES thread_turns(id),
           value TEXT NOT NULL,
           PRIMARY KEY(thread_id, id),
           UNIQUE(thread_id, sequence)
@@ -121,13 +121,13 @@ export class LocalJournal {
           updated_at TEXT NOT NULL
         );
         CREATE TABLE turn_plugin_snapshots (
-          turn_id TEXT PRIMARY KEY REFERENCES turns(id) ON DELETE CASCADE,
+          turn_id TEXT PRIMARY KEY REFERENCES thread_turns(id) ON DELETE CASCADE,
           snapshot_id TEXT NOT NULL,
           snapshot_digest TEXT NOT NULL CHECK(length(snapshot_digest) = 71 AND snapshot_digest GLOB 'sha256:*'),
           value TEXT NOT NULL CHECK(json_valid(value)),
           created_at TEXT NOT NULL
         );
-        PRAGMA user_version=1;
+        PRAGMA user_version=2;
         COMMIT;`);
     }
   }
@@ -164,7 +164,7 @@ export class LocalJournal {
         const terminal = !["running", "waiting"].includes(thread.status);
         this.db
           .prepare(
-            `INSERT INTO turns(id,thread_id,status,created_at,finished_at,error)
+            `INSERT INTO thread_turns(id,thread_id,status,created_at,finished_at,error)
              VALUES(?,?,?,?,?,?)
              ON CONFLICT(id) DO UPDATE SET status=excluded.status, finished_at=excluded.finished_at, error=excluded.error`,
           )

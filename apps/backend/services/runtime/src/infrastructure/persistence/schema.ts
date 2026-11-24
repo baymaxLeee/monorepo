@@ -70,8 +70,8 @@ export const threads = pgTable(
 );
 
 /** A single admitted RuntimeTurn and its terminal outcome. */
-export const turns = pgTable(
-  "turns",
+export const threadTurns = pgTable(
+  "thread_turns",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     threadId: varchar("thread_id", { length: 32 })
@@ -94,11 +94,11 @@ export const turns = pgTable(
     completedAt: timestamp("completed_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
   (t) => [
-    uniqueIndex("ux_turns_thread_ordinal").on(t.threadId, t.ordinal),
-    uniqueIndex("ux_turns_one_active")
+    uniqueIndex("ux_thread_turns_thread_ordinal").on(t.threadId, t.ordinal),
+    uniqueIndex("ux_thread_turns_one_active")
       .on(t.threadId)
       .where(sql`${t.status} IN ('running', 'cancel_requested', 'waiting')`),
-    index("ix_turns_thread_created").on(t.threadId, t.createdAt),
+    index("ix_thread_turns_thread_created").on(t.threadId, t.createdAt),
   ],
 );
 
@@ -106,7 +106,7 @@ export const turns = pgTable(
 export const turnPluginSnapshots = pgTable("turn_plugin_snapshots", {
   turnId: varchar("turn_id", { length: 32 })
     .primaryKey()
-    .references(() => turns.id, { onDelete: "cascade" }),
+    .references(() => threadTurns.id, { onDelete: "cascade" }),
   snapshot: jsonb("snapshot_json").$type<PersistedTurnPluginSnapshot>().notNull(),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
 });
@@ -119,7 +119,7 @@ export const threadItems = pgTable(
     threadId: varchar("thread_id", { length: 32 })
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    turnId: varchar("turn_id", { length: 32 }).references(() => turns.id, { onDelete: "set null" }),
+    turnId: varchar("turn_id", { length: 32 }).references(() => threadTurns.id, { onDelete: "set null" }),
     ordinal: bigint("ordinal", { mode: "bigint" }).notNull(),
     role: varchar("role", { length: 20 }).notNull(),
     content: jsonb("content").$type<PersistedThreadItemContent>().notNull(),
@@ -162,7 +162,7 @@ export const turnAttempts = pgTable(
     primaryKey({ columns: [t.turnId, t.attemptEpoch] }),
     foreignKey({
       columns: [t.threadId, t.turnId],
-      foreignColumns: [turns.threadId, turns.id],
+      foreignColumns: [threadTurns.threadId, threadTurns.id],
     }).onDelete("cascade"),
     foreignKey({
       columns: [t.threadId, t.targetItemId],
@@ -220,7 +220,7 @@ export const turnInputs = pgTable(
   {
     turnId: varchar("turn_id", { length: 32 })
       .notNull()
-      .references(() => turns.id, { onDelete: "cascade" }),
+      .references(() => threadTurns.id, { onDelete: "cascade" }),
     id: varchar("id", { length: 64 }).notNull(),
     threadId: varchar("thread_id", { length: 32 })
       .notNull()
@@ -269,7 +269,7 @@ export const turnLeases = pgTable(
       .references(() => threads.id, { onDelete: "cascade" }),
     turnId: varchar("turn_id", { length: 32 })
       .notNull()
-      .references(() => turns.id, { onDelete: "cascade" }),
+      .references(() => threadTurns.id, { onDelete: "cascade" }),
     attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
     heartbeatAt: timestamp("heartbeat_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
@@ -290,7 +290,7 @@ export const turnSteps = pgTable(
     id: varchar("id", { length: 32 }).primaryKey(),
     turnId: varchar("turn_id", { length: 32 })
       .notNull()
-      .references(() => turns.id, { onDelete: "cascade" }),
+      .references(() => threadTurns.id, { onDelete: "cascade" }),
     attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
     stepIndex: integer("step_index").notNull(),
     kind: varchar("kind", { length: 32 }).notNull(),
@@ -319,7 +319,7 @@ export const toolEffects = pgTable(
     id: varchar("id", { length: 64 }).notNull(),
     turnId: varchar("turn_id", { length: 32 })
       .notNull()
-      .references(() => turns.id, { onDelete: "cascade" }),
+      .references(() => threadTurns.id, { onDelete: "cascade" }),
     attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
     itemId: varchar("item_id", { length: 32 }).references(() => threadItems.id, { onDelete: "set null" }),
     stepIndex: integer("step_index"),
@@ -349,7 +349,7 @@ export const turnSandboxExecutions = pgTable(
   {
     turnId: varchar("turn_id", { length: 32 })
       .notNull()
-      .references(() => turns.id, { onDelete: "cascade" }),
+      .references(() => threadTurns.id, { onDelete: "cascade" }),
     attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
     threadId: varchar("thread_id", { length: 32 })
       .notNull()

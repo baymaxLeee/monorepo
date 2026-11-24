@@ -84,7 +84,7 @@ snapshot、分支 revision 与流恢复位置必须能够一致衔接，订阅/�
 
 同一 Session 最多一个 active Turn。steer 进入明确目标 Turn 的 inbox，queue 等待后续 Turn，二者不自动互换；accepted 不等于 delivered。待答工具/审批恢复同一 Turn，客户端不能替 server tool 提交执行结果。进程失联后旧 owner 的迟到写入必须被租约/执行代际拒绝，不能假定租约过期就已杀死旧进程。
 
-Cloud 已将一个用户任务保持为唯一 `turns.id`；client-tool/approval continuation 把前 attempt 结算为 `waiting`、追加新 `turn_attempts.attempt_epoch`，而不是新建 Turn。`turn_steps`、`tool_effects`、`turn_leases`、Sandbox execution 和 workspace writer 都绑定精确 attempt；一个 Session 的 `waiting/running/cancel_requested` Turn 受同一 one-active-Turn 约束，只有匹配的 continuation 能把 waiting Turn 重新置为 running。
+Cloud 已将一个用户任务保持为唯一 `thread_turns.id`；client-tool/approval continuation 把前 attempt 结算为 `waiting`、追加新 `turn_attempts.attempt_epoch`，而不是新建 Turn。`turn_steps`、`tool_effects`、`turn_leases`、Sandbox execution 和 workspace writer 都绑定精确 attempt；一个 Session 的 `waiting/running/cancel_requested` Turn 受同一 one-active-Turn 约束，只有匹配的 continuation 能把 waiting Turn 重新置为 running。
 
 每个 Cloud attempt 在模型请求或 host effect 前写入不可变、无 secret 的 `turn_resume_envelopes`。它绑定 Session、history item/revision/digest、instruction/tool catalog/workspace digest、compactor version、remote binding，以及冻结的 provider/model binding、operation、reasoning、skills/plugin activation、approval/permission 和 assistant item identity。tenant/workspace/user 或产品 auth scope 不进入 envelope；secret-bearing `TurnCapabilities` 由上层宿主在恢复前重新签发。
 
@@ -123,7 +123,7 @@ Runtime PostgreSQL 的 logical Turn/physical attempt/tool effect/recovery genera
 | 逻辑对象 | 状态 | 持久语义 |
 | --- | --- | --- |
 | Session / item graph (`threads`, `thread_items`) | current | Session metadata、selected item、history revision、append-only UIMessage graph；attempt envelope/checkpoint 持久化所选 history binding 与 digest，不保存 tenant/workspace/user |
-| `turns` | current | 逻辑用户任务及终态；`waiting/running/cancel_requested` 共用 one-active-Turn guard，不再存 request/operation/attempt 字段 |
+| `thread_turns` | current | Thread 内的逻辑用户任务及终态；`waiting/running/cancel_requested` 共用 one-active-Turn guard，不再存 request/operation/attempt 字段 |
 | `turn_attempts` | current | 每次物理 owner 的单调 epoch、request/fingerprint、operation、history binding、waiting/终态 |
 | `turn_resume_envelopes` | current | 每 attempt 不可变、无 secret 的 reconstruction snapshot；绑定 execution/capability digest 与 history/instruction/catalog/workspace/compactor/remote generation，不保存产品 auth scope |
 | `turn_steps` | observability projection | step 记录受 attempt fencing，但不能单独成为 crash resume point；恢复 boundary 以 canonical journal item + envelope/effect facts 为准 |
@@ -138,7 +138,7 @@ Runtime PostgreSQL 的 logical Turn/physical attempt/tool effect/recovery genera
 
 `resume envelope` 是以上权威行在 attempt admission 时冻结的 reconstruction snapshot，不复制 UIMessage transcript 或第二份可变状态机。恢复时仍在事务中交叉核对 Turn/attempt/journal/effect 与 envelope，并在进入模型前重新计算 context generation；stream chunk、Redis replay、provider response id、PID 与 Sandbox session id 都不能成为恢复真源。UIMessage 正文留在 `thread_items`，tool/step 表只保存执行控制事实，避免把同一 transcript 再编码一遍。
 
-当前一个用户任务只有一个 `turns.id`，continuation 只追加 `turn_attempts`；recovery 也必须沿用这一身份，不得退回新建 Turn。`turn_steps` 与 `tool_effects` 不允许恢复时把 terminal row 重置为 running；相同 identity 的异参写入直接冲突，unconfirmed effect 只有对账或显式新操作可以推进。
+当前一个用户任务只有一个 `thread_turns.id`，continuation 只追加 `turn_attempts`；recovery 也必须沿用这一身份，不得退回新建 Turn。`turn_steps` 与 `tool_effects` 不允许恢复时把 terminal row 重置为 running；相同 identity 的异参写入直接冲突，unconfirmed effect 只有对账或显式新操作可以推进。
 
 绿地表示**模型和 API 无兼容包袱**。当前 local/VPS Runtime 业务数据被明确列为可重建，因此该 release 只保留重写后的 `v1.0.0.0`，不提供从旧 Runtime schema 的 upgrade/down 路径。部署时由显式 reset 动作重建 Runtime 数据库；运行时代码不自行 drop 数据。该 baseline 被真正作为不可重建的发布投产后，后续结构变更再恢复版本化 migration 规则。
 

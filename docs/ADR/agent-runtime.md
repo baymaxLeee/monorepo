@@ -82,7 +82,7 @@ one-active-Turn 只约束同一个 Session，不是进程、账号或目录级�
 
 两个宿主都在 `start(prepare)` 中通过 `scope.defer()` 登记每项已取得的资源。准备中途失败或正常结束时按获取的逆序释放。云端 Sandbox 使用本次执行的取消信号并先于工具 catalog 完成释放。任一释放动作失败时仍继续释放其余资源，并将失败交给 journal finalizer。
 
-逻辑 Turn 与物理 invocation/attempt 必须分离。用户任务、同一任务的 approval/client-tool waiting、模型断流重试和崩溃后的边界恢复都属于同一个逻辑 Turn；每次重新取得进程 owner 才创建递增 attempt。Cloud 已实施这一切分：`tool-continuation` 保留原 `turns.id`，将前一 `turn_attempts` 行结算为 `waiting`，并追加新 epoch；step、tool effect、lease 和 Sandbox execution 都精确绑定 `(turn_id, attempt_epoch)`。Desktop waiting approval 也保留原 `turnId`，但尚未持久化可用于崩溃恢复的 physical-attempt envelope。
+逻辑 Turn 与物理 invocation/attempt 必须分离。用户任务、同一任务的 approval/client-tool waiting、模型断流重试和崩溃后的边界恢复都属于同一个逻辑 Turn；每次重新取得进程 owner 才创建递增 attempt。Cloud 已实施这一切分：`tool-continuation` 保留原 `thread_turns.id`，将前一 `turn_attempts` 行结算为 `waiting`，并追加新 epoch；step、tool effect、lease 和 Sandbox execution 都精确绑定 `(turn_id, attempt_epoch)`。Desktop waiting approval 也保留原 `turnId`，但尚未持久化可用于崩溃恢复的 physical-attempt envelope。
 
 AI SDK 继续拥有 model/tool loop、stable tool ordering、approval、`prepareStep`、stream 和原生流式取消。TurnScope 将宿主取消与本轮资源的生命周期绑定。kernel 不复制 planner、router、failure counter、repair model 或另一套 stop state machine。交互 Turn 显式使用 SDK 的 `isLoopFinished()`，连续工具调用可以超过 20 步，模型给出最终回复、等待外部输入、取消或失败时交回宿主。普通工具失败作为观察结果回到同一 loop；持久化、权限或协议破坏则 fail closed。
 
@@ -134,7 +134,7 @@ Codex 的 replacement generation 校验是必须保留的语义，而不是必�
 
 ContextUsage 表示最近一次活动模型上下文，不是会话累计花费：每个 model request 在 middleware 完成最终 prompt/tool 组装后立即通过 transient `data-context-usage` 发布 portable estimate；该 step 完成后再用 provider input usage 加上会留在后续上下文中的非 reasoning 输出发布 confirmed snapshot。它不按文本 delta/token 高频更新。分类始终是估算，分类和等于展示总量。Cloud 从两个 model-step 边界实时暴露该值；Desktop 使用相同边界，并在 step 完成时把 confirmed snapshot 持久化到 thread。两端都展示原始 model window、统一自动压缩水位和是否已有 checkpoint，且压缩不会删除原始 journal。
 
-Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和 checkpoint 机制。其 authority 是 Desktop 宿主数据目录中的 `runtime.sqlite`，schema 为 `threads`、`turns`、`items`、`context_checkpoints`、`turn_plugin_snapshots`，`user_version=1`。上层应用可以为不同登录态选择隔离的数据目录，但 shared runtime schema 不保存 tenant/workspace/user identity。旧 `runtime-v1.sqlite`、`sessions.sqlite` 和 Electron `userData` journal 不读取、不迁移、不覆盖；这是明确的零兼容切换。
+Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和 checkpoint 机制。其 authority 是 Desktop 宿主数据目录中的 `runtime-v2.sqlite`，schema 为 `threads`、`thread_turns`、`items`、`context_checkpoints`、`turn_plugin_snapshots`，`user_version=2`。上层应用可以为不同登录态选择隔离的数据目录，但 shared runtime schema 不保存 tenant/workspace/user identity。旧 `runtime.sqlite`、`runtime-v1.sqlite`、`sessions.sqlite` 和 Electron `userData` journal 不读取、不迁移、不覆盖；这是明确的零兼容切换。
 
 ## 工具 runtime
 
@@ -180,7 +180,7 @@ system instructions 在一个 turn 内固定。核心基座采用 Codex 式执�
 | --- | --- | --- |
 | 单一 AI SDK loop、Turn input queue、逆序资源释放 | implemented | Cloud/Desktop 都经 `RuntimeTurn`；`steer`、`queue`、Stop 分离 |
 | Thread/Turn/Item journal、one-active-Turn、attempt fencing | implemented | Cloud 有 history revision、`turn_attempts`、attempt-bound lease/step/Sandbox journal；Desktop 有 SQLite Thread/Turn/Item |
-| logical Turn 与 invocation/attempt 分离 | implemented in Cloud; partial cross-host | Cloud continuation 复用 `turns.id`、追加 attempt 并结算 `waiting`；Desktop 保留 waiting Turn identity，但尚无可恢复 physical-attempt envelope |
+| logical Turn 与 invocation/attempt 分离 | implemented in Cloud; partial cross-host | Cloud continuation 复用 `thread_turns.id`、追加 attempt 并结算 `waiting`；Desktop 保留 waiting Turn identity，但尚无可恢复 physical-attempt envelope |
 | tool effect consistency | implemented in Cloud | execute wrapper 在进入 host code 前原子 claim；`(turn_id, tool_call_id)` 在逻辑 Turn 内稳定，完整 canonical input digest 判等、redacted input 仅供观察；completed 可跨 attempt replay，重复 claim、异参或 unconfirmed 一律 fail closed |
 | journal → bounded model context、双层 compaction、checkpoint CAS | implemented with limits | 两端能 fail closed 重建上下文；Cloud checkpoint 已绑定 history/instruction/catalog/workspace/compactor/remote generation，并参与 recovery 校验 |
 | 冻结 model/tool/plugin/permission snapshot | implemented in Cloud; partial cross-host | Cloud 使用 attempt-scoped immutable resume envelope；恢复必须由上层宿主续期 `TurnCapabilities`，缺失时 fail closed；Desktop 尚无等价 envelope |

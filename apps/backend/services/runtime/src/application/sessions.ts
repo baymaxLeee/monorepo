@@ -9,7 +9,7 @@ import {
   threadItems,
   threads,
   turnLeases,
-  turns,
+  threadTurns,
   type PersistedThreadItemContent,
 } from "../infrastructure/persistence/schema.js";
 import type { ReasoningEffort } from "../infrastructure/provider/provider-model.js";
@@ -240,10 +240,10 @@ export async function getSession(sessionId: string): Promise<SessionDetail> {
     .where(eq(threadItems.threadId, sessionId))
     .orderBy(asc(threadItems.ordinal));
   const [latestRun] = await db
-    .select({ id: turns.id })
-    .from(turns)
-    .where(eq(turns.threadId, sessionId))
-    .orderBy(desc(turns.ordinal))
+    .select({ id: threadTurns.id })
+    .from(threadTurns)
+    .where(eq(threadTurns.threadId, sessionId))
+    .orderBy(desc(threadTurns.ordinal))
     .limit(1);
   const files = await listSessionFiles({ sessionId });
   const allMessages = messageRows.map(toMessage);
@@ -313,7 +313,11 @@ export async function selectSessionHistory(
     const now = new Date();
     const [lease] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, sessionId)).for("update");
     const [leasedRun] = lease
-      ? await tx.select({ status: turns.status }).from(turns).where(eq(turns.id, lease.turnId)).for("update")
+      ? await tx
+          .select({ status: threadTurns.status })
+          .from(threadTurns)
+          .where(eq(threadTurns.id, lease.turnId))
+          .for("update")
       : [];
     if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status) && lease.expiresAt > now) {
       throw new ConflictError("cannot switch history while an agent run is active", "active_run_exists", {
@@ -324,9 +328,9 @@ export async function selectSessionHistory(
       await tx.delete(turnLeases).where(eq(turnLeases.turnId, lease.turnId));
       if (leasedRun && ["running", "cancel_requested"].includes(leasedRun.status)) {
         await tx
-          .update(turns)
+          .update(threadTurns)
           .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
-          .where(eq(turns.id, lease.turnId));
+          .where(eq(threadTurns.id, lease.turnId));
       }
     }
     const [leaf] = await tx
@@ -354,7 +358,11 @@ export async function deleteSession(sessionId: string): Promise<void> {
     if (!row) throw new NotFoundError(`session ${sessionId} not found`);
     const [lease] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, row.id)).for("update");
     const [leasedRun] = lease
-      ? await tx.select({ status: turns.status }).from(turns).where(eq(turns.id, lease.turnId)).for("update")
+      ? await tx
+          .select({ status: threadTurns.status })
+          .from(threadTurns)
+          .where(eq(threadTurns.id, lease.turnId))
+          .for("update")
       : [];
     if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status) && lease.expiresAt > now) {
       throw new ConflictError("session has an active agent run; cancel it before deleting", "active_run_exists", {
@@ -363,9 +371,9 @@ export async function deleteSession(sessionId: string): Promise<void> {
     }
     if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status)) {
       await tx
-        .update(turns)
+        .update(threadTurns)
         .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
-        .where(eq(turns.id, lease.turnId));
+        .where(eq(threadTurns.id, lease.turnId));
     }
     if (lease) await tx.delete(turnLeases).where(eq(turnLeases.turnId, lease.turnId));
     await releaseSessionFileClaims(tx, {

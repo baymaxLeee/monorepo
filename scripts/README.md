@@ -110,11 +110,14 @@ The default base is `origin/main`; fetch it first when using these diagnostic
 commands. Missing bases fail closed. Results are diagnostic evidence, never a
 reusable push permission.
 
-The code gate uses one frozen root pnpm workspace install and locked uv
-sync, read-only Go workspace policy and module consistency (`just check-go-modules`), root lint
-(including format/type checks), affected tests, contract generation checks, and
-frontend/backend builds. Executable tooling edits run root tests once instead of
-the equivalent full affected selection.
+The code gate installs only the dependency families selected by the diff, then
+runs scoped lint/type checks, affected tests and affected application builds.
+Tooling changes run repository/tooling checks; when mixed with application changes,
+the two plans are composed and shared setup runs once. Contract regeneration runs
+only for contract sources or a service that actually owns sqlc output. A
+Drizzle-only migration runs database migration integration without regenerating
+unrelated OpenAPI, protobuf or sqlc clients. Unknown ownership and an explicit
+`all` base still fail safe to the full repository gate.
 
 `just check-go-modules` verifies that every `apps/backend/go.work` member pins the
 workspace Go language and exact toolchain, Docker builders use that toolchain, and
@@ -138,8 +141,8 @@ the source-derived image set.
 GitHub jobs use the pinned Ubuntu 24.04 image; Node, pnpm, Python, uv, Go, just
 and Buf versions come from `mise.toml`. Docker/buildx and that pinned toolchain
 must be available locally. The
-command installs dependencies and may regenerate contracts/build output; it does
-not auto-fix source. Changes to tracked or untracked source during checks fail
+command installs selected dependencies and may regenerate affected contract output;
+it does not auto-fix source. Changes to tracked or untracked source during checks fail
 the run. Existing empty-suite policy is preserved, including failures for selected
 projects without tests; a broader suite's UNTESTED notice is not coverage.
 
@@ -150,19 +153,21 @@ Agent procedure:
 2. Implement and run focused tests during development. Apply scoped Oxfmt,
    Ruff or gofmt fixes, inspect the diff, and preserve unrelated changes. Use
    `just fmt` only when the entire formatting scope belongs to the task.
-3. Run `just ci-plan origin/main`, then `just ci origin/main`. Use
-   `just ci-release-plan origin/main` and `just ci-release origin/main` only for
-   explicit image/release-pipeline work. Read the first
-   failed step's log, fix its cause and repeat. Do not remove assertions, add
-   skips, relax timeouts without diagnosis, or suppress an empty suite. Missing
-   tools/services are blockers to verification, not passing results.
+3. Use `just ci-plan origin/main` to inspect the clean-HEAD gate when scope is
+   unclear, and `just ci origin/main` only as an explicit diagnostic. Do not run
+   it routinely immediately before `just push`, which executes that gate itself.
+   Use `just ci-release-plan origin/main` and `just ci-release origin/main` only
+   for explicit image/release-pipeline work. Read the first failed step's log,
+   fix its cause and repeat. Do not remove assertions, add skips, relax timeouts
+   without diagnosis, or suppress an empty suite. Missing tools/services are
+   blockers to verification, not passing results.
 4. Review the complete diff against the requirement, including consumers and
    failure/cleanup paths. Stage only task files and run `just pre-commit` before
    an authorized commit. Generated-contract differences need review and commit;
    `sync-check` compares generated files with Git, including intended changes.
 5. For an authorized push run `just push origin <current-branch>`. This requires
    a clean tree, fetches remote main and destination, rejects a branch behind
-   main or a diverged destination, and runs the release gate again on clean HEAD.
+   main or a diverged destination, and runs the affected code gate once on clean HEAD.
    It checks source/HEAD and remote refs again, then pushes a single fixed SHA.
    Failures never execute push. New feature branches are supported. Main is the
    repository integration branch; custom release destinations are not supported.
@@ -171,9 +176,10 @@ Agent procedure:
    retrying downstream workflows. Report local results separately from image
    publication, mirroring and deployment.
 
-`just push` deliberately reruns checks after commit: previous diagnostic runs
-may have used uncommitted files, older dependencies or a stale remote base. It
-never stashes, commits, force-pushes or replaces company-managed Git hooks.
+`just push` does not reuse an uncommitted diagnostic result; it runs one
+dependency-aware gate against the clean commit and fresh remote base. Running
+`just ci` immediately beforehand is redundant. The command never stashes,
+commits, force-pushes or replaces company-managed Git hooks.
 Concurrent checks in the same worktree are rejected. If a process is killed,
 confirm it has stopped before removing the Git-local `agent-ci/lock` directory;
 rerun the gate from the start. Logs may contain application test output; keep
@@ -267,6 +273,10 @@ Repository commands enforce pass/fail; the agent diagnoses and repairs failures.
 - `reset-demo-data.sh`: destroys and recreates every local service database and
   clears local Storage bytes. No business data or account rows are preserved; the
   configured IAM super-admin is seeded again.
+- `reset-application-data.sh`: recreates the local Canvas, Chat, Knowledge,
+  Runtime, Storage, Telemetry and Workflow databases, clears disposable
+  Storage/Redis/ClickHouse state, and explicitly preserves the Admin and IAM
+  databases. Run it through `just reset-application-data`.
 - `dev-preflight.sh`: checks that local infra and frontend dependencies exist
   before starting the dev stack, including caller/receiver service credentials.
 - `sync-dev-service-identities.py`: safely migrates the retired shared local

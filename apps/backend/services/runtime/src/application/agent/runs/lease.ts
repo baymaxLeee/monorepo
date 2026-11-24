@@ -4,7 +4,7 @@ import { and, desc, eq, gt, lte } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { threads, turnAttempts, turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
+import { threads, turnAttempts, turnLeases, threadTurns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
 import { deactivateAgentStream } from "../streams/service.js";
 import {
@@ -41,7 +41,7 @@ export async function acquireRunLease(sessionId: string, runId: string): Promise
   // rolls back the reap too; the next acquire re-reaps — expired rows are inert.
   const claimed = await db.transaction(async (tx) => {
     await tx.select({ id: threads.id }).from(threads).where(eq(threads.id, sessionId)).for("update");
-    const [run] = await tx.select().from(turns).where(eq(turns.id, runId)).for("update");
+    const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, runId)).for("update");
     if (!run || run.threadId !== sessionId || !["running", "cancel_requested"].includes(run.status)) {
       throw new ConflictError("agent run cannot acquire a lease", "run_lease_unavailable");
     }

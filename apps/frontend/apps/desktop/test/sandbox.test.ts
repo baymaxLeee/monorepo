@@ -226,6 +226,21 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
     }
   });
 
+  it("keeps concurrent full-access commands isolated during descendant cleanup", async () => {
+    const started = join(sandbox.options.scratch, "concurrent-command-started");
+    const longRunning = sandbox.execute({ ...attempt(), sandboxed: false }, "/bin/sh", [
+      "-c",
+      'printf started > "$1"; sleep 1; printf survived',
+      "sh",
+      started,
+    ]);
+    await expect.poll(async () => readFile(started, "utf8").catch(() => ""), { timeout: 3000 }).toBe("started");
+
+    const quick = await sandbox.execute({ ...attempt(), sandboxed: false }, "/usr/bin/true", []);
+    expect(quick).toMatchObject({ type: "exit", exitCode: 0 });
+    expect(await longRunning).toMatchObject({ type: "exit", exitCode: 0, stdout: "survived" });
+  });
+
   it("protects control data even inside an authorized directory", async () => {
     const result = await run("/bin/cat", [join(sandbox.options.root, "control/secret")]);
     expect(result).toMatchObject({ type: "exit" });

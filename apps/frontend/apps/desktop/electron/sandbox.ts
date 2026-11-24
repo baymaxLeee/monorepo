@@ -35,6 +35,7 @@ export function seatbeltProfile(
   marker = "com.monorepo.desktop.test",
   attachmentRoot?: string,
 ): string {
+  const ownershipDenial = `${marker}.ownership-denied`;
   if (permissionProfile.type === "external") {
     throw new Error("本地执行没有 external sandbox owner");
   }
@@ -53,7 +54,7 @@ export function seatbeltProfile(
       "(version 1)",
       "(allow default)",
       `(allow mach-lookup (global-name ${quote(marker)}))`,
-      '(deny mach-lookup (global-name "com.monorepo.desktop.forbidden"))',
+      `(deny mach-lookup (global-name ${quote(ownershipDenial)}))`,
       ...protectedRules,
     ].join("\n");
   }
@@ -97,7 +98,7 @@ export function seatbeltProfile(
     ...(permissionProfile.network.type === "enabled" ? ["(allow network*)"] : []),
     "(allow signal (target same-sandbox))",
     `(allow mach-lookup (global-name ${quote(marker)}))`,
-    '(deny mach-lookup (global-name "com.monorepo.desktop.forbidden"))',
+    `(deny mach-lookup (global-name ${quote(ownershipDenial)}))`,
     "(allow file-read-metadata)",
     '(allow file-read* (literal "/"))',
     `(allow file-read* ${readPaths.map((p) => `(subpath ${quote(p)})`).join(" ")})`,

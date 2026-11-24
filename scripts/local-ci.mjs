@@ -99,13 +99,12 @@ function contractOwners(path) {
   if (path === "schemas/openapi/chat-server.json") return ["backend/chat", "frontend/chat"];
   return [];
 }
-function affectsGeneratedSQL(path) {
-  return (
-    path === "apps/backend/justfile" ||
-    /^apps\/backend\/services\/[^/]+\/sqlc\.yaml$/.test(path) ||
-    /^apps\/backend\/services\/[^/]+\/migrations\//.test(path) ||
-    /^apps\/backend\/services\/[^/]+\/internal\/infrastructure\/persistence\/sql\//.test(path)
-  );
+function affectsGeneratedSQL(path, root) {
+  if (path === "apps/backend/justfile" || /^apps\/backend\/services\/[^/]+\/sqlc\.yaml$/.test(path)) return true;
+  const service = path.match(
+    /^apps\/backend\/services\/([^/]+)\/(?:migrations\/|internal\/infrastructure\/persistence\/sql\/)/,
+  )?.[1];
+  return Boolean(service && existsSync(resolve(root, `apps/backend/services/${service}/sqlc.yaml`)));
 }
 function toolingCodePlan(files) {
   const executable = files.filter((path) => !isDocumentation(path));
@@ -120,9 +119,29 @@ function toolingCodePlan(files) {
   steps.push(["tooling-tests", "just", "test", "tooling"]);
   return steps;
 }
+function mergePlanSteps(...plans) {
+  const names = new Set();
+  return plans.flat().filter((step) => {
+    if (names.has(step[0])) return false;
+    names.add(step[0]);
+    return true;
+  });
+}
 export function codePlan(base, files, root = ROOT) {
   if (files === null) return fullCodePlan(base, files);
-  if (files.length && files.every(isTooling)) return toolingCodePlan(files);
+  if (files.length === 0) return [];
+  const toolingFiles = files.filter(isTooling);
+  if (toolingFiles.length === files.length) return toolingCodePlan(files);
+  if (toolingFiles.length) {
+    return mergePlanSteps(
+      toolingCodePlan(toolingFiles),
+      codePlan(
+        base,
+        files.filter((path) => !isTooling(path)),
+        root,
+      ),
+    );
+  }
   const projects = discoverProjects(root);
   const executableFiles = files.filter((path) => !isDocumentation(path));
   const changes = executableFiles.map((path) => {
@@ -277,8 +296,11 @@ export function codePlan(base, files, root = ROOT) {
   for (const { id } of shared.filter(({ id }) => targets.get(id)?.files.length)) {
     steps.push([`test-${id}`, "just", "test", id]);
   }
-  if (changes.some(({ path, contractOwners: owners }) => owners.length || affectsGeneratedSQL(path)))
+  if (changes.some(({ path, contractOwners: owners }) => owners.length || affectsGeneratedSQL(path, root)))
     steps.push(["contracts", "just", "sync-check"]);
+  if (changes.some(({ path }) => /migrations\//.test(path))) {
+    steps.push(["migration-integration", "just", "test-db-migrations"]);
+  }
   for (const { area, id, path } of affected.filter(({ kind }) => kind === "apps" || kind === "services")) {
     const name = path.split("/").at(-1);
     steps.push([

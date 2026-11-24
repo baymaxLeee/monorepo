@@ -23,10 +23,11 @@ typedef int (*init_fn)(const char *, unsigned long long, const char *const *, ch
 static check_fn check_policy;
 static int filter;
 static const char *marker;
+static char *ownership_denial;
 static int owned(pid_t pid) {
   if (pid == getpid()) return 0;
   return check_policy(pid, "mach-lookup", filter, marker) == 0 &&
-    check_policy(pid, "mach-lookup", filter, "com.monorepo.desktop.forbidden") == 1;
+    check_policy(pid, "mach-lookup", filter, ownership_denial) == 1;
 }
 static int stop_owned(void) {
   int capacity = proc_listallpids(NULL, 0) + 256;
@@ -47,6 +48,10 @@ static int stop_owned(void) {
 int main(int argc, char **argv) {
   if (argc < 4) return 64; // marker, profile, executable, arguments
   marker = argv[1];
+  size_t denial_size = strlen(marker) + sizeof(".ownership-denied");
+  ownership_denial = malloc(denial_size);
+  if (!ownership_denial) return 70;
+  snprintf(ownership_denial, denial_size, "%s.ownership-denied", marker);
   void *library = dlopen("/usr/lib/libsandbox.dylib", RTLD_NOW);
   if (!library) { fputs("libsandbox unavailable\n", stderr); return 70; }
   check_policy = (check_fn)dlsym(library, "sandbox_check");
@@ -82,7 +87,7 @@ int main(int argc, char **argv) {
   close(gate[0]); close(ready[1]); close(input[0]);
   char byte;
   if (read(ready[0], &byte, 1) != 1 || !owned(child) || getppid() != parent) {
-    fprintf(stderr, "policy identity probe failed: %d %d\n", check_policy(child, "mach-lookup", filter, marker), check_policy(child, "mach-lookup", filter, "com.monorepo.desktop.forbidden")); kill(child, SIGKILL); close(gate[1]); waitpid(child, NULL, 0); return 70;
+    fprintf(stderr, "policy identity probe failed: %d %d\n", check_policy(child, "mach-lookup", filter, marker), check_policy(child, "mach-lookup", filter, ownership_denial)); kill(child, SIGKILL); close(gate[1]); waitpid(child, NULL, 0); return 70;
   }
   close(ready[0]);
   struct kevent changes[4];

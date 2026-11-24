@@ -23,7 +23,32 @@ test("Runtime baseline is tenant-neutral and media tools use only generic intern
     assert.equal(sql.includes(forbidden), false, `${forbidden} must not be persisted by Runtime`);
   }
 
-  assert.match(sql, /CREATE UNIQUE INDEX ux_turns_one_active\s+ON public\.turns \(thread_id\)/);
+  assert.match(sql, /CREATE TABLE public\.thread_turns\s*\(/);
+  assert.doesNotMatch(sql, /CREATE TABLE public\.turns\s*\(/);
+  assert.match(sql, /CREATE UNIQUE INDEX ux_thread_turns_one_active\s+ON public\.thread_turns \(thread_id\)/);
+  assert.deepEqual(
+    [...sql.matchAll(/CREATE TABLE public\.([a-z_]+)/g)].map((match) => match[1]),
+    [
+      "threads",
+      "thread_turns",
+      "thread_items",
+      "context_checkpoints",
+      "thread_files",
+      "thread_file_save_operations",
+      "turn_plugin_snapshots",
+      "turn_attempts",
+      "turn_resume_envelopes",
+      "turn_inputs",
+      "turn_leases",
+      "turn_steps",
+      "tool_effects",
+      "turn_sandbox_executions",
+      "sandbox_workspace_checkout",
+      "asset_claim_intents",
+      "thread_artifact_cleanup_outbox",
+      "tasks",
+    ],
+  );
   assert.match(sql, /WHERE status IN \('running', 'cancel_requested', 'waiting'\)/);
   assert.match(sql, /CREATE TABLE public\.tasks/);
   assert.match(sql, /CONSTRAINT ux_tasks_owner UNIQUE \(owner_service, owner_ref\)/);

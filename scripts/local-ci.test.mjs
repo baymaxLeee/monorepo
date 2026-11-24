@@ -138,6 +138,26 @@ test("tooling changes run tooling checks without application tests or builds", (
   assert.ok(toolingTests > rootDependencies);
   assert.ok(!steps.some((step) => step[0] === "all-tests" || step[0] === "build"));
 });
+test("an empty diff has no code gate work", () => {
+  assert.deepEqual(codePlan("base-sha", []), []);
+});
+test("mixed tooling and application changes keep the dependency-aware gate", () => {
+  const steps = codePlan("base-sha", [
+    "justfile",
+    "scripts/reset-application-data.sh",
+    "apps/backend/services/runtime/migrations/v1.0.0/v1.0.0.0.up.sql",
+    "apps/backend/services/runtime/src/application/sessions.ts",
+    "apps/frontend/apps/desktop/electron/runtime/journal.ts",
+  ]);
+  assert.equal(steps.filter((step) => step[0] === "root-dependencies").length, 1);
+  assert.ok(steps.some((step) => step[0] === "tooling-tests"));
+  assert.ok(steps.some((step) => step[0] === "test-backend/runtime"));
+  assert.ok(steps.find((step) => step[0] === "frontend-tests").includes("desktop"));
+  assert.ok(steps.some((step) => step[0] === "build-backend/runtime"));
+  assert.ok(steps.some((step) => step[0] === "build-frontend/desktop"));
+  assert.ok(steps.some((step) => step[0] === "migration-integration"));
+  assert.ok(!steps.some((step) => ["all-tests", "contracts", "build", "lint-format-types"].includes(step[0])));
+});
 test("an explicit all base produces a complete gate without a fake breaking-change comparison", () => {
   const steps = codePlan("head-sha", null);
   assert.ok(steps.some((step) => step[0] === "all-tests"));
@@ -218,6 +238,11 @@ test("SQL sources and migrations verify checked-in sqlc output", () => {
       path,
     );
   }
+});
+test("Drizzle-only Runtime migrations do not regenerate unrelated SQL and protobuf clients", () => {
+  const steps = codePlan("base-sha", ["apps/backend/services/runtime/migrations/v1.0.0/v1.0.0.0.up.sql"]);
+  assert.ok(steps.some((step) => step[0] === "migration-integration"));
+  assert.ok(!steps.some((step) => step[0] === "contracts"));
 });
 test("area-level configuration changes widen only to their owning stack", () => {
   const steps = codePlan("base-sha", ["apps/frontend/vitest.config.mts"]);

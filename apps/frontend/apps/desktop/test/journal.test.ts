@@ -37,7 +37,7 @@ function thread(id: string, title: string): LocalThread {
 }
 
 function replaceMetadata(directory: string, id: string, update: (value: Record<string, unknown>) => void): void {
-  const database = new DatabaseSync(join(directory, "runtime.sqlite"));
+  const database = new DatabaseSync(join(directory, "runtime-v2.sqlite"));
   const row = database.prepare("SELECT metadata FROM threads WHERE id=?").get(id);
   if (!row) throw new Error("missing test thread");
   const metadata = JSON.parse(String(row.metadata)) as Record<string, unknown>;
@@ -69,6 +69,16 @@ it("persists one append-only thread rollout in the kernel database", async () =>
   const journal = new LocalJournal(directory);
   const value = thread(id, "first");
   journal.save(value);
+
+  const database = new DatabaseSync(join(directory, "runtime-v2.sqlite"));
+  const tables = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all()
+    .map((row) => String(row.name));
+  expect(tables).toContain("thread_turns");
+  expect(tables).not.toContain("turns");
+  expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(2);
+  database.close();
   value.messages.push({ id: `${id}-assistant`, role: "assistant", parts: [{ type: "text", text: "done" }] });
   journal.save(value);
 

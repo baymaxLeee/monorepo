@@ -24,7 +24,7 @@ import {
   turnLeases,
   turnPluginSnapshots,
   turnResumeEnvelopes,
-  turns,
+  threadTurns,
   turnSteps,
 } from "../../../infrastructure/persistence/schema.js";
 import type {
@@ -94,8 +94,8 @@ async function requireOwnedRun(
   tx: RuntimeTransaction,
   token: RunLeaseToken,
   options: { allowTerminal?: boolean } = {},
-): Promise<typeof turns.$inferSelect> {
-  const [run] = await tx.select().from(turns).where(eq(turns.id, token.runId));
+): Promise<typeof threadTurns.$inferSelect> {
+  const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, token.runId));
   const [attempt] = await tx
     .select({ status: turnAttempts.status })
     .from(turnAttempts)
@@ -197,7 +197,7 @@ export async function createAgentRun(input: {
     const [thread] = await tx.select().from(threads).where(eq(threads.id, input.sessionId)).for("update");
     if (!thread) throw new Error(`thread ${input.sessionId} does not exist`);
     const ordinal = thread.turnSequence + 1n;
-    await tx.insert(turns).values({
+    await tx.insert(threadTurns).values({
       id: runId,
       threadId: input.sessionId,
       ordinal,
@@ -370,9 +370,9 @@ export async function claimAgentRunOperation(input: {
   return db.transaction(async (tx) => {
     const findExisting = async () => {
       const [existing] = await tx
-        .select({ run: turns, attempt: turnAttempts })
+        .select({ run: threadTurns, attempt: turnAttempts })
         .from(turnAttempts)
-        .innerJoin(turns, eq(turns.id, turnAttempts.turnId))
+        .innerJoin(threadTurns, eq(threadTurns.id, turnAttempts.turnId))
         .where(and(eq(turnAttempts.threadId, input.sessionId), eq(turnAttempts.requestId, input.requestId)))
         .limit(1);
       if (!existing) return null;
@@ -418,9 +418,11 @@ export async function claimAgentRunOperation(input: {
     if (activeLease) {
       await tx.delete(turnLeases).where(eq(turnLeases.turnId, activeLease.turnId));
       await tx
-        .update(turns)
+        .update(threadTurns)
         .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
-        .where(and(eq(turns.id, activeLease.turnId), inArray(turns.status, ["running", "cancel_requested"])));
+        .where(
+          and(eq(threadTurns.id, activeLease.turnId), inArray(threadTurns.status, ["running", "cancel_requested"])),
+        );
       await tx
         .update(turnAttempts)
         .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
@@ -465,12 +467,15 @@ export async function claimAgentRunOperation(input: {
       throw new ConflictError("target message is not on the selected history", "history_target_conflict");
     }
     const [unfinishedTurn] = await tx
-      .select({ id: turns.id, status: turns.status })
-      .from(turns)
+      .select({ id: threadTurns.id, status: threadTurns.status })
+      .from(threadTurns)
       .where(
-        and(eq(turns.threadId, input.sessionId), inArray(turns.status, ["running", "cancel_requested", "waiting"])),
+        and(
+          eq(threadTurns.threadId, input.sessionId),
+          inArray(threadTurns.status, ["running", "cancel_requested", "waiting"]),
+        ),
       )
-      .orderBy(desc(turns.ordinal))
+      .orderBy(desc(threadTurns.ordinal))
       .limit(1)
       .for("update");
     const resumesWaitingTurn =
@@ -554,11 +559,11 @@ export async function claimAgentRunOperation(input: {
     if (input.operation === "tool-continuation") {
       const [source] = target?.turnId
         ? await tx
-            .select({ run: turns, snapshot: turnPluginSnapshots.snapshot })
-            .from(turns)
-            .innerJoin(turnPluginSnapshots, eq(turns.id, turnPluginSnapshots.turnId))
-            .where(and(eq(turns.threadId, input.sessionId), eq(turns.id, target.turnId)))
-            .for("update", { of: turns })
+            .select({ run: threadTurns, snapshot: turnPluginSnapshots.snapshot })
+            .from(threadTurns)
+            .innerJoin(turnPluginSnapshots, eq(threadTurns.id, turnPluginSnapshots.turnId))
+            .where(and(eq(threadTurns.threadId, input.sessionId), eq(threadTurns.id, target.turnId)))
+            .for("update", { of: threadTurns })
         : [];
       if (!source) {
         throw new ConflictError("tool continuation has no frozen plugin snapshot", "plugin_snapshot_missing");
@@ -578,12 +583,15 @@ export async function claimAgentRunOperation(input: {
       if (!previousAttempt) throw new Error(`logical Turn ${source.run.id} has no physical attempt`);
       runId = source.run.id;
       attemptEpoch = previousAttempt.attemptEpoch + 1n;
-      await tx.update(turns).set({ status: "running", error: null, completedAt: null }).where(eq(turns.id, runId));
+      await tx
+        .update(threadTurns)
+        .set({ status: "running", error: null, completedAt: null })
+        .where(eq(threadTurns.id, runId));
     } else {
       runId = id(16);
       attemptEpoch = 1n;
       turnOrdinal += 1n;
-      await tx.insert(turns).values({
+      await tx.insert(threadTurns).values({
         id: runId,
         threadId: input.sessionId,
         ordinal: turnOrdinal,
@@ -641,7 +649,7 @@ export async function getAgentRunById(runId: string): Promise<{
   historyRevision: number | null;
   outputMessageId: string | null;
 } | null> {
-  const [row] = await getDb().select().from(turns).where(eq(turns.id, runId));
+  const [row] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, runId));
   if (!row) {
     return null;
   }
@@ -680,10 +688,13 @@ export async function finishAgentRun(input: {
   totalTokens?: number | null;
 }): Promise<void> {
   await getDb().transaction(async (tx) => {
-    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, input.runId));
+    const [binding] = await tx
+      .select({ threadId: threadTurns.threadId })
+      .from(threadTurns)
+      .where(eq(threadTurns.id, input.runId));
     if (!binding) return;
     const [thread] = await tx.select().from(threads).where(eq(threads.id, binding.threadId)).for("update");
-    const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
+    const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, input.runId)).for("update");
     if (!run) return;
     if (!["running", "cancel_requested"].includes(run.status)) {
       return;
@@ -713,7 +724,7 @@ export async function finishAgentRun(input: {
       );
 
     await tx
-      .update(turns)
+      .update(threadTurns)
       .set({
         status,
         error: error == null ? null : errorText(error).slice(0, 4000),
@@ -725,7 +736,7 @@ export async function finishAgentRun(input: {
         totalTokens: input.totalTokens ?? undefined,
         completedAt: now,
       })
-      .where(eq(turns.id, input.runId));
+      .where(eq(threadTurns.id, input.runId));
     await tx
       .update(turnAttempts)
       .set({
@@ -752,7 +763,7 @@ type JournalMessage = { id: string; content: PersistedThreadItemContent; status:
 
 async function writeAssistantItem(
   tx: RuntimeTransaction,
-  run: typeof turns.$inferSelect,
+  run: typeof threadTurns.$inferSelect,
   attempt: typeof turnAttempts.$inferSelect,
   sequence: bigint,
   message: JournalMessage,
@@ -800,10 +811,13 @@ async function writeAssistantItem(
 /** Persist the SDK's completed step before terminal cleanup. Reuse one assistant item for the entire turn. */
 export async function persistCompletedStep(owner: RunLeaseToken, id: string, content: PersistedThreadItemContent) {
   await getDb().transaction(async (tx) => {
-    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, owner.runId));
+    const [binding] = await tx
+      .select({ threadId: threadTurns.threadId })
+      .from(threadTurns)
+      .where(eq(threadTurns.id, owner.runId));
     if (!binding) throw new Error("missing run");
     const [thread] = await tx.select().from(threads).where(eq(threads.id, binding.threadId)).for("update");
-    const [run] = await tx.select().from(turns).where(eq(turns.id, owner.runId)).for("update");
+    const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, owner.runId)).for("update");
     const [attempt] = await tx
       .select()
       .from(turnAttempts)
@@ -812,7 +826,7 @@ export async function persistCompletedStep(owner: RunLeaseToken, id: string, con
     if (!thread || !run || !attempt || attempt.historyRevision !== thread.historyRevision)
       throw new ConflictError("run history binding is no longer current", "run_history_conflict");
     await writeAssistantItem(tx, run, attempt, thread.itemSequence, { id, content, status: "ok" });
-    await tx.update(turns).set({ outputItemId: id }).where(eq(turns.id, run.id));
+    await tx.update(threadTurns).set({ outputItemId: id }).where(eq(threadTurns.id, run.id));
   });
 }
 
@@ -848,7 +862,10 @@ export async function finalizeAgentRunJournal(input: {
   totalTokens?: number | null;
 }): Promise<{ outputMessageId: string | null; historyRevision: number; status: AgentRunStatus }> {
   return getDb().transaction(async (tx) => {
-    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, input.runId));
+    const [binding] = await tx
+      .select({ threadId: threadTurns.threadId })
+      .from(threadTurns)
+      .where(eq(threadTurns.id, input.runId));
     if (!binding) throw new Error(`agent run ${input.runId} has no journal binding`);
     // Claim and finalization must acquire shared rows in the same order.
     // Otherwise an expired lease claim can deadlock with its old finalizer.
@@ -857,7 +874,7 @@ export async function finalizeAgentRunJournal(input: {
       .from(threads)
       .where(eq(threads.id, binding.threadId))
       .for("update");
-    const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
+    const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, input.runId)).for("update");
     const [attempt] = await tx
       .select()
       .from(turnAttempts)
@@ -987,7 +1004,7 @@ export async function finalizeAgentRunJournal(input: {
         ),
       );
     await tx
-      .update(turns)
+      .update(threadTurns)
       .set({
         status,
         error: error == null ? null : errorText(error).slice(0, 4000),
@@ -999,7 +1016,7 @@ export async function finalizeAgentRunJournal(input: {
         totalTokens: input.totalTokens ?? undefined,
         completedAt: status === "waiting" ? null : now,
       })
-      .where(eq(turns.id, input.runId));
+      .where(eq(threadTurns.id, input.runId));
     await tx
       .update(turnAttempts)
       .set({
@@ -1017,9 +1034,9 @@ export async function finalizeAgentRunJournal(input: {
 
 export async function requestAgentRunCancellation(runId: string): Promise<void> {
   await getDb()
-    .update(turns)
+    .update(threadTurns)
     .set({ status: "cancel_requested" })
-    .where(and(eq(turns.id, runId), inArray(turns.status, ["running", "cancel_requested"])));
+    .where(and(eq(threadTurns.id, runId), inArray(threadTurns.status, ["running", "cancel_requested"])));
 }
 
 export async function isRunActive(runId: string): Promise<boolean> {
@@ -1029,12 +1046,12 @@ export async function isRunActive(runId: string): Promise<boolean> {
 
 export async function listOrphanedRuns(now = new Date()): Promise<Array<{ id: string; sessionId: string }>> {
   return getDb()
-    .select({ id: turns.id, sessionId: turns.threadId })
-    .from(turns)
-    .leftJoin(turnLeases, eq(turnLeases.turnId, turns.id))
+    .select({ id: threadTurns.id, sessionId: threadTurns.threadId })
+    .from(threadTurns)
+    .leftJoin(turnLeases, eq(turnLeases.turnId, threadTurns.id))
     .where(
       and(
-        inArray(turns.status, ["running", "cancel_requested"]),
+        inArray(threadTurns.status, ["running", "cancel_requested"]),
         or(isNull(turnLeases.turnId), lte(turnLeases.expiresAt, now)),
       ),
     );
@@ -1044,11 +1061,14 @@ export async function listOrphanedRuns(now = new Date()): Promise<Array<{ id: st
  * boundaries, fence the old writer with a new physical attempt. */
 export async function claimOrphanedTurnRecovery(runId: string, now = new Date()): Promise<OrphanedTurnRecovery | null> {
   return getDb().transaction(async (tx) => {
-    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, runId));
+    const [binding] = await tx
+      .select({ threadId: threadTurns.threadId })
+      .from(threadTurns)
+      .where(eq(threadTurns.id, runId));
     if (!binding) return null;
     const [thread] = await tx.select().from(threads).where(eq(threads.id, binding.threadId)).for("update");
     if (!thread) return null;
-    const [run] = await tx.select().from(turns).where(eq(turns.id, runId)).for("update");
+    const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, runId)).for("update");
     if (!run || !["running", "cancel_requested", "waiting"].includes(run.status)) return null;
     const [lease] = await tx.select().from(turnLeases).where(eq(turnLeases.turnId, runId)).for("update");
     if (lease && lease.expiresAt > now) return null;
@@ -1114,9 +1134,9 @@ export async function claimOrphanedTurnRecovery(runId: string, now = new Date())
           ),
         );
       await tx
-        .update(turns)
+        .update(threadTurns)
         .set({ status: "interrupted", completedAt: now, error })
-        .where(and(eq(turns.id, runId), inArray(turns.status, ["running", "cancel_requested"])));
+        .where(and(eq(threadTurns.id, runId), inArray(threadTurns.status, ["running", "cancel_requested"])));
       if (lease) await tx.delete(turnLeases).where(eq(turnLeases.turnId, runId));
       return { state: "interrupted", decision };
     }
@@ -1164,7 +1184,10 @@ export async function claimOrphanedTurnRecovery(runId: string, now = new Date())
       heartbeatAt: now,
       expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
     });
-    await tx.update(turns).set({ status: "running", error: null, completedAt: null }).where(eq(turns.id, runId));
+    await tx
+      .update(threadTurns)
+      .set({ status: "running", error: null, completedAt: null })
+      .where(eq(threadTurns.id, runId));
     return {
       state: "claimed",
       decision,
@@ -1184,11 +1207,16 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
     await tx
       .select({ id: threads.id })
       .from(threads)
-      .innerJoin(turns, eq(turns.threadId, threads.id))
-      .where(inArray(turns.id, runIds))
+      .innerJoin(threadTurns, eq(threadTurns.threadId, threads.id))
+      .where(inArray(threadTurns.id, runIds))
       .orderBy(threads.id)
       .for("update", { of: threads });
-    await tx.select({ id: turns.id }).from(turns).where(inArray(turns.id, runIds)).orderBy(turns.id).for("update");
+    await tx
+      .select({ id: threadTurns.id })
+      .from(threadTurns)
+      .where(inArray(threadTurns.id, runIds))
+      .orderBy(threadTurns.id)
+      .for("update");
     await tx
       .select({ id: turnLeases.turnId })
       .from(turnLeases)
@@ -1197,21 +1225,21 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
       .for("update");
     const now = new Date();
     const interrupted = await tx
-      .update(turns)
+      .update(threadTurns)
       .set({ status: "interrupted", completedAt: now })
       .where(
         and(
-          inArray(turns.id, runIds),
-          inArray(turns.status, ["running", "cancel_requested"]),
+          inArray(threadTurns.id, runIds),
+          inArray(threadTurns.status, ["running", "cancel_requested"]),
           notExists(
             tx
               .select({ turnId: turnLeases.turnId })
               .from(turnLeases)
-              .where(and(eq(turnLeases.turnId, turns.id), gt(turnLeases.expiresAt, now))),
+              .where(and(eq(turnLeases.turnId, threadTurns.id), gt(turnLeases.expiresAt, now))),
           ),
         ),
       )
-      .returning({ id: turns.id, sessionId: turns.threadId });
+      .returning({ id: threadTurns.id, sessionId: threadTurns.threadId });
     const interruptedIds = interrupted.map((run) => run.id);
     if (interruptedIds.length === 0) return interrupted;
     await tx
@@ -1288,22 +1316,22 @@ export async function getLatestResponseLineage(input: {
 }): Promise<{ responseId: string; outputMessageId: string; inputTokens: number | null } | null> {
   const [latestRun] = await getDb()
     .select({
-      id: turns.id,
+      id: threadTurns.id,
       attemptEpoch: turnAttempts.attemptEpoch,
-      outputMessageId: turns.outputItemId,
-      providerId: turns.providerId,
-      model: turns.model,
+      outputMessageId: threadTurns.outputItemId,
+      providerId: threadTurns.providerId,
+      model: threadTurns.model,
     })
     .from(turnAttempts)
-    .innerJoin(turns, eq(turns.id, turnAttempts.turnId))
+    .innerJoin(threadTurns, eq(threadTurns.id, turnAttempts.turnId))
     .where(
       and(
-        eq(turns.threadId, input.sessionId),
+        eq(threadTurns.threadId, input.sessionId),
         inArray(turnAttempts.status, ["waiting", "completed"]),
-        or(ne(turns.id, input.runId), sql`${turnAttempts.attemptEpoch} < ${input.attemptEpoch}`),
+        or(ne(threadTurns.id, input.runId), sql`${turnAttempts.attemptEpoch} < ${input.attemptEpoch}`),
       ),
     )
-    .orderBy(desc(turns.ordinal), desc(turnAttempts.attemptEpoch))
+    .orderBy(desc(threadTurns.ordinal), desc(turnAttempts.attemptEpoch))
     .limit(1);
   if (!latestRun?.outputMessageId || latestRun.providerId !== input.providerId || latestRun.model !== input.model) {
     return null;
@@ -1344,7 +1372,7 @@ function isoOrNull(d: Date | null): string | null {
 
 export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> {
   const db = getDb();
-  const [run] = await db.select().from(turns).where(eq(turns.id, runId));
+  const [run] = await db.select().from(threadTurns).where(eq(threadTurns.id, runId));
   if (!run) {
     return null;
   }
@@ -1395,28 +1423,28 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
 export async function getLatestSessionContextRecord(sessionId: string): Promise<LatestSessionContextRecord | null> {
   const [row] = await getDb()
     .select({
-      runId: turns.id,
+      runId: threadTurns.id,
       attemptEpoch: turnSteps.attemptEpoch,
       stepId: turnSteps.id,
-      providerId: turns.providerId,
-      model: turns.model,
+      providerId: threadTurns.providerId,
+      model: threadTurns.model,
       metadata: turnSteps.metadata,
       inputTokens: turnSteps.inputTokens,
-      runCreatedAt: turns.createdAt,
+      runCreatedAt: threadTurns.createdAt,
       finishedAt: turnSteps.completedAt,
     })
     .from(turnSteps)
-    .innerJoin(turns, eq(turns.id, turnSteps.turnId))
+    .innerJoin(threadTurns, eq(threadTurns.id, turnSteps.turnId))
     .where(
       and(
-        eq(turns.threadId, sessionId),
+        eq(threadTurns.threadId, sessionId),
         eq(turnSteps.kind, "model"),
         inArray(turnSteps.status, ["completed", "failed"]),
         sql`${turnSteps.metadata}->'context_snapshot' IS NOT NULL`,
       ),
     )
     .orderBy(
-      desc(turns.ordinal),
+      desc(threadTurns.ordinal),
       desc(turnSteps.attemptEpoch),
       desc(sql<number>`CASE WHEN ${turnSteps.inputTokens} > 0 THEN 1 ELSE 0 END`),
       desc(turnSteps.stepIndex),

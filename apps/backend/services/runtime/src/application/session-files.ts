@@ -9,7 +9,7 @@ import {
   threadFileSaveOperations as sessionFileSaveOperations,
   threads as sessions,
   turnLeases,
-  turns,
+  threadTurns,
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "./errors.js";
 import { assertEditableFileSize, editableFileByteLimit } from "./file-edit-limits.js";
@@ -126,18 +126,18 @@ async function lockFileWriter(tx: ChatTransaction, scope: FileScope) {
   if (!thread) throw new NotFoundError(`session ${scope.sessionId} not found`);
   if (!scope.sandboxAttempt) return;
   const [owner] = await tx
-    .select({ id: turns.id })
-    .from(turns)
-    .innerJoin(turnLeases, and(eq(turnLeases.turnId, turns.id), eq(turnLeases.threadId, turns.threadId)))
+    .select({ id: threadTurns.id })
+    .from(threadTurns)
+    .innerJoin(turnLeases, and(eq(turnLeases.turnId, threadTurns.id), eq(turnLeases.threadId, threadTurns.threadId)))
     .where(
       and(
-        eq(turns.threadId, scope.sessionId),
-        eq(turns.ordinal, thread.ordinal),
-        eq(turns.id, scope.sandboxAttempt.runId),
+        eq(threadTurns.threadId, scope.sessionId),
+        eq(threadTurns.ordinal, thread.ordinal),
+        eq(threadTurns.id, scope.sandboxAttempt.runId),
         eq(turnLeases.attemptEpoch, BigInt(scope.sandboxAttempt.attemptEpoch)),
       ),
     )
-    .for("share", { of: turns });
+    .for("share", { of: threadTurns });
   if (!owner) throw new ConflictError("sandbox workspace writer has been superseded", "workspace_writer_superseded");
 }
 

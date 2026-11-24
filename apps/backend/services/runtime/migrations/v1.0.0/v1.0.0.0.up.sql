@@ -15,6 +15,8 @@ SET check_function_bodies = false;
 SET client_min_messages = warning;
 SET row_security = off;
 
+-- Thread journal -------------------------------------------------------------
+
 CREATE TABLE public.threads (
     id varchar(32) PRIMARY KEY,
     model varchar(120) NOT NULL DEFAULT '',
@@ -37,7 +39,7 @@ CREATE UNIQUE INDEX ux_threads_create_request
     ON public.threads (create_request_id);
 CREATE INDEX ix_threads_updated ON public.threads (updated_at);
 
-CREATE TABLE public.turns (
+CREATE TABLE public.thread_turns (
     id varchar(32) PRIMARY KEY,
     thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
     ordinal bigint NOT NULL CHECK (ordinal > 0),
@@ -55,32 +57,24 @@ CREATE TABLE public.turns (
     created_at timestamptz NOT NULL,
     started_at timestamptz NOT NULL,
     completed_at timestamptz,
-    CONSTRAINT turns_status_check CHECK (
+    CONSTRAINT thread_turns_status_check CHECK (
         status IN ('running', 'cancel_requested', 'waiting', 'completed', 'failed', 'cancelled', 'interrupted')
     ),
-    CONSTRAINT turns_token_usage_check CHECK (
+    CONSTRAINT thread_turns_token_usage_check CHECK (
         (input_tokens IS NULL OR input_tokens >= 0)
         AND (output_tokens IS NULL OR output_tokens >= 0)
         AND (cached_input_tokens IS NULL OR cached_input_tokens >= 0)
         AND (reasoning_tokens IS NULL OR reasoning_tokens >= 0)
         AND (total_tokens IS NULL OR total_tokens >= 0)
     ),
-    CONSTRAINT ux_turns_thread_id UNIQUE (thread_id, id),
-    CONSTRAINT ux_turns_thread_ordinal UNIQUE (thread_id, ordinal)
+    CONSTRAINT ux_thread_turns_thread_id UNIQUE (thread_id, id),
+    CONSTRAINT ux_thread_turns_thread_ordinal UNIQUE (thread_id, ordinal)
 );
 
-CREATE UNIQUE INDEX ux_turns_one_active
-    ON public.turns (thread_id)
+CREATE UNIQUE INDEX ux_thread_turns_one_active
+    ON public.thread_turns (thread_id)
     WHERE status IN ('running', 'cancel_requested', 'waiting');
-CREATE INDEX ix_turns_thread_created ON public.turns (thread_id, created_at);
-
-CREATE TABLE public.turn_plugin_snapshots (
-    turn_id varchar(32) PRIMARY KEY REFERENCES public.turns(id) ON DELETE CASCADE,
-    snapshot_json jsonb NOT NULL,
-    created_at timestamptz NOT NULL,
-    CONSTRAINT turn_plugin_snapshots_object_check CHECK (jsonb_typeof(snapshot_json) = 'object'),
-    CONSTRAINT turn_plugin_snapshots_schema_check CHECK (snapshot_json ->> 'schemaVersion' = '1')
-);
+CREATE INDEX ix_thread_turns_thread_created ON public.thread_turns (thread_id, created_at);
 
 CREATE TABLE public.thread_items (
     id varchar(32) PRIMARY KEY,
@@ -99,7 +93,7 @@ CREATE TABLE public.thread_items (
     CONSTRAINT ux_thread_items_ordinal UNIQUE (thread_id, ordinal),
     CONSTRAINT fk_thread_items_turn
         FOREIGN KEY (thread_id, turn_id)
-        REFERENCES public.turns(thread_id, id)
+        REFERENCES public.thread_turns(thread_id, id)
         DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT fk_thread_items_parent
         FOREIGN KEY (thread_id, parent_item_id)
@@ -117,15 +111,120 @@ ALTER TABLE public.threads
     REFERENCES public.thread_items(thread_id, id)
     DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE public.turns
-    ADD CONSTRAINT fk_turns_input_item
+ALTER TABLE public.thread_turns
+    ADD CONSTRAINT fk_thread_turns_input_item
         FOREIGN KEY (thread_id, input_item_id)
         REFERENCES public.thread_items(thread_id, id)
         DEFERRABLE INITIALLY DEFERRED,
-    ADD CONSTRAINT fk_turns_output_item
+    ADD CONSTRAINT fk_thread_turns_output_item
         FOREIGN KEY (thread_id, output_item_id)
         REFERENCES public.thread_items(thread_id, id)
         DEFERRABLE INITIALLY DEFERRED;
+
+CREATE TABLE public.context_checkpoints (
+    thread_id varchar(32) PRIMARY KEY REFERENCES public.threads(id) ON DELETE CASCADE,
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    covered_item_id varchar(32) NOT NULL,
+    summary text NOT NULL,
+    state_json jsonb NOT NULL,
+    source_history_revision bigint NOT NULL CHECK (source_history_revision > 0),
+    source_history_digest varchar(64) NOT NULL CHECK (source_history_digest ~ '^[a-f0-9]{64}$'),
+    instruction_digest varchar(64) NOT NULL CHECK (instruction_digest ~ '^[a-f0-9]{64}$'),
+    tool_catalog_digest varchar(64) NOT NULL CHECK (tool_catalog_digest ~ '^[a-f0-9]{64}$'),
+    workspace_digest varchar(64) NOT NULL CHECK (workspace_digest ~ '^[a-f0-9]{64}$'),
+    compactor_version varchar(64) NOT NULL,
+    remote_binding text,
+    estimated_tokens integer NOT NULL DEFAULT 0 CHECK (estimated_tokens >= 0),
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    CONSTRAINT fk_context_checkpoints_item
+        FOREIGN KEY (thread_id, covered_item_id)
+        REFERENCES public.thread_items(thread_id, id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.thread_files (
+    id varchar(32) PRIMARY KEY,
+    thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
+    asset_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    title varchar(255) NOT NULL,
+    filename varchar(255) NOT NULL,
+    workspace_path varchar(1024) NOT NULL,
+    workspace_state varchar(20) NOT NULL DEFAULT 'live',
+    path_generation bigint NOT NULL DEFAULT 1 CHECK (path_generation > 0),
+    media_type varchar(255) NOT NULL,
+    size_bytes bigint NOT NULL CHECK (size_bytes >= 0),
+    sha256 varchar(64) NOT NULL,
+    idempotency_key varchar(255) NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    content_generation bigint NOT NULL DEFAULT 1 CHECK (content_generation > 0),
+    content_etag varchar(32) NOT NULL,
+    last_writer_type varchar(20) NOT NULL,
+    last_writer_id varchar(128),
+    CONSTRAINT ux_thread_files_thread_id UNIQUE (thread_id, id),
+    CONSTRAINT thread_files_sha256_check CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+    CONSTRAINT thread_files_workspace_state_check CHECK (workspace_state IN ('live', 'deleted')),
+    CONSTRAINT thread_files_last_writer_type_check CHECK (last_writer_type IN ('unknown', 'user', 'agent')),
+    CONSTRAINT thread_files_workspace_path_check CHECK (
+        workspace_path LIKE '/workspace/%'
+        AND workspace_path !~ E'[\\x00-\\x1f]'
+        AND workspace_path !~ '(^|/)\\.{1,2}(/|$)'
+    ),
+    CONSTRAINT ux_thread_files_idempotency
+        UNIQUE (thread_id, idempotency_key)
+);
+
+CREATE INDEX ix_thread_files_thread ON public.thread_files (thread_id, created_at);
+CREATE INDEX ix_thread_files_asset_revision ON public.thread_files (asset_id, revision_id);
+CREATE UNIQUE INDEX ux_thread_files_live_workspace_path
+    ON public.thread_files (thread_id, workspace_path)
+    WHERE workspace_state = 'live';
+
+CREATE TABLE public.thread_file_save_operations (
+    thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
+    operation_id varchar(80) NOT NULL,
+    file_id varchar(32) NOT NULL,
+    expected_etag varchar(34) NOT NULL,
+    content_sha256 varchar(64) NOT NULL,
+    operation_type varchar(20) NOT NULL,
+    workspace_path varchar(1024),
+    expected_path_generation bigint,
+    writer_type varchar(20) NOT NULL,
+    writer_id varchar(128) NOT NULL,
+    status varchar(20) NOT NULL,
+    lease_until timestamptz,
+    result_json jsonb,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    PRIMARY KEY (thread_id, operation_id),
+    CONSTRAINT fk_thread_file_save_operations_file
+        FOREIGN KEY (thread_id, file_id)
+        REFERENCES public.thread_files(thread_id, id) ON DELETE CASCADE,
+    CONSTRAINT thread_file_save_operations_sha256_check CHECK (content_sha256 ~ '^[a-f0-9]{64}$'),
+    CONSTRAINT thread_file_save_operations_type_check CHECK (operation_type = 'update'),
+    CONSTRAINT thread_file_save_operations_writer_check CHECK (writer_type IN ('user', 'agent')),
+    CONSTRAINT thread_file_save_operations_status_check CHECK (status IN ('pending', 'succeeded', 'conflict')),
+    CONSTRAINT thread_file_save_operations_generation_check CHECK (
+        expected_path_generation IS NULL OR expected_path_generation > 0
+    )
+);
+
+CREATE INDEX ix_thread_file_save_operations_file
+    ON public.thread_file_save_operations (file_id, created_at);
+CREATE INDEX ix_thread_file_save_operations_pending
+    ON public.thread_file_save_operations (status, lease_until)
+    WHERE status = 'pending';
+
+-- Turn execution and recovery ------------------------------------------------
+
+CREATE TABLE public.turn_plugin_snapshots (
+    turn_id varchar(32) PRIMARY KEY REFERENCES public.thread_turns(id) ON DELETE CASCADE,
+    snapshot_json jsonb NOT NULL,
+    created_at timestamptz NOT NULL,
+    CONSTRAINT turn_plugin_snapshots_object_check CHECK (jsonb_typeof(snapshot_json) = 'object'),
+    CONSTRAINT turn_plugin_snapshots_schema_check CHECK (snapshot_json ->> 'schemaVersion' = '1')
+);
 
 CREATE TABLE public.turn_attempts (
     turn_id varchar(32) NOT NULL,
@@ -144,7 +243,7 @@ CREATE TABLE public.turn_attempts (
     PRIMARY KEY (turn_id, attempt_epoch),
     CONSTRAINT fk_turn_attempts_turn
         FOREIGN KEY (thread_id, turn_id)
-        REFERENCES public.turns(thread_id, id) ON DELETE CASCADE,
+        REFERENCES public.thread_turns(thread_id, id) ON DELETE CASCADE,
     CONSTRAINT fk_turn_attempts_target_item
         FOREIGN KEY (thread_id, target_item_id)
         REFERENCES public.thread_items(thread_id, id)
@@ -222,7 +321,7 @@ CREATE TABLE public.turn_inputs (
     PRIMARY KEY (turn_id, id),
     CONSTRAINT fk_turn_inputs_turn
         FOREIGN KEY (thread_id, turn_id)
-        REFERENCES public.turns(thread_id, id) ON DELETE CASCADE,
+        REFERENCES public.thread_turns(thread_id, id) ON DELETE CASCADE,
     CONSTRAINT turn_inputs_mode_check CHECK (mode IN ('follow-up', 'next-turn')),
     CONSTRAINT turn_inputs_state_check CHECK (
         state IN ('accepted', 'dispatching', 'delivered', 'not_delivered', 'unconfirmed')
@@ -232,27 +331,6 @@ CREATE TABLE public.turn_inputs (
 
 CREATE INDEX ix_turn_inputs_pending ON public.turn_inputs (turn_id, state, created_at);
 
-CREATE TABLE public.context_checkpoints (
-    thread_id varchar(32) PRIMARY KEY REFERENCES public.threads(id) ON DELETE CASCADE,
-    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
-    covered_item_id varchar(32) NOT NULL,
-    summary text NOT NULL,
-    state_json jsonb NOT NULL,
-    source_history_revision bigint NOT NULL CHECK (source_history_revision > 0),
-    source_history_digest varchar(64) NOT NULL CHECK (source_history_digest ~ '^[a-f0-9]{64}$'),
-    instruction_digest varchar(64) NOT NULL CHECK (instruction_digest ~ '^[a-f0-9]{64}$'),
-    tool_catalog_digest varchar(64) NOT NULL CHECK (tool_catalog_digest ~ '^[a-f0-9]{64}$'),
-    workspace_digest varchar(64) NOT NULL CHECK (workspace_digest ~ '^[a-f0-9]{64}$'),
-    compactor_version varchar(64) NOT NULL,
-    remote_binding text,
-    estimated_tokens integer NOT NULL DEFAULT 0 CHECK (estimated_tokens >= 0),
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    CONSTRAINT fk_context_checkpoints_item
-        FOREIGN KEY (thread_id, covered_item_id)
-        REFERENCES public.thread_items(thread_id, id) ON DELETE CASCADE
-);
-
 CREATE TABLE public.turn_leases (
     thread_id varchar(32) PRIMARY KEY REFERENCES public.threads(id) ON DELETE CASCADE,
     turn_id varchar(32) NOT NULL UNIQUE,
@@ -261,7 +339,7 @@ CREATE TABLE public.turn_leases (
     expires_at timestamptz NOT NULL,
     CONSTRAINT fk_turn_leases_turn
         FOREIGN KEY (thread_id, turn_id)
-        REFERENCES public.turns(thread_id, id) ON DELETE CASCADE,
+        REFERENCES public.thread_turns(thread_id, id) ON DELETE CASCADE,
     CONSTRAINT fk_turn_leases_attempt
         FOREIGN KEY (turn_id, attempt_epoch)
         REFERENCES public.turn_attempts(turn_id, attempt_epoch) ON DELETE CASCADE
@@ -269,7 +347,7 @@ CREATE TABLE public.turn_leases (
 
 CREATE TABLE public.turn_steps (
     id varchar(32) PRIMARY KEY,
-    turn_id varchar(32) NOT NULL REFERENCES public.turns(id) ON DELETE CASCADE,
+    turn_id varchar(32) NOT NULL REFERENCES public.thread_turns(id) ON DELETE CASCADE,
     attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
     step_index integer NOT NULL CHECK (step_index >= 0),
     kind varchar(32) NOT NULL,
@@ -296,7 +374,7 @@ CREATE INDEX ix_turn_steps_turn_id ON public.turn_steps (turn_id);
 
 CREATE TABLE public.tool_effects (
     id varchar(64) NOT NULL,
-    turn_id varchar(32) NOT NULL REFERENCES public.turns(id) ON DELETE CASCADE,
+    turn_id varchar(32) NOT NULL REFERENCES public.thread_turns(id) ON DELETE CASCADE,
     attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
     item_id varchar(32),
     step_index integer,
@@ -324,6 +402,8 @@ CREATE TABLE public.tool_effects (
 CREATE INDEX ix_tool_effects_turn_id ON public.tool_effects (turn_id);
 CREATE INDEX ix_tool_effects_tool_name ON public.tool_effects (tool_name);
 
+-- Sandbox execution lifecycle -----------------------------------------------
+
 CREATE TABLE public.turn_sandbox_executions (
     turn_id varchar(32) NOT NULL,
     attempt_epoch bigint NOT NULL CHECK (attempt_epoch > 0),
@@ -337,7 +417,7 @@ CREATE TABLE public.turn_sandbox_executions (
     PRIMARY KEY (turn_id, attempt_epoch),
     CONSTRAINT fk_turn_sandbox_executions_turn
         FOREIGN KEY (thread_id, turn_id)
-        REFERENCES public.turns(thread_id, id) ON DELETE CASCADE,
+        REFERENCES public.thread_turns(thread_id, id) ON DELETE CASCADE,
     CONSTRAINT fk_turn_sandbox_executions_attempt
         FOREIGN KEY (turn_id, attempt_epoch)
         REFERENCES public.turn_attempts(turn_id, attempt_epoch) ON DELETE CASCADE,
@@ -367,79 +447,7 @@ CREATE TABLE public.sandbox_workspace_checkout (
         REFERENCES public.turn_sandbox_executions (turn_id, attempt_epoch) ON DELETE CASCADE
 );
 
-CREATE TABLE public.thread_files (
-    id varchar(32) PRIMARY KEY,
-    thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
-    asset_id uuid NOT NULL,
-    revision_id uuid NOT NULL,
-    title varchar(255) NOT NULL,
-    filename varchar(255) NOT NULL,
-    workspace_path varchar(1024) NOT NULL,
-    workspace_state varchar(20) NOT NULL DEFAULT 'live',
-    path_generation bigint NOT NULL DEFAULT 1 CHECK (path_generation > 0),
-    media_type varchar(255) NOT NULL,
-    size_bytes bigint NOT NULL CHECK (size_bytes >= 0),
-    sha256 varchar(64) NOT NULL,
-    idempotency_key varchar(255) NOT NULL,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    content_generation bigint NOT NULL DEFAULT 1 CHECK (content_generation > 0),
-    content_etag varchar(32) NOT NULL,
-    last_writer_type varchar(20) NOT NULL,
-    last_writer_id varchar(128),
-    CONSTRAINT ux_thread_files_thread_id UNIQUE (thread_id, id),
-    CONSTRAINT thread_files_sha256_check CHECK (sha256 ~ '^[a-f0-9]{64}$'),
-    CONSTRAINT thread_files_workspace_state_check CHECK (workspace_state IN ('live', 'deleted')),
-    CONSTRAINT thread_files_last_writer_type_check CHECK (last_writer_type IN ('unknown', 'user', 'agent')),
-    CONSTRAINT thread_files_workspace_path_check CHECK (
-        workspace_path LIKE '/workspace/%'
-        AND workspace_path !~ E'[\\x00-\\x1f]'
-        AND workspace_path !~ '(^|/)\\.{1,2}(/|$)'
-    ),
-    CONSTRAINT ux_thread_files_idempotency
-        UNIQUE (thread_id, idempotency_key)
-);
-
-CREATE INDEX ix_thread_files_thread ON public.thread_files (thread_id, created_at);
-CREATE INDEX ix_thread_files_asset_revision ON public.thread_files (asset_id, revision_id);
-CREATE UNIQUE INDEX ux_thread_files_live_workspace_path
-    ON public.thread_files (thread_id, workspace_path)
-    WHERE workspace_state = 'live';
-
-CREATE TABLE public.thread_file_save_operations (
-    thread_id varchar(32) NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
-    operation_id varchar(80) NOT NULL,
-    file_id varchar(32) NOT NULL,
-    expected_etag varchar(34) NOT NULL,
-    content_sha256 varchar(64) NOT NULL,
-    operation_type varchar(20) NOT NULL,
-    workspace_path varchar(1024),
-    expected_path_generation bigint,
-    writer_type varchar(20) NOT NULL,
-    writer_id varchar(128) NOT NULL,
-    status varchar(20) NOT NULL,
-    lease_until timestamptz,
-    result_json jsonb,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    PRIMARY KEY (thread_id, operation_id),
-    CONSTRAINT fk_thread_file_save_operations_file
-        FOREIGN KEY (thread_id, file_id)
-        REFERENCES public.thread_files(thread_id, id) ON DELETE CASCADE,
-    CONSTRAINT thread_file_save_operations_sha256_check CHECK (content_sha256 ~ '^[a-f0-9]{64}$'),
-    CONSTRAINT thread_file_save_operations_type_check CHECK (operation_type = 'update'),
-    CONSTRAINT thread_file_save_operations_writer_check CHECK (writer_type IN ('user', 'agent')),
-    CONSTRAINT thread_file_save_operations_status_check CHECK (status IN ('pending', 'succeeded', 'conflict')),
-    CONSTRAINT thread_file_save_operations_generation_check CHECK (
-        expected_path_generation IS NULL OR expected_path_generation > 0
-    )
-);
-
-CREATE INDEX ix_thread_file_save_operations_file
-    ON public.thread_file_save_operations (file_id, created_at);
-CREATE INDEX ix_thread_file_save_operations_pending
-    ON public.thread_file_save_operations (status, lease_until)
-    WHERE status = 'pending';
+-- Cross-service reconciliation ----------------------------------------------
 
 CREATE TABLE public.asset_claim_intents (
     owner_type varchar(64) NOT NULL,
@@ -477,6 +485,8 @@ CREATE TABLE public.thread_artifact_cleanup_outbox (
 
 CREATE INDEX ix_thread_artifact_cleanup_outbox_available
     ON public.thread_artifact_cleanup_outbox (available_at, created_at);
+
+-- Detached durable tasks -----------------------------------------------------
 
 -- Blocking Runtime tools may use durable tasks internally. Task identity is
 -- scoped only by the authenticated workload caller and its stable tool call.
