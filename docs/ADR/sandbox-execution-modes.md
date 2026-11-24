@@ -247,6 +247,8 @@ relay 必须满足以下边界：
 
 ### 首发平台与 OS 强制机制
 
+本地命令和文件 helper 使用随应用分发的独立 Node 可执行文件。工具可清理子进程环境并再次调用 `process.execPath`；所有后代继续继承同一 Seatbelt 边界。
+
 首发本地模式只支持 **macOS + Seatbelt**。这是本项目发布范围，不是 Codex 的平台限制；仓库已有 Electron main、独立 utility runtime、原生 supervisor 和结构化 profile compiler。正式签名打包、按 host 的 network broker 与目标平台矩阵仍需实现或验收。
 
 | 平台 | 本项目首发行为 | 后续加入的强制机制 |

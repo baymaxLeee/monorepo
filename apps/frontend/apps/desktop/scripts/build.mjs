@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,6 +41,9 @@ await new Promise((resolve, reject) => {
   });
 });
 if (process.platform === "darwin") {
+  // A cleaned child environment must still start Node via process.execPath.
+  await copyFile(process.execPath, path.join(root, "dist/node"));
+  await copyFile(path.resolve(process.execPath, "../../LICENSE"), path.join(root, "dist/node-LICENSE"));
   execFileSync(
     "/usr/bin/xcrun",
     [

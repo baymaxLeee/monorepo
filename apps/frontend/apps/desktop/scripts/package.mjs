@@ -63,7 +63,7 @@ try {
     electronVersion: "45.3.1",
     out: path.join(root, "release"),
     overwrite: true,
-    asar: { unpack: "**/dist/{supervisor,file-worker.cjs}" },
+    asar: { unpack: "**/dist/{supervisor,file-worker.cjs,node}" },
     osxSign: {
       identity: "-",
       identityValidation: false,

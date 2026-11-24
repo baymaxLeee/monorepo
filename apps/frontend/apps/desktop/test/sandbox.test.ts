@@ -287,7 +287,7 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
     const code = `const {spawn}=require('node:child_process');const c=spawn(${JSON.stringify(supervisor)},${JSON.stringify([marker, seatbelt, executable, "-e", childCode])},{cwd:${JSON.stringify(root)},stdio:['pipe','inherit','inherit']});setInterval(()=>{},1000)`;
     const parent = spawn(executable, ["-e", code], {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { PATH: "/usr/bin:/bin", ELECTRON_RUN_AS_NODE: "1" },
+      env: { PATH: "/usr/bin:/bin" },
     });
     let pid = 0;
     try {

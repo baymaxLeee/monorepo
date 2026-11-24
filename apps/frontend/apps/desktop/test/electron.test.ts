@@ -17,7 +17,7 @@ it.skipIf(process.platform !== "darwin")(
       timeout: 45_000,
       maxBuffer: 2 * 1024 * 1024,
     });
-    expect(result.stdout).toContain("ELECTRON_LOCAL_E2E_PASS");
+    expect(result.stdout, result.stderr).toContain("ELECTRON_LOCAL_E2E_PASS");
   },
   50_000,
 );

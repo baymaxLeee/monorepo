@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdir, realpath, rm, stat } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { finished } from "node:stream/promises";
 import { StringDecoder } from "node:string_decoder";
 
@@ -179,13 +179,7 @@ export class LocalSandbox {
     const profile = seatbeltProfile(
       this.options.root,
       this.options.scratch,
-      [
-        basename(dirname(this.options.executable)) === "MacOS"
-          ? dirname(dirname(this.options.executable))
-          : dirname(this.options.executable),
-        dirname(this.options.fileWorker),
-        ...(this.options.runtimePaths ?? []),
-      ],
+      [this.options.executable, dirname(this.options.fileWorker), ...(this.options.runtimePaths ?? [])],
       this.options.protectedPaths,
       attempt.sandboxed ? attempt.permissionProfile : { type: "disabled" },
       marker,
@@ -222,7 +216,6 @@ export class LocalSandbox {
           HOME: this.options.scratch,
           TMPDIR: this.options.scratch,
           LANG: "en_US.UTF-8",
-          ELECTRON_RUN_AS_NODE: "1",
         },
       });
       const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };

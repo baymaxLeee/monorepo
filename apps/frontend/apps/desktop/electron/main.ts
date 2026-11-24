@@ -85,7 +85,7 @@ async function start() {
         directory: scopedSessionDirectory(runtimeHome, scope),
         controlDirectories: [runtimeHome, app.getPath("userData")],
         supervisor: join(unpackedDirectory, "supervisor"),
-        executable: process.execPath,
+        executable: join(unpackedDirectory, "node"),
         fileWorker: join(unpackedDirectory, "file-worker.cjs"),
       });
       signedIn = true;

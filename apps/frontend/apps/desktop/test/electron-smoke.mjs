@@ -10,9 +10,22 @@ import { setTimeout as delay } from "node:timers/promises";
 import { app, BrowserWindow, dialog } from "electron";
 
 async function run() {
+  app.setActivationPolicy("prohibited");
+  app.on("browser-window-created", (_event, window) => {
+    // Exercise the real renderer and file input without showing a test window.
+    window.show = () => {};
+  });
   const directory = await mkdtemp(join(tmpdir(), "electron-local-e2e-"));
   const workspace = join(directory, "project");
   await mkdir(workspace);
+  await writeFile(
+    join(workspace, "nested-node.cjs"),
+    `const assert = require("node:assert/strict");
+assert.equal(process.versions.electron, undefined, "workspace node must be standalone");
+require("node:child_process").execFileSync(process.execPath, ["-e", "process.stdout.write('agent content')"], {
+  env: {}, stdio: "inherit"
+});`,
+  );
   const plugin = join(directory, "plugin");
   await mkdir(join(plugin, ".codex-plugin"), { recursive: true });
   await mkdir(join(plugin, "skills", "style"), { recursive: true });
@@ -105,7 +118,7 @@ async function run() {
                 type: "tool-call",
                 toolCallId: "write",
                 toolName: "bash",
-                input: JSON.stringify({ command: "printf 'agent content' > demo.js" }),
+                input: JSON.stringify({ command: "node nested-node.cjs > demo.js" }),
               },
             ]
           : [
@@ -204,6 +217,7 @@ async function run() {
     const imported = await reference(externalFile);
     assert.equal(await readFile(imported, "utf8"), "external original");
     debuggerAPI.detach();
+    assert.equal(window.isVisible(), false);
     await execute(
       `desktop.send(${JSON.stringify(thread.id)}, [{ type: "text", text: "create file" }], ${JSON.stringify(randomUUID())})`,
     );
