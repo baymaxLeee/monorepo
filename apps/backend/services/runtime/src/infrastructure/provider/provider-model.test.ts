@@ -5,7 +5,7 @@ import type { LanguageModelV4CallOptions } from "@ai-sdk/provider";
 import { projectRuntimeContext, type RuntimeContextCheckpointWrite } from "@repo/agent-runtime";
 import { streamText } from "ai";
 
-import { createProviderModel } from "./provider-model.js";
+import { createProviderModel, createProviderModelBinding } from "./provider-model.js";
 import { assertPublicProviderUrl } from "./provider-url.js";
 
 const prompt: LanguageModelV4CallOptions["prompt"] = [{ role: "user", content: [{ type: "text", text: "hello" }] }];
@@ -79,6 +79,9 @@ test("uses the Ark Responses contract while preserving safe body extensions", as
     assert.equal("context_management" in requestBody, false);
     assert.deepEqual(requestBody.safe_extension, { enabled: true });
     assert.equal(result.content[0]?.type, "text");
+
+    await createProviderModel(provider, { store: false }).doGenerate({ prompt });
+    assert.equal(requestBody.store, false);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -464,7 +467,9 @@ test("Responses compaction checkpoints round-trip through the installed SDK and 
       headers: { "content-type": "text/event-stream" },
     });
   });
-  const model = createProviderModel(provider);
+  const binding = createProviderModelBinding({ ...provider, baseUrl: "https://api.openai.com/v1" });
+  const model = binding.model;
+  assert.ok(binding.remoteCompaction);
   const messages = ["a".repeat(2000), "continue here"].map((text, i) => ({
     id: String(i),
     role: "user" as const,
@@ -475,7 +480,7 @@ test("Responses compaction checkpoints round-trip through the installed SDK and 
     messages,
     model,
     limits: { contextWindow: 10000, maxOutputTokens: 1000, autoCompactTokenLimit: 512 },
-    remoteBinding: "provider/model",
+    remoteCompaction: binding.remoteCompaction,
     saveCheckpoint: async (next: RuntimeContextCheckpointWrite) => {
       saved = next;
     },
@@ -485,7 +490,7 @@ test("Responses compaction checkpoints round-trip through the installed SDK and 
   assert.ok(saved);
   assert.deepEqual(saved.state, {
     version: "responses-compaction-v2",
-    binding: "provider/model",
+    binding: JSON.stringify([provider.id, provider.model]),
     itemId: "cmp_1",
     encryptedContent: "sealed",
   });
@@ -500,7 +505,7 @@ test("Responses compaction checkpoints round-trip through the installed SDK and 
   assert.doesNotMatch(JSON.stringify(requests[1]), /compaction_trigger|previous_response_id/);
   const switched = await projectRuntimeContext({
     ...projection,
-    remoteBinding: "another/model",
+    remoteCompaction: { ...binding.remoteCompaction!, binding: "another/model" },
     checkpoint,
     limits: { contextWindow: 128000, maxOutputTokens: 1000 },
   });

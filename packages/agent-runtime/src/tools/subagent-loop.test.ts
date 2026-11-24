@@ -1,11 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { simulateReadableStream, tool } from "ai";
+import type { LanguageModelV4CallOptions } from "@ai-sdk/provider";
+import { simulateReadableStream, tool, type ModelMessage } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
+import type { StoredModelContinuation } from "../turn/model-capabilities.js";
 import { createSubagent } from "./subagent-loop.js";
+
+const storedContinuation: StoredModelContinuation = {
+  prepareStatelessCall: (params: LanguageModelV4CallOptions) => params,
+  prepareCall: () => null,
+  prepareStep: (messages: ModelMessage[], previousResponseId: string) => ({
+    messages,
+    providerOptions: { openai: { previousResponseId } },
+  }),
+  responseId: (event: { providerMetadata?: unknown; response: { id?: string } }) => {
+    const metadata = event.providerMetadata as { openai?: { responseId?: unknown } } | undefined;
+    return typeof metadata?.openai?.responseId === "string" ? metadata.openai.responseId : (event.response.id ?? null);
+  },
+};
 
 const model = new MockLanguageModelV4();
 
@@ -18,7 +33,6 @@ void test("subagents reject client and approval tools", () => {
         instructions: "test",
         tools: { ask_user: tool({ description: "Ask", inputSchema: z.object({}) }) },
         toolsContext: {},
-        supportsStoredContinuation: false,
       }),
     /must execute automatically/,
   );
@@ -37,7 +51,6 @@ void test("subagents reject client and approval tools", () => {
           }),
         },
         toolsContext: {},
-        supportsStoredContinuation: false,
       }),
     /cannot require approval/,
   );
@@ -52,7 +65,6 @@ void test("subagents require a bounded run with a final report step", () => {
         instructions: "test",
         tools: {},
         toolsContext: {},
-        supportsStoredContinuation: false,
         maxSteps: 1,
       }),
     /at least 2/,
@@ -129,7 +141,7 @@ void test("subagents continue stored Responses runs with only new tool results",
       }),
     },
     toolsContext: {},
-    supportsStoredContinuation: true,
+    continuation: storedContinuation,
   });
 
   const result = await child.stream({ prompt: "Research this." });
@@ -224,7 +236,6 @@ void test("subagents retry only the interrupted model call without repeating com
       }),
     },
     toolsContext: {},
-    supportsStoredContinuation: false,
   });
 
   const result = await child.stream({ prompt: "Research this." });

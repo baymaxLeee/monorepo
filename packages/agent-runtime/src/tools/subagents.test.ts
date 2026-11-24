@@ -11,7 +11,6 @@ import { createSubagentsManifest } from "./subagents.js";
 const subagentConfig = {
   modelName: "research-model",
   maxOutputTokens: 4_096,
-  supportsStoredContinuation: true,
 };
 
 const tools = {

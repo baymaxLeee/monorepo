@@ -11,12 +11,7 @@ import {
   type RuntimeCompactionState,
 } from "./compaction.js";
 import { escapeXmlAttr, escapeXmlText } from "./instructions/xml.js";
-import {
-  compactRemote,
-  remoteCompactionMessage,
-  remoteCheckpointSchema,
-  type RemoteCheckpoint,
-} from "./remote-compaction.js";
+import { remoteCheckpointSchema, type RemoteCheckpoint, type RemoteCompactionAdapter } from "./remote-compaction.js";
 import { estimateTextTokens } from "./token-estimate.js";
 import { EMPTY_RUNTIME_TOKEN_USAGE, type RuntimeTokenUsage } from "./usage.js";
 import { retainUserText, runtimeContextMessage, userTextBudget } from "./user-retention.js";
@@ -139,8 +134,8 @@ export async function projectRuntimeContext(input: {
   signal?: AbortSignal;
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
   previousInputTokens?: number;
-  remoteBinding?: string;
-  instructions?: Parameters<typeof compactRemote>[0]["instructions"];
+  remoteCompaction?: RemoteCompactionAdapter;
+  instructions?: string;
   compactionRetry?: ModelStreamRetryPolicy;
   onCompaction?: (event: ContextCompactionEvent) => void;
 }) {
@@ -149,7 +144,9 @@ export async function projectRuntimeContext(input: {
   const candidate = parseCheckpointState(checkpoint?.state);
   const compacted = candidate?.version === "step-compaction-v1" ? candidate.compacted : candidate;
   const stored =
-    compacted?.version === "responses-compaction-v2" && compacted.binding !== input.remoteBinding ? null : compacted;
+    compacted?.version === "responses-compaction-v2" && compacted.binding !== input.remoteCompaction?.binding
+      ? null
+      : compacted;
   const covered =
     stored && checkpoint
       ? input.messages.findIndex((message) => message.id === checkpoint.coveredThroughMessageId)
@@ -196,19 +193,17 @@ export async function projectRuntimeContext(input: {
   if (splitAt > 0) {
     input.onCompaction?.({ state: "started", phase: "history" });
     const prefix = pending.slice(0, splitAt);
-    const compacted = input.remoteBinding
+    const compacted = input.remoteCompaction
       ? await (async () => {
           const prepared = input.prepareRecent ? await input.prepareRecent(prefix) : prefix;
           const messages = await convertToModelMessages(prepared, {
             tools: input.tools,
             convertDataPart: () => undefined,
           });
-          if (state?.version === "responses-compaction-v2") messages.unshift(remoteCompactionMessage(state));
+          if (state?.version === "responses-compaction-v2") messages.unshift(input.remoteCompaction!.message(state));
           else if (state && coveredThroughMessageId)
             messages.unshift({ role: "user", content: renderCompaction(state, coveredThroughMessageId) });
-          return compactRemote({
-            model: input.model,
-            binding: input.remoteBinding!,
+          return input.remoteCompaction!.compact({
             messages,
             tools: input.tools,
             instructions: input.instructions,
@@ -243,7 +238,7 @@ export async function projectRuntimeContext(input: {
   if (state && coveredThroughMessageId) {
     const checkpointMessage =
       state.version === "responses-compaction-v2"
-        ? remoteCompactionMessage(state)
+        ? input.remoteCompaction!.message(state)
         : runtimeContextMessage(renderCompaction(state, coveredThroughMessageId));
     const end = input.messages.findIndex((message) => message.id === coveredThroughMessageId) + 1;
     projectedTokens += projectedTokenCount([checkpointMessage]);

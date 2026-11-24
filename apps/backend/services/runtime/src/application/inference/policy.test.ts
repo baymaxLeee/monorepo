@@ -91,7 +91,7 @@ test("relay emits native provider parts and strips provider persistence/diagnost
   const output = await response.text();
   assert.equal(JSON.parse(output).type, "finish");
   assert.ok(!output.includes("secret"));
-  assert.deepEqual(f.calls[0]?.providerOptions, { openai: { store: false } });
+  assert.equal(f.calls[0]?.providerOptions, undefined);
   assert.equal(f.calls[0]?.includeRawChunks, false);
 });
 test("relay explicitly keeps the HTTP response in chunked streaming mode", async () => {
@@ -101,6 +101,32 @@ test("relay explicitly keeps the HTTP response in chunked streaming mode", async
 
   assert.equal(response.headers.get("transfer-encoding"), "chunked");
   await response.body?.cancel();
+});
+test("relay has no total-duration deadline for an active provider stream", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let providerSignal: AbortSignal | undefined;
+  let output: ReadableStreamDefaultController<LanguageModelV4StreamPart> | undefined;
+  const f = fixture();
+  f.provider.model.doStream = async (options) => {
+    providerSignal = options.abortSignal;
+    return {
+      stream: new ReadableStream({
+        start(controller) {
+          output = controller;
+        },
+      }),
+    };
+  };
+
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
+  const body = response.text();
+  await Promise.resolve();
+  t.mock.timers.tick(10 * 60_000);
+  assert.equal(providerSignal?.aborted, false);
+
+  output?.enqueue(finish);
+  output?.close();
+  assert.equal(JSON.parse(await body).type, "finish");
 });
 test("unauthorized model, injected provider options, remote URLs and hosted tools never reach provider", async () => {
   for (const payload of [
@@ -160,6 +186,32 @@ test("a connection drop after partial semantic output remains retryable", async 
     { type: "text-start", id: "answer" },
     { type: "text-delta", id: "answer", delta: "partial" },
   ]);
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
+  const output = (await response.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
+  assert.deepEqual(output.at(-1), {
+    type: "error",
+    error: {
+      code: "model_connection_failed",
+      message: "模型响应流提前中断",
+      retryable: true,
+      reason: "incomplete_stream",
+    },
+  });
+  assert.equal(f.calls.length, 1);
+});
+
+test("an unclassified provider failure after partial output is an incomplete stream, not a protocol violation", async () => {
+  const f = fixture(
+    [
+      { type: "reasoning-start", id: "reasoning" },
+      { type: "reasoning-delta", id: "reasoning", delta: "still working" },
+    ],
+    10_000,
+    new Error("opaque provider termination"),
+  );
   const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   const output = (await response.text())
     .trim()

@@ -138,7 +138,7 @@ export async function projectModelContext(input: {
   toolCatalogDigest: string;
   abortSignal: AbortSignal;
   previousInputTokens?: number;
-  remoteBinding?: string;
+  remoteCompaction?: Parameters<typeof projectRuntimeContext>[0]["remoteCompaction"];
   instructions?: Parameters<typeof projectRuntimeContext>[0]["instructions"];
   messages: AnyUIMessage[];
   tools: ToolSet;
@@ -176,7 +176,7 @@ export async function projectModelContext(input: {
     toolCatalogDigest: input.toolCatalogDigest,
     workspaceDigest,
     compactorVersion: CONTEXT_COMPACTOR_VERSION,
-    remoteBinding: input.remoteBinding ?? null,
+    remoteBinding: input.remoteCompaction?.binding ?? null,
   };
   assertContextGeneration(binding, input.expectedGeneration);
   const [stored] = await getDb()
@@ -210,7 +210,7 @@ export async function projectModelContext(input: {
     model: createProviderModel(input.provider),
     limits: input.provider,
     previousInputTokens: input.previousInputTokens,
-    remoteBinding: input.remoteBinding,
+    remoteCompaction: input.remoteCompaction,
     instructions: input.instructions,
     checkpoint,
     signal: input.abortSignal,

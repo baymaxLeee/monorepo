@@ -1,4 +1,4 @@
-import type { LanguageModelV4CallOptions, LanguageModelV4Middleware } from "@ai-sdk/provider";
+import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import {
   type TurnScope,
@@ -41,17 +41,6 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
     logger.error({ err: error }, `${label} failed`);
   });
-}
-
-function storedContinuationPrompt(
-  prompt: LanguageModelV4CallOptions["prompt"],
-): LanguageModelV4CallOptions["prompt"] | null {
-  let assistant = prompt.length - 1;
-  while (assistant >= 0 && prompt[assistant]?.role !== "assistant") assistant--;
-  if (assistant < 0) return null;
-  const suffix = prompt.slice(assistant + 1);
-  if (suffix.length === 0 || suffix.some((message) => message.role !== "user" && message.role !== "tool")) return null;
-  return [...prompt.filter((message) => message.role === "system"), ...suffix];
 }
 
 type ExecutableTool = ToolSet[string] & {
@@ -201,7 +190,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     ),
     resolvedTools.environment,
   );
-  const providerModel = createInferenceModel(provider, input.reasoningEffort);
+  const providerBinding = createInferenceModel(provider, input.reasoningEffort);
+  const providerModel = providerBinding.model;
   const modelRetry = createModelStreamRetryPolicy({
     signal: input.signal,
     emit: (event) => input.onModelRetry?.(event),
@@ -227,31 +217,15 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
           contextEstimate,
         }),
       );
-      statelessReplay = params.prompt.some(
-        (message) =>
-          message.role === "assistant" &&
-          message.content.some((part) => part.type === "custom" && part.kind === "openai.compaction"),
-      );
+      statelessReplay = params.prompt.some((message) => providerBinding.remoteCompaction?.isMessage(message) ?? false);
       if (statelessReplay) {
         previousResponseId = null;
-        return {
-          ...params,
-          providerOptions: { ...params.providerOptions, openai: { ...params.providerOptions?.openai, store: false } },
-        };
+        return providerBinding.continuation.prepareStatelessCall(params);
       }
       if (previousResponseId) {
         // The retained SDK messages stay complete, even when the wire request is incremental.
-        const incrementalPrompt = storedContinuationPrompt(params.prompt);
-        if (incrementalPrompt) {
-          return {
-            ...params,
-            prompt: incrementalPrompt,
-            providerOptions: {
-              ...params.providerOptions,
-              openai: { ...params.providerOptions?.openai, previousResponseId },
-            },
-          };
-        }
+        const continued = providerBinding.continuation.prepareCall(params, previousResponseId);
+        if (continued) return continued;
         previousResponseId = null;
       }
       return params;
@@ -290,10 +264,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     contextLimits: provider,
     compactionRetry: modelRetry,
-    remoteCompactionBinding:
-      new URL(provider.baseUrl).origin === "https://api.openai.com"
-        ? JSON.stringify([provider.id, provider.model])
-        : undefined,
+    remoteCompaction: providerBinding.remoteCompaction,
     onCompactionUsage: input.onCompactionUsage,
     onCompaction: input.onCompaction,
     onHistoryReplacement: () => {
@@ -359,7 +330,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         });
       }
       parentResponseId = previousResponseId;
-      const providerResponseId = event.providerMetadata?.openai?.responseId;
+      const providerResponseId = providerBinding.continuation.responseId(event);
       responseId = statelessReplay
         ? null
         : typeof providerResponseId === "string"

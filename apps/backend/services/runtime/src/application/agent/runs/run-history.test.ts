@@ -56,26 +56,29 @@ test("failed assistant output is excluded from subsequent model context", () => 
 });
 
 test("full history replay removes stored response item references and opaque provider compaction", () => {
-  const [projected] = removeStoredResponseReferences([
-    {
-      id: "assistant",
-      role: "assistant",
-      parts: [
-        {
-          type: "text",
-          text: "done",
-          providerMetadata: { openai: { itemId: "msg_previous" } },
-        },
-        {
-          type: "custom",
-          kind: "openai.compaction",
-          providerMetadata: {
-            openai: { type: "compaction", itemId: "cmp_previous", encryptedContent: "opaque" },
+  const [projected] = removeStoredResponseReferences(
+    [
+      {
+        id: "assistant",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "done",
+            providerMetadata: { openai: { itemId: "msg_previous" } },
           },
-        },
-      ],
-    },
-  ]);
+          {
+            type: "custom",
+            kind: "openai.compaction",
+            providerMetadata: {
+              openai: { type: "compaction", itemId: "cmp_previous", encryptedContent: "opaque" },
+            },
+          },
+        ],
+      },
+    ],
+    (part) => part.type === "custom" && part.kind === "openai.compaction",
+  );
   assert.deepEqual(projected?.parts, [{ type: "text", text: "done" }]);
 });
 

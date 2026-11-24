@@ -9,7 +9,6 @@ const model = {
   name: "test-model",
   model: new MockLanguageModelV4(),
   maxOutputTokens: 4_000,
-  supportsStoredContinuation: false,
 };
 const webSearch = async (input: { query: string }) => ({ query: input.query, untrusted: true as const, results: [] });
 

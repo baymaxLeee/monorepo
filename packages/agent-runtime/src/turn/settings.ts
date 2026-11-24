@@ -4,6 +4,7 @@ import type { StreamTextOnChunkCallback, ToolLoopAgentSettings, ToolSet } from "
 import type { ModelContextLimits } from "../context/budget.js";
 import type { ContextCompactionEvent } from "../context/compaction.js";
 import type { projectRuntimeContext } from "../context/history.js";
+import type { RemoteCompactionAdapter } from "../context/remote-compaction.js";
 import type { RuntimeTokenUsage } from "../context/usage.js";
 import type { ModelStreamRetryPolicy } from "./model-retry.js";
 
@@ -17,7 +18,7 @@ export type RuntimeTurnSettings<C extends Record<string, unknown>> = Omit<
 > & {
   model: LanguageModelV4;
   contextLimits?: ModelContextLimits;
-  remoteCompactionBinding?: string;
+  remoteCompaction?: RemoteCompactionAdapter;
   stepCheckpoint?: {
     assistantId: string;
     save: Awaited<ReturnType<typeof projectRuntimeContext>>["saveStepCheckpoint"];

@@ -7,7 +7,16 @@ import type {
   LanguageModelV4CallOptions,
   LanguageModelV4Middleware,
 } from "@ai-sdk/provider";
-import { wrapLanguageModel } from "ai";
+import {
+  MODEL_STREAM_RETRIES,
+  newMessagesForStoredResponse,
+  remoteCheckpointSchema,
+  retryableModelStreamMiddleware,
+  runtimeTokenUsage,
+  type RemoteCompactionAdapter,
+  type StoredModelContinuation,
+} from "@repo/agent-runtime";
+import { streamText, wrapLanguageModel } from "ai";
 
 import { secureProviderFetch } from "./provider-url.js";
 
@@ -113,7 +122,7 @@ function isJsonValue(value: unknown): value is JSONValue {
 
 function providerBodyOptions(
   provider: LanguageProviderSnapshot,
-  options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null },
+  options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null; store?: boolean },
 ): { requestBody: JSONObject; providerOptions: OpenAIResponsesProviderOptions } {
   const body: JSONObject = {};
   for (const [key, value] of Object.entries(provider.extraBody)) {
@@ -125,7 +134,7 @@ function providerBodyOptions(
   const providerOptions: OpenAIResponsesProviderOptions = {
     parallelToolCalls: options.parallelToolCalls ?? undefined,
     reasoningEffort: options.reasoningEffort ?? undefined,
-    store: true,
+    store: options.store ?? true,
   };
 
   return { requestBody: body, providerOptions };
@@ -321,9 +330,135 @@ function materializeArkPrompt(prompt: LanguageModelV4CallOptions["prompt"]): Lan
   });
 }
 
+function storedContinuationPrompt(
+  prompt: LanguageModelV4CallOptions["prompt"],
+): LanguageModelV4CallOptions["prompt"] | null {
+  let assistant = prompt.length - 1;
+  while (assistant >= 0 && prompt[assistant]?.role !== "assistant") assistant--;
+  if (assistant < 0) return null;
+  const suffix = prompt.slice(assistant + 1);
+  if (suffix.length === 0 || suffix.some((message) => message.role !== "user" && message.role !== "tool")) return null;
+  return [...prompt.filter((message) => message.role === "system"), ...suffix];
+}
+
+export const arkStoredContinuation: StoredModelContinuation = {
+  prepareStatelessCall(params) {
+    return {
+      ...params,
+      providerOptions: {
+        ...params.providerOptions,
+        openai: { ...params.providerOptions?.openai, store: false },
+      },
+    };
+  },
+  prepareCall(params, previousResponseId) {
+    const prompt = storedContinuationPrompt(params.prompt);
+    if (!prompt) return null;
+    return {
+      ...params,
+      prompt,
+      providerOptions: {
+        ...params.providerOptions,
+        openai: { ...params.providerOptions?.openai, previousResponseId },
+      },
+    };
+  },
+  prepareStep(messages, previousResponseId) {
+    return {
+      messages: newMessagesForStoredResponse(messages),
+      providerOptions: { openai: { previousResponseId } },
+    };
+  },
+  responseId(event) {
+    const metadata = event.providerMetadata as { openai?: { responseId?: unknown } } | undefined;
+    return typeof metadata?.openai?.responseId === "string"
+      ? metadata.openai.responseId
+      : typeof event.response.id === "string"
+        ? event.response.id
+        : null;
+  },
+};
+
+export function isArkStoredResponseReference(part: unknown): boolean {
+  if (!part || typeof part !== "object") return false;
+  const candidate = part as { type?: unknown; kind?: unknown };
+  return candidate.type === "custom" && candidate.kind === "openai.compaction";
+}
+
+function createOpenAICompaction(model: LanguageModelV4, binding: string): RemoteCompactionAdapter {
+  return {
+    binding,
+    isMessage(message) {
+      return (
+        message.role === "assistant" &&
+        Array.isArray(message.content) &&
+        message.content.some((part) => part.type === "custom" && part.kind === "openai.compaction")
+      );
+    },
+    message(checkpoint) {
+      const { itemId, encryptedContent } = checkpoint;
+      return {
+        role: "assistant",
+        content: [
+          {
+            type: "custom",
+            kind: "openai.compaction",
+            providerOptions: { openai: { type: "compaction", itemId, encryptedContent } },
+          },
+        ],
+      };
+    },
+    async compact(input) {
+      input.retry?.reset();
+      const result = streamText({
+        model: wrapLanguageModel({ model, middleware: retryableModelStreamMiddleware }),
+        messages: input.messages,
+        instructions: input.instructions,
+        tools:
+          input.tools &&
+          Object.fromEntries(
+            Object.entries(input.tools).map(([name, definition]) => [
+              name,
+              {
+                ...definition,
+                execute: undefined,
+                onInputStart: undefined,
+                onInputDelta: undefined,
+                onInputAvailable: undefined,
+                needsApproval: undefined,
+              },
+            ]),
+          ),
+        toolChoice: "none",
+        providerOptions: { openai: { store: false, compactionTrigger: true } },
+        maxRetries: 0,
+        streamRetries: MODEL_STREAM_RETRIES,
+        abortSignal: input.signal,
+        onChunk: input.retry?.onChunk,
+        onError: input.retry?.onError ?? (() => {}),
+      });
+      const [content, usage] = await Promise.all([result.content, result.usage]);
+      const consumed = runtimeTokenUsage(usage);
+      input.onUsage?.(consumed);
+      const items = content.filter((part) => part.type === "custom" && part.kind === "openai.compaction");
+      if (items.length !== 1 || items[0]?.type !== "custom" || content.some((part) => part.type === "tool-call")) {
+        throw new Error("Responses compaction did not return a single compaction item");
+      }
+      const metadata = items[0].providerMetadata?.openai;
+      const state = remoteCheckpointSchema.parse({
+        version: "responses-compaction-v2",
+        binding,
+        itemId: metadata?.itemId,
+        encryptedContent: metadata?.encryptedContent,
+      });
+      return { state, usage: consumed };
+    },
+  };
+}
+
 export function createProviderModel(
   provider: LanguageProviderSnapshot,
-  options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null } = {},
+  options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null; store?: boolean } = {},
 ): LanguageModelV4 {
   const name = providerName(provider.id);
   const { requestBody, providerOptions: configured } = providerBodyOptions(provider, options);
@@ -339,7 +474,7 @@ export function createProviderModel(
       const openaiOptions = {
         ...configured,
         ...params.providerOptions?.openai,
-        store: params.providerOptions?.openai?.store === false ? false : true,
+        store: params.providerOptions?.openai?.store === false || configured.store === false ? false : true,
       };
       openaiOptions.contextManagement = undefined;
       // Ark item references are valid only inside the stored response lineage
@@ -366,6 +501,21 @@ export function createProviderModel(
     middleware: providerSettings,
     providerId: name,
   });
+}
+
+export function createProviderModelBinding(
+  provider: LanguageProviderSnapshot,
+  options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null; store?: boolean } = {},
+) {
+  const model = createProviderModel(provider, options);
+  return {
+    model,
+    continuation: arkStoredContinuation,
+    remoteCompaction:
+      new URL(provider.baseUrl).origin === "https://api.openai.com"
+        ? createOpenAICompaction(model, JSON.stringify([provider.id, provider.model]))
+        : undefined,
+  };
 }
 
 export interface ImageProvider {

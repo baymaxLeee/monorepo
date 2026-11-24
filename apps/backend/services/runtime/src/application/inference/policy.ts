@@ -24,6 +24,7 @@ const responseHeaders = {
 };
 
 class IncompleteProviderStreamError extends Error {}
+class ProviderProtocolError extends Error {}
 
 const NETWORK_FAILURE_MESSAGES: Record<ModelNetworkFailureReason, string> = {
   dns: "模型服务域名解析失败",
@@ -68,28 +69,19 @@ export async function inferenceResponse(
   const controller = new AbortController();
   const abort = () => controller.abort(signal.reason);
   signal.addEventListener("abort", abort, { once: true });
-  let timedOut = false;
-  const deadline = setTimeout(() => {
-    timedOut = true;
-    controller.abort(new DOMException("Provider request timeout", "TimeoutError"));
-  }, 5 * 60_000);
-  const cleanup = () => {
-    clearTimeout(deadline);
-    signal.removeEventListener("abort", abort);
-  };
+  const cleanup = () => signal.removeEventListener("abort", abort);
   let reader: ReadableStreamDefaultReader<LanguageModelV4StreamPart>;
   try {
     if (signal.aborted) controller.abort();
     const result = await provider.model.doStream({
       ...modelOptions(request),
       abortSignal: controller.signal,
-      providerOptions: { openai: { store: false } },
       includeRawChunks: false,
     });
     reader = result.stream.getReader();
   } catch (error) {
     cleanup();
-    const reason = signal.aborted ? null : timedOut ? "timeout" : classifyModelNetworkFailure(error);
+    const reason = signal.aborted ? null : classifyModelNetworkFailure(error);
     return errorResponse(safeRelayError(reason));
   }
   const encoder = new TextEncoder();
@@ -119,7 +111,7 @@ export async function inferenceResponse(
         let part = next.value;
         if (part.type === "error") throw part.error;
         if ("providerExecuted" in part && part.providerExecuted)
-          throw new Error("Provider attempted hosted tool execution");
+          throw new ProviderProtocolError("Provider attempted hosted tool execution");
         if (part.type === "stream-start") part = { type: "stream-start", warnings: [] };
         if (part.type === "finish") {
           const input = part.usage.inputTokens.total,
@@ -136,7 +128,7 @@ export async function inferenceResponse(
           `${JSON.stringify(safe, (_key, value) => (value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value))}\n`,
         );
         outputBytes += bytes.byteLength;
-        if (outputBytes > 8 * 1024 * 1024) throw new Error("Output budget exceeded");
+        if (outputBytes > 8 * 1024 * 1024) throw new ProviderProtocolError("Output budget exceeded");
         output.enqueue(bytes);
         if (finished) {
           controller.abort();
@@ -155,11 +147,9 @@ export async function inferenceResponse(
         // transient transport failure unsafe to retry.
         const reason = signal.aborted
           ? null
-          : timedOut
-            ? "timeout"
-            : error instanceof IncompleteProviderStreamError
-              ? "incomplete_stream"
-              : classifyModelNetworkFailure(error);
+          : error instanceof ProviderProtocolError
+            ? null
+            : (classifyModelNetworkFailure(error) ?? "incomplete_stream");
         const part = {
           type: "error",
           error: safeRelayError(reason),

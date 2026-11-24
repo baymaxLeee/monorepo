@@ -9,7 +9,7 @@ import {
 } from "ai";
 
 import { compactTranscript, type RuntimeCompactionState } from "../context/compaction.js";
-import { compactRemote, remoteCompactionMessage, type RemoteCheckpoint } from "../context/remote-compaction.js";
+import type { RemoteCheckpoint } from "../context/remote-compaction.js";
 import { compactBeforeSampling } from "../context/step-compaction.js";
 import { isUserInput } from "../context/user-retention.js";
 import type { RuntimeTurnSettings } from "./settings.js";
@@ -42,7 +42,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
     middleware = [],
     prepareStep,
     contextLimits,
-    remoteCompactionBinding,
+    remoteCompaction,
     onCompactionUsage,
     onCompaction,
     compactionRetry,
@@ -89,12 +89,10 @@ export function createAgentLoop<C extends Record<string, unknown>>(
               toolCallIds = end.content.flatMap((part) => (part.type === "tool-result" ? [part.toolCallId] : []));
             return boundary + 1;
           }),
-        compactRemote: remoteCompactionBinding
+        compactRemote: remoteCompaction
           ? async (messages) => {
               state = (
-                await compactRemote({
-                  binding: remoteCompactionBinding,
-                  model: options.model,
+                await remoteCompaction.compact({
                   messages,
                   tools: options.tools,
                   instructions: options.instructions,
@@ -103,7 +101,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(
                   retry: compactionRetry,
                 })
               ).state;
-              return remoteCompactionMessage(state);
+              return remoteCompaction.message(state);
             }
           : undefined,
         summarize: async (transcript) => {

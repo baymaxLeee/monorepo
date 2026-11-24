@@ -421,7 +421,15 @@ test("remote checkpoint replay spends the 20k carryover budget newest first on t
       coveredThroughMessageId: "files",
       state: { version: "responses-compaction-v2", binding: "provider", itemId: "cmp", encryptedContent: "sealed" },
     },
-    remoteBinding: "provider",
+    remoteCompaction: {
+      binding: "provider",
+      compact: async () => assert.fail("unexpected compaction"),
+      isMessage: () => false,
+      message: () => ({
+        role: "assistant",
+        content: [{ type: "text", text: "opaque provider checkpoint" }],
+      }),
+    },
     model: compactionModel("unused"),
     prepareRecent: async (tail) => {
       assert.deepEqual(tail, [recent]);

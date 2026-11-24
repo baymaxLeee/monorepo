@@ -19,7 +19,7 @@ import {
   validateUIMessages,
 } from "ai";
 
-import type { ReasoningEffort } from "#runtime/provider-model";
+import { isArkStoredResponseReference, type ReasoningEffort } from "#runtime/provider-model";
 
 import { getServerSettings } from "../../../config/server.js";
 import {
@@ -215,11 +215,14 @@ export function persistedMessagesToModelUiMessages(messages: Message[]): AnyUIMe
     .map(persistedMessageToUiMessage);
 }
 
-export function removeStoredResponseReferences(messages: AnyUIMessage[]): AnyUIMessage[] {
+export function removeStoredResponseReferences(
+  messages: AnyUIMessage[],
+  isStoredReference: (part: AnyUIMessage["parts"][number]) => boolean,
+): AnyUIMessage[] {
   return messages.map((message) => ({
     ...message,
     parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
-      if (part.type === "custom" && part.kind === "openai.compaction") {
+      if (isStoredReference(part)) {
         return [];
       }
       if (!("providerMetadata" in part)) {
@@ -487,7 +490,10 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
           "stored response lineage requires compaction or lacks reliable usage; rebuilding from the local journal",
         );
       }
-      const projectionUiMessages = removeStoredResponseReferences(modelUiMessages.map(compactHistoricalSkillOutputs));
+      const projectionUiMessages = removeStoredResponseReferences(
+        modelUiMessages.map(compactHistoricalSkillOutputs),
+        isArkStoredResponseReference,
+      );
       const frozenSkills = input.capabilities.skills;
       const skills = frozenSkills.map(({ id, name, description }) => ({ id, name, description }));
       const skillById = new Map(frozenSkills.map((skill) => [skill.id, skill] as const));
@@ -542,7 +548,7 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
         toolCatalogDigest: prepared.host.catalogDigest,
         abortSignal: scope.signal,
         tools: prepared.settings.tools,
-        remoteBinding: prepared.settings.remoteCompactionBinding,
+        remoteCompaction: prepared.settings.remoteCompaction,
         instructions: prepared.settings.instructions,
         previousInputTokens: lineageIsCurrent ? (lineage.inputTokens ?? undefined) : undefined,
         messages: await validateUIMessages<AnyUIMessage>({

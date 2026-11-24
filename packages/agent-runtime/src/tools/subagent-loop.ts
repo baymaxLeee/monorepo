@@ -2,6 +2,7 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { addToolInputExamplesMiddleware, isStepCount, ToolLoopAgent, wrapLanguageModel, type ToolSet } from "ai";
 
+import type { StoredModelContinuation } from "../turn/model-capabilities.js";
 import { MODEL_STREAM_RETRIES, retryableModelStreamMiddleware } from "../turn/model-retry.js";
 
 const FINAL_REPORT_INSTRUCTION =
@@ -29,7 +30,7 @@ export function createSubagent<const TOOLS extends ToolSet>({
   instructions,
   tools,
   toolsContext,
-  supportsStoredContinuation,
+  continuation,
   maxOutputTokens,
   maxSteps = 20,
 }: {
@@ -38,7 +39,7 @@ export function createSubagent<const TOOLS extends ToolSet>({
   instructions: string;
   tools: TOOLS;
   toolsContext: InferToolSetContext<TOOLS>;
-  supportsStoredContinuation: boolean;
+  continuation?: StoredModelContinuation;
   maxOutputTokens?: number;
   maxSteps?: number;
 }) {
@@ -66,34 +67,25 @@ export function createSubagent<const TOOLS extends ToolSet>({
     stopWhen: isStepCount(maxSteps),
     prepareStep: ({ steps }) => {
       const toolResultMessages = steps.at(-1)?.response.messages.filter((message) => message.role === "tool") ?? [];
-      const continuation =
-        supportsStoredContinuation && previousResponseId && toolResultMessages.length > 0
-          ? {
-              providerOptions: { openai: { previousResponseId } },
-              messages: toolResultMessages,
-            }
+      const continuedStep =
+        continuation && previousResponseId && toolResultMessages.length > 0
+          ? continuation.prepareStep(toolResultMessages, previousResponseId)
           : {};
       return steps.length === maxSteps - 1
         ? {
-            ...continuation,
+            ...continuedStep,
             activeTools: [],
             toolChoice: "none",
             instructions: `${instructions}\n\n${FINAL_REPORT_INSTRUCTION}`,
           }
-        : continuation;
+        : continuedStep;
     },
     // Generic ToolSet context requirements are conditional; callers still provide the inferred map above.
     // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
     toolsContext: toolsContext as never,
     onStepEnd: (event) => {
-      if (!supportsStoredContinuation) return;
-      const providerResponseId = event.providerMetadata?.openai?.responseId;
-      previousResponseId =
-        typeof providerResponseId === "string"
-          ? providerResponseId
-          : typeof event.response.id === "string"
-            ? event.response.id
-            : null;
+      if (!continuation) return;
+      previousResponseId = continuation.responseId(event);
     },
   });
 

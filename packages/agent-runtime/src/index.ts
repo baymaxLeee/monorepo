@@ -1,6 +1,9 @@
 export { RuntimeTurn, type TurnScope } from "./turn/turn.js";
 export { createRuntimeInputQueue, type RuntimeInputQueue, type RuntimeInputMode } from "./turn/input-queue.js";
 export type { RuntimeTurnSettings } from "./turn/settings.js";
+export type { ModelStepResult, StoredModelContinuation } from "./turn/model-capabilities.js";
+export type { RemoteCheckpoint, RemoteCompactionAdapter, RemoteCompactionInput } from "./context/remote-compaction.js";
+export { remoteCheckpointSchema } from "./context/remote-compaction.js";
 export { classifyTurnRecovery, type TurnRecoveryBoundary, type TurnRecoveryDecision } from "./turn/recovery.js";
 export {
   MODEL_STREAM_RETRIES,

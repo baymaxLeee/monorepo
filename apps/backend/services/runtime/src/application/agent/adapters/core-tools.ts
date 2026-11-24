@@ -2,7 +2,7 @@ import { type SubagentObserver, type PortableToolModel } from "@repo/agent-runti
 
 import { finishSpan, startSpan } from "#runtime/foundation";
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
-import { createProviderModel } from "#runtime/provider-model";
+import { createProviderModelBinding } from "#runtime/provider-model";
 
 import { subagentToolContextSchema, type SubagentToolContext } from "../tools/context.js";
 
@@ -36,13 +36,12 @@ function runtimeSubagentObserver(): SubagentObserver<SubagentToolContext> {
 export function createRuntimePortableToolModel(
   provider: LanguageProviderSnapshot,
 ): PortableToolModel<SubagentToolContext> {
+  const binding = createProviderModelBinding(provider, { parallelToolCalls: true });
   return {
     name: provider.model,
-    model: createProviderModel(provider, {
-      parallelToolCalls: true,
-    }),
+    model: binding.model,
     maxOutputTokens: provider.maxOutputTokens,
-    supportsStoredContinuation: true,
+    continuation: binding.continuation,
     contextSchema: subagentToolContextSchema,
     observer: runtimeSubagentObserver(),
   };

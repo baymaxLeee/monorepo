@@ -2,6 +2,7 @@ import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { FlexibleSchema } from "ai";
 
+import type { StoredModelContinuation } from "../turn/model-capabilities.js";
 import { createInteractionToolManifests } from "./ask-user.js";
 import { createCodeModeManifest } from "./code-mode.js";
 import { deferAgentToolLoading, manifestsToTools } from "./manifest.js";
@@ -16,7 +17,7 @@ export interface PortableToolModel<CONTEXT extends Record<string, unknown>> {
   name: string;
   model: LanguageModelV4;
   maxOutputTokens?: number;
-  supportsStoredContinuation: boolean;
+  continuation?: StoredModelContinuation;
   contextSchema?: FlexibleSchema<CONTEXT>;
   observer?: SubagentObserver<CONTEXT>;
 }
@@ -60,7 +61,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
           modelName: model.name,
           model: model.model,
           maxOutputTokens: model.maxOutputTokens,
-          supportsStoredContinuation: model.supportsStoredContinuation,
+          continuation: model.continuation,
           tools: {
             web_search: researchTools.web_search,
             web_fetch: researchTools.web_fetch,

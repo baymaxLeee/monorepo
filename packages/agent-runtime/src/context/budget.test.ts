@@ -13,8 +13,8 @@ test("treats the provider context window as input capacity instead of subtractin
     recentTailTokens: 109_200,
   });
 
-  const deepseek = { contextWindow: 307_200, maxOutputTokens: 262_144 };
-  assert.deepEqual(resolveContextWindow(deepseek), {
+  const largeOutputModel = { contextWindow: 307_200, maxOutputTokens: 262_144 };
+  assert.deepEqual(resolveContextWindow(largeOutputModel), {
     inputCapacity: 299_200,
     compactAt: 276_480,
     summaryMaxTokens: 5_744,

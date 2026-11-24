@@ -21,6 +21,6 @@ export async function resolveInferenceProvider(
       maxOutputTokens: provider.maxOutputTokens,
       instructions: assembleInstructions({ memories: [] }),
     },
-    model: createInferenceModel(provider, reasoningEffort),
+    model: createInferenceModel(provider, reasoningEffort, "stateless").model,
   };
 }

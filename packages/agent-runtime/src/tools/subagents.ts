@@ -10,6 +10,7 @@ import {
 } from "ai";
 import { z } from "zod";
 
+import type { StoredModelContinuation } from "../turn/model-capabilities.js";
 import { defineAgentTool } from "./manifest.js";
 import { normalizeToolIssue, shouldRethrowToolError, toolCompleted, toolIssueSchema, toolRunning } from "./outcome.js";
 import { createSubagent } from "./subagent-loop.js";
@@ -206,7 +207,7 @@ async function runSubagent<CONTEXT extends Record<string, unknown>>({
   modelName,
   model,
   maxOutputTokens,
-  supportsStoredContinuation,
+  continuation,
   tools,
   task,
   index,
@@ -217,7 +218,7 @@ async function runSubagent<CONTEXT extends Record<string, unknown>>({
   modelName: string;
   model: LanguageModelV4;
   maxOutputTokens?: number;
-  supportsStoredContinuation: boolean;
+  continuation?: StoredModelContinuation;
   tools: Pick<ToolSet, "web_search" | "web_fetch">;
   task: SubagentTask;
   index: number;
@@ -245,7 +246,7 @@ async function runSubagent<CONTEXT extends Record<string, unknown>>({
       maxOutputTokens,
       tools,
       toolsContext: {},
-      supportsStoredContinuation,
+      continuation,
     });
     const result = await child.stream({
       prompt: [
@@ -346,7 +347,7 @@ export function createSubagentsManifest<CONTEXT extends Record<string, unknown> 
   tools,
   model,
   maxOutputTokens,
-  supportsStoredContinuation,
+  continuation,
   contextSchema,
   observer,
 }: {
@@ -354,7 +355,7 @@ export function createSubagentsManifest<CONTEXT extends Record<string, unknown> 
   tools: Pick<ToolSet, "web_search" | "web_fetch">;
   model: LanguageModelV4;
   maxOutputTokens?: number;
-  supportsStoredContinuation: boolean;
+  continuation?: StoredModelContinuation;
   contextSchema?: FlexibleSchema<CONTEXT>;
   observer?: SubagentObserver<CONTEXT>;
 }) {
@@ -371,7 +372,7 @@ export function createSubagentsManifest<CONTEXT extends Record<string, unknown> 
         modelName,
         model,
         maxOutputTokens,
-        supportsStoredContinuation,
+        continuation,
         tools,
         task,
         index,

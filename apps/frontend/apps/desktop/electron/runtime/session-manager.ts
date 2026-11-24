@@ -382,7 +382,6 @@ export class DesktopSessionManager {
         name: config.model,
         model,
         maxOutputTokens: config.maxOutputTokens,
-        supportsStoredContinuation: false,
       },
       webSearch: (input, options) => this.options.webSearch(input, options.abortSignal),
       // Local transport does not yet accept SDK client-tool results. This is
