@@ -10,6 +10,3 @@ spec:
     - name: http
       port: 8012
       targetPort: http
-    - name: rpc
-      port: 9012
-      targetPort: rpc

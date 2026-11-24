@@ -54,33 +54,28 @@ func (s *Server) MintCapabilities(ctx context.Context, request *storagev1.MintCa
 	return &storagev1.MintCapabilitiesResponse{Items: result}, nil
 }
 
-func Authorizer(allowedCallers []string) innerruntime.Authorizer {
-	allowed := make(map[string]struct{}, len(allowedCallers))
-	for _, caller := range allowedCallers {
-		allowed[caller] = struct{}{}
+func Authorizer() innerruntime.Authorizer {
+	commonMethods := map[string]bool{
+		storagev1.AssetService_Upload_FullMethodName:                        true,
+		storagev1.AssetService_DescribeRevision_FullMethodName:              true,
+		storagev1.AssetService_ReadContent_FullMethodName:                   true,
+		storagev1.ClaimService_PrepareClaim_FullMethodName:                  true,
+		storagev1.ClaimService_ActivateClaim_FullMethodName:                 true,
+		storagev1.ClaimService_ReleaseClaim_FullMethodName:                  true,
+		storagev1.UploadSessionService_CreateUploadSession_FullMethodName:   true,
+		storagev1.UploadSessionService_DescribeUploadSession_FullMethodName: true,
+		storagev1.DeliveryService_MintCapabilities_FullMethodName:           true,
 	}
-	return innerruntime.AuthorizeFunc(func(caller, _ string) bool {
-		if !validWorkloadName(caller) {
+	runtimeMethods := map[string]bool{
+		storagev1.AssetService_AppendRevision_FullMethodName:   true,
+		storagev1.AssetService_ReadImageVariant_FullMethodName: true,
+	}
+	return innerruntime.AuthorizeFunc(func(caller string, method string) bool {
+		if caller != "admin" && caller != "canvas" && caller != "knowledge" && caller != "runtime" {
 			return false
 		}
-		if len(allowed) == 0 {
-			return true
-		}
-		_, ok := allowed[caller]
-		return ok
+		return commonMethods[method] || caller == "runtime" && runtimeMethods[method]
 	})
-}
-
-func validWorkloadName(value string) bool {
-	if len(value) == 0 || len(value) > 64 || value[0] < 'a' || value[0] > 'z' {
-		return false
-	}
-	for _, character := range value[1:] {
-		if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '-' {
-			return false
-		}
-	}
-	return true
 }
 
 func (s *Server) Upload(stream storagev1.AssetService_UploadServer) error {

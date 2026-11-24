@@ -7,9 +7,10 @@
 Storage 管理逻辑文件 Asset、不可变 Revision、内容寻址 Blob、Claim、上传、delivery 与物理回收。Knowledge 管理语义文档、解析索引与检索。Runtime 管理 Session、消息以及 `thread_files`/Plan 对不可变 Asset revision 的业务引用。Canvas 管理项目、画布、节点、素材及生成历史；Admin 管理 Skill 文件树/发布。这些服务保存 `asset_id + revision_id`，不保存 Storage 的物理 locator。
 
 Storage 是业务无关的原子存储服务：Proto、数据库、领域和生产实现都不包含 tenant、workspace 或
-业务 user identity，也不读取 IAM。`x-caller-service` 是内部 gRPC transport 注入并经部署配置
-allowlist 检查的 workload 命名空间声明；消费者名单不编译进 Storage。当前 h2c transport 没有 mTLS/SPIFFE 等密码学 workload 认证，K8s
-通过 9013 端口 NetworkPolicy 缩小可达面，但获准 sibling 仍可能伪造 metadata。它不能替代业务授权，
+业务 user identity，也不读取 IAM。内部 gRPC runtime 把固定 `x-caller-service` 与部署 Secret 中
+该 workload 的 credential 绑定，Storage 先认证 workload，再按精确方法矩阵授权。当前 h2c
+transport 没有 mTLS/SPIFFE；K8s 通过 9013 端口 NetworkPolicy 缩小可达面，跨不可信网络必须升级
+传输身份与加密。这一身份仍不能替代业务资源授权，
 也不能作为公开访问凭据。Claim 的 `owner_type/owner_id/slot` 是 workload 自己定义的不透明键，
 Storage 只把它与 `owner_service`、generation 和精确 Asset/revision 一起维护，不解释产品语义。
 
@@ -65,13 +66,10 @@ Storage 不提供仅依赖工作区身份、workload 身份或裸资源 ID 的�
 
 ChatArtifactPreview 统一处理 URL 获取、文本下载、请求取消、失败展示与续签；HTML 使用沙箱 iframe 的 src，图片、音视频和 PDF 直接使用 URL，音视频使用 HTTP Range。Markdown 只读快照使用 Streamdown，其他文本/代码使用只读 CodeEditor，保持原始文本而不将 JSON 转换为对象。原件下载直接交给浏览器并使用 attachment disposition。Chat 会话文件透传 asset_id/revision_id，由 Runtime 验证会话权限后请求 Storage 签发；editable_source 标记的 Knowledge Markdown 从 Storage 加载原文交给 MarkdownEditor，编辑提交仍由 Knowledge 的文档接口负责。
 
-删除会话时，Runtime 在本地事务中记录释放 `session_file` Claim 的意图，并通过 outbox 请求 Knowledge 幂等清理该会话的生成文档/暂存媒体；用户在 Knowledge 独立导入的 source 保留。Knowledge conversation tombstone 拒绝迟到写入。Knowledge 在 source ingest 请求内同步完成转换与索引，服务本地操作保持幂等并使用数据库 advisory lock 串行化同一文档。检索使用 PostgreSQL/pgvector 与文本检索，模型配置从 Admin 获取。
-
-会话分支通过 Knowledge 的内部快照接口复制语义文档，通过 Runtime 发布事务复制
-`thread_files`；两者都创建独立 owner/Claim、共享精确 Asset/revision，不复制字节。
-源文档副本作为只读 artifact 保留解析投影，避免重复 source 索引；原 source 生命周期不变。
-Runtime 的预留 cleanup intent 在失败/进程中断后回收 Knowledge 未发布引用，成功发布时以租约校验、
-本地 file rows/Claim intents 和新会话写入同一事务完成。删除任一会话只释放该分支自己的 Claim。
+删除或分支会话只处理 Runtime 自己的 `session_file` 与 Claim intent；Knowledge source 文档拥有
+独立生命周期，不再通过旧内部 RPC 复制、清理或暂存媒体。Knowledge 在 source ingest 请求内同步
+完成转换与索引，服务本地操作保持幂等并使用数据库 advisory lock 串行化同一文档。检索使用
+PostgreSQL/pgvector 与文本检索，模型配置从 Admin 获取。
 
 ## 事实源与验证
 

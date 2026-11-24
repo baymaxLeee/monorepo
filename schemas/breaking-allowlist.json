@@ -40,5 +40,17 @@
     "baselineSha256": "8dfb8e00382fcc2c343143ac690e82db28b375fed839dafc6f3f356b1fa85baf",
     "type": "FILE_REPLACEMENT",
     "message": "Storage v1 is intentionally replaced as a greenfield contract with no wire compatibility."
+  },
+  {
+    "baselinePath": "canvas/v1/canvas.proto",
+    "baselineSha256": "3f7b1e8ca7ed453b9ade474d15615cd0b9abc753e9624b2ef1895f679874b5e0",
+    "type": "FILE_NO_DELETE",
+    "message": "Previously present file \"canvas/v1/canvas.proto\" was deleted."
+  },
+  {
+    "baselinePath": "knowledge/v1/knowledge.proto",
+    "baselineSha256": "3a40c1da0d6e38c3a276679a1a03ee366e57c3e5f2b0dc62fd3e261477fb7a34",
+    "type": "FILE_NO_DELETE",
+    "message": "Previously present file \"knowledge/v1/knowledge.proto\" was deleted."
   }
 ]

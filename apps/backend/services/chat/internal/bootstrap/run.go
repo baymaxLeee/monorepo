@@ -39,7 +39,7 @@ func Run(ctx context.Context) error {
 		return err
 	}
 	adminConnection, err := innerruntime.DialContext(ctx, config.AdminRPCTarget, innerruntime.ClientOptions{
-		Caller: "chat", DefaultTimeout: 30 * time.Second,
+		Caller: "chat", Token: config.InternalAPIToken, DefaultTimeout: 30 * time.Second,
 	})
 	if err != nil {
 		return err

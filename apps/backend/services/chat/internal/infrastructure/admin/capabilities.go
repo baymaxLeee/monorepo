@@ -8,7 +8,10 @@ import (
 	"github.com/example/monorepo/chat/internal/application"
 	adminv1 "github.com/example/monorepo/inner-api-go/gen/admin/v1"
 	commonv1 "github.com/example/monorepo/inner-api-go/gen/common/v1"
+	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type CapabilityResolver struct {
@@ -65,13 +68,13 @@ func (resolver *CapabilityResolver) ResolveProvider(
 	if providerID != nil && *providerID != "" {
 		response, err := resolver.providers.GetProvider(ctx, &adminv1.GetProviderRequest{Actor: actor(scope), ProviderId: *providerID})
 		if err != nil {
-			return application.RuntimeProviderCapability{}, fmt.Errorf("resolve Runtime provider: %w", err)
+			return application.RuntimeProviderCapability{}, adminRPCError("resolve Runtime provider", err)
 		}
 		provider = response.GetProvider()
 	} else {
 		response, err := resolver.providers.GetDefaultProvider(ctx, &adminv1.GetDefaultProviderRequest{Actor: actor(scope)})
 		if err != nil {
-			return application.RuntimeProviderCapability{}, fmt.Errorf("resolve default Runtime provider: %w", err)
+			return application.RuntimeProviderCapability{}, adminRPCError("resolve default Runtime provider", err)
 		}
 		provider = response.GetProvider()
 	}
@@ -99,7 +102,7 @@ func (resolver *CapabilityResolver) resolveMedia(
 ) (application.RuntimeMediaCapabilities, error) {
 	listed, err := resolver.providers.ListProviderCatalog(ctx, &adminv1.ListProviderCatalogRequest{Actor: actor(scope)})
 	if err != nil {
-		return application.RuntimeMediaCapabilities{}, fmt.Errorf("list Runtime media providers: %w", err)
+		return application.RuntimeMediaCapabilities{}, adminRPCError("list Runtime media providers", err)
 	}
 	providers := make([]application.RuntimeMediaProviderCapability, 0, len(listed.GetProviders()))
 	for _, summary := range listed.GetProviders() {
@@ -111,7 +114,7 @@ func (resolver *CapabilityResolver) resolveMedia(
 			Actor: actor(scope), ProviderId: summary.GetId(),
 		})
 		if resolveErr != nil {
-			return application.RuntimeMediaCapabilities{}, fmt.Errorf("resolve Runtime media provider %s: %w", summary.GetId(), resolveErr)
+			return application.RuntimeMediaCapabilities{}, adminRPCError("resolve Runtime media provider", resolveErr)
 		}
 		provider := response.GetProvider()
 		if provider == nil || !provider.GetIsEnabled() || provider.GetProviderKind() != kind {
@@ -148,13 +151,13 @@ func (resolver *CapabilityResolver) resolveMedia(
 func (resolver *CapabilityResolver) resolveSkills(ctx context.Context, scope application.AuthContext) ([]map[string]any, error) {
 	listed, err := resolver.settings.ListSkills(ctx, &adminv1.ListSkillsRequest{Actor: actor(scope)})
 	if err != nil {
-		return nil, fmt.Errorf("list Runtime skills: %w", err)
+		return nil, adminRPCError("list Runtime skills", err)
 	}
 	result := make([]map[string]any, 0, len(listed.GetSkills()))
 	for _, summary := range listed.GetSkills() {
 		response, err := resolver.settings.GetSkill(ctx, &adminv1.GetSkillRequest{Actor: actor(scope), SkillId: summary.GetId()})
 		if err != nil {
-			return nil, fmt.Errorf("resolve Runtime skill %s: %w", summary.GetId(), err)
+			return nil, adminRPCError("resolve Runtime skill", err)
 		}
 		skill := response.GetSkill()
 		if skill == nil {
@@ -166,7 +169,7 @@ func (resolver *CapabilityResolver) resolveSkills(ctx context.Context, scope app
 				Actor: actor(scope), SkillId: skill.GetId(), Path: path,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("resolve Runtime skill %s file %s: %w", skill.GetId(), path, err)
+				return nil, adminRPCError("resolve Runtime skill file", err)
 			}
 			file := fileResponse.GetFile()
 			if file == nil {
@@ -224,7 +227,7 @@ func (resolver *CapabilityResolver) ResolvePlugins(
 		Actor: actor(scope), WorkspaceRole: scope.WorkspaceRole, Activations: activations,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("resolve Runtime plugins: %w", err)
+		return nil, adminRPCError("resolve Runtime plugins", err)
 	}
 	snapshot := response.GetSnapshot()
 	if snapshot == nil || snapshot.GetTenantId() != scope.TenantID || snapshot.GetWorkspaceId() != scope.WorkspaceID {
@@ -260,6 +263,38 @@ func (resolver *CapabilityResolver) ResolvePlugins(
 		"schemaVersion": int(snapshot.GetSchemaVersion()), "snapshotId": snapshot.GetSnapshotId(),
 		"snapshotDigest": snapshot.GetSnapshotDigest(), "plugins": plugins, "connectionGrants": grants,
 	}, nil
+}
+
+func adminRPCError(operation string, err error) error {
+	if innerruntime.IsWorkloadIdentityError(err) {
+		return &application.Error{
+			Status:  502,
+			Code:    "internal_auth_failed",
+			Message: "internal capability service authentication failed",
+		}
+	}
+	switch status.Code(err) {
+	case codes.Unauthenticated:
+		return &application.Error{
+			Status:  401,
+			Code:    "capability_unauthorized",
+			Message: "capability request is not authenticated",
+		}
+	case codes.PermissionDenied:
+		return &application.Error{
+			Status:  403,
+			Code:    "capability_forbidden",
+			Message: "capability request is not allowed",
+		}
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return &application.Error{
+			Status:  503,
+			Code:    "capability_service_unavailable",
+			Message: "internal capability service is unavailable",
+		}
+	default:
+		return fmt.Errorf("%s: %w", operation, err)
+	}
 }
 
 func pluginManifestCapability(manifest *adminv1.AgentPluginManifest) (map[string]any, error) {

@@ -5,7 +5,6 @@ metadata:
 data:
   ENVIRONMENT: "production"
   PORT: "8010"
-  RPC_PORT: "9010"
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "knowledge"
   ADMIN_RPC_TARGET: "admin:9001"

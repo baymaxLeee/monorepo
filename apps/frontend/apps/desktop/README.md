@@ -27,7 +27,8 @@ Chat 侧栏在“最近”上方按项目分组展示本地会话，“最近”
 Thread/Turn/Item 数据库位于 `sessions/<identity-scope>/runtime.sqlite`；可通过绝对路径环境变量
 `MONOREPO_AGENT_HOME` 覆盖，供同机 Desktop 与未来 CLI 指向同一 authority。这个 schema 是零兼容
 切换：旧 `runtime-v1.sqlite`、`sessions.sqlite` 与旧 Electron `userData/local/<scope>` 不读取、
-不导入，也不覆盖或删除。runtime home 和 Electron `userData` 都属于 Agent 禁止访问的控制目录。
+不导入，也不由应用自动覆盖或删除。日常 Agent 操作不得进入 runtime home 或 Electron `userData`；
+用户明确要求重置本地 Desktop 数据时，可以在解析并校验精确目录后清理这两个目录。
 
 在“此计算机 → 插件 → 导入本地插件…”选择带 `plugin.json`（Agent Plugins v1）或 `.codex-plugin/plugin.json` 的目录。导入会创建当前账号和工作区的本机副本。新会话可同时勾选该插件和 Admin 已开放的本机可用插件。个人插件默认未勾选，支持 Skill 正文、`references/` 文本资源和 HTTP MCP。平台系统插件及含平台 Skill 的 release 仍在云端运行。
 

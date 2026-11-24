@@ -4,7 +4,6 @@ metadata:
   name: canvas-config
 data:
   PORT: "8012"
-  RPC_PORT: "9012"
   ENVIRONMENT: "development"
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "canvas"

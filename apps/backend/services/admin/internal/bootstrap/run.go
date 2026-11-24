@@ -58,7 +58,7 @@ func Run(ctx context.Context) error {
 	apps := application.AppService{Repository: persistence.AppRepository{Pool: pool}, Errors: errorClassifier}
 	agentPlugins := application.NewAgentPluginService(persistence.AgentPluginRepository{Pool: pool}, keys, errorClassifier)
 	canvas := application.CanvasSettingsService{Store: persistence.CanvasSettingsRepository{Pool: pool}, Providers: providerRepository}
-	storageConnection, err := innerruntime.DialContext(ctx, config.StorageRPCTarget, innerruntime.ClientOptions{Caller: "admin", DefaultTimeout: config.ShutdownTimeout})
+	storageConnection, err := innerruntime.DialContext(ctx, config.StorageRPCTarget, innerruntime.ClientOptions{Caller: "admin", Token: config.InternalAPIToken, DefaultTimeout: config.ShutdownTimeout})
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen on admin RPC port: %w", err)
 	}
-	rpcServer := innerruntime.NewServer(innerruntime.ServerOptions{Authorizer: rpcapi.Authorizer()})
+	rpcServer := innerruntime.NewServer(innerruntime.ServerOptions{Authenticator: innerruntime.TokenAuthenticator(config.InternalServiceTokens), Authorizer: rpcapi.Authorizer()})
 	rpcapi.Register(rpcServer, providers, canvas, &skills, benefitPackages, agentPlugins)
 	errCh := make(chan error, 2)
 	go func() { errCh <- server.ListenAndServe() }()

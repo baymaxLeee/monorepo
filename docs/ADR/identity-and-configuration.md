@@ -16,8 +16,9 @@ Gateway 验证 IAM 签发的身份，剥离调用者伪造的身份头，再传�
 tenant/user/workspace/roles。服务必须检查作用域与资源权限，资源 ID、前端
 隐藏按钮、工具参数或 internal caller 身份都不能单独授予业务权限。
 
-服务间使用显式 Proto/gRPC binding，client runtime 注入固定 caller metadata，接收方
-按 RPC method allowlist 验证。Gateway 不公开代理 RPC 端口；
+类型化内部 RPC 使用显式 Proto/gRPC binding。client runtime 注入不可覆盖的固定 caller
+与 workload credential，接收方先认证 workload，再按精确 caller-method matrix 授权。
+Gateway 不公开代理 RPC 端口；
 Runtime server、worker、sandbox 都没有公共 Gateway route。内部 API 的解密配置不能原样返回浏览器。
 
 Runtime 是 tenant-neutral 的执行服务例外：Chat/Desktop/Canvas 等产品宿主先完成 tenant、workspace、

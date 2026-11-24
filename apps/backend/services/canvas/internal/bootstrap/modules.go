@@ -13,7 +13,6 @@ import (
 	maturehttp "github.com/example/monorepo/canvas/internal/api/handler"
 	mcpapi "github.com/example/monorepo/canvas/internal/api/mcp"
 	"github.com/example/monorepo/canvas/internal/api/openapi"
-	rpcapi "github.com/example/monorepo/canvas/internal/api/rpc"
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
@@ -83,7 +82,6 @@ func buildModules(
 	db *persistencetransaction.Store,
 	pool *pgxpool.Pool,
 	redisClient *redis.Client,
-	rpcService **rpcapi.Server,
 ) (http.Handler, error) {
 	serviceName := "canvas"
 	if role == roleWorker {
@@ -113,7 +111,7 @@ func buildModules(
 	if role == roleWorker {
 		go runQuotaReconciler(ctx, applicationquota.NewReconciler(quotaRepository, utcClock{}))
 	}
-	adminConnection, err := innerruntime.DialContext(ctx, cfg.AdminRPCTarget, innerruntime.ClientOptions{Caller: "canvas", DefaultTimeout: 15 * time.Second})
+	adminConnection, err := innerruntime.DialContext(ctx, cfg.AdminRPCTarget, innerruntime.ClientOptions{Caller: "canvas", Token: cfg.InternalAPIToken, DefaultTimeout: 15 * time.Second})
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +121,7 @@ func buildModules(
 	}()
 	providers := admin.New(adminConnection)
 	models := modelcatalog.New(providers)
-	storageConnection, err := innerruntime.DialContext(ctx, cfg.StorageRPCTarget, innerruntime.ClientOptions{Caller: "canvas", DefaultTimeout: 5 * time.Minute})
+	storageConnection, err := innerruntime.DialContext(ctx, cfg.StorageRPCTarget, innerruntime.ClientOptions{Caller: "canvas", Token: cfg.InternalAPIToken, DefaultTimeout: 5 * time.Minute})
 	if err != nil {
 		return nil, err
 	}
@@ -339,9 +337,6 @@ func buildModules(
 		applicationcanvas.WithUploadIntents(uploadIntents),
 	)
 	nodeHandler.SetCanvasMetadata(canvasService)
-	if role == roleServer && rpcService != nil {
-		*rpcService = rpcapi.New(nodeHandler, access)
-	}
 	projectService := applicationproject.NewService(
 		projectRepository, coverImages, uuidGenerator{}, utcClock{},
 		applicationproject.WithProjectChildCleanup(

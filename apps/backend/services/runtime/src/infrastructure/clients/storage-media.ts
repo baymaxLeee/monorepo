@@ -11,7 +11,7 @@ export function uploadAsset(input: {
   signal?: AbortSignal;
 }) {
   const settings = getWorkerSettings();
-  return new StorageClient(settings.storageRpcTarget).upload(input);
+  return new StorageClient(settings.storageRpcTarget, settings.internalApiToken).upload(input);
 }
 
 export async function readAsset(input: {
@@ -19,7 +19,8 @@ export async function readAsset(input: {
   revisionId: string;
   signal?: AbortSignal;
 }): Promise<Uint8Array> {
-  const stream = await new StorageClient(getWorkerSettings().storageRpcTarget).content(input);
+  const settings = getWorkerSettings();
+  const stream = await new StorageClient(settings.storageRpcTarget, settings.internalApiToken).content(input);
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
@@ -29,7 +30,8 @@ export async function claimTaskAsset(input: {
   assetId: string;
   revisionId: string;
 }): Promise<void> {
-  const client = new StorageClient(getWorkerSettings().storageRpcTarget);
+  const settings = getWorkerSettings();
+  const client = new StorageClient(settings.storageRpcTarget, settings.internalApiToken);
   const claim = { ownerType: "runtime-task", ownerId: input.taskId, slot: input.slot, generation: 1 };
   await client.prepareClaim({
     ...claim,
@@ -41,7 +43,8 @@ export async function claimTaskAsset(input: {
 }
 
 export async function releaseTaskAsset(taskId: string, slot: string): Promise<void> {
-  await new StorageClient(getWorkerSettings().storageRpcTarget).releaseClaim({
+  const settings = getWorkerSettings();
+  await new StorageClient(settings.storageRpcTarget, settings.internalApiToken).releaseClaim({
     ownerType: "runtime-task",
     ownerId: taskId,
     slot,
@@ -54,6 +57,7 @@ export async function mintAssetDelivery(input: {
   revisionId: string;
   maxDim?: number;
 }): Promise<{ url: string; expiresAt: string }> {
-  const capability = await new StorageClient(getWorkerSettings().storageRpcTarget).mintDelivery(input);
+  const settings = getWorkerSettings();
+  const capability = await new StorageClient(settings.storageRpcTarget, settings.internalApiToken).mintDelivery(input);
   return { url: capability.url, expiresAt: capability.expires_at };
 }

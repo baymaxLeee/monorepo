@@ -13,6 +13,7 @@ import grpc
 from bootstrap.config import Settings, get_settings
 from cachetools import TTLCache
 from google.protobuf.json_format import MessageToDict
+from inner_api.transport import CallOptions, InnerApiCaller
 from knowledge_kernel.errors import BaseError
 from knowledge_kernel.tracing import propagation_headers
 
@@ -55,6 +56,7 @@ class AdminClient:
         self._settings = settings or get_settings()
         self._channel = grpc.aio.insecure_channel(self._settings.admin_rpc_target)
         self._client = admin_pb2_grpc.ProviderServiceStub(self._channel)
+        self._caller = InnerApiCaller("knowledge", self._settings.internal_api_token)
         self._cache: TTLCache[tuple[str, ...], ProviderSnapshot] = TTLCache(maxsize=256, ttl=300.0)
         self._cache_lock = asyncio.Lock()
 
@@ -120,10 +122,8 @@ class AdminClient:
                 raise ProviderNotConfiguredError("no model provider configured") from exc
             raise AdminUnavailableError(f"admin RPC failed: {exc.code().name}") from exc
 
-    def _call_options(self) -> dict[str, Any]:
-        metadata = [("x-caller-service", "knowledge")]
-        metadata.extend((key.lower(), value) for key, value in propagation_headers().items())
-        return {"metadata": metadata, "timeout": 10.0}
+    def _call_options(self) -> CallOptions:
+        return self._caller.options(propagation_headers())
 
     @staticmethod
     def _snapshot(data: admin_pb2.ModelProvider) -> ProviderSnapshot:

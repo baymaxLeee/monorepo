@@ -7,10 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	rpcapi "github.com/example/monorepo/canvas/internal/api/rpc"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
-	canvasv1 "github.com/example/monorepo/inner-api-go/gen/canvas/v1"
-	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"github.com/example/monorepo/observability-go"
 	"github.com/redis/go-redis/v9"
 )
@@ -52,47 +49,11 @@ func run(ctx context.Context, role processRole) error {
 	if err = redisClient.Ping(ctx).Err(); err != nil {
 		return err
 	}
-	var rpcService *rpcapi.Server
-	handler, err := buildModules(ctx, role, cfg, db, pool, redisClient, &rpcService)
+	handler, err := buildModules(ctx, role, cfg, db, pool, redisClient)
 	if err != nil {
 		return err
 	}
-	if role == roleWorker {
-		return serveHTTP(ctx, cfg.Port, handler)
-	}
-	return serveServer(ctx, cfg, handler, rpcService)
-}
-
-func serveServer(ctx context.Context, cfg Config, handler http.Handler, service *rpcapi.Server) error {
-	if service == nil {
-		return errors.New("canvas RPC service is not configured")
-	}
-	listener, err := net.Listen("tcp", ":"+cfg.RPCPort)
-	if err != nil {
-		return err
-	}
-	defer listener.Close()
-	server := innerruntime.NewServer(innerruntime.ServerOptions{Authorizer: rpcapi.Authorizer()})
-	canvasv1.RegisterCanvasServiceServer(server, service)
-	done := make(chan error, 2)
-	go func() { done <- serveHTTP(ctx, cfg.Port, handler) }()
-	go func() { done <- server.Serve(listener) }()
-	select {
-	case err = <-done:
-		if errors.Is(err, net.ErrClosed) {
-			return nil
-		}
-		return err
-	case <-ctx.Done():
-		stopped := make(chan struct{})
-		go func() { server.GracefulStop(); close(stopped) }()
-		select {
-		case <-stopped:
-		case <-time.After(25 * time.Second):
-			server.Stop()
-		}
-		return nil
-	}
+	return serveHTTP(ctx, cfg.Port, handler)
 }
 
 func serveHTTP(ctx context.Context, port string, handler http.Handler) error {

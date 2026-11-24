@@ -102,6 +102,17 @@ jobs:
           kustomize build --load-restrictor=LoadRestrictionsNone . > /tmp/prod-manifest.yaml
           sed -n '1,200p' /tmp/prod-manifest.yaml
 
+      # Production Secrets are excluded from the rendered overlay and managed
+      # out-of-band. Verify the live credential graph before migrations or
+      # rollouts so an older Secret set cannot take the release down.
+      - name: Preflight production service identities
+        run: |
+          set -o pipefail
+          kubectl -n monorepo-prod get secret \
+            admin-secrets canvas-secrets chat-secrets knowledge-secrets \
+            runtime-server-secrets runtime-worker-secrets runtime-sandbox-secrets storage-secrets \
+            -o json | python3 scripts/check-k8s-service-identities.py
+
       - name: Apply database migrations
         working-directory: infra/k8s
         run: |

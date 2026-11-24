@@ -38,13 +38,14 @@ export interface StorageClaimIdentity {
 export type StorageUploadBody = Blob | Uint8Array | ReadableStream<Uint8Array>;
 
 export class StorageClient {
-  private readonly caller = new InnerApiCaller("runtime", 180_000);
+  private readonly caller: InnerApiCaller;
   private readonly assets: AssetServiceClient;
   private readonly uploads: UploadSessionServiceClient;
   private readonly claims: ClaimServiceClient;
   private readonly delivery: DeliveryServiceClient;
 
-  constructor(target: string) {
+  constructor(target: string, token: string) {
+    this.caller = new InnerApiCaller("runtime", token, 180_000);
     this.assets = new AssetServiceClient(target, insecureChannelCredentials);
     this.uploads = new UploadSessionServiceClient(target, insecureChannelCredentials);
     this.claims = new ClaimServiceClient(target, insecureChannelCredentials);
@@ -354,7 +355,8 @@ async function* bodyChunks(body: StorageUploadBody): AsyncGenerator<Uint8Array> 
 
 let cached: StorageClient | undefined;
 export function storageClient() {
-  return (cached ??= new StorageClient(getServerSettings().storageRpcTarget));
+  const settings = getServerSettings();
+  return (cached ??= new StorageClient(settings.storageRpcTarget, settings.internalApiToken));
 }
 
 export function uploadAsset(input: {

@@ -16,7 +16,6 @@ class Settings(BaseSettings):
 
     environment: Environment = "development"
     port: int = 8010
-    rpc_port: int = 9010
 
     postgres_host: str = "localhost"
     postgres_port: int = 5432
@@ -26,6 +25,7 @@ class Settings(BaseSettings):
 
     admin_rpc_target: str = "localhost:9001"
     storage_rpc_target: str = "localhost:9013"
+    internal_api_token: str = "dev-knowledge-internal-token"
     internal_service_tokens: dict[str, str] = Field(default_factory=lambda: {"runtime": "dev-runtime-internal-token"})
     mcp_allowed_hosts: list[str] = Field(
         default_factory=lambda: [
@@ -94,6 +94,8 @@ class Settings(BaseSettings):
                 missing.append("POSTGRES_HOST")
             if len(runtime_token) < 32 or runtime_token.startswith("dev-"):
                 missing.append("INTERNAL_SERVICE_TOKENS")
+            if len(self.internal_api_token) < 32 or self.internal_api_token.startswith("dev-"):
+                missing.append("INTERNAL_API_TOKEN")
         if missing:
             raise ValueError("deployed environment requires explicit values for: " + ", ".join(missing))
         return self

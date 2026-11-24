@@ -7,18 +7,18 @@
 #     come online; the API call only fires when the user clicks/loads the list.
 #   - We DO wait for every MFE manifest before starting platform.
 
-svc-admin: cd apps/backend/services/admin && PORT=8001 RPC_PORT=9001 STORAGE_RPC_TARGET=localhost:9013 go run ./cmd/server
-svc-chat:  cd apps/backend/services/chat && PORT=8009 go run ./cmd/server
-knowledge: cd apps/backend/services/knowledge && RPC_PORT=9010 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 uv run uvicorn main:app --app-dir src --reload --port 8010
+svc-admin: cd apps/backend/services/admin && PORT=8001 RPC_PORT=9001 STORAGE_RPC_TARGET=localhost:9013 INTERNAL_API_TOKEN=dev-admin-internal-token INTERNAL_SERVICE_TOKENS='{"canvas":"dev-canvas-internal-token","chat":"dev-chat-internal-token","knowledge":"dev-knowledge-internal-token"}' go run ./cmd/server
+svc-chat:  cd apps/backend/services/chat && PORT=8009 INTERNAL_API_TOKEN=dev-chat-internal-token go run ./cmd/server
+knowledge: cd apps/backend/services/knowledge && ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 INTERNAL_API_TOKEN=dev-knowledge-internal-token uv run uvicorn main:app --app-dir src --reload --port 8010
 telemetry: cd apps/backend/services/telemetry && PORT=8008 go run ./cmd/server
 iam:  cd apps/backend/services/iam && PORT=8002 IAM_POSTGRES_DATABASE=iam go run ./cmd/server
 gateway:   cd apps/backend/services/gateway && PORT=8000 go run ./cmd/server
-canvas: cd apps/backend/services/canvas && PORT=8012 RPC_PORT=9012 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 go run ./cmd/server
-canvas-worker: cd apps/backend/services/canvas && PORT=8016 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 go run ./cmd/worker
-storage: cd apps/backend/services/storage && PORT=8013 RPC_PORT=9013 go run ./cmd/server
-runtime-server: cd apps/backend/services/runtime && PORT=8015 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 KNOWLEDGE_RPC_TARGET=localhost:9010 pnpm dev:server
-runtime-worker: cd apps/backend/services/runtime && PORT=8011 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 KNOWLEDGE_RPC_TARGET=localhost:9010 pnpm dev:worker
-runtime-sandbox: cd apps/backend/services/runtime && PORT=8014 pnpm dev:sandbox
+canvas: cd apps/backend/services/canvas && PORT=8012 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 INTERNAL_API_TOKEN=dev-canvas-internal-token go run ./cmd/server
+canvas-worker: cd apps/backend/services/canvas && PORT=8016 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 INTERNAL_API_TOKEN=dev-canvas-internal-token go run ./cmd/worker
+storage: cd apps/backend/services/storage && PORT=8013 RPC_PORT=9013 INTERNAL_SERVICE_TOKENS='{"admin":"dev-admin-internal-token","canvas":"dev-canvas-internal-token","knowledge":"dev-knowledge-internal-token","runtime":"dev-runtime-internal-token"}' go run ./cmd/server
+runtime-server: cd apps/backend/services/runtime && PORT=8015 STORAGE_RPC_TARGET=localhost:9013 INTERNAL_API_TOKEN=dev-runtime-internal-token INTERNAL_SERVICE_TOKENS='{"chat":"dev-chat-internal-token"}' pnpm dev:server
+runtime-worker: cd apps/backend/services/runtime && PORT=8011 STORAGE_RPC_TARGET=localhost:9013 INTERNAL_API_TOKEN=dev-runtime-internal-token INTERNAL_SERVICE_TOKENS='{"runtime":"dev-runtime-internal-token"}' pnpm dev:worker
+runtime-sandbox: cd apps/backend/services/runtime && PORT=8014 INTERNAL_SERVICE_TOKENS='{"runtime":"dev-runtime-internal-token"}' pnpm dev:sandbox
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
 mfe-chat:  cd apps/frontend && PORT=3005 pnpm -F chat dev
 mfe-canvas: cd apps/frontend && PORT=3006 pnpm -F canvas dev

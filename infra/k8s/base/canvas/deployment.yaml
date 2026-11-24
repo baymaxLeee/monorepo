@@ -29,7 +29,6 @@ spec:
           command: ["/canvas-server"]
           ports:
             - { name: http, containerPort: 8012 }
-            - { name: rpc, containerPort: 9012 }
           envFrom:
             - configMapRef: { name: canvas-config }
             - secretRef: { name: canvas-secrets }

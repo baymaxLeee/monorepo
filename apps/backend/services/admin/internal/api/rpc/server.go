@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/example/monorepo/admin/internal/application"
 	"github.com/example/monorepo/admin/internal/domain"
@@ -40,22 +39,38 @@ func Register(server *grpc.Server, providers application.ProviderService, canvas
 }
 
 func Authorizer() innerruntime.Authorizer {
-	return innerruntime.AuthorizeFunc(func(caller, method string) bool {
-		allowed := map[string]bool{"canvas": true, "runtime": true, "knowledge": true}
-		if !allowed[caller] {
-			return false
-		}
-		if strings.HasSuffix(method, "/GetTaskProvider") {
-			return caller == "canvas" || caller == "runtime"
-		}
-		if strings.HasPrefix(method, "/admin.v1.BenefitPackageService/") {
-			return caller == "canvas"
-		}
-		if strings.HasPrefix(method, "/admin.v1.AgentPluginService/") {
-			return caller == "runtime"
-		}
-		return strings.HasPrefix(method, "/admin.v1.ProviderService/") || strings.HasPrefix(method, "/admin.v1.ConfigurationService/")
-	})
+	methods := map[string]map[string]bool{
+		"chat": {
+			adminv1.ProviderService_GetProvider_FullMethodName:            true,
+			adminv1.ProviderService_GetDefaultProvider_FullMethodName:     true,
+			adminv1.ProviderService_GetTaskProvider_FullMethodName:        true,
+			adminv1.ProviderService_ListProviderCatalog_FullMethodName:    true,
+			adminv1.ConfigurationService_ListSkills_FullMethodName:        true,
+			adminv1.ConfigurationService_GetSkill_FullMethodName:          true,
+			adminv1.ConfigurationService_GetSkillFile_FullMethodName:      true,
+			adminv1.AgentPluginService_ResolveAgentPlugins_FullMethodName: true,
+		},
+		"knowledge": {
+			adminv1.ProviderService_GetProvider_FullMethodName:        true,
+			adminv1.ProviderService_GetDefaultProvider_FullMethodName: true,
+			adminv1.ProviderService_GetProviderByKind_FullMethodName:  true,
+		},
+		"canvas": {
+			adminv1.ProviderService_GetProvider_FullMethodName:                        true,
+			adminv1.ProviderService_GetTaskProvider_FullMethodName:                    true,
+			adminv1.ProviderService_ListProviderCatalog_FullMethodName:                true,
+			adminv1.ConfigurationService_GetCanvasSettings_FullMethodName:             true,
+			adminv1.BenefitPackageService_ListAvailableBenefitPackages_FullMethodName: true,
+			adminv1.BenefitPackageService_ReserveReview_FullMethodName:                true,
+			adminv1.BenefitPackageService_TransitionReview_FullMethodName:             true,
+			adminv1.BenefitPackageService_BeginReviewCleanup_FullMethodName:           true,
+			adminv1.BenefitPackageService_CompleteReviewCleanup_FullMethodName:        true,
+			adminv1.BenefitPackageService_SubmitReviewedAsset_FullMethodName:          true,
+			adminv1.BenefitPackageService_GetReviewedAsset_FullMethodName:             true,
+			adminv1.BenefitPackageService_DeleteReviewedAsset_FullMethodName:          true,
+		},
+	}
+	return innerruntime.AuthorizeFunc(func(caller, method string) bool { return methods[caller][method] })
 }
 
 func actor(value *commonv1.ActorContext) application.Actor {

@@ -13,9 +13,11 @@ import (
 )
 
 const callerMetadataKey = "x-caller-service"
+const tokenMetadataKey = "x-internal-token"
 
 type ClientOptions struct {
 	Caller         string
+	Token          string
 	DefaultTimeout time.Duration
 }
 
@@ -28,6 +30,9 @@ func DialContext(ctx context.Context, target string, options ClientOptions, extr
 	}
 	if options.Caller == "" {
 		return nil, fmt.Errorf("inner API caller is required")
+	}
+	if options.Token == "" {
+		return nil, fmt.Errorf("inner API caller credential is required")
 	}
 	if options.DefaultTimeout <= 0 {
 		options.DefaultTimeout = 10 * time.Second
@@ -51,15 +56,13 @@ func outgoingContext(ctx context.Context, options ClientOptions) (context.Contex
 	if _, ok := ctx.Deadline(); !ok {
 		ctx, cancel = context.WithTimeout(ctx, options.DefaultTimeout)
 	}
-	values := []string{callerMetadataKey, options.Caller}
-	if incoming, ok := metadata.FromIncomingContext(ctx); ok {
-		for _, key := range []string{"traceparent", "tracestate", "x-trace-id"} {
-			for _, value := range incoming.Get(key) {
-				values = append(values, key, value)
-			}
-		}
-	}
-	return metadata.AppendToOutgoingContext(ctx, values...), cancel
+	outgoing, _ := metadata.FromOutgoingContext(ctx)
+	outgoing = outgoing.Copy()
+	outgoing.Delete(callerMetadataKey)
+	outgoing.Delete(tokenMetadataKey)
+	outgoing.Set(callerMetadataKey, options.Caller)
+	outgoing.Set(tokenMetadataKey, options.Token)
+	return metadata.NewOutgoingContext(ctx, outgoing), cancel
 }
 
 func clientUnaryInterceptor(options ClientOptions) grpc.UnaryClientInterceptor {

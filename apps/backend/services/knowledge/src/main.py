@@ -12,7 +12,6 @@ from api.http.routes import (
 )
 from api.mcp.server import mcp as knowledge_mcp
 from api.mcp.server import mcp_app as knowledge_mcp_app
-from api.rpc.server import start_server
 from application.admin_client import close_admin_client
 from application.storage_client import close_storage_client, run_asset_claim_relay
 from bootstrap.config import get_settings
@@ -30,13 +29,11 @@ logger = logging.getLogger("knowledge.main")
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     async with knowledge_mcp.session_manager.run():
-        rpc_server = await start_server(get_settings().rpc_port)
         stop = asyncio.Event()
         claim_relay = asyncio.create_task(run_asset_claim_relay(stop), name="asset-claim-relay")
         try:
             yield
         finally:
-            await rpc_server.stop(10)
             stop.set()
             await claim_relay
             await close_storage_client()

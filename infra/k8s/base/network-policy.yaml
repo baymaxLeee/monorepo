@@ -31,8 +31,8 @@ spec:
   podSelector:
     matchExpressions:
       - key: app
-        operator: NotIn
-        values: [gateway, web, runtime-worker, runtime-sandbox]
+        operator: In
+        values: [iam, admin, chat, canvas, knowledge, telemetry, storage]
   policyTypes:
     - Ingress
   ingress:
@@ -40,6 +40,9 @@ spec:
         - podSelector:
             matchLabels:
               app: gateway
+      ports:
+        - protocol: TCP
+          port: http
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -56,7 +59,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [gateway, admin, knowledge, runtime-server, runtime-worker, canvas, canvas-worker]
+                values: [admin, knowledge, runtime-server, runtime-worker, canvas, canvas-worker]
       ports:
         - protocol: TCP
           port: 9013
@@ -76,6 +79,9 @@ spec:
         - podSelector:
             matchLabels:
               app: chat
+      ports:
+        - protocol: TCP
+          port: 8015
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -112,6 +118,9 @@ spec:
         - podSelector:
             matchLabels:
               app: runtime-server
+      ports:
+        - protocol: TCP
+          port: http
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -146,24 +155,9 @@ spec:
         - podSelector:
             matchLabels:
               app: knowledge
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-canvas-to-knowledge
-spec:
-  podSelector:
-    matchLabels:
-      app: knowledge
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: canvas
       ports:
         - protocol: TCP
-          port: 8010
+          port: 9001
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -183,4 +177,4 @@ spec:
                 values: [canvas, canvas-worker]
       ports:
         - protocol: TCP
-          port: 8001
+          port: 9001

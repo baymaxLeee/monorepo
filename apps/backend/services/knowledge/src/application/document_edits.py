@@ -10,7 +10,6 @@ from infrastructure.persistence.repositories import documents
 from knowledge_kernel.errors import ConflictError, NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from application.conversation_cleanup import assert_conversation_accepts_artifacts
 from application.document_content import store_document_text
 from application.storage_client import ensure_document_claim_active
 
@@ -42,9 +41,6 @@ async def apply_document_edit(
             "source_filename": revision.filename,
         }
     async with write_tx(session):
-        await assert_conversation_accepts_artifacts(
-            session, user_id=snapshot.user_id, conversation_id=snapshot.conversation_id
-        )
         row = await documents.get_document(session, snapshot.id, snapshot.user_id)
         if row is None:
             raise NotFoundError("document was deleted")

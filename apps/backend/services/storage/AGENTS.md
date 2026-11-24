@@ -11,10 +11,10 @@ exclusive local filesystem volume containing durable bytes.
 - Product meaning and owner existence remain authoritative in the caller. Storage
   stores the lifecycle claim projection and never reads another service's DB.
 - Storage protocol, persistence and production models never accept or persist
-  tenant, workspace or business-user identity. `x-caller-service` is a
-  deployment-allowlisted workload namespace declaration on the internal RPC
-  transport, not cryptographic workload authentication. Claim owner fields are caller-local
-  opaque identifiers rather than product identity columns.
+  tenant, workspace or business-user identity. The internal RPC runtime binds
+  `x-caller-service` to that workload's deployment credential before applying
+  the exact method policy. Claim owner fields are caller-local opaque
+  identifiers rather than product identity columns.
 - Upload and download bodies are streamed. Never use `io.ReadAll` or parse a
   complete multipart body.
 - A cached claim count is only a scan hint. Collection rechecks claim rows and

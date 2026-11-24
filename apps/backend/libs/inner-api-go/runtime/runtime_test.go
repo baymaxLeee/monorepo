@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	commonv1 "github.com/example/monorepo/inner-api-go/gen/common/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -29,7 +31,7 @@ func (testServer) Call(ctx context.Context, _ *commonv1.ActorContext) (*emptypb.
 
 func TestClientInjectsCallerAndDeadline(t *testing.T) {
 	listener := bufconn.Listen(1024 * 1024)
-	server := NewServer(ServerOptions{Authorizer: AuthorizeFunc(func(caller, method string) bool {
+	server := NewServer(ServerOptions{Authenticator: TokenAuthenticator{"runtime": "runtime-secret"}, Authorizer: AuthorizeFunc(func(caller, method string) bool {
 		return caller == "runtime" && method == "/test.v1.Service/Call"
 	})})
 	serviceDescription := grpc.ServiceDesc{
@@ -54,7 +56,7 @@ func TestClientInjectsCallerAndDeadline(t *testing.T) {
 	go func() { _ = server.Serve(listener) }()
 	defer server.Stop()
 
-	connection, err := DialContext(context.Background(), "passthrough:///buffer", ClientOptions{Caller: "runtime", DefaultTimeout: time.Second}, grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+	connection, err := DialContext(context.Background(), "passthrough:///buffer", ClientOptions{Caller: "runtime", Token: "runtime-secret", DefaultTimeout: time.Second}, grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 		return listener.DialContext(ctx)
 	}))
 	if err != nil {
@@ -67,9 +69,40 @@ func TestClientInjectsCallerAndDeadline(t *testing.T) {
 }
 
 func TestServerRejectsUnknownCaller(t *testing.T) {
-	ctx := context.Background()
-	_, err := authorizeUnary(AuthorizeFunc(func(caller, _ string) bool { return caller == "runtime" }))(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/test.v1.Service/Call"}, func(context.Context, any) (any, error) { return nil, nil })
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(callerMetadataKey, "unknown", tokenMetadataKey, "secret"))
+	_, err := authenticateAuthorizeUnary(TokenAuthenticator{"runtime": "runtime-secret"}, AuthorizeFunc(func(caller, _ string) bool { return caller == "runtime" }), slog.Default())(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/test.v1.Service/Call"}, func(context.Context, any) (any, error) { return nil, nil })
+	if status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("status = %v, want unauthenticated", status.Code(err))
+	}
+	if !IsWorkloadIdentityError(err) {
+		t.Fatal("authentication rejection is missing the workload identity marker")
+	}
+}
+
+func TestServerRejectsForbiddenMethodAfterAuthentication(t *testing.T) {
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(callerMetadataKey, "runtime", tokenMetadataKey, "runtime-secret"))
+	_, err := authenticateAuthorizeUnary(TokenAuthenticator{"runtime": "runtime-secret"}, AuthorizeFunc(func(_ string, method string) bool { return method == "/allowed" }), slog.Default())(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/forbidden"}, func(context.Context, any) (any, error) { return nil, nil })
 	if status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("status = %v, want permission denied", status.Code(err))
+	}
+	if !IsWorkloadIdentityError(err) {
+		t.Fatal("authorization rejection is missing the workload identity marker")
+	}
+}
+
+func TestApplicationStatusIsNotAWorkloadIdentityError(t *testing.T) {
+	for _, err := range []error{
+		status.Error(codes.Unauthenticated, "application authentication failed"),
+		status.Error(codes.PermissionDenied, "application permission denied"),
+	} {
+		if IsWorkloadIdentityError(err) {
+			t.Fatalf("unmarked application status %v was classified as a workload identity error", status.Code(err))
+		}
+	}
+}
+
+func TestClientRequiresCredential(t *testing.T) {
+	if _, err := DialContext(context.Background(), "localhost:1", ClientOptions{Caller: "runtime"}); err == nil {
+		t.Fatal("missing caller credential was accepted")
 	}
 }

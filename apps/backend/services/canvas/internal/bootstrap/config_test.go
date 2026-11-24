@@ -15,6 +15,7 @@ var deployedEnvironment = map[string]string{
 	"PUBLIC_GATEWAY_URL":      "http://example.test:8080",
 	"ADMIN_RPC_TARGET":        "admin:9001",
 	"STORAGE_RPC_TARGET":      "asset:9013",
+	"INTERNAL_API_TOKEN":      "strong-canvas-internal-token-value",
 	"INTERNAL_SERVICE_TOKENS": `{"runtime":"strong-runtime-internal-token-value"}`,
 }
 

@@ -18,6 +18,7 @@ class TestSettings:
                 postgres_password="test-database-password",
                 admin_rpc_target="admin:9001",
                 storage_rpc_target="storage:9013",
+                internal_api_token="strong-knowledge-internal-token-value",
                 internal_service_tokens={"runtime": "strong-runtime-internal-token-value"},
             )
         assert settings.admin_rpc_target == "admin:9001"

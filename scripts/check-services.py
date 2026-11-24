@@ -22,6 +22,7 @@ SINGLE_VPS_RENDER_ENV_PATH = ROOT / "infra" / "single-vps" / "render-env.sh"
 SINGLE_VPS_OPERATOR_ENV_EXAMPLE_PATH = ROOT / "infra" / "single-vps" / "secrets.sops.env.example"
 GATEWAY_SOURCE_ROOT = ROOT / "apps" / "backend" / "services" / "gateway"
 K8S_BASE = ROOT / "infra" / "k8s" / "base"
+K8S_NETWORK_POLICY_PATH = K8S_BASE / "network-policy.yaml"
 REQUIRED = ("root", "runtime", "port", "publicRoutes", "bindings", "databases")
 RUNTIMES = {"go", "python", "node"}
 RUNTIME_MARKERS = {"go": "go.mod", "python": "pyproject.toml", "node": "package.json"}
@@ -33,10 +34,31 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+def reject_duplicate_yaml_keys(path: Path, text: str) -> None:
+    def visit(node: yaml.Node, location: str) -> None:
+        if isinstance(node, yaml.MappingNode):
+            seen: set[str] = set()
+            for key_node, value_node in node.value:
+                if isinstance(key_node, yaml.ScalarNode) and key_node.value != "<<":
+                    if key_node.value in seen:
+                        fail(f"{path.relative_to(ROOT)} has duplicate key {key_node.value!r} at {location}")
+                    seen.add(key_node.value)
+                visit(value_node, f"{location}.{getattr(key_node, 'value', '?')}")
+        elif isinstance(node, yaml.SequenceNode):
+            for index, value in enumerate(node.value):
+                visit(value, f"{location}[{index}]")
+
+    for document in yaml.compose_all(text):
+        if document is not None:
+            visit(document, "$")
+
+
 def load_yaml(path: Path) -> Any:
     if not path.is_file():
         fail(f"missing {path.relative_to(ROOT)}")
-    return yaml.safe_load(path.read_text())
+    text = path.read_text()
+    reject_duplicate_yaml_keys(path, text)
+    return yaml.safe_load(text)
 
 
 def load_services() -> dict[str, dict[str, Any]]:
@@ -238,6 +260,49 @@ def expected_binding_keys(config: dict[str, Any]) -> set[str]:
     }
 
 
+def binding_environment(values: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in values.items() if key.endswith(("_SERVICE_URL", "_RPC_TARGET"))}
+
+
+def k8s_workloads(services: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    workloads: dict[str, dict[str, Any]] = {}
+    for service_id, config in services.items():
+        service_root = K8S_BASE / service_id
+        configmaps = {}
+        for path in service_root.glob("*configmap.yaml"):
+            document = load_yaml(path)
+            configmaps[document["metadata"]["name"]] = document.get("data", {})
+
+        for path in service_root.glob("*deployment.yaml"):
+            deployment = load_yaml(path)
+            name = deployment["metadata"]["name"]
+            if name in workloads:
+                fail(f"duplicate K8s workload name {name}")
+            labels = deployment["spec"]["template"]["metadata"]["labels"]
+            environment: dict[str, Any] = {}
+            for container in deployment["spec"]["template"]["spec"].get("containers", []):
+                for source in container.get("envFrom", []):
+                    configmap_name = source.get("configMapRef", {}).get("name")
+                    if configmap_name:
+                        if configmap_name not in configmaps:
+                            fail(f"{name}: referenced K8s ConfigMap {configmap_name} is not declared by {service_id}")
+                        environment.update(configmaps[configmap_name])
+            bindings = {
+                (dependency, transport): environment[binding_key(dependency, transport)]
+                for dependency, transports in config["bindings"].items()
+                for transport in transports
+                if binding_key(dependency, transport) in environment
+            }
+            workloads[name] = {
+                "owner": service_id,
+                "labels": labels,
+                "bindings": bindings,
+                "environment": environment,
+                "main": path.name == "deployment.yaml",
+            }
+    return workloads
+
+
 def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
     compose = load_yaml(SINGLE_VPS_PATH)
     compose_services = compose.get("services") if isinstance(compose, dict) else None
@@ -293,6 +358,29 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
                         f"{primary_database}, got {actual}"
                     )
 
+    workloads = k8s_workloads(services)
+    for workload_name, workload in workloads.items():
+        compose_entry = compose_services.get(workload_name)
+        if not isinstance(compose_entry, dict):
+            continue
+        compose_environment = compose_entry.get("environment")
+        if not isinstance(compose_environment, dict):
+            fail(f"{workload_name}: single-vps compose environment missing")
+        k8s_bindings = binding_environment(workload["environment"])
+        compose_bindings = binding_environment(compose_environment)
+        if set(compose_bindings) != set(k8s_bindings):
+            fail(
+                f"{workload_name}: single-vps workload bindings drift from K8s: "
+                f"expected={sorted(k8s_bindings)} actual={sorted(compose_bindings)}"
+            )
+        for (dependency, transport), k8s_value in workload["bindings"].items():
+            key = binding_key(dependency, transport)
+            target = services[dependency]
+            port = target["port"] if transport == "http" else target.get("rpcPort")
+            expected_fragment = f"{dependency}:{port}"
+            if expected_fragment not in str(k8s_value) or expected_fragment not in str(compose_bindings[key]):
+                fail(f"{workload_name}: {key} must target {expected_fragment} in K8s and single-vps")
+
 
 def validate_service_identities(services: dict[str, dict[str, Any]]) -> None:
     chat_token = env_from_example("chat").get("INTERNAL_API_TOKEN", "")
@@ -302,6 +390,148 @@ def validate_service_identities(services: dict[str, dict[str, Any]]) -> None:
     actual = json.loads(env_from_example("runtime").get("INTERNAL_SERVICE_TOKENS", "{}"))
     if actual != expected:
         fail(f"runtime: .env.example HTTP caller map drift: expected={expected} actual={actual}")
+
+    compose_services = load_yaml(SINGLE_VPS_PATH)["services"]
+    rpc_consumers = {
+        target: {source for source, config in services.items() if "rpc" in config["bindings"].get(target, [])}
+        for target in services
+    }
+    surfaces = {
+        ".env.example": {service_id: env_from_example(service_id) for service_id in services},
+        "K8s Secret": {
+            service_id: load_yaml(K8S_BASE / service_id / "secret.yaml").get("stringData", {})
+            for service_id in services
+        },
+        "single-vps": {service_id: compose_services[service_id]["environment"] for service_id in services},
+    }
+    for surface, service_environments in surfaces.items():
+        outbound_tokens: dict[str, str] = {}
+        for service_id, config in services.items():
+            if not any("rpc" in transports for transports in config["bindings"].values()):
+                continue
+            token = service_environments[service_id].get("INTERNAL_API_TOKEN")
+            if not isinstance(token, str) or not token:
+                fail(f"{service_id}: {surface} must provide INTERNAL_API_TOKEN for outbound RPC")
+            outbound_tokens[service_id] = token
+        if len(set(outbound_tokens.values())) != len(outbound_tokens):
+            fail(f"{surface}: outbound RPC caller credentials must be unique per service")
+
+        for service_id, callers in rpc_consumers.items():
+            if not callers:
+                continue
+            raw_tokens = service_environments[service_id].get("INTERNAL_SERVICE_TOKENS")
+            try:
+                tokens = json.loads(raw_tokens) if isinstance(raw_tokens, str) else None
+            except json.JSONDecodeError:
+                tokens = None
+            if not isinstance(tokens, dict) or any(
+                not isinstance(caller, str) or not isinstance(token, str) or not token
+                for caller, token in tokens.items()
+            ):
+                fail(f"{service_id}: {surface} INTERNAL_SERVICE_TOKENS must be a string-to-string JSON object")
+            if set(tokens) != callers:
+                fail(
+                    f"{service_id}: {surface} RPC caller credentials drift: "
+                    f"expected={sorted(callers)} actual={sorted(tokens)}"
+                )
+            for caller in callers:
+                if tokens[caller] != outbound_tokens[caller]:
+                    fail(f"{service_id}: {surface} RPC token for {caller} does not match {caller} INTERNAL_API_TOKEN")
+
+
+def selector_matches(selector: dict[str, Any], labels: dict[str, str]) -> bool:
+    for key, value in selector.get("matchLabels", {}).items():
+        if labels.get(key) != value:
+            return False
+    for expression in selector.get("matchExpressions", []):
+        key = expression.get("key")
+        values = expression.get("values", [])
+        operator = expression.get("operator")
+        if operator == "In" and labels.get(key) not in values:
+            return False
+        if operator == "NotIn" and (key not in labels or labels[key] in values):
+            return False
+        if operator == "Exists" and key not in labels:
+            return False
+        if operator == "DoesNotExist" and key in labels:
+            return False
+    return True
+
+
+def validate_k8s_network_bindings(services: dict[str, dict[str, Any]]) -> None:
+    network_policy_text = K8S_NETWORK_POLICY_PATH.read_text()
+    reject_duplicate_yaml_keys(K8S_NETWORK_POLICY_PATH, network_policy_text)
+    policies = [document for document in yaml.safe_load_all(network_policy_text) if document]
+    workloads = k8s_workloads(services)
+    main_workloads = {workload["owner"]: name for name, workload in workloads.items() if workload["main"]}
+    for source, workload in workloads.items():
+        for target, transport in workload["bindings"]:
+            target_workload = main_workloads[target]
+            expected_port = services[target]["port"] if transport == "http" else services[target].get("rpcPort")
+            allowed = False
+            for policy in policies:
+                spec = policy.get("spec", {})
+                if not selector_matches(spec.get("podSelector", {}), workloads[target_workload]["labels"]):
+                    continue
+                for ingress in spec.get("ingress", []):
+                    source_allowed = any(
+                        "podSelector" in peer and selector_matches(peer["podSelector"], workload["labels"])
+                        for peer in ingress.get("from", [])
+                    )
+                    ports = ingress.get("ports", [])
+                    port_allowed = any(
+                        item.get("protocol", "TCP") == "TCP" and item.get("port") in {expected_port, transport}
+                        for item in ports
+                    )
+                    if source_allowed and port_allowed:
+                        allowed = True
+                        break
+                if allowed:
+                    break
+            if not allowed:
+                fail(f"K8s NetworkPolicy missing {source} -> {target_workload} {transport}:{expected_port}")
+
+    allowed_ports: dict[tuple[str, str], set[int | str]] = {}
+    for source, workload in workloads.items():
+        for target, transport in workload["bindings"]:
+            target_workload = main_workloads[target]
+            ports = allowed_ports.setdefault((source, target_workload), set())
+            ports.add(transport)
+            ports.add(services[target]["port"] if transport == "http" else services[target]["rpcPort"])
+    for policy in policies:
+        spec = policy.get("spec", {})
+        selected_targets = [
+            target
+            for target, workload in workloads.items()
+            if selector_matches(spec.get("podSelector", {}), workload["labels"])
+        ]
+        for ingress in spec.get("ingress", []):
+            selected_sources = [
+                source
+                for source, workload in workloads.items()
+                if any(
+                    "podSelector" in peer and selector_matches(peer["podSelector"], workload["labels"])
+                    for peer in ingress.get("from", [])
+                )
+            ]
+            for source in selected_sources:
+                for target in selected_targets:
+                    if workloads[source]["owner"] == workloads[target]["owner"]:
+                        continue
+                    ports = ingress.get("ports")
+                    if not ports:
+                        fail(f"K8s NetworkPolicy broadly allows all ports for {source} -> {target}")
+                    unexpected = {
+                        item.get("port")
+                        for item in ports
+                        if item.get("protocol", "TCP") == "TCP"
+                        and item.get("port") not in allowed_ports.get((source, target), set())
+                    }
+                    if unexpected:
+                        fail(
+                            f"K8s NetworkPolicy allows undeclared {source} -> {target} ports: "
+                            f"{sorted(unexpected, key=str)}"
+                        )
 
 
 def dotenv_keys(path: Path) -> set[str]:
@@ -390,6 +620,7 @@ def main() -> None:
     validate_dev_entrypoints(services)
     validate_binding_environment(services)
     validate_service_identities(services)
+    validate_k8s_network_bindings(services)
     validate_single_vps_environment(services)
     validate_k8s_ports(services)
     validate_gateway_routes(services)

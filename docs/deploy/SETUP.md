@@ -160,8 +160,9 @@ kubectl -n ingress-nginx get svc ingress-nginx-controller -w
 
 # 创建 namespace 和 Secrets(替换 <...>)
 kubectl create ns monorepo-prod
+ADMIN_TOKEN=$(openssl rand -hex 32)
 CHAT_TOKEN=$(openssl rand -hex 32)
-EXECUTOR_TOKEN=$(openssl rand -hex 32)
+RUNTIME_TOKEN=$(openssl rand -hex 32)
 KNOWLEDGE_TOKEN=$(openssl rand -hex 32)
 CANVAS_TOKEN=$(openssl rand -hex 32)
 
@@ -179,7 +180,9 @@ kubectl -n monorepo-prod create secret generic admin-secrets \
   --from-literal=POSTGRES_HOST=<rds-endpoint> \
   --from-literal=POSTGRES_USER=admin \
   --from-literal=POSTGRES_PASSWORD=<from-1Password> \
-  --from-literal=REDIS_HOST=<redis-endpoint>
+  --from-literal=REDIS_HOST=<redis-endpoint> \
+  --from-literal=INTERNAL_API_TOKEN="$ADMIN_TOKEN" \
+  --from-literal=INTERNAL_SERVICE_TOKENS="{\"canvas\":\"$CANVAS_TOKEN\",\"chat\":\"$CHAT_TOKEN\",\"knowledge\":\"$KNOWLEDGE_TOKEN\"}"
 
 kubectl -n monorepo-prod create secret generic canvas-secrets \
   --from-literal=POSTGRES_HOST=<rds-endpoint> \
@@ -187,12 +190,17 @@ kubectl -n monorepo-prod create secret generic canvas-secrets \
   --from-literal=POSTGRES_PASSWORD=<from-1Password> \
   --from-literal=REDIS_URL=<redis-connection-uri> \
   --from-literal=INTERNAL_API_TOKEN="$CANVAS_TOKEN" \
-  --from-literal=INTERNAL_SERVICE_TOKENS="{\"chat\":\"$CHAT_TOKEN\",\"executor\":\"$EXECUTOR_TOKEN\"}"
+  --from-literal=INTERNAL_SERVICE_TOKENS="{\"runtime\":\"$RUNTIME_TOKEN\"}"
 
 kubectl -n monorepo-prod create secret generic telemetry-secrets \
   --from-literal=POSTGRES_HOST=<rds-endpoint> \
   --from-literal=POSTGRES_USER=telemetry \
   --from-literal=POSTGRES_PASSWORD=<from-1Password>
+
+# chat / knowledge / runtime-server / runtime-worker / runtime-sandbox / storage
+# 还必须按生产 overlay 文档中的精确关系配置内部身份密钥。部署会在迁移和
+# rollout 前校验现存 Secret，缺 key 或 token 错配会直接停止：
+# infra/k8s/overlays/prod/README.md
 
 # 上传 Cloudflare Origin CA cert(阶段 1.3 下载的)
 kubectl -n monorepo-prod create secret tls api-tls \

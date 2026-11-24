@@ -1,6 +1,6 @@
 # knowledge service
 
-User-owned semantic document knowledge base: parsing, MarkItDown conversion, indexing, and RAG retrieval. Runtime consumes documents and retrieval through the typed Knowledge gRPC API; a future knowledge MFE manages lifecycle independently of conversations. See [file and Asset ownership](../../../../docs/ADR/files-and-assets.md).
+User-owned semantic document knowledge base: parsing, MarkItDown conversion, indexing, and RAG retrieval. Runtime consumes its agent-facing capabilities through the authenticated platform MCP/HTTP boundary; a future knowledge MFE manages lifecycle independently of conversations. See [file and Asset ownership](../../../../docs/ADR/files-and-assets.md).
 
 ## Runtime / storage (docs/ADR/files-and-assets.md)
 
@@ -10,7 +10,7 @@ User-owned semantic document knowledge base: parsing, MarkItDown conversion, ind
 ## Owns
 
 - DB tables: `documents` (semantic source and generated-media records), `document_chunks` (RAG: `embedding vector` + generated `tsv` for hybrid), staged-media publication state, and durable Storage Claim intents.
-- Public HTTP API: `/ingest/*` and document management via gateway; typed gRPC owns service-to-service document, retrieval, fork and cleanup operations.
+- Public HTTP document management via gateway and the internal authenticated MCP/HTTP surface consumed by Runtime.
 - Externally: gateway `/api/knowledge-server/*`
 
 ## Does NOT own
@@ -26,19 +26,15 @@ User-owned semantic document knowledge base: parsing, MarkItDown conversion, ind
 
 - `src/main.py` — FastAPI app
 - `src/api/http/routes/*.py` — public HTTP handlers
-- `src/api/rpc/server.py` — generated Knowledge gRPC adapters
 - `src/application/*.py` — ingest, conversion, Asset integration, indexing, retrieval, embed/rerank client, and contextual retrieval
 - `src/domain/` — text chunking rules and indexing outcomes
 - `src/gen_openapi.py` — OpenAPI export
-- `scripts/eval_rag.py` — manual retrieval quality evaluation against a running service; complements `just test backend/knowledge`, never replaces it
 
 ## Conventions
 
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
 - Ordinary code, Markdown, HTML, JSON, archives, and other downloadable files bypass Knowledge. They are authored in Sandbox, stored as immutable Storage revisions, and registered as Chat conversation files.
-- Deleting a chat conversation asynchronously removes generated `artifact` documents, artifact-generation blocks, and staged media through Chat's transactional outbox. User-uploaded `source` documents remain independently owned Knowledge content.
 - Source ingest synchronously converts the immutable Storage revision to Markdown and builds its RAG index before returning. Conversion and indexing remain idempotent and use cluster-wide advisory locks; do not restore an Executor workflow or a document-processing worker without a demonstrated product need.
-- The internal `/documents/{id}/slice` endpoint retains `wait_ms` and `state: ready|processing|failed` for concurrent reads and compatibility, although ordinary ingest now returns after processing converges.
 - RAG index is kept fresh: re-index on document change; `document_chunks` has an `ON DELETE CASCADE` FK so deleting a document removes its chunks.
 - Embedding model and the `vector(N)` column dimension must agree; changing the model requires altering the column + re-indexing.
 - Errors via `kernel.errors.*`, NEVER raw HTTPException.
@@ -53,5 +49,5 @@ Knowledge persists only platform `asset_id` + immutable `revision_id` references
 Run `just test backend/knowledge` from the repository root. Test conventions and runner configuration are owned by `apps/backend/AGENTS.md`; add regression coverage for changed behavior before reporting completion.
 
 - `content_md` is a semantic conversion/edit projection for Knowledge documents, not the source of truth for ordinary Chat files.
-- Semantic document replacement, staged-media publication/discard, and cleanup update durable Claim intents in the same transaction. External Storage IO occurs before the transaction, followed by a fresh locked state/version check.
+- Semantic document replacement and deletion update durable Claim intents in the same transaction. External Storage IO occurs before the transaction, followed by a fresh locked state/version check.
 - Owner delivery endpoints authorize resources and request Storage capabilities; no local signing or raw byte proxy routes.

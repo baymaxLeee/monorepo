@@ -21,8 +21,9 @@ and record high-risk extraction decisions before moving code.
 - Each service owns its SQL migrations under `services/<name>/migrations/<release>/`.
   The current initial baseline is `v1.0.0/v1.0.0.0.up.sql`.
 - Services never import another service's source.
-- Cross-service calls use Proto/gRPC bindings declared by `services.yaml`;
-  asynchronous flows use shared event contracts where appropriate.
+- Cross-service calls use the transport declared by `services.yaml`: bounded
+  typed business RPC uses Proto/gRPC, streaming/HTTP/MCP boundaries retain their
+  native protocol, and asynchronous flows use shared event contracts.
 - A service must not read or mutate another service's database.
 
 ### Database migrations

@@ -17,12 +17,12 @@ import (
 type Config struct {
 	Environment        string
 	Port               string
-	RPCPort            string
 	DatabaseURL        string
 	RedisURL           string
 	PublicGatewayURL   string
 	AdminRPCTarget     string
 	StorageRPCTarget   string
+	InternalAPIToken   string
 	RuntimeCallerToken string
 }
 
@@ -41,7 +41,6 @@ func Load() (Config, error) {
 	raw, err := envconfig.ParseAs[struct {
 		Environment           string `env:"ENVIRONMENT" envDefault:"development"`
 		Port                  string `env:"PORT" envDefault:"8012"`
-		RPCPort               string `env:"RPC_PORT" envDefault:"9012"`
 		PostgresHost          string `env:"POSTGRES_HOST" envDefault:"localhost"`
 		PostgresPort          string `env:"POSTGRES_PORT" envDefault:"5432"`
 		PostgresUser          string `env:"POSTGRES_USER" envDefault:"canvas"`
@@ -52,6 +51,7 @@ func Load() (Config, error) {
 		PublicGatewayURL      string `env:"PUBLIC_GATEWAY_URL" envDefault:"http://localhost:8000"`
 		AdminRPCTarget        string `env:"ADMIN_RPC_TARGET" envDefault:"localhost:9001"`
 		StorageRPCTarget      string `env:"STORAGE_RPC_TARGET" envDefault:"localhost:9013"`
+		InternalAPIToken      string `env:"INTERNAL_API_TOKEN" envDefault:"dev-canvas-internal-token"`
 		InternalServiceTokens string `env:"INTERNAL_SERVICE_TOKENS" envDefault:"{\"runtime\":\"dev-runtime-internal-token\"}"`
 	}]()
 	if err != nil {
@@ -65,7 +65,7 @@ func Load() (Config, error) {
 	}
 	deployed := environment != "development"
 	if deployed {
-		for _, key := range []string{"POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DATABASE", "REDIS_URL", "PUBLIC_GATEWAY_URL", "ADMIN_RPC_TARGET", "STORAGE_RPC_TARGET", "INTERNAL_SERVICE_TOKENS"} {
+		for _, key := range []string{"POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DATABASE", "REDIS_URL", "PUBLIC_GATEWAY_URL", "ADMIN_RPC_TARGET", "STORAGE_RPC_TARGET", "INTERNAL_API_TOKEN", "INTERNAL_SERVICE_TOKENS"} {
 			value, exists := os.LookupEnv(key)
 			if !exists || strings.TrimSpace(value) == "" {
 				return Config{}, fmt.Errorf("%s is required outside development", key)
@@ -79,6 +79,9 @@ func Load() (Config, error) {
 	runtimeCallerToken := internalServiceTokens["runtime"]
 	if deployed && (len(runtimeCallerToken) < 32 || strings.HasPrefix(runtimeCallerToken, "dev-")) {
 		return Config{}, fmt.Errorf("INTERNAL_SERVICE_TOKENS contains an invalid Runtime credential")
+	}
+	if deployed && (len(raw.InternalAPIToken) < 32 || strings.HasPrefix(raw.InternalAPIToken, "dev-")) {
+		return Config{}, fmt.Errorf("INTERNAL_API_TOKEN contains an invalid Canvas credential")
 	}
 	if deployed && raw.PostgresPassword == "canvas" {
 		return Config{}, fmt.Errorf("POSTGRES_PASSWORD must use non-development credentials")
@@ -105,11 +108,11 @@ func Load() (Config, error) {
 	return Config{
 		Environment:        environment,
 		Port:               raw.Port,
-		RPCPort:            raw.RPCPort,
 		PublicGatewayURL:   publicGatewayURL,
 		RedisURL:           raw.RedisURL,
 		AdminRPCTarget:     raw.AdminRPCTarget,
 		StorageRPCTarget:   raw.StorageRPCTarget,
+		InternalAPIToken:   raw.InternalAPIToken,
 		RuntimeCallerToken: runtimeCallerToken,
 		DatabaseURL:        fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", raw.PostgresHost, raw.PostgresPort, raw.PostgresUser, raw.PostgresPassword, raw.PostgresDatabase, raw.PostgresSSLMode),
 	}, nil

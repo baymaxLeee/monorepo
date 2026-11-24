@@ -10,6 +10,7 @@ Production deployment of the full backend stack. **Do not** `kubectl apply -k` t
 2. **Create the namespace + Secrets out-of-band** (NEVER commit real secrets). The prod overlay **strips all Secret resources** from the applied manifest so placeholder `stringData` cannot overwrite live cluster secrets on deploy:
    ```bash
    kubectl create ns monorepo-prod
+   ADMIN_TOKEN=$(openssl rand -hex 32)
    CHAT_TOKEN=$(openssl rand -hex 32)
    RUNTIME_TOKEN=$(openssl rand -hex 32)
    KNOWLEDGE_TOKEN=$(openssl rand -hex 32)
@@ -40,12 +41,39 @@ Production deployment of the full backend stack. **Do not** `kubectl apply -k` t
      --from-literal=POSTGRES_PASSWORD=<from-1Password> \
      --from-literal=INTERNAL_API_TOKEN="$RUNTIME_TOKEN" \
      --from-literal=INTERNAL_SERVICE_TOKENS="{\"chat\":\"$CHAT_TOKEN\"}"
-   # Create runtime-worker-secrets and runtime-sandbox-secrets with the same
-   # Runtime caller token; only the worker also receives Runtime/Workflow DB credentials.
-   # Create admin/knowledge/storage/canvas receiver maps from the same Runtime caller
-   # variables. Each workload's own INTERNAL_API_TOKEN must be unique; never
-   # reuse one shared value. chat-secrets also includes TOOL_APPROVAL_SECRET.
    ```
+   Add or migrate the following keys in the same out-of-band Secret manager.
+   The JSON receiver maps are exact; all references to one caller must use that
+   caller's single token value:
+
+   | Secret | Required service-identity data |
+   |---|---|
+   | `admin-secrets` | `INTERNAL_API_TOKEN=$ADMIN_TOKEN`; `INTERNAL_SERVICE_TOKENS={"canvas":"$CANVAS_TOKEN","chat":"$CHAT_TOKEN","knowledge":"$KNOWLEDGE_TOKEN"}` |
+   | `canvas-secrets` | `INTERNAL_API_TOKEN=$CANVAS_TOKEN`; `INTERNAL_SERVICE_TOKENS={"runtime":"$RUNTIME_TOKEN"}` |
+   | `chat-secrets` | `INTERNAL_API_TOKEN=$CHAT_TOKEN` |
+   | `knowledge-secrets` | `INTERNAL_API_TOKEN=$KNOWLEDGE_TOKEN`; `INTERNAL_SERVICE_TOKENS={"runtime":"$RUNTIME_TOKEN"}` |
+   | `runtime-server-secrets` | `INTERNAL_API_TOKEN=$RUNTIME_TOKEN`; `INTERNAL_SERVICE_TOKENS={"chat":"$CHAT_TOKEN"}` |
+   | `runtime-worker-secrets` | `INTERNAL_API_TOKEN=$RUNTIME_TOKEN`; `INTERNAL_SERVICE_TOKENS={"runtime":"$RUNTIME_TOKEN"}` |
+   | `runtime-sandbox-secrets` | `INTERNAL_SERVICE_TOKENS={"runtime":"$RUNTIME_TOKEN"}` |
+   | `storage-secrets` | `INTERNAL_SERVICE_TOKENS={"admin":"$ADMIN_TOKEN","canvas":"$CANVAS_TOKEN","knowledge":"$KNOWLEDGE_TOKEN","runtime":"$RUNTIME_TOKEN"}` |
+
+   Keep every Secret's existing database, signing, Redis and application keys;
+   this is an in-place credential migration, not a Secret replacement. Each
+   caller token must be non-empty and distinct from the other callers. Before
+   deploying, run the same no-value-output preflight used by CI:
+
+   ```bash
+   kubectl -n monorepo-prod get secret \
+     admin-secrets canvas-secrets chat-secrets knowledge-secrets \
+     runtime-server-secrets runtime-worker-secrets runtime-sandbox-secrets storage-secrets \
+     -o json | python3 scripts/check-k8s-service-identities.py
+   ```
+
+   The production deploy runs this check before migrations and rollouts, so a
+   cluster with old or mismatched identity keys fails closed while existing
+   workloads remain untouched. `chat-secrets` also includes
+   `TOOL_APPROVAL_SECRET`; only the worker receives Runtime/Workflow DB
+   credentials.
    For real ops, switch to ExternalSecrets Operator pointing at 火山引擎 KMS or Vault, or use sealed-secrets. Before deploying, provision one same-named PostgreSQL database/owner role for `iam`, `admin`, `canvas`, `chat`, `runtime`, `knowledge`, `storage`, and `telemetry`; reserve the `workflow` role/database for Workflow World. Enable `vector` only in `knowledge`.
 3. **Set up TLS**: create the `api-tls` Secret either via cert-manager (Let's Encrypt issuer) or upload a Cloudflare Origin CA cert manually:
    ```bash
@@ -70,11 +98,12 @@ uses the Storage schema files against the `storage` database.
 GitHub Actions deploy job:
 
 1. Build & push image with tag = `${GITHUB_SHA::8}` to 火山 CR
-2. Run the checked-in `db-init` migration image as a one-shot Job; the deploy stops before IAM bootstrap and rollout if any service migration fails. Run the Workflow World schema setup with its official CLI before Runtime worker rollout.
-3. Pin the application images, including `storage`, in the prod overlay.
-4. Apply release ConfigMaps, then run the IAM identity bootstrap and Admin built-in plugin release Jobs and wait for both to complete. Workspace admins manage plugin installations.
-5. Render/apply the prod overlay; placeholder Secrets are removed by the overlay.
-6. Wait for every application Deployment rollout, including `storage`.
+2. Validate the live out-of-band service-identity keys and token relationships without printing token values.
+3. Run the checked-in `db-init` migration image as a one-shot Job; the deploy stops before IAM bootstrap and rollout if any service migration fails. Run the Workflow World schema setup with its official CLI before Runtime worker rollout.
+4. Pin the application images, including `storage`, in the prod overlay.
+5. Apply release ConfigMaps, then run the IAM identity bootstrap and Admin built-in plugin release Jobs and wait for both to complete. Workspace admins manage plugin installations.
+6. Render/apply the prod overlay; placeholder Secrets are removed by the overlay.
+7. Wait for every application Deployment rollout, including `storage`.
 
 ## Rollback
 

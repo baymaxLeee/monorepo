@@ -7,7 +7,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from typing import Literal, TypedDict, cast
+from typing import Literal, cast
 
 import grpc
 import storage.v1.storage_pb2 as storage_pb2
@@ -15,6 +15,7 @@ import storage.v1.storage_pb2_grpc as storage_pb2_grpc
 from bootstrap.config import Settings, get_settings
 from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.models.asset_claim_intent import AssetClaimIntentRow
+from inner_api.transport import CallOptions, InnerApiCaller
 from knowledge_kernel.tracing import propagation_headers
 from pydantic import BaseModel
 from sqlalchemy import case, or_, select, update
@@ -22,11 +23,6 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("knowledge.asset")
-
-
-class _CallOptions(TypedDict):
-    metadata: list[tuple[str, str]]
-    timeout: float
 
 
 class StorageRevision(BaseModel):
@@ -69,15 +65,13 @@ class StorageClient:
         self._claims = storage_pb2_grpc.ClaimServiceStub(self._channel)
         self._uploads = storage_pb2_grpc.UploadSessionServiceStub(self._channel)
         self._delivery = storage_pb2_grpc.DeliveryServiceStub(self._channel)
+        self._caller = InnerApiCaller("knowledge", self._settings.internal_api_token, 30.0)
 
     async def aclose(self) -> None:
         await self._channel.close()
 
-    @staticmethod
-    def _options(timeout: float = 30.0) -> _CallOptions:
-        metadata = [("x-caller-service", "knowledge")]
-        metadata.extend((key.lower(), value) for key, value in propagation_headers().items())
-        return {"metadata": metadata, "timeout": timeout}
+    def _options(self, timeout: float = 30.0) -> CallOptions:
+        return self._caller.options(propagation_headers(), timeout)
 
     async def mint_delivery(self, *, asset_id: str, revision_id: str) -> StorageDelivery:
         result = await self._delivery.MintCapabilities(
@@ -384,47 +378,6 @@ async def ensure_content_claim_active(
             },
             where=or_(resource_changed, AssetClaimIntentRow.desired_state != "active"),
         )
-    )
-
-
-async def ensure_staged_media_claim_active(
-    session: AsyncSession, *, tenant_id: str, workspace_id: str, staged_id: str, asset_id: str, revision_id: str
-) -> None:
-    now = datetime.now(UTC)
-    await session.execute(
-        insert(AssetClaimIntentRow)
-        .values(
-            owner_type="staged_media",
-            owner_id=staged_id,
-            slot="source",
-            tenant_id=tenant_id,
-            workspace_id=workspace_id,
-            asset_id=asset_id,
-            revision_id=revision_id,
-            kind="strong",
-            generation=1,
-            desired_state="active",
-            next_attempt_at=now,
-            created_at=now,
-            updated_at=now,
-        )
-        .on_conflict_do_nothing(
-            index_elements=[
-                AssetClaimIntentRow.tenant_id,
-                AssetClaimIntentRow.workspace_id,
-                AssetClaimIntentRow.owner_type,
-                AssetClaimIntentRow.owner_id,
-                AssetClaimIntentRow.slot,
-            ]
-        )
-    )
-
-
-async def mark_staged_media_claim_released(
-    session: AsyncSession, *, tenant_id: str, workspace_id: str, staged_id: str
-) -> None:
-    await mark_asset_claims_released(
-        session, tenant_id=tenant_id, workspace_id=workspace_id, owner_type="staged_media", owner_ids=[staged_id]
     )
 
 

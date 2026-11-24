@@ -41,36 +41,37 @@ func TestDevelopmentDatabaseIdentityDefaultsToStorage(t *testing.T) {
 	}
 }
 
-func TestRPCAllowedCallersAreDeploymentConfiguration(t *testing.T) {
+func TestInternalServiceCredentialsAreExact(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "development")
-	t.Setenv("STORAGE_RPC_ALLOWED_CALLERS", "media-owner,preview-worker")
+	t.Setenv("INTERNAL_SERVICE_TOKENS", `{"admin":"a","canvas":"c","knowledge":"k","runtime":"r"}`)
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.RPCAllowedCallers) != 2 || cfg.RPCAllowedCallers[0] != "media-owner" || cfg.RPCAllowedCallers[1] != "preview-worker" {
-		t.Fatalf("RPC allowed callers = %#v", cfg.RPCAllowedCallers)
+	if len(cfg.InternalServiceTokens) != 4 || cfg.InternalServiceTokens["runtime"] != "r" {
+		t.Fatalf("internal service tokens = %#v", cfg.InternalServiceTokens)
 	}
 
-	for _, value := range []string{"invalid_name", "duplicate,duplicate"} {
-		t.Setenv("STORAGE_RPC_ALLOWED_CALLERS", value)
+	for _, value := range []string{`{"runtime":"r"}`, `{"admin":"a","canvas":"c","knowledge":"k","runtime":"r","other":"o"}`, `{`} {
+		t.Setenv("INTERNAL_SERVICE_TOKENS", value)
 		if _, err = Load(); err == nil {
-			t.Fatalf("accepted invalid RPC caller list %q", value)
+			t.Fatalf("accepted invalid internal service credentials %q", value)
 		}
 	}
 }
 
-func TestDeploymentRequiresRPCAllowedCallers(t *testing.T) {
+func TestDeploymentRequiresStrongInternalServiceCredentials(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "single-vps")
 	t.Setenv("POSTGRES_PASSWORD", "deployment-storage-password")
 	t.Setenv("STORAGE_DATA_DIR", "/var/lib/storage")
 	t.Setenv("STORAGE_SIGNING_KEY", strings.Repeat("k", 32))
-	t.Setenv("STORAGE_RPC_ALLOWED_CALLERS", "")
-	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "STORAGE_RPC_ALLOWED_CALLERS is required") {
-		t.Fatalf("missing RPC caller allowlist error = %v", err)
+	t.Setenv("INTERNAL_SERVICE_TOKENS", "")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "INTERNAL_SERVICE_TOKENS is required") {
+		t.Fatalf("missing internal service credentials error = %v", err)
 	}
 
-	t.Setenv("STORAGE_RPC_ALLOWED_CALLERS", "media-owner")
+	strong := strings.Repeat("x", 32)
+	t.Setenv("INTERNAL_SERVICE_TOKENS", `{"admin":"`+strong+`","canvas":"`+strong+`","knowledge":"`+strong+`","runtime":"`+strong+`"}`)
 	if _, err := Load(); err != nil {
 		t.Fatalf("valid deployment configuration: %v", err)
 	}

@@ -47,6 +47,62 @@ class DeploymentSecretsTest(unittest.TestCase):
             ):
                 checker.validate_binding_environment(services)
 
+    def test_service_check_rejects_missing_worker_rpc_target(self):
+        spec = importlib.util.spec_from_file_location("check_services", ROOT / "scripts/check-services.py")
+        checker = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(checker)
+        services = checker.load_services()
+        compose = yaml.safe_load((VPS / "docker-compose.prod.yml").read_text())
+        del compose["services"]["runtime-worker"]["environment"]["STORAGE_RPC_TARGET"]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "compose.yml"
+            path.write_text(yaml.safe_dump(compose))
+            with (
+                patch.object(checker, "SINGLE_VPS_PATH", path),
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                checker.validate_binding_environment(services)
+
+    def test_service_check_rejects_rpc_token_value_mismatch(self):
+        spec = importlib.util.spec_from_file_location("check_services", ROOT / "scripts/check-services.py")
+        checker = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(checker)
+        services = checker.load_services()
+        original = checker.env_from_example
+
+        def mismatched(service_id):
+            values = original(service_id)
+            if service_id == "canvas":
+                values = {**values, "INTERNAL_API_TOKEN": "mismatched-canvas-token"}
+            return values
+
+        with (
+            patch.object(checker, "env_from_example", mismatched),
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            checker.validate_service_identities(services)
+
+    def test_service_check_rejects_missing_worker_network_policy(self):
+        spec = importlib.util.spec_from_file_location("check_services", ROOT / "scripts/check-services.py")
+        checker = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(checker)
+        services = checker.load_services()
+        policies = list(yaml.safe_load_all((ROOT / "infra/k8s/base/network-policy.yaml").read_text()))
+        storage_policy = next(item for item in policies if item["metadata"]["name"] == "allow-storage-consumers")
+        values = storage_policy["spec"]["ingress"][0]["from"][0]["podSelector"]["matchExpressions"][0]["values"]
+        values.remove("runtime-worker")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "network-policy.yaml"
+            path.write_text(yaml.safe_dump_all(policies))
+            with (
+                patch.object(checker, "K8S_NETWORK_POLICY_PATH", path),
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                checker.validate_k8s_network_bindings(services)
+
     def test_rollback_can_pin_migration_image_independently(self):
         compose = VPS / "docker-compose.prod.yml"
         required = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*):\?", compose.read_text()))
@@ -177,6 +233,8 @@ class DeploymentSecretsTest(unittest.TestCase):
             environment = services["knowledge"]["environment"]
             self.assertEqual(environment["ADMIN_RPC_TARGET"], "admin:9001")
             self.assertEqual(environment["STORAGE_RPC_TARGET"], "storage:9013")
+        with self.subTest(service="runtime-worker"):
+            self.assertEqual(services["runtime-worker"]["environment"]["STORAGE_RPC_TARGET"], "storage:9013")
         for service in ("canvas", "knowledge"):
             with self.subTest(service=service):
                 self.assertEqual(
@@ -200,10 +258,13 @@ class DeploymentSecretsTest(unittest.TestCase):
         knowledge = yaml.safe_load((base / "knowledge/secret.yaml").read_text())["stringData"]
         with self.subTest(service="storage"):
             self.assertIn("STORAGE_SIGNING_KEY", storage)
-            self.assertNotIn("INTERNAL_SERVICE_TOKENS", storage)
+            self.assertEqual(
+                set(json.loads(storage["INTERNAL_SERVICE_TOKENS"])),
+                {"admin", "canvas", "knowledge", "runtime"},
+            )
         with self.subTest(service="knowledge"):
             self.assertEqual(json.loads(knowledge["INTERNAL_SERVICE_TOKENS"]), {"runtime": "REPLACE_RUNTIME_TOKEN"})
-            self.assertNotIn("INTERNAL_API_TOKEN", knowledge)
+            self.assertEqual(knowledge["INTERNAL_API_TOKEN"], "REPLACE_KNOWLEDGE_TOKEN")
 
 
 if __name__ == "__main__":

@@ -9,9 +9,9 @@ Agent 的临时工作区由 Runtime sandbox role 承载，会话文件/Plan 的�
 Knowledge 负责：
 
 - 将 Storage revision 解析为 Markdown，并维护转换、索引和处理状态。
-- `documents` 语义生命周期，包括用户上传的 `source` 与 agent 生成的 `artifact`。
+- `documents` 语义生命周期与用户导入的 `source` 文档。
 - PostgreSQL + pgvector 上的 chunk、混合检索、RRF 与 rerank。
-- 面向用户的文档 CRUD，以及面向 Runtime 的 gRPC 语义与媒体发布 API。
+- 面向用户的文档 CRUD，以及面向 Runtime 的只读 `knowledge_search` MCP 能力。
 
 Knowledge 不负责：
 
@@ -25,7 +25,7 @@ durable Claim intent 将引用激活或释放；不得把物理 locator 重新�
 ## 端口与入口
 
 - 公开 HTTP：`8010`
-- 内部 gRPC：`9010`；本地目标 `localhost:9010`，容器目标 `knowledge:9010`
+- 内部 MCP：同一 `8010` 端口的 `/mcp`，只接受 Runtime workload credential
 - Gateway 对外：`/api/knowledge-server`
 - Storage RPC：`STORAGE_RPC_TARGET`，默认 `localhost:9013`
 
@@ -34,9 +34,8 @@ durable Claim intent 将引用激活或释放；不得把物理 locator 重新�
 | `POST /ingest` | Gateway 用户 JWT | 接收文档引用，同步完成 Markdown 转换与 RAG 索引 |
 | `GET/PATCH/DELETE /documents/*` | Gateway 用户 JWT | 用户文档管理 |
 
-跨服务能力不再暴露 HTTP 路径。`DocumentService`、`StagedMediaService`、
-`ConversationDocumentService` 与 `RetrievalService` 通过 Proto/gRPC 提供，并由
-caller allowlist 与显式 tenant/workspace/user 字段共同授权。
+Knowledge 不再运行 gRPC server，也不保留旧 Document/StagedMedia/Conversation/Retrieval
+RPC adapter。Runtime 只通过受保护的 `/mcp` 执行检索；文档生命周期仍由公开 owner API 管理。
 
 字节上传和内容读取使用 Storage API，不经过 Knowledge 的 public media route。
 
@@ -48,12 +47,6 @@ application 查询当前 workspace；edge 请求不能直接调用。当前 inve
 `knowledge_search`，返回的文档内容标记为 untrusted。Runtime 不再持有内建 Knowledge search tool；
 Admin release 负责固定 endpoint、schema 和 source projection，执行与 cleanup 由共享插件 runtime
 负责，见 [Agent plugin ADR](../ADR/agent-plugins.md)。
-
-会话分支在与写入/清理相同的会话锁内检查源和目标 tombstone、目标为空以及资源 scope。
-复制文档为不再索引的只读 artifact 快照；原 source 文档继续独立保留。副本沿用精确的
-Asset/revision，生成新的 document owner 与 durable Claim intent。返回映射用于 Runtime
-重写消息中的 document id；读取仍使用 Markdown 语义投影，下载使用原字节。
-正在转换的文档和无效原件引用拒绝复制。Runtime 负责消息分支与失败补偿。
 
 ## 数据模型
 
@@ -78,13 +71,9 @@ fencing 决定。
 
 ## 与 Runtime 的关系
 
-- Runtime server 通过生成的 gRPC client 读取/复制语义文档；它不读取 Knowledge 数据库。
-  Runtime-owned `conversation_files`、Plan 与对应 Claim intent 留在 Runtime 数据库。
-- 删除 Session 时，Runtime 通过事务 outbox 请求 Knowledge 幂等清理该会话生成的 document
-  artifact 与 staged media，并释放关联 Storage Claims。用户独立拥有的 source 保留。
-- Knowledge 保存 conversation tombstone，拒绝已删除会话的迟到生成写入。
-- Runtime worker 的视频制片 workflow 使用 Knowledge 的 staged media 发布 API，但不参与
-  source 文档转换或索引。
+- Runtime server 只在用户选择系统 Knowledge 插件时调用 `/mcp` 的 `knowledge_search`；它不读取
+  Knowledge 数据库，也不调用旧的文档复制、会话清理或 staged-media API。
+- Runtime-owned 会话文件与 Plan 留在 Runtime/Storage；Knowledge source 文档拥有独立生命周期。
 
 ## 同步文档处理
 
@@ -105,7 +94,6 @@ source 会在下一次读取或显式 reindex 时用同一路径同步收敛。
 cd apps/backend
 just dev knowledge
 just gen-openapi knowledge
-just gen-proto
 ```
 
 OpenAPI 输出：`schemas/openapi/knowledge-server.json`。生成文件必须从服务源码重建，

@@ -16,7 +16,6 @@ packages = [
     "src/inner_api",
     "generated/admin",
     "generated/common",
-    "generated/knowledge",
     "generated/storage",
 ]
 

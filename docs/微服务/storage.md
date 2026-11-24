@@ -35,10 +35,11 @@ delivery capability 和 Claim API 同样只对部署配置允许的 workload 开
 Storage 以 `owner_service + owner_type + owner_id + slot + generation` 幂等收敛，其中 owner 字段是
 调用方定义的不透明标识，不是 Storage 的业务身份模型。
 
-当前内部 RPC 使用 insecure h2c；`x-caller-service` 经过 `STORAGE_RPC_ALLOWED_CALLERS` 检查，但不是密码学 workload
-认证。消费者名单属于部署策略，不编译进 Storage 核心；非 development 环境必须显式配置。K8s 用
-NetworkPolicy 将 9013 限制到声明的消费者，Single-VPS/本地环境还依赖部署网络隔离。
-获准访问端口的 sibling 仍可能伪造 metadata，因此 caller 声明不能替代资源 Claim，更不能暴露到公网。
+当前内部 RPC 使用私有 insecure h2c；client runtime 绑定不可覆盖的 `x-caller-service` 与
+`x-internal-token`，Storage 先认证部署凭证，再按精确 caller-method matrix 授权。非 development
+环境必须显式提供强凭证。K8s NetworkPolicy 将 9013 限制到 `services.yaml` 声明的消费者，
+Single-VPS/本地环境还依赖私有网络隔离；跨不可信网络必须增加 TLS/mTLS 或平台 workload identity。
+workload 身份不能替代资源 Claim，更不能暴露到公网。
 
 每次上传完成都会创建 caller-owned、覆盖精确 revision 的 24 小时 active lease。PrepareClaim 只能从
 同 workload 对同一 Asset/revision 的 active strong/snapshot Claim 或仍有效 lease 派生；只知道裸 ID
