@@ -85,7 +85,7 @@ export class ProcessManager {
   }
 
   closeAll(): void {
-    // Match Codex ProcessStore::drain: revoke all handles before native teardown can re-enter.
+    // Revoke all handles before native teardown can re-enter.
     const entries = [...this.entries.values()];
     this.entries.clear();
     for (const entry of entries) this.reusable.push(entry.processId);

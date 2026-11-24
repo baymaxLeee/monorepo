@@ -8,9 +8,8 @@ import { createSuggestionExtension } from "./Suggestion";
 export const slashPluginKey = new PluginKey("promptSlash");
 
 /**
- * Placeholder command set, modelled on Cursor/Codex slash menus. The theme is
- * "invoke a skill"; real behaviour is deferred to the host via `onSlashCommand`
- * until backend skill capabilities are wired up.
+ * Placeholder command set for invoking a skill. Real behaviour is deferred to
+ * the host via `onSlashCommand` until backend skill capabilities are wired up.
  */
 export const DEFAULT_SLASH_COMMANDS: PromptSlashCommand[] = [
   {

@@ -17,7 +17,7 @@ function abortReason(signal: AbortSignal): unknown {
   return new Error("tool execution aborted before admission");
 }
 
-/** A fair, cancellation-aware read/write gate matching Codex's tool runtime. */
+/** A fair, cancellation-aware read/write gate for tool execution. */
 export class ToolExecutionScheduler {
   #activeParallel = 0;
   #activeExclusive = false;

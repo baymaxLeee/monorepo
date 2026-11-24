@@ -19,7 +19,7 @@ MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just app
 
 `just app` 本地模式托管根目录 `just dev` 的完整 Web 栈，在 Platform 可访问后启动 Electron；关闭 Electron 或按 Ctrl+C 会停止该次启动的开发栈。`just dev` 仍只启动 Web。`just app vps` 默认连接 `http://124.222.245.5:8080/`，也可通过 `DESKTOP_PLATFORM_URL` 指定其他 Platform 根地址；远程 HTTP 只在显式选择 VPS 模式时允许。应用不提供浏览器通用文件或命令接口。当前包会做完整 ad-hoc 签名和签名校验，但未使用 Developer ID、hardened runtime 或 Apple 公证，因此是可安装的内部正式构建，不是可对外无提示分发的 macOS 公证版本。
 
-登录后，Desktop App 与 Web 共享云端会话、历史、Artifact/视频 inspector 和 `/conversations/*` 路由。桌面端新会话 editor 按 Codex App 的上下文栏布局选择“此计算机”或“云端”，本地模式再选择经过 native 授权的项目。云端继续使用统一 Conversation/Storage 上传；本地 `+` 选择的文件作为受限 AI SDK `file` parts 进入本地 thread，不创建云端 conversation 或 Storage 文档。
+登录后，Desktop App 与 Web 共享云端会话、历史、Artifact/视频 inspector 和 `/conversations/*` 路由。桌面端新会话 editor 通过上下文栏选择“此计算机”或“云端”，本地模式再选择经过 native 授权的项目。云端继续使用统一 Conversation/Storage 上传；本地 `+` 选择的文件作为受限 AI SDK `file` parts 进入本地 thread，不创建云端 conversation 或 Storage 文档。
 
 Chat 侧栏在“最近”上方按项目分组展示本地会话，“最近”按更新时间合并本地与云端会话。同一本地会话在两处共用路由、操作菜单和删除结果。会话通过 `/local/:id` controller 打开，但复用 `ConversationSessionView`、`ChatStream`、`ChatPrompt` 与 composer controls；不恢复工作区/文件侧栏、第二套会话 UI 或 Desktop inspector。此前旧 schema 的本地 SQLite 会话不迁移、不列出、不暴露兼容入口。
 

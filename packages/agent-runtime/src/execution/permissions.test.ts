@@ -8,7 +8,7 @@ import {
   type PermissionProfile,
 } from "./permissions.js";
 
-test("built-in permission profiles compile to Codex enforcement variants", () => {
+test("built-in permission profiles compile to runtime enforcement variants", () => {
   const readOnly = compilePermissionProfile(":read-only", { workspaceRoot: "/workspace" });
   const workspace = compilePermissionProfile(":workspace", { workspaceRoot: "/workspace" });
   const danger = compilePermissionProfile(":danger-full-access", { workspaceRoot: "/workspace" });

@@ -24,8 +24,8 @@ export function resolveContextWindow(limits: ModelContextLimits): ContextWindowP
   // the output ceiling as part of the input window turns models with a very large
   // output allowance into artificially tiny-context models.
   const inputCapacity = Math.max(512, limits.contextWindow - RUNTIME_CONTEXT_OVERHEAD_TOKENS);
-  // ModelInfo::auto_compact_token_limit caps a configured threshold at 90% of the context window.
-  // The SDK hosts reserve instruction/tool overhead inside the input capacity.
+  // Cap a configured threshold at 90% of the context window. The SDK hosts
+  // reserve instruction and tool overhead inside the input capacity.
   const compactAt = Math.max(
     1,
     Math.min(Math.floor(limits.contextWindow * 0.9), inputCapacity, limits.autoCompactTokenLimit ?? Infinity),

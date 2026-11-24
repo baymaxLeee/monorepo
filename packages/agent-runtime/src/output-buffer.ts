@@ -1,4 +1,4 @@
-// TypeScript port of codex-rs/utils/head-tail-buffer. The tail is a circular byte buffer.
+// Preserve a stable output prefix and a bounded recent suffix in a circular byte buffer.
 export class HeadTailBuffer {
   private data?: Buffer;
   private tailOffset = 0;

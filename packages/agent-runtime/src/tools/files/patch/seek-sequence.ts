@@ -1,5 +1,4 @@
-// TypeScript port of OpenAI Codex apply-patch (Apache-2.0).
-// Matching order follows codex-rs/apply-patch/src/seek_sequence.rs.
+// Match patch context from strictest to most tolerant without changing source text.
 function normalizePatchContext(text: string): string {
   return text
     .trim()

@@ -1,4 +1,4 @@
-// Adapted from codex-rs/core/src/unified_exec. An entry owns the launch and all subsequent reads.
+// One entry owns the process launch and all subsequent reads.
 import { randomBytes, randomInt } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -67,7 +67,7 @@ export class CommandSessions {
     const candidates = [...this.entries.values()].slice(0, -8);
     const exited = candidates.filter((entry) => entry.result || entry.error);
     const victim = (exited.length ? exited : candidates).find((entry) => entry.interactions === 0);
-    // Codex treats the cap as soft while candidate terminals are interacting.
+    // Keep the cap soft while every eviction candidate has active interactions.
     if (!victim) return;
     this.entries.delete(victim.id);
     victim.controller.abort(new Error("Process evicted"));

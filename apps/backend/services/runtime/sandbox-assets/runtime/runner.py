@@ -91,9 +91,9 @@ def command_seccomp_rules(mode):
         )
     else:
         # libseccomp rejects two comparisons on the same argument in one rule,
-        # so express Codex's `domain != INET && domain != INET6` rule as exact
-        # denials for the complete Linux address-family range. Unknown values
-        # in this bounded range remain denied as the kernel adds families.
+        # so express `domain != INET && domain != INET6` as exact denials for
+        # the complete Linux address-family range. Unknown values in this
+        # bounded range remain denied as the kernel adds families.
         rules.extend(
             ("socket", ((0, SCMP_CMP_EQ, family),))
             for family in range(64)

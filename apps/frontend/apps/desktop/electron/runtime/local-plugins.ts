@@ -71,8 +71,8 @@ async function readManifest(root: string) {
   const inline = isPortable && extension && typeof extension === "object" && !Array.isArray(extension);
   const overlayPath = inline ? null : await resource(root, ".codex-plugin/plugin.json", isPortable);
   const overlay = overlayPath ? JSON.parse(await readFile(overlayPath, "utf8")) : {};
-  // Codex portable packages have fixed component paths. Only presentation and
-  // OpenAI-specific fields come from the inline extension or the legacy overlay.
+  // Portable packages have fixed component paths. Only presentation and
+  // platform-specific fields come from the inline extension or legacy overlay.
   const manifest = isPortable
     ? manifestSchema.parse({
         name: portable.name,

@@ -27,7 +27,7 @@ test("prefix rules match whole argv tokens and reject dangerously broad reusable
   assert.throws(() => new ExecPolicy([{ prefix: ["bash", "-c"], decision: "allow" }]), /too broad/);
 });
 
-test("approval policies map Codex exec decisions without changing the sandbox profile", () => {
+test("approval policies map execution decisions without changing the sandbox profile", () => {
   const policy = new ExecPolicy();
   assert.deepEqual(
     policy.requirement({

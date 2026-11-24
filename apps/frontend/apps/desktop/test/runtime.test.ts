@@ -410,7 +410,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     await done(f.runtime, f.thread.id);
   });
 
-  it("loads an installed local Codex skill alongside the Admin selection in one frozen turn", async () => {
+  it("loads an installed portable local skill alongside the Admin selection in one frozen turn", async () => {
     const platform = docsSnapshot();
     const resolvePlatform = vi.fn(async () => platform);
     const requests: InferenceRequest[] = [];

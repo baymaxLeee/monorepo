@@ -30,7 +30,7 @@ const RESOURCE_TYPE: Record<NonNullable<AssetMentionItem["resourceType"]>, resou
 
 /**
  * 本地 object URL 一旦出现就锁住，导入完成换成签名地址时也不改 src。
- * 和 Cursor / Codex 附件预览一样，用户感知不到后台上传。
+ * 预览保持稳定，避免后台上传完成时让用户看到缩略图闪烁。
  */
 export function useStickyBlobUrl(src?: string, identity?: string) {
   const blobUrl = useRef<string | undefined>(undefined);

@@ -129,7 +129,7 @@ export function applyPatchToText(content: string, action: Extract<ApplyPatchActi
       if (before.at(-1) !== "") throw error;
       before.pop();
       matchStart = seekSequence(originalLines, before, cursor, hunk.endOfFile);
-      // Codex drops the final empty sentinel independently on the old and new sides.
+      // Drop the final empty sentinel independently on the old and new sides.
       const lastOld = lines.map((line) => line.type !== "add").lastIndexOf(true);
       const lastNew = lines.map((line) => line.type !== "remove").lastIndexOf(true);
       lines = lines.flatMap((line, index) => {

@@ -60,7 +60,7 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
 }
 
 // The persisted UIMessage tool parts remain authoritative. This projection gives
-// the composer one Codex-style current snapshot without introducing another stream.
+// the composer one current snapshot without introducing another stream.
 export function projectActiveTodoList(messages: ChatUIMessage[]): ActiveTodoList | null {
   let toolCallId: string | null = null;
   let ownerMessageId: string | null = null;

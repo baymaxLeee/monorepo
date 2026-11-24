@@ -20,7 +20,7 @@ packages/agent-runtime/
 
 这是一个 npm package、一个编译边界和一个 `src/`。不为了外观复制 Rust workspace：没有 `core/protocol/execpolicy/sandboxing/apply-patch` 伪 crate，也没有嵌套 `src`。类型、schema 和算法跟随真正的责任 owner；只有真正的跨服务 wire contract 才进入根 `schemas/`。包根显式导出宿主需要的 API，Backend 和 Desktop 只从 `@repo/agent-runtime` 导入，内部重构不再波及宿主。
 
-[Codex 1145028ae4](https://github.com/openai/codex/tree/1145028ae47e8119955323d38ce34122d418f951/codex-rs) 是本地核对基线，并已与 2026-11-23 的 upstream `5f645d732c` 对照：保留 Turn/Session、输入 admission、context 水位、执行权限、取消和恢复等不变量，不复制 Rust loop、wire format 或内部模块数量。AI SDK 继续负责采样、tool loop、approval 和 stream。只有确实移植的算法才进入 [third_party/codex](../../packages/agent-runtime/third_party/codex/NOTICE) 的许可边界；概念借鉴不伪装成代码 fork。
+[Codex 1145028ae4](https://github.com/openai/codex/tree/1145028ae47e8119955323d38ce34122d418f951/codex-rs) 是本地核对基线，并已与 2026-11-23 的 upstream `5f645d732c` 对照：保留 Turn/Session、输入 admission、context 水位、执行权限、取消和恢复等不变量，不复制 Rust loop、wire format、内部模块数量或实现代码。AI SDK 继续负责采样、tool loop、approval 和 stream；本仓库按自身边界独立实现这些能力。
 
 宿主拥有事实来源和受信能力，不能反向进入 shared kernel：
 

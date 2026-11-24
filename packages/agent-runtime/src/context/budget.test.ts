@@ -28,7 +28,7 @@ test("stored response lineage is discarded at or above the context watermark", (
   assert.equal(shouldResetStoredResponseLineage(115_200, limits), true);
 });
 
-test("model-specific watermarks are capped by the Codex model limit", () => {
+test("model-specific watermarks are capped by the runtime context limit", () => {
   assert.equal(resolveContextWindow({ contextWindow: 500_000, maxOutputTokens: 4_000 }).compactAt, 450_000);
   assert.equal(resolveContextWindow({ ...limits, autoCompactTokenLimit: 90_000 }).compactAt, 90_000);
 });

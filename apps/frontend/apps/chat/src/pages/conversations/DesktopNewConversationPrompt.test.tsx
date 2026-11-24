@@ -13,7 +13,7 @@ vi.stubGlobal(
 );
 Element.prototype.scrollIntoView = vi.fn();
 
-test("Desktop new conversation mirrors the Codex context-bar editor composition", async () => {
+test("Desktop new conversation keeps the context bar separate from the editor", async () => {
   const onLocationChange = vi.fn();
   const onProjectChange = vi.fn();
   render(

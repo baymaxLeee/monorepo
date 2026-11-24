@@ -190,7 +190,7 @@ test("new conversation renders the shared cloud composer and submits its request
   });
 });
 
-test("Desktop uses the Codex-style local editor and starts in the selected project", async () => {
+test("Desktop uses the local context editor and starts in the selected project", async () => {
   mocks.desktop = true;
   render(
     <MemoryRouter>
