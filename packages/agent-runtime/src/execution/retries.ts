@@ -33,8 +33,22 @@ export function pendingBashRetries(item: UIMessage) {
   if (item.role === "assistant") {
     for (const part of item.parts) {
       if (part.type !== "tool-bash" || part.providerExecuted) continue;
+      const claimedRetry =
+        part.input &&
+        typeof part.input === "object" &&
+        "retry_of" in part.input &&
+        typeof part.input.retry_of === "string" &&
+        part.input.retry_of.length > 0
+          ? part.input.retry_of
+          : undefined;
       const parsed = bashArgs.safeParse(part.input);
-      if (!parsed.success || parsed.data.command === undefined) continue;
+      if (!parsed.success || parsed.data.command === undefined) {
+        if (claimedRetry) {
+          pending.delete(claimedRetry);
+          seenRetries.add(claimedRetry);
+        }
+        continue;
+      }
       let input: BashInput;
       try {
         input = commandForPolicy(parsed.data);
@@ -43,9 +57,9 @@ export function pendingBashRetries(item: UIMessage) {
         // execution. They are not recovery evidence and must not block an
         // unrelated approved continuation. A malformed retry still consumes its
         // claimed lineage so it can never reveal an older replay candidate.
-        if (parsed.data.retry_of) {
-          pending.delete(parsed.data.retry_of);
-          seenRetries.add(parsed.data.retry_of);
+        if (claimedRetry) {
+          pending.delete(claimedRetry);
+          seenRetries.add(claimedRetry);
         }
         continue;
       }

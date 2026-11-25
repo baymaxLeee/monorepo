@@ -25,7 +25,7 @@
 | Permissions / approvals / sandbox | 权限策略确定可访问能力，审批决定是否允许动作，sandbox 执行限制 | `cwd`、提示词或用户点过同意不能替代 OS/执行环境隔离 |
 | Resume / fork | 继续既有会话与创建独立会话是不同操作 | 对话恢复不等于进程恢复；不要求跨模式恢复或迁移 |
 
-工具保持本项目的 AI SDK schema 与原生结果；不暴露或翻译成 Codex wire 字段。工程上的执行 attempt、租约、恢复清单及存储引用是实现对象，不冒充 Codex/Pi 公开原语，也不成为额外的用户工作流。Cloud 的审批/工具结果续接已保持原 Turn 归属并追加 attempt；新的独立用户请求才创建新 Turn，且等待中的 Turn 会拒绝第二个 Turn admission。
+工具保持本项目的 AI SDK schema 与原生结果；不暴露或翻译成 Codex wire 字段。工程上的执行 attempt、租约、恢复清单及存储引用是实现对象，不冒充 Codex/Pi 公开原语，也不成为额外的用户工作流。Cloud 的审批/工具结果续接已保持原 Turn 归属并追加 attempt；新的独立用户请求才创建新 Turn，且等待中的 Turn 会拒绝第二个 Turn admission。Runtime 只吸收 Codex“终止必须清空等待并产生工具终态”的不变量：`failed | cancelled | interrupted` 在现有 journal 事务内把未完成的 AI SDK tool part 收口为 `output-error`，保留真实 `approved=true` 事实并关闭对应 tool effect；不新增审批 daemon、会话批准缓存、第二套 wire 或安全策略编排层。
 
 ## 背景与决策
 
@@ -135,7 +135,7 @@ flowchart LR
 - `unless-trusted` 对没有显式 allow rule 的命令询问，适用于不可信项目。
 - `granular` 的终态分别控制 exec-policy rule、sandbox escalation 与 network approval 是否允许询问；被禁止的审批类别直接拒绝。当前 wire/UI 已保留这一独立策略值，但 runtime 还只有单值行为，尚未接入 Codex `GranularApprovalConfig` 同构的分类开关；在分类结构落地前不能宣称这些类别可分别配置。
 
-一次批准只覆盖界面展示的 canonical argv、cwd、追加权限、网络目标及 attempt authority。 `ApprovedForSession` 按序列化 approval key 缓存；“始终允许”生成最小 token prefix rule，并拒绝 `bash -c`、`python -c`、`node -e`、`git`、`rm` 等过宽前缀。策略变更原子写入受信用户配置，不能写进仓库 policy。当前 `request | auto | full`、`bashNeedsApproval()` 和两条 command regex 全部删除，不建立旧值映射或双读。
+一次批准只覆盖界面展示的 canonical argv、cwd、追加权限、网络目标及 attempt authority。当前 AI SDK native approval wire 只携带一次性 `approved` decision；Runtime 不实现 `ApprovedForSession`、approval cache、“始终允许”或持久 policy amendment，也不为这些能力增加旁路协议。若未来官方 primitive 与明确产品需求同时成立，会话级批准仍必须绑定序列化 approval key，并把最小 token prefix rule、过宽前缀拒绝和受信用户配置原子更新作为独立设计；在此之前这是相对 Codex 的明确 residual，而不是已实现能力。当前 `request | auto | full`、`bashNeedsApproval()` 和两条 command regex 全部删除，不建立旧值映射或双读。
 
 ### Approval、sandbox 与 denial retry 相互独立
 

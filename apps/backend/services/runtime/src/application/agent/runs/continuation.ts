@@ -60,14 +60,10 @@ function approvalRequestIdentity(part: ReturnType<typeof asToolPart>) {
   if (!approval) {
     return undefined;
   }
-  return {
-    id: approval.id,
-    descriptor: approval.descriptor,
-    requestReason: approval.requestReason,
-    isAutomatic: approval.isAutomatic,
-    signature: approval.signature,
-    inputSchemaInput: approval.inputSchemaInput,
-  };
+  // The decision is the only client-owned approval field. Freeze every current
+  // and future request descriptor so an SDK extension cannot become an
+  // unvalidated capability injection path.
+  return Object.fromEntries(Object.entries(approval).filter(([key]) => key !== "approved"));
 }
 
 function validateResponseTransition(

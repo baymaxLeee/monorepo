@@ -4,8 +4,6 @@ import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 
 import { getSessionContext } from "../../../application/agent/index.js";
-import { activeAgentStreamRunId } from "../../../application/agent/streams/service.js";
-import { ConflictError } from "../../../application/errors.js";
 import { editableFileByteLimit } from "../../../application/file-edit-limits.js";
 import { completeSessionAttachment, prepareSessionAttachment } from "../../../application/session-attachments.js";
 import { forkSession } from "../../../application/session-fork.js";
@@ -16,6 +14,7 @@ import {
   getSession,
   getSessionFile,
   selectSessionHistory,
+  unfinishedSessionTurnId,
   updateSessionExecutionPolicy,
   updateSessionFileContent,
   updateSessionModel,
@@ -76,18 +75,12 @@ sessionsRoutes.post("/", zValidator("json", createSchema), async (c) =>
 sessionsRoutes.get("/:sessionId", async (c) => {
   const sessionId = c.req.param("sessionId");
   const detail = await getSession(sessionId);
-  const activeRunId = await activeAgentStreamRunId(sessionId);
+  const activeRunId = await unfinishedSessionTurnId(sessionId);
   return c.json({ ...detail, active_run_id: activeRunId });
 });
 
 sessionsRoutes.patch("/:sessionId/model", zValidator("json", updateModelSchema), async (c) => {
   const sessionId = c.req.param("sessionId");
-  const activeRunId = await activeAgentStreamRunId(sessionId);
-  if (activeRunId) {
-    throw new ConflictError("session model cannot change while a Turn is active", "active_run_exists", {
-      run_id: activeRunId,
-    });
-  }
   const body = c.req.valid("json");
   return c.json(
     await updateSessionModel(sessionId, {
@@ -100,12 +93,6 @@ sessionsRoutes.patch("/:sessionId/model", zValidator("json", updateModelSchema),
 
 sessionsRoutes.patch("/:sessionId/execution-policy", zValidator("json", updateExecutionPolicySchema), async (c) => {
   const sessionId = c.req.param("sessionId");
-  const activeRunId = await activeAgentStreamRunId(sessionId);
-  if (activeRunId) {
-    throw new ConflictError("session execution policy cannot change while a Turn is active", "active_run_exists", {
-      run_id: activeRunId,
-    });
-  }
   const body = c.req.valid("json");
   return c.json(
     await updateSessionExecutionPolicy(sessionId, {

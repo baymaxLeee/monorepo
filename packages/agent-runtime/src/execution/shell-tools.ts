@@ -18,17 +18,17 @@ export const bashArgs = z
     command: z.string().min(1).optional(),
     session_id: z.number().int().positive().optional(),
     stdin: z.string().optional(),
-    workdir: z.string().optional(),
-    shell: z.string().optional(),
+    workdir: z.string().min(1).optional(),
+    shell: z.string().min(1).optional(),
     login: z.boolean().optional(),
     tty: z.boolean().optional(),
     yield_time_ms: z.number().int().nonnegative().optional(),
     max_output_tokens: z.number().int().nonnegative().optional(),
     sandbox_permissions: z.enum(["use_default", "with_additional_permissions", "require_escalated"]).optional(),
     additional_permissions: additionalPermissionsSchema.optional(),
-    justification: z.string().optional(),
-    prefix_rule: z.array(z.string()).optional(),
-    retry_of: z.string().optional(),
+    justification: z.string().trim().min(1).optional(),
+    prefix_rule: z.array(z.string().min(1)).min(1).optional(),
+    retry_of: z.string().min(1).optional(),
   })
   .superRefine((input, context) => {
     const startsCommand = input.command !== undefined;
@@ -39,6 +39,27 @@ export const bashArgs = z
     }
     if (startsCommand && input.stdin !== undefined) {
       context.addIssue({ code: "custom", path: ["stdin"], message: "stdin requires session_id" });
+    }
+    if (
+      startsCommand &&
+      Boolean(input.additional_permissions) !== (input.sandbox_permissions === "with_additional_permissions")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["additional_permissions"],
+        message: "additional_permissions requires with_additional_permissions",
+      });
+    }
+    if (
+      startsCommand &&
+      (input.justification !== undefined || input.prefix_rule !== undefined) &&
+      input.sandbox_permissions !== "require_escalated"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: [input.justification !== undefined ? "justification" : "prefix_rule"],
+        message: "justification and prefix_rule require require_escalated",
+      });
     }
     if (continuesSession) {
       for (const field of [
@@ -75,7 +96,10 @@ export function commandForPolicy(input: BashArgs) {
   if (Boolean(command.additional_permissions) !== (command.sandbox_permissions === "with_additional_permissions")) {
     throw new Error("additional_permissions requires with_additional_permissions");
   }
-  if ((command.justification || command.prefix_rule) && command.sandbox_permissions !== "require_escalated") {
+  if (
+    (command.justification !== undefined || command.prefix_rule !== undefined) &&
+    command.sandbox_permissions !== "require_escalated"
+  ) {
     throw new Error("justification and prefix_rule require require_escalated");
   }
   return {

@@ -108,6 +108,16 @@ test("approval response must preserve the server approval id and call identity",
   assert.throws(() => mergeClientContinuation(persisted, client), /approval|identity|overwrite/i);
 });
 
+test("approval response freezes future request descriptor fields", () => {
+  const request = { id: "approval-one", futureConstraint: { scope: "exact-command" } };
+  const persisted = awaiting({ state: "approval-requested", approval: request });
+  const client = awaiting({
+    state: "approval-responded",
+    approval: { ...request, futureConstraint: { scope: "session" }, approved: true },
+  });
+  assert.throws(() => mergeClientContinuation(persisted, client), /approval|identity/i);
+});
+
 test("one continuation cannot submit the same tool call twice", () => {
   const response = answer().parts[0]!;
   const client = { ...answer(), parts: [response, structuredClone(response)] } as AnyUIMessage;

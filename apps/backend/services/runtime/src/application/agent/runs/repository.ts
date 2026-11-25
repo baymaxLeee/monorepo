@@ -33,7 +33,13 @@ import type {
 } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, RequestError } from "../../errors.js";
 import { parseSessionContextSnapshot, type SessionContextSnapshot } from "../context/context-snapshot.js";
-import { cancelPlanOutput, finalizeCancelledParts } from "./cancellation.js";
+import {
+  cancelPlanOutput,
+  finalizeCancelledParts,
+  finalizeTerminalParts,
+  terminalRunErrorText,
+  type TerminalRunStatus,
+} from "./cancellation.js";
 import { mergeClientContinuation } from "./continuation.js";
 
 export type AgentRunStatus =
@@ -575,12 +581,34 @@ export async function claimAgentRunOperation(input: {
         throw new ConflictError("tool continuation cannot change the frozen model", "turn_snapshot_conflict");
       }
       const [previousAttempt] = await tx
-        .select({ attemptEpoch: turnAttempts.attemptEpoch })
+        .select({ attemptEpoch: turnAttempts.attemptEpoch, status: turnAttempts.status })
         .from(turnAttempts)
         .where(eq(turnAttempts.turnId, source.run.id))
         .orderBy(desc(turnAttempts.attemptEpoch))
         .limit(1);
       if (!previousAttempt) throw new Error(`logical Turn ${source.run.id} has no physical attempt`);
+      const [previousEnvelope] = await tx
+        .select({ snapshot: turnResumeEnvelopes.snapshot })
+        .from(turnResumeEnvelopes)
+        .where(
+          and(
+            eq(turnResumeEnvelopes.turnId, source.run.id),
+            eq(turnResumeEnvelopes.attemptEpoch, previousAttempt.attemptEpoch),
+          ),
+        );
+      const frozen = previousEnvelope?.snapshot.execution;
+      if (
+        previousAttempt.status !== "waiting" ||
+        !frozen ||
+        frozen.assistantMessageId !== historyMessageId ||
+        frozen.approvalPolicy !== session.approvalPolicy ||
+        frozen.permissionProfile !== session.permissionProfile
+      ) {
+        throw new ConflictError(
+          "tool continuation does not match the frozen Turn approval boundary",
+          "turn_snapshot_conflict",
+        );
+      }
       runId = source.run.id;
       attemptEpoch = previousAttempt.attemptEpoch + 1n;
       await tx
@@ -675,6 +703,42 @@ export async function getAgentRunById(runId: string): Promise<{
   };
 }
 
+function isTerminalFailureStatus(status: AgentRunStatus): status is TerminalRunStatus {
+  return status === "failed" || status === "cancelled" || status === "interrupted";
+}
+
+async function finalizeTerminalToolEffects(
+  tx: RuntimeTransaction,
+  calls: Array<typeof toolEffects.$inferSelect>,
+  input: {
+    runId: string;
+    status: TerminalRunStatus;
+    now: Date;
+    itemId: string | null;
+  },
+): Promise<void> {
+  const reason = terminalRunErrorText(input.status);
+  for (const call of calls) {
+    if (call.status === "running") {
+      await tx
+        .update(toolEffects)
+        .set({
+          status: "failed",
+          error: reason,
+          durationMs: Math.max(0, input.now.getTime() - call.createdAt.getTime()),
+          completedAt: input.now,
+          itemId: input.itemId,
+        })
+        .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, call.id)));
+    } else if (input.status === "cancelled" && call.toolName === "update_plan" && call.status === "completed") {
+      await tx
+        .update(toolEffects)
+        .set({ outputJson: cancelPlanOutput(call.outputJson), itemId: input.itemId })
+        .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, call.id)));
+    }
+  }
+}
+
 export async function finishAgentRun(input: {
   runId: string;
   attemptEpoch: bigint;
@@ -702,6 +766,47 @@ export async function finishAgentRun(input: {
     await requireOwnedRun(tx, input);
     const { status, error } = input;
     const now = new Date();
+    const terminalFailure = isTerminalFailureStatus(status);
+    const outputItemId = input.outputMessageId ?? run.outputItemId;
+
+    if (terminalFailure && outputItemId) {
+      const [item] = await tx
+        .select()
+        .from(threadItems)
+        .where(and(eq(threadItems.id, outputItemId), eq(threadItems.threadId, run.threadId)))
+        .for("update");
+      if (!item) throw new Error(`agent run ${input.runId} assistant item does not exist`);
+      const metadata =
+        item.content.metadata && typeof item.content.metadata === "object"
+          ? { ...item.content.metadata, status: status === "cancelled" ? "cancelled" : "failed" }
+          : item.content.metadata;
+      await tx
+        .update(threadItems)
+        .set({
+          content: {
+            ...item.content,
+            parts: finalizeTerminalParts(item.content.parts as UIMessage<unknown, any, any>["parts"], status),
+            ...(metadata ? { metadata } : {}),
+          },
+          status: "failed",
+          revision: sql`${threadItems.revision} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(threadItems.id, item.id));
+    }
+
+    if (terminalFailure) {
+      const calls = await tx
+        .select()
+        .from(toolEffects)
+        .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.attemptEpoch, input.attemptEpoch)));
+      await finalizeTerminalToolEffects(tx, calls, {
+        runId: input.runId,
+        status,
+        now,
+        itemId: outputItemId,
+      });
+    }
 
     await tx
       .update(turnSteps)
@@ -728,7 +833,7 @@ export async function finishAgentRun(input: {
       .set({
         status,
         error: error == null ? null : errorText(error).slice(0, 4000),
-        outputItemId: input.outputMessageId ?? undefined,
+        outputItemId: outputItemId ?? undefined,
         inputTokens: input.inputTokens ?? undefined,
         outputTokens: input.outputTokens ?? undefined,
         cachedInputTokens: input.cachedInputTokens ?? undefined,
@@ -900,6 +1005,7 @@ export async function finalizeAgentRunJournal(input: {
       : input.status === "completed" && awaitsClientContinuation(input.parts)
         ? "waiting"
         : input.status;
+    const terminalFailure = isTerminalFailureStatus(status);
     const error = input.error;
     const message: JournalMessage | null = input.message
       ? {
@@ -907,8 +1013,8 @@ export async function finalizeAgentRunJournal(input: {
           status: status === "completed" || status === "waiting" ? "ok" : "failed",
           content: {
             ...input.message.content,
-            parts: aborted
-              ? finalizeCancelledParts(input.message.content.parts as UIMessage<unknown, any, any>["parts"])
+            parts: terminalFailure
+              ? finalizeTerminalParts(input.message.content.parts as UIMessage<unknown, any, any>["parts"], status)
               : input.message.content.parts,
             ...(input.message.content.metadata
               ? {
@@ -930,26 +1036,13 @@ export async function finalizeAgentRunJournal(input: {
       .select()
       .from(toolEffects)
       .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.attemptEpoch, input.attemptEpoch)));
-    if (aborted) {
-      for (const toolCall of toolCalls) {
-        if (toolCall.status === "running") {
-          await tx
-            .update(toolEffects)
-            .set({
-              status: "failed",
-              error: "已取消。",
-              durationMs: Math.max(0, now.getTime() - toolCall.createdAt.getTime()),
-              completedAt: now,
-              itemId: message?.id ?? null,
-            })
-            .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, toolCall.id)));
-        } else if (toolCall.toolName === "update_plan" && toolCall.status === "completed") {
-          await tx
-            .update(toolEffects)
-            .set({ outputJson: cancelPlanOutput(toolCall.outputJson), itemId: message?.id ?? null })
-            .where(and(eq(toolEffects.turnId, input.runId), eq(toolEffects.id, toolCall.id)));
-        }
-      }
+    if (terminalFailure) {
+      await finalizeTerminalToolEffects(tx, toolCalls, {
+        runId: input.runId,
+        status,
+        now,
+        itemId: message?.id ?? run.outputItemId,
+      });
     } else {
       const terminalById = new Map<string, NonNullable<ReturnType<typeof terminalToolPart>>>();
       for (const part of input.parts) {
@@ -1037,6 +1130,76 @@ export async function requestAgentRunCancellation(runId: string): Promise<void> 
     .update(threadTurns)
     .set({ status: "cancel_requested" })
     .where(and(eq(threadTurns.id, runId), inArray(threadTurns.status, ["running", "cancel_requested"])));
+}
+
+export async function cancelWaitingAgentRun(
+  sessionId: string,
+  runId: string,
+): Promise<"cancelled" | "active" | "terminal" | "missing"> {
+  return getDb().transaction(async (tx) => {
+    const [binding] = await tx
+      .select({ threadId: threadTurns.threadId })
+      .from(threadTurns)
+      .where(eq(threadTurns.id, runId));
+    if (!binding || binding.threadId !== sessionId) return "missing";
+
+    const [session] = await tx.select().from(threads).where(eq(threads.id, sessionId)).for("update");
+    const [run] = await tx.select().from(threadTurns).where(eq(threadTurns.id, runId)).for("update");
+    if (!session || !run || run.threadId !== sessionId) return "missing";
+    if (run.status === "running" || run.status === "cancel_requested") return "active";
+    if (run.status !== "waiting") return "terminal";
+    if (!run.outputItemId) throw new Error(`waiting Turn ${runId} has no assistant item`);
+
+    const [attempt] = await tx
+      .select()
+      .from(turnAttempts)
+      .where(eq(turnAttempts.turnId, runId))
+      .orderBy(desc(turnAttempts.attemptEpoch))
+      .limit(1)
+      .for("update");
+    if (!attempt || attempt.status !== "waiting") {
+      throw new ConflictError("waiting Turn attempt state is inconsistent", "turn_snapshot_conflict");
+    }
+    const [item] = await tx
+      .select()
+      .from(threadItems)
+      .where(and(eq(threadItems.id, run.outputItemId), eq(threadItems.threadId, sessionId)))
+      .for("update");
+    if (!item) throw new Error(`waiting Turn ${runId} assistant item does not exist`);
+
+    const now = new Date();
+    const metadata =
+      item.content.metadata && typeof item.content.metadata === "object"
+        ? { ...item.content.metadata, status: "cancelled" }
+        : item.content.metadata;
+    await tx
+      .update(threadItems)
+      .set({
+        content: {
+          ...item.content,
+          parts: finalizeCancelledParts(item.content.parts as UIMessage<unknown, any, any>["parts"]),
+          ...(metadata ? { metadata } : {}),
+        },
+        status: "failed",
+        revision: sql`${threadItems.revision} + 1`,
+        updatedAt: now,
+      })
+      .where(eq(threadItems.id, item.id));
+    await tx
+      .update(turnAttempts)
+      .set({ status: "cancelled", error: "用户停止了待审批轮次", completedAt: now })
+      .where(and(eq(turnAttempts.turnId, runId), eq(turnAttempts.attemptEpoch, attempt.attemptEpoch)));
+    await tx
+      .update(threadTurns)
+      .set({ status: "cancelled", error: "用户停止了待审批轮次", completedAt: now })
+      .where(eq(threadTurns.id, runId));
+    await tx.delete(turnLeases).where(eq(turnLeases.turnId, runId));
+    await tx
+      .update(threads)
+      .set({ historyRevision: sql`${threads.historyRevision} + 1`, updatedAt: now })
+      .where(eq(threads.id, sessionId));
+    return "cancelled";
+  });
 }
 
 export async function isRunActive(runId: string): Promise<boolean> {

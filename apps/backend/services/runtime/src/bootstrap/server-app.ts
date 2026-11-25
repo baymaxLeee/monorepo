@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { Hono } from "hono";
+import type { Logger } from "pino";
 
 import { requestLogger, traceMiddleware } from "#runtime/foundation";
 
@@ -13,13 +14,14 @@ import { getServerSettings } from "../config/server.js";
 import { checkReadiness, currentBootState, isBootReady } from "../infrastructure/health/readiness.js";
 import { logger } from "../infrastructure/observability/logger.js";
 
-export function createApp(dependencies: { toolCatalog?: ToolCatalog } = {}) {
+export function createApp(dependencies: { toolCatalog?: ToolCatalog; logger?: Logger } = {}) {
   const settings = getServerSettings();
   const toolCatalog = dependencies.toolCatalog ?? new ToolCatalog();
+  const appLogger = dependencies.logger ?? logger;
   const app = new Hono();
 
   app.use("*", traceMiddleware());
-  app.use("*", requestLogger(logger));
+  app.use("*", requestLogger(appLogger));
 
   app.get("/healthz", (c) => c.json({ status: "ok" }));
   app.get("/livez", (c) =>
@@ -41,6 +43,9 @@ export function createApp(dependencies: { toolCatalog?: ToolCatalog } = {}) {
 
   app.onError((err, c) => {
     const { status, body } = problemJson(err);
+    if (status >= 500) {
+      appLogger.error({ err, method: c.req.method, path: c.req.path }, "unhandled runtime request error");
+    }
     return c.json(body, status as 400);
   });
 

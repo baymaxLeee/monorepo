@@ -9,6 +9,7 @@ import { ConflictError } from "../../errors.js";
 import { deactivateAgentStream } from "../streams/service.js";
 import {
   assertRunLease,
+  cancelWaitingAgentRun,
   claimOrphanedTurnRecovery,
   getAgentRunById,
   interruptRuns,
@@ -191,10 +192,9 @@ export async function releaseRun(token: RunLeaseToken): Promise<void> {
 }
 
 export async function cancelRun(sessionId: string, runId: string): Promise<boolean> {
-  const run = await getAgentRunById(runId);
-  if (!run || run.sessionId !== sessionId) {
-    return false;
-  }
+  const waiting = await cancelWaitingAgentRun(sessionId, runId);
+  if (waiting === "missing") return false;
+  if (waiting === "cancelled" || waiting === "terminal") return true;
   await requestAgentRunCancellation(runId);
   const deadline = Date.now() + CANCELLATION_WAIT_MS;
   while (Date.now() < deadline) {

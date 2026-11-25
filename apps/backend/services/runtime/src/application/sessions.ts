@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { storageClient } from "../infrastructure/clients/storage.js";
 import { getDb } from "../infrastructure/persistence/index.js";
@@ -481,42 +481,74 @@ export async function updateMessageContent(input: {
     .where(and(eq(threadItems.id, input.id), eq(threadItems.threadId, input.sessionId)));
 }
 
+type SessionTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+const UNFINISHED_TURN_STATUSES = ["running", "cancel_requested", "waiting"] as const;
+
+export async function unfinishedSessionTurnId(sessionId: string): Promise<string | null> {
+  const [run] = await getDb()
+    .select({ id: threadTurns.id })
+    .from(threadTurns)
+    .where(and(eq(threadTurns.threadId, sessionId), inArray(threadTurns.status, [...UNFINISHED_TURN_STATUSES])))
+    .orderBy(desc(threadTurns.ordinal))
+    .limit(1);
+  return run?.id ?? null;
+}
+
+async function requireIdleSession(tx: SessionTransaction, sessionId: string, setting: string): Promise<void> {
+  const [session] = await tx.select({ id: threads.id }).from(threads).where(eq(threads.id, sessionId)).for("update");
+  if (!session) throw new NotFoundError("session not found");
+  const [run] = await tx
+    .select({ id: threadTurns.id })
+    .from(threadTurns)
+    .where(and(eq(threadTurns.threadId, sessionId), inArray(threadTurns.status, [...UNFINISHED_TURN_STATUSES])))
+    .limit(1);
+  if (run) {
+    throw new ConflictError(`${setting} cannot change while a Turn is active`, "active_run_exists", {
+      run_id: run.id,
+    });
+  }
+}
+
 export async function updateSessionModel(
   sessionId: string,
   input: { providerId: string; model: string; reasoningEffort: ReasoningEffort },
 ): Promise<Session> {
-  await getSessionRow(sessionId);
   const db = getDb();
-  const [row] = await db
-    .update(threads)
-    .set({
-      providerId: input.providerId,
-      model: input.model,
-      reasoningEffort: input.reasoningEffort,
-      updatedAt: new Date(),
-    })
-    .where(eq(threads.id, sessionId))
-    .returning();
-  if (!row) throw new NotFoundError("session not found");
-  return toSession(row);
+  return db.transaction(async (tx) => {
+    await requireIdleSession(tx, sessionId, "session model");
+    const [row] = await tx
+      .update(threads)
+      .set({
+        providerId: input.providerId,
+        model: input.model,
+        reasoningEffort: input.reasoningEffort,
+        updatedAt: new Date(),
+      })
+      .where(eq(threads.id, sessionId))
+      .returning();
+    if (!row) throw new NotFoundError("session not found");
+    return toSession(row);
+  });
 }
 
 export async function updateSessionExecutionPolicy(
   sessionId: string,
   input: { approvalPolicy: ApprovalPolicy; permissionProfile: BuiltInPermissionProfileId },
 ): Promise<Session> {
-  await getSessionRow(sessionId);
-  const [row] = await getDb()
-    .update(threads)
-    .set({
-      approvalPolicy: input.approvalPolicy,
-      permissionProfile: input.permissionProfile,
-      updatedAt: new Date(),
-    })
-    .where(eq(threads.id, sessionId))
-    .returning();
-  if (!row) throw new NotFoundError("session not found");
-  return toSession(row);
+  return getDb().transaction(async (tx) => {
+    await requireIdleSession(tx, sessionId, "session execution policy");
+    const [row] = await tx
+      .update(threads)
+      .set({
+        approvalPolicy: input.approvalPolicy,
+        permissionProfile: input.permissionProfile,
+        updatedAt: new Date(),
+      })
+      .where(eq(threads.id, sessionId))
+      .returning();
+    if (!row) throw new NotFoundError("session not found");
+    return toSession(row);
+  });
 }
 
 function isKnowledgeSourcePart(part: unknown, sourceId: string): boolean {

@@ -133,6 +133,45 @@ test("an interactive turn continues through the twentieth tool step until the mo
   assert.ok(answer.parts.some((part) => part.type === "text" && part.text.includes("处理文件")));
 });
 
+test("invalid Bash approval fields become model-visible input errors instead of failing the Turn", async () => {
+  let calls = 0;
+  let executions = 0;
+  const tools = manifestsToTools([
+    execTool(async () => {
+      executions++;
+      return commandResult(0, "unexpected", "");
+    }),
+  ]);
+  const agent = createAgentLoop({
+    tools,
+    model: model((options) => {
+      calls++;
+      if (calls === 1) {
+        return [
+          {
+            type: "tool-call",
+            toolCallId: "invalid-approval-fields",
+            toolName: "bash",
+            input: JSON.stringify({
+              command: "curl https://example.com",
+              sandbox_permissions: "with_additional_permissions",
+              additional_permissions: { network: { enabled: true } },
+              justification: "Fetch the resource.",
+            }),
+          },
+        ];
+      }
+      assert.match(JSON.stringify(options.prompt), /require_escalated/);
+      return text;
+    }),
+  });
+
+  const answer = await consume(agent);
+  assert.equal(calls, 2);
+  assert.equal(executions, 0);
+  assert.ok(answer.parts.some((part) => part.type === "text"));
+});
+
 test("preserves every tool call emitted by one model response", async () => {
   const executed: string[] = [];
   let calls = 0;

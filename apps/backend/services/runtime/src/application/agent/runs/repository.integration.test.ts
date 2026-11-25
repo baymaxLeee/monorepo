@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
 import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
+import { convertToModelMessages } from "ai";
 import { eq } from "drizzle-orm";
 
 import { getDb, getSql } from "../../../infrastructure/persistence/index.js";
@@ -25,8 +26,11 @@ import { publishSessionFile, deleteWorkspaceSessionFile } from "../../session-fi
 import {
   createSession as createRuntimeSession,
   deleteSession,
+  unfinishedSessionTurnId,
   listMessages,
   selectSessionHistory,
+  updateSessionExecutionPolicy,
+  updateSessionModel,
 } from "../../sessions.js";
 import { readWorkspaceCheckout } from "../../workspace-checkout.js";
 import { acquireRunLease, cancelRun, reconcileOrphanedRuns, registerRunController, releaseRun } from "./lease.js";
@@ -44,6 +48,7 @@ import {
   recordToolCallFinish,
   requestAgentRunCancellation,
 } from "./repository.js";
+import { persistedMessagesToModelUiMessages } from "./run.js";
 import { sandboxExecutionLifecycle } from "./sandbox-executions.js";
 import { acceptAgentRunInput, listAgentRunInputs } from "./steering.js";
 
@@ -734,6 +739,15 @@ test("client continuation validation and journal merge share the claim transacti
       connectionGrants: [],
     });
     const assistantId = identifier("msg");
+    const envelope = resumeEnvelope(claim);
+    await persistTurnResumeEnvelope(lease(claim), {
+      ...envelope,
+      sessionId,
+      snapshot: {
+        ...envelope.snapshot,
+        execution: { ...envelope.snapshot.execution, assistantMessageId: assistantId },
+      },
+    });
     const awaiting = {
       type: "tool-ask_user" as const,
       toolCallId: "question",
@@ -801,6 +815,27 @@ test("client continuation validation and journal merge share the claim transacti
       .set({ status: "waiting", completedAt: null })
       .where(eq(threadTurns.id, claim.runId));
 
+    await getDb().update(threads).set({ approvalPolicy: "never" }).where(eq(threads.id, sessionId));
+    await assert.rejects(
+      claimAgentRunOperation({
+        ...operation,
+        requestId: identifier("req"),
+        continuationMessage: response("policy-drift"),
+      }),
+      (error: unknown) => error instanceof ConflictError && error.code === "turn_snapshot_conflict",
+    );
+    await getDb().update(threads).set({ approvalPolicy: "on-request" }).where(eq(threads.id, sessionId));
+    await getDb().update(threads).set({ permissionProfile: ":read-only" }).where(eq(threads.id, sessionId));
+    await assert.rejects(
+      claimAgentRunOperation({
+        ...operation,
+        requestId: identifier("req"),
+        continuationMessage: response("permission-drift"),
+      }),
+      (error: unknown) => error instanceof ConflictError && error.code === "turn_snapshot_conflict",
+    );
+    await getDb().update(threads).set({ permissionProfile: ":workspace" }).where(eq(threads.id, sessionId));
+
     const valid = { ...operation, continuationMessage: response("a") };
     const continued = await claimAgentRunOperation(valid);
     assert.equal(continued.runId, claim.runId, "tool continuation must retain the logical Turn identity");
@@ -860,6 +895,23 @@ test("a waiting logical Turn blocks admission of a second Turn", { skip: !enable
       message: { id: assistantId, status: "ok", content: { version: 2, parts: [awaiting] } },
     });
 
+    assert.equal(await unfinishedSessionTurnId(sessionId), claim.runId);
+    await assert.rejects(
+      updateSessionModel(sessionId, {
+        providerId: "other-provider",
+        model: "other-model",
+        reasoningEffort: "high",
+      }),
+      (error: unknown) => error instanceof ConflictError && error.code === "active_run_exists",
+    );
+    await assert.rejects(
+      updateSessionExecutionPolicy(sessionId, {
+        approvalPolicy: "never",
+        permissionProfile: ":read-only",
+      }),
+      (error: unknown) => error instanceof ConflictError && error.code === "active_run_exists",
+    );
+
     await assert.rejects(
       claimAgentRunOperation({
         sessionId,
@@ -877,6 +929,270 @@ test("a waiting logical Turn blocks admission of a second Turn", { skip: !enable
       (error: unknown) => error instanceof ConflictError && error.code === "active_run_exists",
     );
     assert.equal((await getDb().select().from(threadTurns).where(eq(threadTurns.threadId, sessionId))).length, 1);
+  } finally {
+    await cleanup(sessionId);
+  }
+});
+
+test(
+  "cancelling a waiting approval is atomic, idempotent, and rejects late responses",
+  { skip: !enabled },
+  async () => {
+    const { sessionId } = await createSession();
+    try {
+      const claim = await claimSubmit(sessionId);
+      await persistAgentRunPluginSnapshot(lease(claim), {
+        schemaVersion: 1,
+        snapshotId: identifier("frozen"),
+        snapshotDigest: `sha256:${"3".repeat(64)}`,
+        plugins: [],
+        connectionGrants: [],
+      });
+      const assistantId = identifier("msg");
+      const envelope = resumeEnvelope(claim);
+      await persistTurnResumeEnvelope(lease(claim), {
+        ...envelope,
+        sessionId,
+        snapshot: {
+          ...envelope.snapshot,
+          execution: { ...envelope.snapshot.execution, assistantMessageId: assistantId },
+        },
+      });
+      const approvalRequest = {
+        type: "dynamic-tool" as const,
+        toolName: "Bash",
+        toolCallId: "bash-call",
+        state: "approval-requested" as const,
+        input: { command: "echo hello" },
+        approval: { id: "approval-once" },
+      };
+      const waiting = await finalizeAgentRunJournal({
+        ...lease(claim),
+        parts: [approvalRequest],
+        aborted: false,
+        status: "completed",
+        message: { id: assistantId, status: "ok", content: { version: 2, parts: [approvalRequest] } },
+      });
+      assert.equal(waiting.status, "waiting");
+      assert.equal(await unfinishedSessionTurnId(sessionId), claim.runId);
+
+      assert.equal(await cancelRun(sessionId, claim.runId), true);
+      assert.equal(await cancelRun(sessionId, claim.runId), true, "repeated cancellation must be idempotent");
+      assert.equal(await unfinishedSessionTurnId(sessionId), null);
+
+      const [run] = await getDb().select().from(threadTurns).where(eq(threadTurns.id, claim.runId));
+      const [attempt] = await getDb().select().from(turnAttempts).where(eq(turnAttempts.turnId, claim.runId));
+      const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, assistantId));
+      const [session] = await getDb().select().from(threads).where(eq(threads.id, sessionId));
+      assert.equal(run?.status, "cancelled");
+      assert.equal(attempt?.status, "cancelled");
+      assert.equal(message?.status, "failed");
+      assert.equal((message?.content.parts[0] as { state?: string } | undefined)?.state, "output-error");
+      assert.equal(session?.historyRevision, 2n);
+      assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId))).length, 0);
+
+      await assert.rejects(
+        claimAgentRunOperation({
+          sessionId,
+          providerId: "test-provider",
+          model: "test-model",
+          requestId: identifier("req"),
+          expectedRevision: 2,
+          operation: "tool-continuation",
+          targetMessageId: assistantId,
+          continuationMessage: {
+            id: assistantId,
+            role: "assistant",
+            parts: [
+              {
+                ...approvalRequest,
+                state: "approval-responded",
+                approval: { ...approvalRequest.approval, approved: true },
+              },
+            ],
+          },
+        }),
+      );
+      assert.equal(
+        (await getDb().select().from(turnAttempts).where(eq(turnAttempts.turnId, claim.runId))).length,
+        1,
+        "a late approval response must not create another attempt",
+      );
+    } finally {
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test(
+  "a failed approval continuation terminalizes its approved tool call before the next Turn",
+  { skip: !enabled },
+  async () => {
+    const { sessionId } = await createSession();
+    try {
+      const claim = await claimSubmit(sessionId);
+      await persistAgentRunPluginSnapshot(lease(claim), {
+        schemaVersion: 1,
+        snapshotId: identifier("frozen"),
+        snapshotDigest: `sha256:${"4".repeat(64)}`,
+        plugins: [],
+        connectionGrants: [],
+      });
+      const assistantId = identifier("msg");
+      const envelope = resumeEnvelope(claim);
+      await persistTurnResumeEnvelope(lease(claim), {
+        ...envelope,
+        sessionId,
+        snapshot: {
+          ...envelope.snapshot,
+          execution: { ...envelope.snapshot.execution, assistantMessageId: assistantId },
+        },
+      });
+      const approvalRequest = {
+        type: "dynamic-tool" as const,
+        toolName: "Bash",
+        toolCallId: "bash-approved-before-failure",
+        state: "approval-requested" as const,
+        input: { command: "echo hello" },
+        approval: { id: "approval-once" },
+      };
+      const waiting = await finalizeAgentRunJournal({
+        ...lease(claim),
+        parts: [approvalRequest],
+        aborted: false,
+        status: "completed",
+        message: { id: assistantId, status: "ok", content: { version: 2, parts: [approvalRequest] } },
+      });
+      assert.equal(waiting.status, "waiting");
+
+      const continued = await claimAgentRunOperation({
+        sessionId,
+        providerId: "test-provider",
+        model: "test-model",
+        requestId: identifier("req"),
+        expectedRevision: 1,
+        operation: "tool-continuation",
+        targetMessageId: assistantId,
+        continuationMessage: {
+          id: assistantId,
+          role: "assistant",
+          parts: [
+            {
+              ...approvalRequest,
+              state: "approval-responded",
+              approval: { ...approvalRequest.approval, approved: true as const },
+            },
+          ],
+        },
+      });
+      await getDb()
+        .insert(toolEffects)
+        .values({
+          id: approvalRequest.toolCallId,
+          turnId: continued.runId,
+          attemptEpoch: continued.attemptEpoch,
+          toolName: "Bash",
+          status: "running",
+          inputDigest: "0".repeat(64),
+          inputJson: approvalRequest.input,
+          createdAt: new Date(),
+        });
+      await finishAgentRun({
+        ...lease(continued),
+        status: "failed",
+        error: "tool execution failed before producing a result",
+      });
+
+      const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, assistantId));
+      assert.equal(message?.status, "failed");
+      const terminal = message?.content.parts[0] as
+        | { state?: string; approval?: { id?: string; approved?: boolean }; errorText?: string }
+        | undefined;
+      assert.equal(terminal?.state, "output-error");
+      assert.deepEqual(terminal?.approval, { id: "approval-once", approved: true });
+      assert.match(terminal?.errorText ?? "", /failed|失败|中断/);
+      const [toolEffect] = await getDb()
+        .select()
+        .from(toolEffects)
+        .where(eq(toolEffects.id, approvalRequest.toolCallId));
+      assert.equal(toolEffect?.status, "failed");
+      assert.equal(toolEffect?.itemId, assistantId);
+      assert.ok(toolEffect?.completedAt);
+
+      const next = await claimAgentRunOperation({
+        sessionId,
+        providerId: "test-provider",
+        model: "test-model",
+        requestId: identifier("req"),
+        expectedRevision: 2,
+        operation: "submit-message",
+        inputMessage: {
+          id: identifier("msg"),
+          role: "user",
+          content: { version: 2, parts: [{ type: "text", text: "continue after the failed Bash call" }] },
+        },
+      });
+      const replay = persistedMessagesToModelUiMessages(await listMessages(sessionId, next.historyMessageId));
+      await assert.doesNotReject(convertToModelMessages(replay));
+    } finally {
+      await cleanup(sessionId);
+    }
+  },
+);
+
+test("failed SDK finalization terminalizes unfinished tool parts and effects", { skip: !enabled }, async () => {
+  const { sessionId } = await createSession();
+  try {
+    const claim = await claimSubmit(sessionId);
+    const toolCallId = identifier("tool");
+    const parts = [
+      {
+        type: "dynamic-tool",
+        toolName: "Bash",
+        toolCallId,
+        state: "approval-responded",
+        input: { command: "echo hello" },
+        approval: { id: identifier("approval"), approved: true },
+      },
+    ];
+    await getDb()
+      .insert(toolEffects)
+      .values({
+        id: toolCallId,
+        turnId: claim.runId,
+        attemptEpoch: claim.attemptEpoch,
+        toolName: "Bash",
+        status: "running",
+        inputDigest: "0".repeat(64),
+        inputJson: { command: "echo hello" },
+        createdAt: new Date(),
+      });
+    const messageId = identifier("msg");
+    await finalizeAgentRunJournal({
+      ...lease(claim),
+      parts,
+      aborted: false,
+      status: "failed",
+      error: "provider stream failed",
+      message: {
+        id: messageId,
+        status: "failed",
+        content: { version: 2, parts, metadata: { status: "failed" } },
+      },
+    });
+
+    const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, messageId));
+    const [toolEffect] = await getDb().select().from(toolEffects).where(eq(toolEffects.id, toolCallId));
+    const terminal = message?.content.parts[0] as
+      | { state?: string; approval?: { approved?: boolean }; errorText?: string }
+      | undefined;
+    assert.equal(message?.status, "failed");
+    assert.equal(terminal?.state, "output-error");
+    assert.equal(terminal?.approval?.approved, true);
+    assert.match(terminal?.errorText ?? "", /失败/);
+    assert.equal(toolEffect?.status, "failed");
+    assert.equal(toolEffect?.itemId, messageId);
+    assert.ok(toolEffect?.completedAt);
   } finally {
     await cleanup(sessionId);
   }
