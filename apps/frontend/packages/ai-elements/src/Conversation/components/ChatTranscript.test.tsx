@@ -1,5 +1,5 @@
 import { Conversation, ConversationContent } from "@repo/ai-elements";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 
 import type { ChatUIMessage } from "../lib/chat-message";
@@ -44,8 +44,11 @@ test("plan snapshots stay out of the transcript while plan failures remain visib
     parts: [...first.parts, { ...next, state: "output-error", input: {}, errorText: "更新清单失败" }],
   };
   view.rerender(transcript([failed], "ready"));
-  expect(await screen.findByText("更新清单失败")).toBeTruthy();
-  expect(screen.getAllByRole("button", { name: /update_plan/ })).toHaveLength(1);
+  const failedTool = await screen.findByRole("button", { name: /update_plan/ });
+  expect(failedTool.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByText("更新清单失败")).toBeNull();
+  fireEvent.click(failedTool);
+  expect(screen.getByText("更新清单失败")).toBeTruthy();
 });
 
 test("an empty streaming assistant uses one stable message row for its pending state", () => {
@@ -95,6 +98,42 @@ test("an active host run keeps the pending row visible while the transport is re
   );
 
   expect(screen.getByRole("status").textContent).toContain("正在思考");
+});
+
+test("an approval remains open while the transport is ready", async () => {
+  const assistant: ChatUIMessage = {
+    id: "assistant",
+    role: "assistant",
+    parts: [
+      {
+        type: "dynamic-tool",
+        toolName: "write_file",
+        toolCallId: "approval",
+        state: "approval-requested",
+        input: { path: "report.md" },
+        approval: { id: "approval" },
+      },
+    ],
+  };
+  render(
+    <Conversation>
+      <ConversationContent>
+        <ChatTranscript
+          conversationId="conversation"
+          messages={[assistant]}
+          status="ready"
+          loading={false}
+          branches={[]}
+          onToolApproval={() => {}}
+        />
+      </ConversationContent>
+    </Conversation>,
+  );
+
+  expect((await screen.findByRole("button", { name: /write_file.*等待授权/ })).getAttribute("aria-expanded")).toBe(
+    "true",
+  );
+  expect(screen.getByRole("button", { name: "允许" })).toBeTruthy();
 });
 
 test("submission keeps the same pending indicator until assistant content arrives", () => {

@@ -6,7 +6,6 @@ import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { threads, turnAttempts, turnLeases, threadTurns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
-import { deactivateAgentStream } from "../streams/service.js";
 import {
   assertRunLease,
   cancelWaitingAgentRun,
@@ -228,12 +227,10 @@ export type ClaimedTurnRecoveryRunner = (
 
 interface OrphanRunReconcilerDependencies {
   reconcileSandboxes(): Promise<void>;
-  deactivateStream(sessionId: string, runId: string): Promise<void>;
 }
 
 const orphanRunReconcilerDefaults: OrphanRunReconcilerDependencies = {
   reconcileSandboxes: reconcileSandboxExecutions,
-  deactivateStream: deactivateAgentStream,
 };
 
 export async function reconcileOrphanedRuns(
@@ -261,13 +258,6 @@ export async function reconcileOrphanedRuns(
     // starts. The new attempt lease makes the old writer mechanically obsolete.
     await deps.reconcileSandboxes();
   }
-  await Promise.all(
-    interrupted.map(({ run }) =>
-      deps
-        .deactivateStream(run.sessionId, run.id)
-        .catch((error) => logger.error({ runId: run.id, err: error }, "failed to clear stream flag for orphaned run")),
-    ),
-  );
   for (const recovery of claimed) {
     void recoverClaimed(recovery).catch((error) =>
       logger.error(

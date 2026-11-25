@@ -1,71 +1,75 @@
-# 当前决策：Chat 活跃流恢复与 Redis 容量边界
+# 当前决策：Chat 活跃流恢复与持久 journal
 
-状态：当前。本文拥有 Chat 原生 UIMessage SSE 在 Redis 中的生命周期、容量与故障语义；消息协议本身归 [Chat UI 协议](chat-ui-protocol.md)，Agent 执行归 [Agent runtime](agent-runtime.md)。
+状态：当前。本文拥有 Chat 原生 UIMessage SSE 的断线、后台消费与恢复语义；消息协议本身归 [Chat UI 协议](chat-ui-protocol.md)，Agent 执行归 [Agent runtime](agent-runtime.md)。
 
 ## 决策
 
-PostgreSQL journal 是 assistant UIMessage、tool 终态、run 状态和 usage 的长期权威。Redis 不是消息历史，也不是任务队列；它只保存 active run 的原生 SSE replay buffer，供 `DefaultChatTransport` 在断网、刷新或切回页面后从头完整重放。
+PostgreSQL journal 是 assistant UIMessage、tool 终态、run 状态和 usage 的唯一恢复权威。Runtime 不再把 active run 的原始 SSE 复制到 Redis，也不存在按单会话 replay bytes/entries 终止 Turn 的容量规则。Redis 故障、淘汰或实例容量不能取消模型、Sandbox、tool 或 journal finalizer。
 
-每个 active buffer 当前使用以下边界：
+`POST /conversations/{id}/stream` 发起 Turn；`GET /conversations/{id}/stream` 恢复当前 active Turn。Runtime 的进程内 active stream hub 是唯一生产者 consumer：它持续消费 AI SDK `UIMessageChunk`，将 chunk 广播给零到多个 HTTP subscriber，并维护当前 assistant UIMessage 的可重放语义投影。浏览器断开只移除一个 subscriber，后台 consumer 仍驱动唯一 `ToolLoopAgent` 到终态并提交 journal。精确重复的已认领 POST 若该 Run 仍在本进程活动，直接订阅同一 hub，不创建第二个 loop。
 
-- active pointer 与 stream 使用五分钟滑动租约；独立 heartbeat 每 60 秒续租，不能依赖模型持续输出；
-- public SSE 仍直接流向浏览器；独立 Redis persistence consumer 将连续原始 chunks 最多聚合 25 ms 或 32 KiB 后再写入，不增加用户侧输出延迟超过该窗口；
-- 单个 Redis fragment 不超过 64 KiB；单 run 最多 8 MiB、10,000 entries；
-- append 在一个 Redis Lua 操作中校验 run 身份和累计 bytes/entries，再写 stream、更新计数并续租；
-- entry 统计的是聚合后为 Redis 存储切出的 fragments，不是 provider delta、UIMessage chunk 或 Agent model step；`XADD MAXLEN ~` 只作为最后保险，应用字节预算才是主要容量控制；
-- 超过预算会以带 `reason`、累计 bytes/entries 和上限的 `AgentStreamCapacityError` 中止生成并按 failed run 收口，不能裁掉头部后继续声称支持完整 replay；
-- PostgreSQL finalizer 提交且 SSE consumer 排空后，立即 compare-delete active pointer，并删除该 run 的 stream；
-- failed、cancelled、启动异常和 orphan/interrupted 使用相同清理路径；TTL 只回收清理进程本身消失后留下的 key。
+active 投影不是累计 wire log：文本、reasoning 和 partial tool input delta 被合并，tool output、稳定 data id 与 message metadata 只保留当前语义状态，瞬时 data part 不进入 replay。投影严格复用 AI SDK 的归并语义：`message-metadata` 递归合并 object，数组和 primitive 替换；text/reasoning delta 保留最后一个非空 `providerMetadata`。索引随投影维护，逐 token 更新不扫描历史 chunk。GET 在同一个同步临界区内复制投影并登记 subscriber，因此一个 live chunk 必然位于 snapshot 或 subscription tail 之一。返回的是从 `start` 开始的完整 AI SDK replay，`DefaultChatTransport` 使用默认 replay reset 语义重建当前 assistant message，然后继续接收同一 Run 的 live chunks。
 
-Redis key 仍为：
+订阅者先读取初始快照，再按原序读取同一时刻登记的实时队列。队列沿用 Node 对象流默认高水位，积压超限时只中断该订阅，客户端可重新订阅。
 
-- `chat:agent-streams:<conversationId>:active`：当前 run id、开始时间、累计 bytes/entries；
-- `chat:agent-streams:<runId>:sse`：可从头重放的原生 SSE fragments。
+## Codex 基线与有意适配
 
-旧 run 清理只能在 pointer 仍指向自己时删除 conversation active key，但 run stream 以唯一 run id 命名，可以直接删除；迟到清理不得影响新 run。
+当前公开 Codex App Server 不用固定字节 replay log 决定 Turn 生死。运行中的 thread 由 `ThreadState.current_turn_history: ThreadHistoryBuilder` 保存 materialized active Turn/Item；resume 命令在该 thread listener 内读取 active snapshot、登记 connection，再继续发送同一 listener 的后续事件。冷历史来自 rollout/thread store。这个设计的核心是“语义快照与执行解耦、缓存不拥有执行权”，不是某个 Rust 模块或 wire 格式。
 
-## 为什么不能只依赖 TTL 或 MAXLEN
+本仓库保持唯一 AI SDK loop 和官方 UIMessage transport。AI SDK `DefaultChatTransport` 的默认 replay 模式要求从 `start` 开始的完整 stream；裁掉头部后的 Redis tail 不是合法 replay。Runtime 因此把 Codex 的 active Turn/Item snapshot 适配成官方 UIMessage chunks 的 materialized projection，而不是引入自定义 cursor、客户端 merge 协议或第二套 tool/message 状态机。projection 只负责 live 连接交接，不参与执行准入、取消、finalization 或 cold recovery。
 
-一小时 TTL 曾让三个异常 stream 在本地累计约 1.1、1.5 和 2.6 GiB。缩短 TTL 只能减少进程崩溃后的尸体时间；持续写入的 runaway stream 会不断续租，仍能在完成前耗尽 Redis。
+GET 的 `204` 必须由 header 区分状态。本地 hub 缺失但 PostgreSQL 仍有 running/cancel_requested Turn 时返回 `x-agent-run-state: active-detached` 和 `x-agent-run-id`；客户端只周期重试轻量 GET `/stream`，不周期读取完整会话。没有 running/cancel_requested Turn 时返回 `x-agent-run-state: idle`，客户端才一次性补读 PostgreSQL completed-step/terminal journal。orphan recovery 领取新 attempt 后建立新的 hub。live projection 的丢失只降低到 journal 恢复粒度，绝不能取消 Turn、伪造终态或阻塞 finalizer。当前公开 Codex 没有给出其云端跨节点 listener/保活内部实现，本仓库也不声称进程内 hub 已提供跨节点透明迁移。
 
-`MAXLEN` 只限制 entry 数，不限制单 entry 字节数。直接把每个 provider/UIMessage delta 写成一个 entry 还会让正常的长 ReAct run 在实际数据很小时先撞 entry 上限；因此写 Redis 前必须做有界低延迟聚合。更重要的是，当前 AI SDK resume 使用完整重放：静默裁掉 `start`、text/tool 起始 chunks 会生成协议上不完整的 response。因此容量保护必须在写入前按 bytes 和 entries 拒绝，并把 run 明确收口，而不是返回损坏 replay。
+精确重复 POST 在本进程有 hub 时订阅同一 Run；若 PostgreSQL 表明 Run active 但本进程没有 hub，则返回 `409 active_run_detached` 和同一组 run headers，客户端转入上述 GET resume 探针。已结束或等待客户端输入的 Turn 返回 `409 run_settled`，客户端读取 journal。它不能返回空的成功 SSE，因为空成功无法区分“仍在别处运行”和“已经结束”。
 
-这里使用 `XREAD BLOCK` 和每个 subscriber 独立 cursor；不使用 consumer group、ACK 或 pending entries，因为浏览器恢复是广播/重放，不是竞争消费的工作队列。Redis Stream ID 只作为服务端 cursor，当前不另造基于 `Last-Event-ID` 的增量协议。
-
-## 高频工具进度
-
-所有进入 public UIMessage stream 的 preliminary tool result 都必须是有界快照。特别是 `subagents`：child 的完整 UIMessage 仅在进程内累计，preliminary result 只携带当前 tool states 和最多 4,096 字符的最新文本；文本每增长 1,024 字符或 tool state 改变才形成候选更新，每个 child 最多发布 64 次。terminal result 才携带完整 message、report、usage 或结构化失败。
-
-这保留 AI SDK 官方 preliminary/final tool part 语义和现有 Subagent UI，同时避免“第 N 个 delta 再发送前 N 个 delta”的 O(n²) SSE、structured clone 和 Redis 字节增长。其他累计 snapshot 工具出现同类增长时也必须在 producer 边界压缩，不能指望 Redis trimming 修复上游载荷。
+Codex 云端内部的 Redis、跨节点 listener 与保活实现没有公开源码；本文不把这些未知实现当作已验证事实。
 
 ## 生命周期与故障语义
 
 ```text
 claim run
-  -> activate Redis pointer with zero counters
-  -> stream native SSE to the browser while coalescing bounded Redis writes
-  -> PostgreSQL finalizer commits terminal journal
-  -> SSE consumer drains finish / [DONE]
-  -> compare-delete pointer + delete run stream
+  -> register the attempt's in-process active stream hub
+  -> consume native UIMessage chunks once and materialize active semantic state
+  -> fan out to the POST subscriber; disconnect only removes that subscriber
+  -> persist a materialized assistant message after each completed model step
+  -> finalize PostgreSQL journal and Run terminal state atomically
+
+GET /stream
+  -> atomically snapshot active semantic chunks and register subscriber
+  -> replay from start, then forward the same Run's live tail
+  -> active Turn but no local hub: 204 active-detached, retry lightweight GET
+  -> no unfinished Turn: 204 idle, hydrate PostgreSQL journal once
+
+duplicate POST
+  -> local hub exists: subscribe to the same Run
+  -> active Turn but no local hub: 409 active_run_detached, then use GET resume
 ```
 
-浏览器断开只终止自己的 blocking reader，服务端 consumer 继续驱动生成、journal finalization 和清理。Redis 普通写入暂时失败时，已连接的响应和 PostgreSQL finalization仍可继续，但该 run 可能失去恢复能力；错误必须观测，短租约会回收残留 pointer。容量超限不同：它表示确定的本地资源边界，必须中止 run，不能继续制造无法恢复的输出。
+浏览器断线不是用户取消。只有显式 Stop、服务端取消或执行故障传播 Run AbortSignal。Runtime 进程在终态提交前消失时，lease/orphan recovery 根据 attempt envelope、journal step 和 effect 事实恢复或解释为 interrupted；stream chunk、HTTP subscriber 和 Redis key 都不是恢复输入。
 
-进程在终态提交前消失时，Redis key 最多保留一个租约窗口；数据库 lease/orphan reconciler 最终把 run 解释为 interrupted。进程在数据库提交后、Redis 删除前消失时，同样由短 TTL 回收，历史立即从 PostgreSQL 读取，不依赖完成后的 Redis replay。
+失败或取消的 assistant message 必须由持久 metadata 明确呈现。前端不能依赖最后一个 error chunk、`finish` 或 `[DONE]` 才显示终态；因此即使连接在终端 chunk 前消失，刷新后仍显示 durable failure，而不是永久“思考中”或无结果。
 
-## 取舍与剩余运维边界
+## 高频工具进度
 
-该设计选择简单的完整字节重放；25 ms / 32 KiB 聚合只改变 Redis entry 边界，不解析、重写或合成 UIMessage 事件，也不引入 checkpoint snapshot + rolling delta 协议。代价是每个 active run 需要保存完整 wire log，因此必须有硬上限；超过上限的极端输出会失败，而不是无限恢复。
+所有进入 public UIMessage stream 的 preliminary tool result 仍必须是有界快照。特别是 `subagents`：child 的完整 UIMessage 仅在进程内累计，preliminary result 只携带当前 tool states 和有界最新文本；terminal result 才携带完整 message、report、usage 或结构化失败。该规则保护实时 transport、React 渲染和结构化克隆成本，不再被描述为 Redis 容量补丁。
 
-单 run 上限不能替代 Redis 实例的总容量规划。最坏 replay 内存近似为“active run 并发数 × 8 MiB”再加 Redis 数据结构和碎片开销；部署必须配置 used memory、evictions、active stream bytes、overflow 和 cleanup failure 告警，并为共享 Redis 留出余量。若实际并发接近实例预算，应增加分布式 admission 或把 replay buffer 隔离到专用 Redis，而不是继续提高单 run 上限。
+## 被否决方案
+
+| 方案 | 结论 |
+| --- | --- |
+| 调大 8 MiB 或改成其他固定值 | 否决。改变撞线时间，不修复缓存拥有执行 authority 的错误 |
+| Redis 保存完整原始 SSE | 否决。累计 wire log 与 materialized message 大小无关，长 Turn 必然持续增长 |
+| Redis `MAXLEN` 裁头后继续 replay | 否决。缺少 `start`、part start 或 tool input 的 tail 不是合法 AI SDK replay |
+| 自建 cursor + client merge 协议 | 否决。materialized projection 输出官方完整 replay；客户端继续使用 AI SDK 状态机 |
 
 ## 实现与验证
 
-- [stream service](../../apps/backend/services/runtime/src/application/agent/streams/service.ts)：租约、原子预算、完整重放与清理；
-- [run owner](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)：容量超限传播和 journal finalizer；
-- [run lease](../../apps/backend/services/runtime/src/application/agent/runs/lease.ts)：run AbortSignal 与 orphan 清理；
-- [subagents](../../packages/agent-runtime/src/tools/subagents.ts)：有界 preliminary progress；
-- [Redis integration tests](../../apps/backend/services/runtime/src/application/agent/streams/service.integration.test.ts)：短 TTL、active replay、终态删除、容量超限和 compare-delete；
-- [Subagent tests](../../packages/agent-runtime/src/tools/subagents.test.ts)：并行、失败、取消、完整终态与 progress 上界。
+- [run owner](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)：唯一 loop、active hub 注册、completed-step 与 terminal journal；
+- [active stream](../../apps/backend/services/runtime/src/application/agent/streams/live.ts)：materialized replay、原子 snapshot/subscription 与 subscriber fan-out；
+- [run repository](../../apps/backend/services/runtime/src/application/agent/runs/repository.ts)：Run/attempt/step/message/lease 权威状态；
+- [frontend conversation hook](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.ts)：active-run resume、active-detached 轻量探针、idle journal hydration 与终态同步；
+- [message view](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.tsx)：durable failed/cancelled 呈现；
+- [transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts)：官方 `DefaultChatTransport` 默认完整 replay；
+- [subagents](../../packages/agent-runtime/src/tools/subagents.ts)：有界 preliminary progress。
 
-变更这些边界时运行 `just test backend/runtime`、启用 `RUNTIME_REDIS_INTEGRATION=1` 的 stream integration、 `just test frontend/@repo/ai-elements`，并执行 Runtime backend lint/typecheck。容量值变化还必须复核正常 run 的 P95/P99 bytes、active 并发和 Redis 总内存预算，不能只让单元测试通过。
+变更这些边界时运行 `just test backend/runtime`、`just test frontend/@repo/ai-elements`、Runtime build 与全仓 lint。Runtime 测试必须覆盖任意切点下 snapshot+tail 与原始 AI SDK stream 的最终消息等价、慢 subscriber 隔离、delta/tool/metadata projection、completed-step、终态提交、重复请求与 orphan recovery；前端测试必须覆盖完整 replay、active-detached probe、idle journal hydration、duplicate POST 409、失败终态和切换会话后的清理。

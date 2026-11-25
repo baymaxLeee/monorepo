@@ -484,11 +484,19 @@ export async function updateMessageContent(input: {
 type SessionTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 const UNFINISHED_TURN_STATUSES = ["running", "cancel_requested", "waiting"] as const;
 
-export async function unfinishedSessionTurnId(sessionId: string): Promise<string | null> {
+export async function unfinishedSessionTurnId(
+  sessionId: string,
+  { includeWaiting = true } = {},
+): Promise<string | null> {
   const [run] = await getDb()
     .select({ id: threadTurns.id })
     .from(threadTurns)
-    .where(and(eq(threadTurns.threadId, sessionId), inArray(threadTurns.status, [...UNFINISHED_TURN_STATUSES])))
+    .where(
+      and(
+        eq(threadTurns.threadId, sessionId),
+        inArray(threadTurns.status, includeWaiting ? [...UNFINISHED_TURN_STATUSES] : ["running", "cancel_requested"]),
+      ),
+    )
     .orderBy(desc(threadTurns.ordinal))
     .limit(1);
   return run?.id ?? null;

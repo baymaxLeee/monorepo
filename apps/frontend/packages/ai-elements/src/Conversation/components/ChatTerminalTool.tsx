@@ -4,6 +4,7 @@ import { lazy, memo, Suspense, useMemo } from "react";
 
 import { parseTapResults } from "../lib/tap-results";
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
+import { useToolDisclosure } from "./useToolDisclosure";
 
 const Terminal = lazy(() => import("@repo/ai-elements/terminal").then((module) => ({ default: module.Terminal })));
 
@@ -25,6 +26,7 @@ export function ChatTerminalTool({
   const exitCode = result.exit_code;
   const stdout = typeof result.output === "string" ? result.output : "";
   const failure = errorText ?? (outcome?.ok === false ? outcome.error.message : undefined);
+  const disclosure = useToolDisclosure(!running);
   return (
     <TerminalContent
       command={
@@ -37,6 +39,7 @@ export function ChatTerminalTool({
       stdout={stdout}
       failure={failure}
       running={running}
+      {...disclosure}
       exitCode={typeof exitCode === "number" ? exitCode : undefined}
     />
   );
@@ -49,12 +52,16 @@ const TerminalContent = memo(function TerminalContent({
   stdout,
   failure,
   running,
+  open,
+  onOpenChange,
   exitCode,
 }: {
   command: string;
   stdout: string;
   failure?: string;
   running: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   exitCode?: number;
 }) {
   const suites = useMemo(() => (!running ? parseTapResults(stdout) : null), [stdout, running]);
@@ -69,6 +76,8 @@ const TerminalContent = memo(function TerminalContent({
           isStreaming={running}
           failed={failure !== undefined || (exitCode !== undefined && exitCode !== 0)}
           exitCode={exitCode}
+          open={open}
+          onOpenChange={onOpenChange}
         />
       </Suspense>
     </>

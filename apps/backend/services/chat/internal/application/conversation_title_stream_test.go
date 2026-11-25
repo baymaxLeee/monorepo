@@ -55,8 +55,27 @@ type titleRuntimeStub struct {
 	response *http.Response
 }
 
-func (stub titleRuntimeStub) Do(context.Context, RuntimeRequest) (*http.Response, error) {
+func (stub titleRuntimeStub) Do(_ context.Context, request RuntimeRequest) (*http.Response, error) {
+	if request.Method == http.MethodGet {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"provider_id":"provider"}`)),
+		}, nil
+	}
 	return stub.response, nil
+}
+
+type titleCapabilityResolverStub struct{}
+
+func (titleCapabilityResolverStub) ResolveTurn(context.Context, AuthContext, *string, []ConversationPluginSelection) (TurnCapabilities, error) {
+	return TurnCapabilities{}, nil
+}
+func (titleCapabilityResolverStub) ResolveProvider(context.Context, AuthContext, *string) (RuntimeProviderCapability, error) {
+	return RuntimeProviderCapability{}, nil
+}
+func (titleCapabilityResolverStub) ResolvePlugins(context.Context, AuthContext, []ConversationPluginSelection) (map[string]any, error) {
+	return map[string]any{}, nil
 }
 
 type chunkedReadCloser struct {
@@ -92,11 +111,11 @@ func TestProxyConversationPersistsFirstStreamedTitleWithoutChangingSSE(t *testin
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       &chunkedReadCloser{chunks: append([]string(nil), payloadChunks...)},
-	}})
+	}}, titleCapabilityResolverStub{})
 
 	response, err := service.ProxyConversation(
 		context.Background(), AuthContext{UserID: "user", TenantID: "tenant", WorkspaceID: "workspace"},
-		make(http.Header), http.MethodGet, "conversation", "/agents/run/stream", "", nil,
+		make(http.Header), http.MethodPost, "conversation", "/stream", "", strings.NewReader(`{}`),
 	)
 	if err != nil {
 		t.Fatal(err)

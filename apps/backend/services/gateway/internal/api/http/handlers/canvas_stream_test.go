@@ -41,7 +41,7 @@ func TestChatStreamsClearEdgeWriteDeadline(t *testing.T) {
 		path   string
 		want   bool
 	}{
-		{http.MethodPost, "/api/chat-server/agents/run/stream", true},
+		{http.MethodPost, "/api/chat-server/conversations/conversation/stream", true},
 		{http.MethodPost, "/api/chat-server/local-inference/stream", true},
 		{http.MethodGet, "/api/chat-server/local-inference/config", false},
 	} {

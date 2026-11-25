@@ -1,7 +1,9 @@
 import { Subagent, SubagentContent, SubagentHeader, SubagentOutput, Task, TaskTitle } from "@repo/ai-elements";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import type { ReactNode } from "react";
 
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
+import { useToolDisclosure } from "./useToolDisclosure";
 
 const TOOL_LABELS: Record<string, string> = {
   web_search: "检索公开来源",
@@ -66,23 +68,23 @@ export function ChatSubagents({ output, errorText }: { output: unknown; errorTex
 
   if (batchFailure || subagents.length === 0) {
     return (
-      <Subagent defaultOpen>
+      <ChatSubagentDisclosure settled={Boolean(batchFailure)}>
         <SubagentHeader
           name={`Subagents · ${batchFailure ? "失败" : "运行中"}`}
           model={model}
           status={batchFailure ? "failed" : "running"}
         />
-        {batchFailure ? (
-          <p role="alert" className="px-3 py-2 text-sm text-destructive">
-            {batchFailure}
-          </p>
-        ) : null}
         <SubagentContent>
+          {batchFailure ? (
+            <p role="alert" className="px-3 py-2 text-sm text-destructive">
+              {batchFailure}
+            </p>
+          ) : null}
           <p className="text-xs text-muted-foreground">
             {batchFailure ? "错误已保留；不会自动重试。" : "正在拆分并启动独立的调研、检索与深度分析任务。"}
           </p>
         </SubagentContent>
-      </Subagent>
+      </ChatSubagentDisclosure>
     );
   }
 
@@ -92,7 +94,7 @@ export function ChatSubagents({ output, errorText }: { output: unknown; errorTex
         const report = subagent.report ?? latestText(subagent.message);
         const nestedTools = subagent.message?.parts.filter(isToolUIPart) ?? [];
         return (
-          <Subagent key={subagent.id} defaultOpen>
+          <ChatSubagentDisclosure key={subagent.id} settled={subagent.status !== "running"}>
             <SubagentHeader
               name={`Subagent · ${subagent.id} · ${subagent.status === "completed" ? "已完成" : subagent.status === "failed" ? "失败" : "运行中"}${subagent.steps === undefined ? "" : ` · ${subagent.steps} 步`}`}
               model={model}
@@ -115,9 +117,14 @@ export function ChatSubagents({ output, errorText }: { output: unknown; errorTex
               })}
               {report ? <SubagentOutput>{report}</SubagentOutput> : null}
             </SubagentContent>
-          </Subagent>
+          </ChatSubagentDisclosure>
         );
       })}
     </div>
   );
+}
+
+function ChatSubagentDisclosure({ settled, children }: { settled: boolean; children: ReactNode }) {
+  const disclosure = useToolDisclosure(settled);
+  return <Subagent {...disclosure}>{children}</Subagent>;
 }

@@ -36,10 +36,10 @@ const running: DynamicToolUIPart = {
   input: { query: "raw-input" },
 };
 
-test("generic tool details stay collapsed while running and after completion", async () => {
+test("a running tool opens and closes when it completes", async () => {
   const view = render(message(running));
-  expect((await screen.findByRole("button", { name: /fetch\s*执行中/ })).getAttribute("aria-expanded")).toBe("false");
-  expect(screen.queryByText(/raw-input/)).toBeNull();
+  expect((await screen.findByRole("button", { name: /fetch\s*执行中/ })).getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getByText(/raw-input/)).toBeTruthy();
 
   view.rerender(message({ ...running, state: "output-available", output: { result: "raw-output" } }));
   const trigger = screen.getByRole("button", { name: /fetch\s*已完成/ });
@@ -50,11 +50,67 @@ test("generic tool details stay collapsed while running and after completion", a
   expect(screen.getByText(/raw-output/)).toBeTruthy();
 });
 
-test("stream updates preserve a user's expanded tool details", async () => {
+test("preliminary terminal output remains open until the tool reaches a final state", async () => {
+  const preliminary: DynamicToolUIPart = {
+    ...running,
+    toolName: "bash",
+    state: "output-available",
+    preliminary: true,
+    input: { cmd: "test" },
+    output: { output: "partial" },
+    toolMetadata: { agent: { uiKind: "terminal" } },
+  };
+  const view = render(message(preliminary));
+  const trigger = await screen.findByRole("button", { name: /test.*运行中/ });
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
+
+  view.rerender(message({ ...preliminary, preliminary: false, output: { output: "done", exit_code: 0 } }));
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
+});
+
+test("each running tool opens from its own lifecycle state", async () => {
+  const view = render(
+    <ChatMessageView
+      {...props}
+      message={{
+        id: "message",
+        role: "assistant",
+        parts: [{ ...running, toolCallId: "older", input: { query: "older-input" } }],
+      }}
+    />,
+  );
+  expect((await screen.findByRole("button", { name: /fetch\s*执行中/ })).getAttribute("aria-expanded")).toBe("true");
+
+  view.rerender(
+    <ChatMessageView
+      {...props}
+      message={{
+        id: "message",
+        role: "assistant",
+        parts: [
+          { ...running, toolCallId: "older", input: { query: "older-input" } },
+          { ...running, toolCallId: "newer", input: { query: "newer-input" } },
+        ],
+      }}
+    />,
+  );
+
+  const triggers = await screen.findAllByRole("button", { name: /fetch\s*执行中/ });
+  expect(triggers[0]?.getAttribute("aria-expanded")).toBe("true");
+  expect(triggers[1]?.getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getByText(/older-input/)).toBeTruthy();
+  expect(screen.getByText(/newer-input/)).toBeTruthy();
+});
+
+test("completion closes a tool even after a user opened it", async () => {
   const view = render(message(running));
-  fireEvent.click(await screen.findByRole("button", { name: /fetch\s*执行中/ }));
+  const runningTrigger = await screen.findByRole("button", { name: /fetch\s*执行中/ });
+  fireEvent.click(runningTrigger);
+  fireEvent.click(runningTrigger);
   view.rerender(message({ ...running, state: "output-available", output: "raw-output" }));
-  expect(screen.getByRole("button", { name: /fetch\s*已完成/ }).getAttribute("aria-expanded")).toBe("true");
+  const completedTrigger = screen.getByRole("button", { name: /fetch\s*已完成/ });
+  expect(completedTrigger.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(completedTrigger);
   expect(screen.getByText("raw-output")).toBeTruthy();
 });
 
@@ -64,10 +120,36 @@ test("required approval stays visible and actionable", async () => {
   expect(props.onToolApproval).toHaveBeenCalledWith("approval", true);
 });
 
-test("tool failure surfaces its reason without an extra click", async () => {
+test("tool failure stays collapsed until the user inspects it", async () => {
   render(message({ ...running, state: "output-error", errorText: "连接超时" }));
-  expect(await screen.findByText("连接超时")).toBeTruthy();
-  expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
+  const trigger = await screen.findByRole("button", { name: /fetch\s*失败/ });
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByText("连接超时")).toBeNull();
+  fireEvent.click(trigger);
+  expect(screen.getByText("连接超时")).toBeTruthy();
+});
+
+test("durable message failure remains visible after the live stream is gone", () => {
+  render(
+    <ChatMessageView
+      {...props}
+      streaming={false}
+      message={{
+        id: "failed-message",
+        role: "assistant",
+        parts: [],
+        metadata: {
+          runId: "failed-run",
+          providerId: "provider",
+          model: "model",
+          status: "failed",
+          historyRevision: 3,
+        },
+      }}
+    />,
+  );
+
+  expect(screen.getByRole("alert").textContent).toContain("本次生成失败");
 });
 
 test("tool metadata cannot hide a tool call", async () => {
@@ -143,8 +225,11 @@ test("structured tool failures drive the native header state", async () => {
       },
     }),
   );
-  expect(await screen.findByText("上游服务失败")).toBeTruthy();
-  expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
+  const trigger = await screen.findByRole("button", { name: /fetch\s*失败/ });
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByText("上游服务失败")).toBeNull();
+  fireEvent.click(trigger);
+  expect(screen.getByText("上游服务失败")).toBeTruthy();
   expect(screen.queryByRole("button", { name: /fetch\s*已完成/ })).toBeNull();
 });
 
@@ -330,4 +415,23 @@ test("native tool title and preliminary output remain visibly in progress", asyn
   expect(screen.queryByText("已完成")).toBeNull();
   view.rerender(message({ ...part, preliminary: false }));
   expect(screen.getByRole("button", { name: /读取证据\s*已完成/ })).toBeTruthy();
+});
+
+test("an automatic rejection explains why the tool could not execute", async () => {
+  render(
+    message({
+      ...running,
+      state: "output-denied",
+      approval: {
+        id: "decision",
+        approved: false,
+        isAutomatic: true,
+        reason: "patch hunk must contain a change",
+      },
+    }),
+  );
+  const trigger = screen.getByRole("button", { name: /fetch.*已拒绝/ });
+  if (trigger.getAttribute("aria-expanded") !== "true") fireEvent.click(trigger);
+  expect(await screen.findByText("patch hunk must contain a change")).toBeTruthy();
+  expect(screen.getByText("工具调用被自动拒绝。")).toBeTruthy();
 });

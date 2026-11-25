@@ -558,6 +558,11 @@ test("an exact request retry reuses its run while changed payload is rejected", 
     assert.equal(duplicate.duplicate, true);
     assert.equal(duplicate.runId, first.runId);
     assert.equal(duplicate.historyRevision, first.historyRevision);
+    assert.ok(duplicate.streaming);
+    await finishAgentRun({ ...lease(first), status: "completed" });
+    const settled = await claimSubmit(sessionId, requestId, inputMessageId);
+    assert.ok(settled.duplicate);
+    assert.equal(settled.streaming, false);
 
     await assert.rejects(
       claimAgentRunOperation({
@@ -1538,9 +1543,6 @@ test(
         {
           reconcileSandboxes: async () => {
             order.push("sandbox-cleanup");
-          },
-          deactivateStream: async () => {
-            assert.fail("replay-safe recovery must retain its resumable stream");
           },
         },
       );

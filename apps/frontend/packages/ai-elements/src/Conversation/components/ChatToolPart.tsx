@@ -12,6 +12,7 @@ import {
   ToolJsonBlock,
 } from "@repo/ai-elements";
 import { getToolName, type UIMessage } from "ai";
+import type { ReactNode } from "react";
 
 import { parseAskUserInput } from "../lib/ask-user";
 import { isClientTool, toolUiKind } from "../lib/conversation-messages";
@@ -22,6 +23,7 @@ import { ChatImageCard } from "./ChatImageCard";
 import { ChatSubagents } from "./ChatSubagents";
 import { ChatTerminalTool } from "./ChatTerminalTool";
 import { ChatVideoCard } from "./ChatVideoCard";
+import { useToolDisclosure } from "./useToolDisclosure";
 
 export function ChatToolPart({
   part,
@@ -43,7 +45,7 @@ export function ChatToolPart({
 
   if (part.state === "approval-requested") {
     return (
-      <Tool defaultOpen>
+      <ChatToolDisclosure part={part}>
         <ToolHeader
           type={part.type}
           title={part.title}
@@ -73,13 +75,13 @@ export function ChatToolPart({
             </Confirmation>
           )}
         </ToolContent>
-      </Tool>
+      </ChatToolDisclosure>
     );
   }
 
   if (part.state === "approval-responded" || part.state === "output-denied") {
     return (
-      <Tool defaultOpen={part.state === "output-denied"}>
+      <ChatToolDisclosure part={part}>
         <ToolHeader
           type={part.type}
           title={part.title}
@@ -92,11 +94,14 @@ export function ChatToolPart({
               <ConfirmationTitle>工具调用已授权。</ConfirmationTitle>
             </ConfirmationAccepted>
             <ConfirmationRejected>
-              <ConfirmationTitle>工具调用已被拒绝。</ConfirmationTitle>
+              <ConfirmationTitle>
+                {part.approval?.isAutomatic ? "工具调用被自动拒绝。" : "工具调用已被拒绝。"}
+              </ConfirmationTitle>
+              {part.approval?.reason && <p className="text-sm text-muted-foreground">{part.approval.reason}</p>}
             </ConfirmationRejected>
           </Confirmation>
         </ToolContent>
-      </Tool>
+      </ChatToolDisclosure>
     );
   }
 
@@ -109,14 +114,7 @@ export function ChatToolPart({
   }
 
   if (kind === "terminal") {
-    return (
-      <ChatTerminalTool
-        input={input}
-        output={output}
-        errorText={errorText}
-        running={part.state === "input-streaming" || part.state === "input-available"}
-      />
-    );
+    return <ChatTerminalTool input={input} output={output} errorText={errorText} running={!toolSettled(part)} />;
   }
 
   if (kind === "subagent") {
@@ -129,10 +127,8 @@ export function ChatToolPart({
       ? parseAskUserInput(input)
       : null;
   const hasError = part.state === "output-error" || outputErrorReason != null;
-  const isOpenByDefault = (askUserInput != null && part.state === "input-available") || hasError;
-
   return (
-    <Tool defaultOpen={isOpenByDefault}>
+    <ChatToolDisclosure part={part}>
       <ToolHeader
         title={part.title}
         preliminary={!hasError && part.state === "output-available" && part.preliminary}
@@ -165,7 +161,22 @@ export function ChatToolPart({
           </>
         )}
       </ToolContent>
-    </Tool>
+    </ChatToolDisclosure>
+  );
+}
+
+type ChatToolPartValue = Extract<UIMessage["parts"][number], { toolCallId: string }>;
+
+function ChatToolDisclosure({ part, children }: { part: ChatToolPartValue; children: ReactNode }) {
+  const disclosure = useToolDisclosure(toolSettled(part));
+  return <Tool {...disclosure}>{children}</Tool>;
+}
+
+function toolSettled(part: ChatToolPartValue) {
+  return (
+    part.state === "output-error" ||
+    part.state === "output-denied" ||
+    (part.state === "output-available" && !part.preliminary)
   );
 }
 

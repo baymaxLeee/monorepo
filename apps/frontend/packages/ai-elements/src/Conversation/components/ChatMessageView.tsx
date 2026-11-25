@@ -156,6 +156,17 @@ export function ChatMessageView({
             resolveSourceAction={resolveSourceAction}
           />
         )}
+        {!isUser && message.metadata?.status === "failed" ? (
+          <div
+            role="alert"
+            className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          >
+            本次生成失败，已保留此前完成的内容。
+          </div>
+        ) : null}
+        {!isUser && message.metadata?.status === "cancelled" ? (
+          <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">本次生成已停止。</div>
+        ) : null}
       </MessageContent>
       {editing ? (
         <form

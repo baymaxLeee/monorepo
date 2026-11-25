@@ -399,8 +399,6 @@ def safe_open(root, name, *, write=False, owner=None):
             raise ValueError("only regular, unlinked workspace files may be transferred")
         if write:
             os.ftruncate(fd, 0)
-            if owner is not None:
-                os.fchown(fd, *owner)
         return fd
     finally:
         os.close(directory)
@@ -1256,6 +1254,8 @@ def main():
                 # sources/ stays root-owned; SDK writes under work/outputs remain
                 # editable by the unprivileged guest user.
                 # A failed import leaves the previous complete snapshot intact.
+                if writable_guest_file:
+                    os.fchown(file.fileno(), 1000, 1000)
                 os.replace(root / temporary, root / name)
             if operation == "read":
                 after = os.fstat(file.fileno())

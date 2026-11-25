@@ -49,14 +49,14 @@ SDK API 与协议机制属于官方能力。下文的权限校验、文件发布
 
 | 能力 | 当前实现与边界 |
 | --- | --- |
-| 原生 SSE 与多 step | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts) 组合唯一 start/finish 所有者；[transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) 使用 `DefaultChatTransport`，恢复直接重放原生 SSE。 |
+| 原生 SSE 与多 step | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts) 组合唯一 start/finish 所有者；[transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) 使用 `DefaultChatTransport`。连接内直接流式，断线后先 replay active materialized projection，不重放累计 wire log。 |
 | 权威历史与分支 | PostgreSQL 保存 UIMessage journal、父子分支、selected leaf 与单调 history revision；编辑、重新生成、工具续跑和历史选择是不同操作。 |
 | schema 与续跑权限 | [共享 metadata/data schema](../../schemas/streaming/chat-ui.ts) 经 `just sync` 生成双端校验器，与 SDK `validateUIMessages` 校验结构；[continuation](../../apps/backend/services/runtime/src/application/agent/runs/continuation.ts) 只允许等待中的客户端结果或审批决定，调用身份不可变。 |
 | 来源与引用 | 搜索 ToolOutcome 保留给模型并投影原生 source part；正文消费原生 citations。文档来源只通过 workspace ACL resolver 和 journal 关系生成可打开链接。 |
 | 文件与产物 | 原生 `file`/`reasoning-file` 发布为受权会话资源；云端 `upload_artifacts` 批量结果逐文件投影为持久 `data-file`，本地从真实文件变更生成同构 part，正文统一显示 file tag。任意远程 URL 不由 Chat 代取。 |
 | 工具生命周期 | static/dynamic、preliminary、provider-executed、审批和 client tool 使用 SDK 原生状态；业务 ToolOutcome 只承载业务成功/失败数据。内联 `subagents` 的 1–3 条紧凑有界 nested progress 作为 preliminary payload，完整 message 只进入 final tool payload，不增加平行 data part。 |
 | 并发与持久化 | `(conversation_id, request_id)` 和完整请求指纹绑定逻辑操作；claim 锁定 revision。工具终态、assistant 消息、run、selected leaf 和 lease 由同一个幂等 finalizer 事务提交。 |
-| 恢复与取消 | Redis 只在 run 活跃期间保存可重放 transport stream 和 active pointer；短滑动租约回收崩溃遗留，字节/entry budget 防止运行期无界增长，journal 终态提交并排空流后立即删除。subscriber 断开不取消 run，显式 Stop 才传播用户取消并由同一 finalizer 收口。 |
+| 恢复与取消 | active hub 在 subscriber 断开后继续驱动 Run；前端先 replay materialized active snapshot 并接 live tail。hub 缺失且 Turn 正在执行或取消 时轻量探测 GET，idle 后一次性从 PostgreSQL journal 补读终态。传输或缓存故障不取消 run，显式 Stop 才传播用户取消并由同一 finalizer 收口。 |
 | 客户端状态 | 一个 `Chat<ChatUIMessage>` 持有实时消息；完整 hydration 和完成回读都检查会话/操作身份与 revision，迟到响应不能覆盖新 run。 |
 
 ## 4. 终态架构与职责
@@ -72,8 +72,7 @@ flowchart LR
   S --> F[统一消息生命周期与最终持久化]
   F --> T
   F --> DB[(PostgreSQL UIMessage)]
-  F --> RS[(Redis 原生 SSE 重放)]
-  RS --> T
+  DB -->|断线补读与终态 hydration| T
   S <-->|受权文件发布与引用| K[Knowledge / Asset / Storage]
 ```
 
@@ -139,7 +138,7 @@ flowchart LR
 
 来源投影、文件发布和模型输出必须在终结前汇合。可选的会话标题更新失败不会把成功回复标成失败；必须交付的文件发布失败则不能把该文件显示为已保存。SDK 的 finish chunk 不等于数据库提交确认。最外层 `onEnd` 必须 await 关键持久化；失败要使响应流失败、呈现“保存未确认”，恢复后查询权威状态，不能吞错后展示“已保存”。trace 写入仍是观测，不得阻断回复；trace step 缺少完成记录只记为观测缺口，不能据此覆盖 SDK 已确认的成功 outcome。
 
-最终 parts、metadata、run 终态与数据库中的运行租约在 Chat 本地事务边界内一致收口。claim 与 finalizer 统一先锁 conversation 再锁 run，避免租约接替与旧 run 收尾死锁。最终状态以锁内读取为准：已确认取消不能被较早的流快照覆盖；消息状态、metadata 和 run 同步提交。已提交的终态不可被迟到的失败清理或孤儿扫描改写；孤儿回收须重新确认租约仍失效，只清理实际被中断的 run。终态 run、缺失 run 或已过期 lease 不能长期阻塞历史选择和会话删除：持有 conversation 锁的事务会回收陈旧 lease，并把仍标记 active 的过期 run 收口为 interrupted。读取选中历史时先在同一数据库事务中取得 selected leaf，再读取消息图，不能由两个并行连接拼接出“新 pointer + 旧 graph”的不存在快照。Redis 不在数据库事务内；active pointer 的续租、运行期容量边界、终态删除和 crash fallback 统一遵循 [Chat 活跃流恢复决策](chat-stream-resumption.md)。清理失败可重试，恢复端以权威 run 状态识别并收口陈旧指针。外部文件服务请求也在事务之外完成，部分失败由文件 owner 的发布/清理机制处理。取消和失败经过同一幂等 finalizer。需要服务端快照时使用 SDK `readUIMessageStream` 或原生回调，不另写逐 delta reducer。
+最终 parts、metadata、run 终态与数据库中的运行租约在 Chat 本地事务边界内一致收口。claim 与 finalizer 统一先锁 conversation 再锁 run，避免租约接替与旧 run 收尾死锁。最终状态以锁内读取为准：已确认取消不能被较早的流快照覆盖；消息状态、metadata 和 run 同步提交。已提交的终态不可被迟到的失败清理或孤儿扫描改写；孤儿回收须重新确认租约仍失效，只清理实际被中断的 run。终态 run、缺失 run 或已过期 lease 不能长期阻塞历史选择和会话删除：持有 conversation 锁的事务会回收陈旧 lease，并把仍标记 active 的过期 run 收口为 interrupted。读取选中历史时先在同一数据库事务中取得 selected leaf，再读取消息图，不能由两个并行连接拼接出“新 pointer + 旧 graph”的不存在快照。断线恢复统一遵循 [Chat 活跃流恢复决策](chat-stream-resumption.md)：completed-step message 和 Run 终态由 PostgreSQL 提供，stream chunk 与 subscriber 不进入事务或恢复输入。外部文件服务请求也在事务之外完成，部分失败由文件 owner 的发布/清理机制处理。取消和失败经过同一幂等 finalizer。需要服务端快照时使用 SDK `readUIMessageStream` 或原生回调，不另写逐 delta reducer。
 
 ## 6. 请求、编辑、重新生成与分支
 
@@ -154,7 +153,7 @@ flowchart LR
 | 重新生成 | `regenerate({ messageId })`，`regenerate-message` | 以目标 assistant 的父历史生成新回复，不把被替代回复当作输入 |
 | 客户端工具回填 | `addToolOutput` 后由 SDK 续跑 | 只合并获准结果，继续原 assistant 消息；不是普通 assistant 文本提交 |
 | 审批 | `addToolApprovalResponse` 后由 SDK 续跑 | 记录匹配 approval id 的决定；实际执行或拒绝仍由服务端 SDK 处理 |
-| 恢复接收 | `resumeStream` / `useChat` 的 `resume` | GET 既有 run 的流，不产生新模型调用 |
+| 恢复接收 | `resumeStream` / `useChat` 的 `resume` | GET 原子返回 active snapshot + live tail，不产生新模型调用；`204 active-detached` 只重试轻量 GET，`204 idle` 才一次性从 journal 补读 |
 | 显式停止 | 取消接口 + `chat.stop()` | 取消指定服务端 run，并断开本地接收 |
 
 自动续跑指向的消息不保证是数组末尾；prepare 函数必须结合 SDK 给出的 messageId 选择目标。`id` 必须与路由 conversationId 一致；user/assistant role 不能单独作为“新发送还是重新生成”的判断依据。
@@ -164,7 +163,7 @@ flowchart LR
 - 选中历史的期望 revision：防止另一标签页或迟到请求覆盖当前分支。
 - 稳定的逻辑请求 id：区分同一次提交的网络重试与用户主动发起的新生成。
 
-这些是应用并发与去重约束，不是新的 SSE part。接收时在同一事务中校验 revision、认领请求并关联 run；重复请求不能创建第二个 run，响应需指出已关联 run，供客户端恢复流或读取结果。对“POST 可能已被接收”的网络错误，先查询/恢复，不能盲目重发一个新的生成请求。事务和唯一约束表达此约束，不增加通用 Agent scheduler。
+这些是应用并发与去重约束，不是新的 SSE part。接收时在同一事务中校验 revision、认领请求并关联 run；重复请求不能创建第二个 run。本进程仍持有 active hub 时重复 POST 订阅同一 Run；Run active 但 hub 不在本进程时返回 `409 active_run_detached` 以及 run id/state headers，客户端转入 GET resume，而不是把空成功 SSE 当成完成。对“POST 可能已被接收”的网络错误，先查询/恢复，不能盲目重发一个新的生成请求。事务和唯一约束表达此约束，不增加通用 Agent scheduler。
 
 ### 6.2 历史分支终态
 
@@ -279,15 +278,15 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 
 ### 11.1 恢复传输
 
-Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同响应协议。从头重放时使用安装版 `DefaultChatTransport` 的 `resumeStreamIsReplay: true` 语义，让 SDK 重建当前消息；不在应用里清空所有历史或额外拼接相同文本。完成、失败、取消或 orphan 收口后按 [Chat 活跃流恢复决策](chat-stream-resumption.md) 删除 stream，历史恢复读取 PostgreSQL journal；没有活动流返回 204，再读取权威 run/message 状态。重放不执行任何工具。网络失败保留部分消息；显式重试先确认服务端 revision 未前进且无活动 run，只有确认未被 claim 的请求才重新 POST，并复用原始请求内容、目标、revision 和 request_id。revision 已前进时只恢复/同步。停止接口未确认终态时保留“停止未确认”及重试动作。
+Runtime 不保存 active run 的累计原生 SSE。`GET /conversations/{id}/stream` 在进程内 active hub 中原子取得 materialized UIMessage chunk projection 并登记 subscriber，返回从 `start` 开始的完整 replay，再转发同一 Run 的 live tail；`DefaultChatTransport` 使用默认 replay reset 语义。网络失败先保留内存中的部分消息，恢复 replay 到达后以同 message id 重建。hub 缺失且 Turn 正在执行或取消 时返回 `204 active-detached`，客户端只周期重试轻量 GET `/stream`；`204 idle` 才触发一次 PostgreSQL completed-step/terminal hydration。精确重复 POST 已结束或等待客户端输入时返回 `409 run_settled` 并读取 journal；正在执行但无本地 hub 时返回 `409 active_run_detached` 并转入同一 GET resume。显式重试先确认服务端 revision 未前进且无活动 run，只有确认未被 claim 的请求才重新 POST，并复用原始请求内容、目标、revision 和 request_id。revision 已前进时只恢复/同步。停止接口未确认终态时保留“停止未确认”及重试动作。
 
-历史加载并通过 schema 验证后，由一个 `useChat` 订阅者仅在权威 detail 指出活动 run 时启用 `resume`，使用 SDK 的公开恢复能力；空闲会话不发送 204 探针和随后的全量刷新，不同时保留第二套挂载时 GET effect。后台断线后恢复可见性采用安装版支持的 SDK 行为；显式“恢复连接”使用 `resumeStream()`。任何自动行为都要检查仍是当前会话，不调用 SDK 内部私有方法，不增加无依据的重试次数或永久轮询。
+历史加载并通过 schema 验证后，由一个 `useChat` 订阅者仅在权威 detail 指出活动 run 时发起 SDK resume；空闲会话不建立连接。active-detached 期间不轮询完整 conversation/journal，只重试 GET `/stream`，直到重新附着 live hub 或收到 idle；显式“恢复与同步”在 transport 无状态 header 的兼容外壳下仅保留一次权威 history fallback，不形成周期 replay 路径。
 
-页面卸载仅终止当前 subscriber 的 fetch/Redis blocking reader；生产者由服务端持续消费，确保断开时仍能完成持久化。恢复能力只覆盖传输，不宣称恢复丢失的 ToolLoopAgent 进程栈。进程丢失后的 run 必须由服务端权威状态解释为可见的终态/故障，而不是永久 streaming。
+页面卸载仅终止当前 HTTP subscriber；生产者由服务端 SDK consumer 持续消费，确保断开时仍能完成持久化。补读只恢复已提交语义，不宣称恢复丢失的 ToolLoopAgent 进程栈。进程丢失后的 run 必须由服务端权威状态解释为可见的终态/故障，而不是永久 streaming。
 
 ### 11.2 显式停止
 
-取消请求携带指定 run 身份，服务端校验归属并传播 AbortSignal，等待该 run 的 finalizer。所有未完成/preliminary 工具按取消规则收口；保留已完成部分和产物，业务 todo 的取消规则沿用 runtime 所有者。清除 active pointer 时比较 run id，迟到的取消不能清掉下一次生成。
+取消请求携带指定 run 身份，服务端校验归属并传播 AbortSignal，等待该 run 的 finalizer。所有未完成/preliminary 工具按取消规则收口；保留已完成部分和产物，业务 todo 的取消规则沿用 runtime 所有者。迟到的取消按 run id 与 attempt fence 拒绝，不能影响下一次生成。
 
 浏览器先 await `chat.stop()` 结束接收，再读取会话权威 `active_run_id`，优先取消该 run并刷新确认；这覆盖 POST 已被 claim、但响应头尚未到达浏览器的窗口。取消接口失败时明确提示“停止未确认”，保留可重试取消/查询入口，不把本地断流当作服务器已停止。
 
@@ -299,7 +298,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | ---------------------- | ----------------------------------------------------------------- |
 | 正常完成               | 保留当前消息；读取权威元数据/资源变化，防止覆盖较新的交互         |
 | 等待客户端工具/审批    | 保留 SDK 内存中的 parts 和未提交选择，不整体替换消息              |
-| 网络断线               | 保留部分内容，显示连接状态，恢复既有流；禁止自动创建新 run        |
+| 网络断线               | 保留部分内容，从 journal 补读 completed step 到终态；禁止自动创建新 run |
 | 显式取消               | 显示权威取消结果，后续新请求由用户明确发起                        |
 | provider/协议/存储失败 | 保留已产生内容和失败事实；根据 run 状态提供恢复、重新生成或新请求 |
 | schema 校验失败        | 显示可识别错误，保留原历史和诊断信息；不清空消息继续执行          |
@@ -353,10 +352,10 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts) | 权威历史、composition、单一 finalizer、请求/run 对应关系 |
 | [continuation](../../apps/backend/services/runtime/src/application/agent/runs/continuation.ts) | 不可变调用身份、输出/审批 schema、响应去重和状态转换 |
 | [model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared context projection](../../packages/agent-runtime/src/context/history.ts) | journal 与模型表示分离、数据引用、多模态输入 |
-| [stream service](../../apps/backend/services/runtime/src/application/agent/streams/service.ts) | 原生 SSE 重放、取消 subscriber、active pointer 一致性 |
 | [tool manifest](../../packages/agent-runtime/src/tools/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
-| [frontend transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) | 精简但完整的操作语义、认证、原生 replay 配置 |
-| [useConversationChat](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.ts) | 实例生命周期、完整 hydration、错误恢复、过期响应拒绝 |
+| [active stream](../../apps/backend/services/runtime/src/application/agent/streams/live.ts) | active message materialized replay、snapshot/subscription 原子交接、subscriber fan-out |
+| [frontend transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) | 精简但完整的操作语义、认证、官方完整 replay reconnect |
+| [useConversationChat](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.ts) | 实例生命周期、完整 hydration、active resume、journal fallback、错误恢复、过期响应拒绝 |
 | [ChatStream](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatStream.tsx) | 单一订阅与恢复入口，消息/状态快照和性能 |
 | [ChatMessageView](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.tsx) | 原生 part 穷尽处理、引用/文件/工具呈现 |
 | [AI Elements compositions](../../apps/frontend/packages/ai-elements/src/AiChat) | Base UI 组合和无业务副作用的展示 API |
@@ -367,7 +366,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 
 | 范围 | 必须区分的行为 | 实现与验证证据 |
 | --- | --- | --- |
-| 原生协议 | 正确 headers、SSE 分片、Unicode、text/reasoning 输入序列、多 step、finish/error/abort、无效 chunk 拒绝 | [run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts) 使用真实 `create/readUIMessageStream`，[transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts) 使用真实 `DefaultChatTransport` parser，[Redis stream integration](../../apps/backend/services/runtime/src/application/agent/streams/service.integration.test.ts) |
+| 原生协议 | 正确 headers、SSE 分片、Unicode、text/reasoning 输入序列、多 step、finish/error/abort、无效 chunk 拒绝 | [run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts) 使用真实 `create/readUIMessageStream`，[transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts) 使用真实 `DefaultChatTransport` parser |
 | 生命周期 | 每次 HTTP 响应流只有一套消息 start/finish；工具 continuation 的新流继续原消息 id；新候选获得新 id | [run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts)、[repository integration](../../apps/backend/services/runtime/src/application/agent/runs/repository.integration.test.ts) |
 | 合成流 | 模型正文、额外 source、file、持久 data 和 metadata 全部在最终 journal 中；瞬时通知不进入 parts | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、[run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts)、[message schemas](../../apps/backend/services/runtime/src/application/agent/chat-ui-schema.ts) |
 | 历史一致性 | 流完成、刷新与恢复所得 parts/metadata 语义一致；custom/provider metadata 不被泛化删除 | [useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx)、[run history tests](../../apps/backend/services/runtime/src/application/agent/runs/run-history.test.ts) |
@@ -380,7 +379,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | metadata/data | schema 验证、fork provenance、metadata 合并、同 ID 更新、不同 ID 独立对象、瞬时通知不持久化、非法业务类型拒绝 | [real SDK producer/consumer tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts)、[backend schemas](../../apps/backend/services/runtime/src/application/agent/chat-ui-schema.ts)、[frontend schemas](../../apps/frontend/packages/ai-elements/src/Conversation/lib/chat-message.ts)、[hydration tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 编辑与重新生成 | 正确选择历史前缀，原候选保留，刷新可选，新回复不混入旧分支 delta；副作用不因选择历史执行 | [transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts)、[message branch tests](../../apps/backend/services/runtime/src/application/message-branches.test.ts)、[history selection tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 请求并发 | 双提交、模糊网络失败、同请求单 replay、旧 revision、迟到 history/detail 响应、pointer/graph 一致快照、陈旧 lease 回收；只认领一次执行 | [repository integration](../../apps/backend/services/runtime/src/application/agent/runs/repository.integration.test.ts)、[transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts)、[late response tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
-| 恢复与停止 | 初始加载、空闲不探针、部分流断开、完整重放不重复、204、后台恢复、切换会话、响应头前 Stop；旧取消不影响新 run | [Redis stream integration](../../apps/backend/services/runtime/src/application/agent/streams/service.integration.test.ts)、[useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
+| 恢复与停止 | 初始加载、空闲不探针、部分流断开、active-detached 轻量探针、idle 一次 hydration、duplicate POST 409、durable failure、切换会话、响应头前 Stop；旧取消不影响新 run | [active stream tests](../../apps/backend/services/runtime/src/application/agent/streams/live.test.ts)、[useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx)、[ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx) |
 | 异常收口 | provider 失败、critical persistence 失败、取消、进程丢失的权威 run 状态；部分内容保持可见 | [stream outcome tests](../../apps/backend/services/runtime/src/application/agent/runs/stream-outcome.test.ts)、[run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts)、[repository integration](../../apps/backend/services/runtime/src/application/agent/runs/repository.integration.test.ts) |
 | 模型投影 | 仅当前分支进入模型；data part 是否入模按定义；多模态工具确实发送受权内容而不只是文件 ID | [run history tests](../../apps/backend/services/runtime/src/application/agent/runs/run-history.test.ts)、[message branch tests](../../apps/backend/services/runtime/src/application/message-branches.test.ts)、[model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared context tests](../../packages/agent-runtime/src/context/history.test.ts) |
 | UI | 错误与待交互状态可访问，键盘操作、滚动稳定、窄屏、媒体按需加载、完成消息不随无关 delta 重渲染 | [ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx)、[stream performance tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatStreamingPerformance.test.tsx)、UI contracts 和真实浏览器验收 |
@@ -390,7 +389,6 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 ```bash
 just test backend/runtime
 RUNTIME_POSTGRES_INTEGRATION=1 just test backend/runtime src/application/agent/runs/repository.integration.test.ts
-RUNTIME_REDIS_INTEGRATION=1 just test backend/runtime src/application/agent/streams/service.integration.test.ts
 just test frontend/@repo/ai-elements
 just test-affected HEAD all --list
 just typecheck-ts
@@ -401,4 +399,4 @@ just build platform
 just check-repo
 ```
 
-共享能力的消费者以 `just context` 和 affected graph 为准；实际代码变更还需按根规则执行 `just lint`。REST/共享契约改变时运行 `just sync` 并验证生产者、消费者，不手改生成结果。真实 Redis/数据库的恢复、幂等和事务，以及 provider 的多模态与 citations，要分别做边界集成验证；缺少运行条件属于未验证，不能由单元测试替代。纯文档更新只执行链接、命令与一致性检查。
+共享能力的消费者以 `just context` 和 affected graph 为准；实际代码变更还需按根规则执行 `just lint`。REST/共享契约改变时运行 `just sync` 并验证生产者、消费者，不手改生成结果。真实数据库的恢复、幂等和事务，以及 provider 的多模态与 citations，要分别做边界集成验证；缺少运行条件属于未验证，不能由单元测试替代。纯文档更新只执行链接、命令与一致性检查。

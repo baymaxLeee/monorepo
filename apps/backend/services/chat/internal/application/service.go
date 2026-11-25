@@ -205,7 +205,7 @@ func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext
 		return nil, err
 	}
 	requestBody := body
-	if suffix == "/agents/run/stream" && method == http.MethodPost {
+	if suffix == "/stream" && method == http.MethodPost {
 		var input map[string]any
 		decoder := json.NewDecoder(body)
 		decoder.UseNumber()
@@ -271,7 +271,7 @@ func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext
 	if err != nil {
 		return nil, err
 	}
-	if suffix == "/agents/run/stream" {
+	if suffix == "/stream" && method == http.MethodPost {
 		service.observeConversationTitle(ctx, scope, *product, projected)
 	}
 	return projected, nil

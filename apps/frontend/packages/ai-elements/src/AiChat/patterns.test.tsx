@@ -123,3 +123,17 @@ test("failed suites expand to the failure details", () => {
   expect(isInaccessible(screen.getByText("期望值不匹配"))).toBe(false);
   expect(screen.getByRole("button", { name: /1 项失败/ }).getAttribute("aria-expanded")).toBe("true");
 });
+
+test("test results expand when a running suite transitions to failure", () => {
+  const view = render(
+    <TestResults suites={[{ id: "s", name: "套件", tests: [{ id: "t", name: "测试", status: "running" }] }]} />,
+  );
+  expect(screen.getByRole("button", { name: /0 项失败/ }).getAttribute("aria-expanded")).toBe("false");
+  view.rerender(
+    <TestResults
+      suites={[{ id: "s", name: "套件", tests: [{ id: "t", name: "测试", status: "failed", error: "期望值不匹配" }] }]}
+    />,
+  );
+  expect(screen.getByRole("button", { name: /1 项失败/ }).getAttribute("aria-expanded")).toBe("true");
+  expect(isInaccessible(screen.getByText("期望值不匹配"))).toBe(false);
+});

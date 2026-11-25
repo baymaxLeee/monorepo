@@ -184,13 +184,14 @@ const openapi = {
         },
       },
     },
-    "/sessions/{session_id}/agents/run/stream": {
+    "/sessions/{session_id}/stream": {
       get: {
-        operationId: "resumeSessionAgentStream",
+        operationId: "resumeSessionStream",
         parameters: [pathParam],
         responses: {
           "200": {
-            description: "resume the active ToolLoopAgent UI message stream",
+            description: "materialized active Turn snapshot followed by live UI message events",
+            content: { "text/event-stream": { schema: { type: "string" } } },
             headers: {
               "x-agent-run-id": {
                 description: "Active agent run id",
@@ -198,11 +199,23 @@ const openapi = {
               },
             },
           },
-          "204": { description: "no active stream" },
+          "204": {
+            description: "no local stream; x-agent-run-state distinguishes terminal idle from an active detached Turn",
+            headers: {
+              "x-agent-run-id": {
+                description: "Active Turn id when the stream is detached from this process",
+                schema: { type: "string" },
+              },
+              "x-agent-run-state": {
+                description: "idle or active-detached",
+                schema: { type: "string", enum: ["idle", "active-detached"] },
+              },
+            },
+          },
         },
       },
       post: {
-        operationId: "startSessionAgentStream",
+        operationId: "startSessionStream",
         parameters: [pathParam],
         requestBody: { required: true, content: { "application/json": { schema: ref("AgentRunRequest") } } },
         responses: {
@@ -213,6 +226,29 @@ const openapi = {
               "x-agent-run-id": {
                 description: "Agent run id used for observability",
                 schema: { type: "string" },
+              },
+            },
+          },
+          "409": {
+            description: "the request was already claimed; resume a detached Turn or read the settled journal",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["code", "message"],
+                  properties: {
+                    code: { type: "string", enum: ["active_run_detached", "run_settled"] },
+                    message: { type: "string" },
+                  },
+                },
+              },
+            },
+            headers: {
+              "x-agent-run-id": { description: "Previously claimed Turn id", schema: { type: "string" } },
+              "x-agent-run-state": {
+                description: "resume or journal recovery state",
+                schema: { type: "string", enum: ["active-detached", "settled"] },
               },
             },
           },

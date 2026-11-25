@@ -1,5 +1,6 @@
 export {
   createAgentRunResponse,
+  resumeAgentRunResponse,
   resumeClaimedAgentRun,
   getAgentRunTrace,
   getSessionContext,
@@ -10,9 +11,3 @@ export { cancelRun, reconcileOrphanedRuns, startOrphanRunReconciler } from "./ru
 export { reconcileSandboxExecutions, startSandboxExecutionReconciler } from "./runs/sandbox-executions.js";
 export { isRunActive } from "./runs/repository.js";
 export { acceptAgentRunInput, getAgentRunInput, listAgentRunInputs, type AgentRunInputView } from "./runs/steering.js";
-export {
-  activeAgentStreamRunId,
-  createAgentReplayResponse,
-  replayAgentSseStream,
-  type ReplayAgentStreamOptions,
-} from "./streams/service.js";

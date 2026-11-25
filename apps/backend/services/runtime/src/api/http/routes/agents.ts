@@ -5,14 +5,12 @@ import { z } from "zod";
 
 import {
   createAgentRunResponse,
+  resumeAgentRunResponse,
   getAgentRunTrace,
   cancelRun,
-  activeAgentStreamRunId,
-  createAgentReplayResponse,
   acceptAgentRunInput,
   getAgentRunInput,
   listAgentRunInputs,
-  isRunActive,
 } from "../../../application/agent/index.js";
 import type { TurnCapabilities } from "../../../application/agent/runtime/types.js";
 import type { ToolCatalog } from "../../../application/agent/tools/catalog.js";
@@ -121,7 +119,7 @@ export function createAgentsRoutes(dependencies: { toolCatalog: ToolCatalog }) {
   });
 
   agentsRoutes.post(
-    "/:sessionId/agents/run/stream",
+    "/:sessionId/stream",
     zValidator("json", runSchema, (result) => {
       if (!result.success) {
         logger.warn({ issues: z.flattenError(result.error) }, "invalid run request");
@@ -162,19 +160,7 @@ export function createAgentsRoutes(dependencies: { toolCatalog: ToolCatalog }) {
     },
   );
 
-  agentsRoutes.get("/:sessionId/agents/run/stream", async (c) => {
-    const sessionId = c.req.param("sessionId");
-    await getSessionRow(sessionId);
-    const runId = await activeAgentStreamRunId(sessionId);
-    if (!runId) {
-      return new Response(null, { status: 204 });
-    }
-
-    return createAgentReplayResponse(sessionId, runId, {
-      isRunLive: isRunActive,
-      signal: c.req.raw.signal,
-    });
-  });
+  agentsRoutes.get("/:sessionId/stream", async (c) => resumeAgentRunResponse(c.req.param("sessionId")));
 
   agentsRoutes.get("/:sessionId/agents/runs/:runId/trace", async (c) => {
     const trace = await getAgentRunTrace(c.req.param("sessionId"), c.req.param("runId"));

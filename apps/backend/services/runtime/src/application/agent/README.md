@@ -9,7 +9,7 @@ agent/
 ├── adapters/       # Runtime Sandbox、Web Search、插件 Skill asset 与云端 execution host
 ├── tools/          # host catalog 与 Runtime 自有 Media/Memory manifests
 ├── runs/           # admission、插件 resolve/snapshot、lease、cancel、journal finalizer
-├── streams/        # Redis-backed UIMessage SSE transport resume
+├── streams/        # AI SDK-native UIMessage composition and projection
 ├── tasks/          # 明确声明的 durable business tasks
 ├── memory/         # durable memory 与 extraction
 └── observability/  # product run/step/tool lifecycle
@@ -37,7 +37,7 @@ agent/
 
 - PostgreSQL Session/message/run/input journal：业务会话、Turn 和 delivery authority。
 - PostgreSQL `turn_plugin_snapshots`：Turn-frozen manifest/activation audit，不含 header、token 或 grant。
-- Redis UIMessage SSE：活跃 run 的有界 transport replay，不是会话历史。
+- HTTP UIMessage SSE：进程内 active hub 保存与 AI SDK merge 等价的 materialized message projection 并扇出 subscriber；恢复先 pull-based replay snapshot，再接同一 Run 的 live tail。慢 subscriber 只关闭自身，不向 Run 传播背压。hub 缺失但 Turn unfinished 时返回 `active-detached` 供客户端轻量 GET 探测；只有 `idle` 才一次性回退 PostgreSQL completed-step journal。重复 POST 无本地 hub 时返回明确的 `409 active_run_detached`，不伪装为空成功流。
 - Workflow World：durable business Job 的 execution resume，不恢复交互 ToolLoop 进程栈。
 - provider response cursor：可丢弃的推理优化，不是上述任何一种持久化。
 

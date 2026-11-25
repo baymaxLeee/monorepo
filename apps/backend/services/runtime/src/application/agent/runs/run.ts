@@ -11,13 +11,7 @@ import {
   type ModelRetryEvent,
   type SessionContextSnapshot,
 } from "@repo/agent-runtime";
-import {
-  consumeStream,
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  type UIMessage,
-  validateUIMessages,
-} from "ai";
+import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage, validateUIMessages } from "ai";
 
 import { isArkStoredResponseReference, type ReasoningEffort } from "#runtime/provider-model";
 
@@ -30,7 +24,7 @@ import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedThreadItemContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
 import { getSessionAttachment } from "../../session-files.js";
-import { getSessionRow, listMessages, type Message } from "../../sessions.js";
+import { getSessionRow, listMessages, unfinishedSessionTurnId, type Message } from "../../sessions.js";
 import { chatDataSchemas, chatMessageMetadataSchema, type ChatUIDataTypes } from "../chat-ui-schema.js";
 import type { ContextCategoryId } from "../context/context-snapshot.js";
 import { activatedSkillNameFromParts, sessionFileIdFromUrl } from "../context/file-parts.js";
@@ -45,14 +39,14 @@ import {
 } from "../observability/lifecycle.js";
 import { prepareCloudTurn } from "../runtime/cloud-turn.js";
 import type { RuntimeProviderCapability, TurnCapabilities } from "../runtime/types.js";
-import { createPublishedAgentPartStream } from "../streams/native-parts.js";
 import {
-  AgentStreamCapacityError,
-  activateAgentStream,
-  consumeAgentSseStream,
-  createAgentReplayResponse,
-  deactivateAgentStream,
-} from "../streams/service.js";
+  activeRunStreamResponse,
+  detachedActiveRunResponse,
+  registerActiveRunStream,
+  releaseActiveRunStream,
+  resumeActiveRunStream,
+} from "../streams/live.js";
+import { createPublishedAgentPartStream } from "../streams/native-parts.js";
 import { generateConversationTitlePart } from "../title/generator.js";
 import type { ToolCatalog } from "../tools/catalog.js";
 import { finalizeCancelledParts } from "./cancellation.js";
@@ -71,7 +65,6 @@ import {
   getLatestResponseLineage,
   getLatestSessionContextRecord,
   getRunTrace,
-  isRunActive,
   persistAgentRunPluginSnapshot,
   persistTurnResumeEnvelope,
   readAgentRunPluginSnapshot,
@@ -130,9 +123,6 @@ interface ChatMessageMetadata extends Record<string, unknown> {
 }
 
 function describeStreamError(error: unknown): string {
-  if (error instanceof AgentStreamCapacityError) {
-    return "响应流超过可恢复容量限制，已安全终止。";
-  }
   if (
     (error instanceof Error && error.name === "AbortError") ||
     (typeof error === "object" &&
@@ -331,7 +321,13 @@ export async function createAgentRunResponse(
       : {}),
   });
   if (claim.duplicate) {
-    return createAgentReplayResponse(session.id, claim.runId, { isRunLive: isRunActive });
+    if (!claim.streaming) {
+      return Response.json(
+        { code: "run_settled", message: "Read the journal for this previously accepted request." },
+        { status: 409, headers: { "x-agent-run-id": claim.runId, "x-agent-run-state": "settled" } },
+      );
+    }
+    return resumeActiveRunStream(sessionId, claim.runId) ?? detachedActiveRunResponse(claim.runId, 409);
   }
   return executeClaimedAgentRunResponse({
     session,
@@ -367,14 +363,7 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
   const startedAt = performance.now();
   const runId = claim.runId;
   const leaseToken: RunLeaseToken = { runId, attemptEpoch: claim.attemptEpoch };
-  let resumable = false;
-  try {
-    await activateAgentStream(session.id, runId);
-    resumable = true;
-  } catch (error) {
-    logger.error({ err: error }, "failed to activate resumable stream");
-  }
-
+  const liveStream = registerActiveRunStream(session.id, runId, claim.attemptEpoch);
   const runSignal = registerRunController(leaseToken);
   const runtimeTurn = new RuntimeTurn(runSignal);
   let contextUsage: UsageTokens = EMPTY_USAGE;
@@ -687,9 +676,8 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
         contextUsageSink = null;
         await titlePromise;
         const currentRun = await getAgentRunById(runId).catch(() => null);
-        const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
-        const aborted = capacityError == null && (runSignal.aborted || currentRun?.status === "cancel_requested");
-        let streamError = stepJournalError ?? capacityError ?? terminalStreamError(end.outcome, end.finishReason);
+        const aborted = runSignal.aborted || currentRun?.status === "cancel_requested";
+        let streamError = stepJournalError ?? terminalStreamError(end.outcome, end.finishReason);
         try {
           await runtimeTurn.dispose();
         } catch (error) {
@@ -730,9 +718,8 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
       },
       onEnd: async ({ responseMessage, isContinuation, finishReason, outcome }) => {
         const currentRun = await getAgentRunById(runId).catch(() => null);
-        const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
-        const aborted = capacityError == null && (runSignal.aborted || currentRun?.status === "cancel_requested");
-        const streamError = stepJournalError ?? capacityError ?? terminalStreamError(outcome, finishReason);
+        const aborted = runSignal.aborted || currentRun?.status === "cancel_requested";
+        const streamError = stepJournalError ?? terminalStreamError(outcome, finishReason);
         try {
           const expectsContinuation = operation === "tool-continuation" || resume?.decision === "resume-next-step";
           if (isContinuation !== expectsContinuation) {
@@ -798,39 +785,17 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
       },
     });
 
-    return createUIMessageStreamResponse({
-      stream: uiStream,
-      headers: { "x-agent-run-id": runId },
-      consumeSseStream: ({ stream }) => {
-        const consumption = resumable
-          ? consumeAgentSseStream(session.id, runId, stream, {
-              onCapacityExceeded: (error) => {
-                logger.error(
-                  {
-                    err: error,
-                    runId,
-                    capacityReason: error.reason,
-                    replayBytes: error.bytes,
-                    replayEntries: error.entries,
-                  },
-                  "agent replay stream capacity exceeded",
-                );
-                abortRun(runId, error);
-              },
-            })
-          : consumeStream({ stream });
-        void consumption.catch((error) => logger.error({ err: error }, "agent stream consumption failed"));
-      },
-    });
+    const response = activeRunStreamResponse(liveStream);
+    void liveStream
+      .consume(uiStream)
+      .catch((error) => logger.error({ err: error }, "agent stream consumption failed"))
+      .finally(() => releaseActiveRunStream(liveStream));
+    return response;
   } catch (error) {
+    releaseActiveRunStream(liveStream);
     const { finalized: failure } = await finalizeAfterAgentDisposal({
       dispose: () => runtimeTurn.dispose(),
       finalize: async (disposalError) => {
-        if (resumable) {
-          await deactivateAgentStream(session.id, runId).catch((err) =>
-            logger.error({ err }, "failed to clear resumable stream"),
-          );
-        }
         const failure = disposalError
           ? new AggregateError([error, disposalError], "run setup and cleanup failed")
           : error;
@@ -844,6 +809,13 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
     });
     throw failure;
   }
+}
+
+export async function resumeAgentRunResponse(sessionId: string): Promise<Response> {
+  await getSessionRow(sessionId);
+  const runId = await unfinishedSessionTurnId(sessionId, { includeWaiting: false });
+  if (!runId) return new Response(null, { status: 204, headers: { "x-agent-run-state": "idle" } });
+  return resumeActiveRunStream(sessionId, runId) ?? detachedActiveRunResponse(runId, 204);
 }
 
 const REASONING_EFFORTS = new Set<ReasoningEffort>(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);

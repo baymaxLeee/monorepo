@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 vi.mock("@repo/api", () => ({
   authFetch: vi.fn(),
-  conversationAgentStreamUrl: (id: string) => `/api/chat-server/conversations/${id}/agent`,
+  conversationAgentStreamUrl: (id: string) => `/api/chat-server/conversations/${id}/stream`,
 }));
 
 import { createConversationTransport } from "./transport";
@@ -61,6 +61,22 @@ test("the official transport request preserves operation identity and concurrenc
   });
   expect(init?.credentials).toBe("include");
   expect(transport.resumeStreamIsReplay).toBe(true);
+});
+
+test("resume GET uses the same conversation stream resource as POST", async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => emptySseResponse());
+  const transport = createConversationTransport<UIMessage>("conversation", { fetch });
+
+  const stream = await transport.reconnectToStream({
+    chatId: "conversation",
+    abortSignal: new AbortController().signal,
+  });
+  await stream?.cancel();
+
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/chat-server/conversations/conversation/stream",
+    expect.objectContaining({ method: "GET", credentials: "include" }),
+  );
 });
 
 test("regeneration retains its target even though the SDK sends only the parent history", async () => {

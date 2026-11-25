@@ -25,9 +25,25 @@ export type TerminalProps = ComponentProps<"div"> & {
   isStreaming?: boolean;
   exitCode?: number;
   failed?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
 };
-export function Terminal({ command, output, isStreaming = false, exitCode, failed = false, ...props }: TerminalProps) {
-  const [open, setOpen] = useState(false);
+export function Terminal({
+  command,
+  output,
+  isStreaming = false,
+  exitCode,
+  failed = false,
+  onOpenChange,
+  open: controlledOpen,
+  ...props
+}: TerminalProps) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setLocalOpen(next);
+    onOpenChange?.(next);
+  };
   const hasError = failed || (exitCode !== undefined && exitCode !== 0);
   const lines = useHighlightedCode(output, "ansi");
   return (

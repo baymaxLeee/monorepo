@@ -43,7 +43,9 @@ export function useConversationChat(id: string) {
   const [modelRetry, setModelRetry] = useState<ChatUIDataTypes["model-retry"] | null>(null);
   const [contextCompaction, setContextCompaction] = useState<ChatUIDataTypes["context-compaction"] | null>(null);
   const [contextUsage, setContextUsage] = useState<ChatUIDataTypes["context-usage"] | null>(null);
-  const refreshRef = useRef<(() => Promise<void>) | null>(null);
+  const [streamProbe, setStreamProbe] = useState<{ runId: string | null; sequence: number } | null>(null);
+  const streamProbeSequenceRef = useRef(0);
+  const probeDelayRef = useRef(2000);
   const titleRafRef = useRef<number | null>(null);
   const pendingTitleRef = useRef<{ id: string; title: string } | null>(null);
   const pendingClientContinuationRef = useRef(false);
@@ -64,6 +66,9 @@ export function useConversationChat(id: string) {
     setModelRetry(null);
     setContextCompaction(null);
     setContextUsage(null);
+    setStreamProbe(null);
+    streamProbeSequenceRef.current = 0;
+    probeDelayRef.current = 2000;
   }, [id]);
   const transport = useMemo(
     () =>
@@ -71,11 +76,28 @@ export function useConversationChat(id: string) {
         getExpectedRevision: () => historyRevisionRef.current,
         fetch: async (input, init) => {
           const response = await authFetch(input, init);
-          if (init?.method === "GET" && response.status === 204) await refreshRef.current?.();
           const runId = response.headers.get("x-agent-run-id");
           if (runId && id) {
             setActiveRunId(runId);
             setTraceRun(id, runId);
+          }
+          const method = init?.method?.toUpperCase();
+          const runState = response.headers.get("x-agent-run-state");
+          if (method === "GET") {
+            if (response.status === 204) {
+              setStreamProbe({ runId, sequence: ++streamProbeSequenceRef.current });
+            } else if (response.ok) {
+              probeDelayRef.current = 2000;
+              setStreamProbe(null);
+              setIssue(null);
+            }
+          } else if (method === "POST" && response.status === 409 && runId) {
+            if (runState === "active-detached" || runState === "settled") {
+              setStreamProbe({
+                runId: runState === "settled" ? null : runId,
+                sequence: ++streamProbeSequenceRef.current,
+              });
+            }
           }
           return response;
         },
@@ -169,6 +191,9 @@ export function useConversationChat(id: string) {
                 historyRevisionRef.current = next.revision;
                 setActiveRunId(next.active_run_id);
                 setDetail(next);
+                if (isDisconnect && next.active_run_id) {
+                  setStreamProbe({ runId: next.active_run_id, sequence: ++streamProbeSequenceRef.current });
+                }
               })
               .catch(() => {});
             return;
@@ -281,7 +306,15 @@ export function useConversationChat(id: string) {
     // An unchanged revision proves the POST was never claimed. Keep its exact
     // local input for the explicit retry action, including edit/regenerate IDs.
     if (pending && next.revision === pending.body.expected_revision) return;
-    if (next.active_run_id || (pendingClientContinuationRef.current && !pending)) return;
+    if (next.active_run_id) {
+      if (!pending && !pendingClientContinuationRef.current) {
+        chat.messages = messages;
+        chat.clearError();
+        setIssue(null);
+      }
+      return;
+    }
+    if (pendingClientContinuationRef.current && !pending) return;
     pendingClientContinuationRef.current = false;
     chat.messages = messages;
     transport.clearPendingRequest?.();
@@ -289,16 +322,40 @@ export function useConversationChat(id: string) {
     setIssue(null);
   }, [chat, id, transport]);
   useEffect(() => {
-    refreshRef.current = refresh;
-    return () => {
-      refreshRef.current = null;
-    };
-  }, [refresh]);
+    if (!streamProbe) return;
+    if (isRunning(chat.status)) {
+      return chat["~registerStatusCallback"](() => {
+        if (!isRunning(chat.status)) setStreamProbe((current) => (current === streamProbe ? { ...current } : current));
+      });
+    }
+    if (!streamProbe.runId) {
+      setStreamProbe(null);
+      probeDelayRef.current = 2000;
+      void refresh().catch((error: unknown) => {
+        if (connectedChatRef.current === chat)
+          setIssue({ kind: "connection", message: getErrorMessage(error, "任务状态同步失败，请重试。") });
+      });
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (connectedChatRef.current === chat && !isRunning(chat.status)) {
+        probeDelayRef.current = Math.min(probeDelayRef.current * 2, 30_000);
+        void chat.resumeStream().catch((error: unknown) => {
+          if (connectedChatRef.current === chat)
+            setIssue({ kind: "connection", message: getErrorMessage(error, "任务恢复失败，请重试。") });
+        });
+      }
+    }, probeDelayRef.current);
+    return () => clearTimeout(timer);
+  }, [chat, refresh, streamProbe]);
 
   const recover = useCallback(async () => {
     try {
+      const probeSequence = streamProbeSequenceRef.current;
       await chat.resumeStream();
-      if (!isRunning(chat.status)) await refresh();
+      // Custom transports and older hosts may not report stream state headers.
+      // Explicit user recovery retains one authoritative fallback read.
+      if (streamProbeSequenceRef.current === probeSequence && !isRunning(chat.status)) await refresh();
     } catch (error) {
       if (connectedChatRef.current === chat) setIssue({ kind: "connection", message: getErrorMessage(error) });
     }

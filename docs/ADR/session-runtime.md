@@ -73,9 +73,9 @@ Chat 与 Runtime 使用独立 PostgreSQL database，并明确禁止通过 XA/2PC
 
 Runtime 必须提供按 Session 查询持久化 messages 的能力，包含稳定 message ID、顺序、Turn 关联和官方 AI SDK parts。当前详情响应携带 messages 不等于已具备长历史分页：分页接口应固定分支与读取边界，避免并发追加或切换历史导致重复/漏读；相关字段在 schema 中定义。Job、审批、文件详情按关联查询，不要求一次加载会话内所有资源。
 
-持久化历史在没有在线 worker、没有活跃流或 replay buffer 已过期时仍可查询。UIMessage/工具结果是语义事实，实时 delta 是传输；Item 具有稳定身份，delta 不成为新消息。复用官方消息协议，遵守 [stream 契约](../../schemas/streaming/chat-uimessage-stream.md)。当前 Redis 活跃流恢复与长期消息保留分别管理，不能把恢复订阅描述成恢复 Agent 进程。
+持久化历史在没有在线 worker 或没有活跃 HTTP 流时仍可查询。UIMessage/工具结果是语义事实，实时 delta 是传输；Item 具有稳定身份，delta 不成为新消息。复用官方消息协议，遵守 [stream 契约](../../schemas/streaming/chat-uimessage-stream.md)。浏览器断线后先从在线 attempt 的 materialized snapshot 接回 live SSE；本地 hub 缺失则从 PostgreSQL completed-step journal 同步到终态。两者都是传输/语义恢复，不能描述成恢复旧 Agent 进程栈。
 
-snapshot、分支 revision 与流恢复位置必须能够一致衔接，订阅/查询竞争通过补读或协议重放覆盖；cursor 失效明确要求重新加载。Session revision 保护历史结构，不能让每个 token/Job 进度推进用户命令的共同前置条件。幂等查询先于新操作的版本检查，同键异参拒绝。
+materialized step snapshot、分支 revision 与终态必须一致衔接；查询竞争通过下一次权威补读覆盖，不从不完整 delta 猜测消息。Session revision 保护历史结构，不能让每个 token/Job 进度推进用户命令的共同前置条件。幂等查询先于新操作的版本检查，同键异参拒绝。
 
 同一 Session 最多一个 active Turn。steer 进入明确目标 Turn 的 inbox，queue 等待后续 Turn，二者不自动互换；accepted 不等于 delivered。待答工具/审批恢复同一 Turn，客户端不能替 server tool 提交执行结果。进程失联后旧 owner 的迟到写入必须被租约/执行代际拒绝，不能假定租约过期就已杀死旧进程。
 
@@ -191,9 +191,9 @@ durable Job 必须能跨正常部署继续：绑定 definition/release，兼容�
 
 当前实现已要求 Chat 与 Runtime 复用稳定 `request_id`。Runtime 先按 workload caller 与请求键查询既有 Session：同键同 canonical fingerprint 返回原结果，同键异参明确冲突；该键不含 tenant/workspace/user，也不把 workspace 当进程锁、并发锁或请求唯一键。durable task 的 `(owner_service, owner_ref)` 同时绑定 type 与规范化 payload。业务 task row 也是持久 dispatch intent：`start()` 结果未知时保持 queued，周期恢复可启动候选 run，首个 `claimTaskStep` 原子绑定唯一 run，其他候选在副作用前失败。仍待补齐的 Session 边界是：Chat 尚未把创建/删除意图作为可恢复状态持久化，当前依靠稳定请求键重试和后续孤立 Session 回收收敛。该缺口应通过本地 saga 状态、reconciliation 和 cleanup 修复；跨数据库 ACID 不是目标，也不是完成标准。
 
-当前本地证据覆盖 Runtime/Chat 单测、两者构建、三份 OpenAPI/codegen、全仓 lint/typecheck、migration checksum、service graph、Kubernetes render 与 Single-VPS Compose 解析。Runtime 测试中的 PostgreSQL/Redis integration case 在未启用集成环境时跳过；真实 Postgres World 恢复、Docker/gVisor/Kubernetes guest 生命周期和同一 Linux image 三入口启动仍是部署验收项，不能由本地类型检查替代。
+当前本地证据覆盖 Runtime/Chat 单测、两者构建、三份 OpenAPI/codegen、全仓 lint/typecheck、migration checksum、service graph、Kubernetes render 与 Single-VPS Compose 解析。Runtime 测试中的 PostgreSQL integration case 在未启用集成环境时跳过；真实 Postgres World 恢复、Docker/gVisor/Kubernetes guest 生命周期和同一 Linux image 三入口启动仍是部署验收项，不能由本地类型检查替代。
 
-最低故障验收覆盖：创建映射中途崩溃、同键异参、跨 Session 引用、分页与追加竞争、断线/过期 replay、steer 与终态竞争、旧 owner 迟到写入、start 丢响应、step 重投、早到审批、取消/成功竞争、文件 CAS 冲突、保存失败回收及跨版本恢复。文档检查不能替代这些实现测试。
+最低故障验收覆盖：创建映射中途崩溃、同键异参、跨 Session 引用、分页与追加竞争、断线后 step 补读、steer 与终态竞争、旧 owner 迟到写入、start 丢响应、step 重投、早到审批、取消/成功竞争、文件 CAS 冲突、保存失败回收及跨版本恢复。文档检查不能替代这些实现测试。
 
 ## 公开实践与适用边界
 

@@ -173,7 +173,7 @@ func TestConversationProxyPreservesSSEBytesAndMapsRuntimePath(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Runtime-Stream": []string{"yes"}},
 		Body:       io.NopCloser(strings.NewReader(payload)),
 	})
-	request := scopedRequest(http.MethodGet, "/conversations/chat-conversation/agents/run/stream?cursor=3", nil)
+	request := scopedRequest(http.MethodGet, "/conversations/chat-conversation/stream", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK || response.Body.String() != payload {
@@ -182,7 +182,7 @@ func TestConversationProxyPreservesSSEBytesAndMapsRuntimePath(t *testing.T) {
 	if response.Header().Get("X-Runtime-Stream") != "yes" {
 		t.Fatalf("runtime header = %q", response.Header().Get("X-Runtime-Stream"))
 	}
-	if runtime.request.Path != "/v1/sessions/runtime-thread/agents/run/stream?cursor=3" {
+	if runtime.request.Path != "/v1/sessions/runtime-thread/stream" {
 		t.Fatalf("runtime path = %q", runtime.request.Path)
 	}
 }

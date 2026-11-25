@@ -10,7 +10,7 @@ import {
   TraceTitle,
 } from "@repo/design-system/shadcn/trace";
 import { CheckCircleIcon, CircleIcon, FlaskConicalIcon, XCircleIcon } from "lucide-react";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 
 export interface TestResult {
   id: string;
@@ -25,13 +25,25 @@ export interface TestSuiteResult {
   tests: TestResult[];
 }
 export type TestResultsProps = ComponentProps<"div"> & { suites: TestSuiteResult[]; isRunning?: boolean };
+
+function useFailureDisclosure(failed: boolean) {
+  const [open, setOpen] = useState(failed);
+  const failedRef = useRef(failed);
+  useEffect(() => {
+    if (failed && !failedRef.current) setOpen(true);
+    failedRef.current = failed;
+  }, [failed]);
+  return { open, onOpenChange: setOpen };
+}
+
 export function TestResults({ suites, isRunning = false, ...props }: TestResultsProps) {
   const tests = suites.flatMap((suite) => suite.tests);
   const failed = tests.filter((test) => test.status === "failed").length;
   const passed = tests.filter((test) => test.status === "passed").length;
+  const disclosure = useFailureDisclosure(failed > 0);
   return (
     <Trace {...props}>
-      <TraceCollapsible defaultOpen={failed > 0}>
+      <TraceCollapsible {...disclosure}>
         <TraceCollapsibleTrigger>
           <TraceLine status={isRunning ? "running" : failed ? "error" : tests.length > 0 ? "completed" : undefined}>
             <TraceIcon>
@@ -54,8 +66,9 @@ export function TestResults({ suites, isRunning = false, ...props }: TestResults
 }
 export function TestSuite({ suite }: { suite: TestSuiteResult }) {
   const failed = suite.tests.some((test) => test.status === "failed");
+  const disclosure = useFailureDisclosure(failed);
   return (
-    <TraceCollapsible defaultOpen={failed}>
+    <TraceCollapsible {...disclosure}>
       <TraceCollapsibleTrigger>
         <TraceLine status={failed ? "error" : undefined}>
           <TraceTitle>{suite.name}</TraceTitle>

@@ -1080,6 +1080,19 @@ export type ForkConversation201 = {
   source_message_id: string;
 };
 
+export type StartConversationStream409Code =
+  (typeof StartConversationStream409Code)[keyof typeof StartConversationStream409Code];
+
+export const StartConversationStream409Code = {
+  active_run_detached: "active_run_detached",
+  run_settled: "run_settled",
+} as const;
+
+export type StartConversationStream409 = {
+  code: StartConversationStream409Code;
+  message: string;
+};
+
 export type GetLocalInferenceConfigParams = {
   provider_id: string;
   reasoning_effort: ReasoningEffort;
@@ -1449,32 +1462,6 @@ export const updateConversation = (
   );
 };
 
-export const resumeConversationAgentStream = (
-  conversationId: string,
-  options?: SecondParameter<typeof apiMutator<void>>,
-) => {
-  return apiMutator<void>(
-    { url: `/api/chat-server/conversations/${conversationId}/agents/run/stream`, method: "GET" },
-    options,
-  );
-};
-
-export const startConversationAgentStream = (
-  conversationId: string,
-  agentRunRequest: AgentRunRequest,
-  options?: SecondParameter<typeof apiMutator<string>>,
-) => {
-  return apiMutator<string>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/agents/run/stream`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: agentRunRequest,
-    },
-    options,
-  );
-};
-
 export const cancelConversationAgentRun = (
   conversationId: string,
   runId: string,
@@ -1697,6 +1684,32 @@ export const updateConversationModel = (
   );
 };
 
+export const resumeConversationStream = (
+  conversationId: string,
+  options?: SecondParameter<typeof apiMutator<string | void>>,
+) => {
+  return apiMutator<string | void>(
+    { url: `/api/chat-server/conversations/${conversationId}/stream`, method: "GET" },
+    options,
+  );
+};
+
+export const startConversationStream = (
+  conversationId: string,
+  agentRunRequest: AgentRunRequest,
+  options?: SecondParameter<typeof apiMutator<string>>,
+) => {
+  return apiMutator<string>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/stream`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: agentRunRequest,
+    },
+    options,
+  );
+};
+
 export const chatHealthz = (options?: SecondParameter<typeof apiMutator<void>>) => {
   return apiMutator<void>({ url: `/api/chat-server/healthz`, method: "GET" }, options);
 };
@@ -1777,10 +1790,6 @@ export type CreateCanvasConversationResult = NonNullable<Awaited<ReturnType<type
 export type DeleteConversationResult = NonNullable<Awaited<ReturnType<typeof deleteConversation>>>;
 export type GetConversationResult = NonNullable<Awaited<ReturnType<typeof getConversation>>>;
 export type UpdateConversationResult = NonNullable<Awaited<ReturnType<typeof updateConversation>>>;
-export type ResumeConversationAgentStreamResult = NonNullable<
-  Awaited<ReturnType<typeof resumeConversationAgentStream>>
->;
-export type StartConversationAgentStreamResult = NonNullable<Awaited<ReturnType<typeof startConversationAgentStream>>>;
 export type CancelConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof cancelConversationAgentRun>>>;
 export type ListConversationAgentRunInputsResult = NonNullable<
   Awaited<ReturnType<typeof listConversationAgentRunInputs>>
@@ -1813,6 +1822,8 @@ export type AuthorizeConversationFileDeliveryResult = NonNullable<
 export type ForkConversationResult = NonNullable<Awaited<ReturnType<typeof forkConversation>>>;
 export type SelectConversationHistoryResult = NonNullable<Awaited<ReturnType<typeof selectConversationHistory>>>;
 export type UpdateConversationModelResult = NonNullable<Awaited<ReturnType<typeof updateConversationModel>>>;
+export type ResumeConversationStreamResult = NonNullable<Awaited<ReturnType<typeof resumeConversationStream>>>;
+export type StartConversationStreamResult = NonNullable<Awaited<ReturnType<typeof startConversationStream>>>;
 export type ChatHealthzResult = NonNullable<Awaited<ReturnType<typeof chatHealthz>>>;
 export type GetLocalInferenceConfigResult = NonNullable<Awaited<ReturnType<typeof getLocalInferenceConfig>>>;
 export type StreamLocalInferenceResult = NonNullable<Awaited<ReturnType<typeof streamLocalInference>>>;

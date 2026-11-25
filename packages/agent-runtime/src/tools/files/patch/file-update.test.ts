@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { asSchema } from "ai";
+
+import { createApplyPatchTool } from "../apply-patch.js";
 import { selectFileLines } from "../read-file.js";
 import { applyPatchToText } from "./file-update.js";
 import { parseApplyPatch } from "./parser.js";
@@ -111,4 +114,15 @@ test("the terminating empty context line can match the final newline", () => {
   const action = patch.actions[0];
   assert.ok(action?.type === "update");
   assert.equal(applyPatchToText("old\n", action), "new\n");
+});
+
+test("the SDK rejects malformed patch input before asking for file approval", async () => {
+  const { tool } = createApplyPatchTool(async () => ({ changes: [], affected: [] }));
+  assert.ok(tool && "inputSchema" in tool);
+  const validate = asSchema(tool.inputSchema).validate;
+  assert.ok(validate);
+  const invalid = await validate("*** Begin Patch\n*** Update File: f\n@@\n unchanged\n*** End Patch");
+  assert.equal(invalid.success, false);
+  if (!invalid.success) assert.match(String(invalid.error), /patch hunk must contain a change/);
+  assert.equal((await validate("*** Begin Patch\n*** Delete File: f\n*** End Patch")).success, true);
 });

@@ -55,14 +55,13 @@ export const RUN_LEASE_MS = 10 * 60_000;
 export type AgentRunOperation = "submit-message" | "edit-message" | "regenerate-message" | "tool-continuation";
 type AgentAttemptOperation = AgentRunOperation | "internal" | "recovery";
 
-export interface ClaimedAgentRun {
+export type ClaimedAgentRun = {
   runId: string;
   attemptEpoch: bigint;
-  duplicate: boolean;
   historyRevision: number;
   historyMessageId: string;
   inputMessageId: string | null;
-}
+} & ({ duplicate: false } | { duplicate: true; streaming: boolean });
 
 export interface RunLeaseToken {
   runId: string;
@@ -396,6 +395,7 @@ export async function claimAgentRunOperation(input: {
         runId: existing.run.id,
         attemptEpoch: existing.attempt.attemptEpoch,
         duplicate: true,
+        streaming: existing.run.status === "running" || existing.run.status === "cancel_requested",
         historyRevision: Number(existing.attempt.historyRevision),
         historyMessageId: existing.attempt.historyItemId,
         inputMessageId: existing.run.inputItemId,

@@ -35,6 +35,17 @@ test("a failed bash call exposes its failure status while details remain collaps
   expect(isInaccessible(screen.getByText("permission denied"))).toBe(false);
 });
 
+test("a bash call opens while running and closes on completion", async () => {
+  const view = render(<ChatTerminalTool input={{ cmd: "test" }} output={{ output: "running" }} running />);
+  const trigger = await screen.findByRole("button", { name: /test.*运行中/ });
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
+
+  view.rerender(<ChatTerminalTool input={{ cmd: "test" }} output={{ output: "done", exit_code: 0 }} running={false} />);
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(trigger);
+  expect(screen.getByText("done")).toBeTruthy();
+});
+
 test("tool failure shows the reason and only reports an exit code supplied by the process", async () => {
   const props = { input: { cmd: "test" }, running: false };
   const view = render(<ChatTerminalTool {...props} output={undefined} errorText="审批恢复失败" />);

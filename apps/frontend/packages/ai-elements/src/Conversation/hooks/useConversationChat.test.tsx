@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { UIMessageChunk } from "ai";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import type { ChatUIMessage } from "../lib/chat-message";
 import { useConversationChat } from "./useConversationChat";
@@ -17,8 +17,10 @@ const mocks = vi.hoisted(() => ({
   traceRunId: "run" as string | null,
   pending: null as { body: Record<string, unknown>; messages: ChatUIMessage[] } | null,
   retry: vi.fn(),
+  auth: vi.fn(),
+  transportFetch: null as typeof fetch | null,
 }));
-vi.mock("@repo/api", () => ({ authFetch: vi.fn() }));
+vi.mock("@repo/api", () => ({ authFetch: mocks.auth }));
 vi.mock("@repo/api/chat", () => ({
   getConversation: mocks.fetch,
   selectConversationHistory: mocks.select,
@@ -26,15 +28,18 @@ vi.mock("@repo/api/chat", () => ({
 }));
 vi.mock("@repo/design-system", () => ({ toast: { add: vi.fn() } }));
 vi.mock("../lib/transport", () => ({
-  createConversationTransport: () => ({
-    reconnectToStream: mocks.reconnect,
-    getPendingRequest: () => mocks.pending,
-    prepareRetry: mocks.retry,
-    clearPendingRequest: () => {
-      mocks.pending = null;
-    },
-    sendMessages: (...args: unknown[]) => mocks.send(...args) as Promise<ReadableStream<UIMessageChunk>>,
-  }),
+  createConversationTransport: (_id: string, options: { fetch?: typeof fetch }) => {
+    mocks.transportFetch = options.fetch ?? null;
+    return {
+      reconnectToStream: mocks.reconnect,
+      getPendingRequest: () => mocks.pending,
+      prepareRetry: mocks.retry,
+      clearPendingRequest: () => {
+        mocks.pending = null;
+      },
+      sendMessages: (...args: unknown[]) => mocks.send(...args) as Promise<ReadableStream<UIMessageChunk>>,
+    };
+  },
 }));
 vi.mock("../store/useChatStore", () => {
   const store = {
@@ -63,6 +68,8 @@ beforeEach(() => {
       }),
   );
   mocks.retry.mockReset();
+  mocks.auth.mockReset();
+  mocks.transportFetch = null;
   mocks.fetch.mockReset();
   mocks.reconnect.mockReset();
   mocks.fetch.mockResolvedValue({
@@ -77,6 +84,7 @@ beforeEach(() => {
   mocks.reconnect.mockResolvedValue(null);
   mocks.select.mockReset();
 });
+afterEach(() => vi.useRealTimers());
 async function mount() {
   const renders = vi.fn();
   const view = renderHook(() => {
@@ -222,6 +230,70 @@ test("an idle hydrated conversation does not probe stream recovery", async () =>
   });
   await waitFor(() => expect(view.result.current.loading).toBe(false));
   expect(mocks.reconnect).not.toHaveBeenCalled();
+});
+
+test("a detached active stream retries GET without polling the full conversation", async () => {
+  const view = await mount();
+  const historyReads = mocks.fetch.mock.calls.length;
+  vi.useFakeTimers();
+  mocks.auth.mockResolvedValueOnce(
+    new Response(null, {
+      status: 204,
+      headers: { "x-agent-run-id": "detached-run", "x-agent-run-state": "active-detached" },
+    }),
+  );
+  await act(async () => {
+    await mocks.transportFetch!("/api/chat-server/conversations/one/stream", { method: "GET" });
+  });
+  expect(view.result.current.activeRunId).toBe("detached-run");
+  await act(async () => vi.advanceTimersByTimeAsync(2_000));
+  expect(mocks.reconnect).toHaveBeenCalledOnce();
+  expect(mocks.fetch).toHaveBeenCalledTimes(historyReads);
+});
+
+test("a duplicate POST detached from its owner resumes instead of accepting an empty success stream", async () => {
+  const view = await mount();
+  const historyReads = mocks.fetch.mock.calls.length;
+  vi.useFakeTimers();
+  mocks.auth.mockResolvedValueOnce(
+    new Response('{"code":"active_run_detached"}', {
+      status: 409,
+      headers: { "x-agent-run-id": "claimed-run", "x-agent-run-state": "active-detached" },
+    }),
+  );
+  await act(async () => {
+    await mocks.transportFetch!("/api/chat-server/conversations/one/stream", { method: "POST" });
+  });
+  expect(view.result.current.activeRunId).toBe("claimed-run");
+  await act(async () => vi.advanceTimersByTimeAsync(2_000));
+  expect(mocks.reconnect).toHaveBeenCalledOnce();
+  expect(mocks.fetch).toHaveBeenCalledTimes(historyReads);
+});
+
+test("a duplicate POST for a settled run reads its journal without attaching to another run", async () => {
+  await mount();
+  const reads = mocks.fetch.mock.calls.length;
+  mocks.auth.mockResolvedValueOnce(
+    new Response(null, {
+      status: 409,
+      headers: { "x-agent-run-id": "old", "x-agent-run-state": "settled" },
+    }),
+  );
+  await act(async () => {
+    await mocks.transportFetch!("/stream", { method: "POST" });
+  });
+  await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(reads + 1));
+  expect(mocks.reconnect).not.toHaveBeenCalled();
+});
+
+test("an idle stream probe hydrates the terminal journal once", async () => {
+  await mount();
+  const historyReads = mocks.fetch.mock.calls.length;
+  mocks.auth.mockResolvedValueOnce(new Response(null, { status: 204, headers: { "x-agent-run-state": "idle" } }));
+  await act(async () => {
+    await mocks.transportFetch!("/api/chat-server/conversations/one/stream", { method: "GET" });
+  });
+  await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(historyReads + 1));
 });
 
 test("history mutations stay gated until the authoritative history validates", async () => {
