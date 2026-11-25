@@ -24,6 +24,13 @@ for platform/technology choices, then confirm APIs in installed types/source.
 Use a focused local trace for ordinary repository changes; unrelated AI-runtime
 research is not required for a tooling or documentation edit.
 
+When an assistant must interpret intent or choose its next action, prefer giving
+the model the context, tools and observable results it needs to decide within the
+existing loop. Look for hard-coded routing or fallback branches this can remove.
+If code must prescribe the next action, identify the product requirement,
+invariant or observed failure that justifies it. Keep authorization, idempotency
+and crash recovery enforceable by their owning components.
+
 For AI runtime/UI changes, consult installed AI SDK docs/types and current
 official [AI SDK](https://ai-sdk.dev/docs/agents/overview),
 [Workflow](https://workflow.dev/docs) or [AI Elements](https://elements.ai-sdk.dev/docs)
