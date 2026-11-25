@@ -87,7 +87,7 @@ yet another physical copy. Non-hoisted pnpm gives each package its own
 same structural type and refuses to synthesize a portable reference.
 
 **Fix**: add a workspace-wide `overrides` entry in
-`apps/backend/pnpm-workspace.yaml` forcing one physical version:
+`pnpm-workspace.yaml` forcing one physical version:
 
 ```yaml
 overrides:
@@ -154,24 +154,7 @@ example wires this via a plugin importing `defineNitroPlugin` from
 `node -e "console.log(Object.keys(require('nitro/package.json').exports))"`),
 so the official example fails to resolve at build time.
 
-**Fix**: skip Nitro's plugin system and call `getWorld().start()` directly
-during service bootstrap (the same path that already performs boot recovery,
-`executor/src/bootstrap/runtime.ts` in this repo):
-
-```ts
-import { getWorld } from "workflow/runtime";
-
-if (process.env.WORKFLOW_TARGET_WORLD) {
-  void getWorld().start?.().catch((error) => {
-    console.error("failed to start workflow world", error);
-  });
-}
-```
-
-Gate it on `WORKFLOW_TARGET_WORLD` being set — calling `start()` against the
-default Local World throws `Invalid version string: "bundled"` (harmless if
-caught, but pure noise on every local boot; empirically confirmed, the docs
-don't mention this).
+**Runtime implementation.** The [worker bootstrap](../../../apps/backend/services/runtime/src/bootstrap/worker-runtime.ts) awaits the configured World's startup before starting recovery and marking the worker ready. Startup failure rejects bootstrap. The same owner closes the World during shutdown.
 
 **Verify it actually worked**, don't just assume the docs are right: run a
 real task against a real `@workflow/world-postgres` container end to end and

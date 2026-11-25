@@ -1,56 +1,23 @@
-# platform — Module Federation Host
+# Platform Module Federation host
 
-Platform is the only browser application entry and the only owner of
-`createBrowserRouter` / `RouterProvider`. It owns authentication, top-level
-routing, remote discovery, global errors, and global providers.
+Platform is the only browser entry and owner of `RouterProvider`, authentication,
+top-level access policy, dynamic remote discovery, global providers/errors and the
+stable outer Apps rail.
 
-Platform owns the stable outer Apps rail. It lists accessible registry-backed
-MFEs, performs cross-app navigation, and owns the global account menu at the
-bottom of the rail. MFE capabilities launched there use URL state rather than
-private MFE stores. Each MFE owns its second-column menus and content region.
-Do not add domain menus or MFE business UI here.
+- Do not place MFE business logic, domain menus or private remote state in Platform.
+  Each MFE owns its second-column menu and content region.
+- Remote metadata comes from Admin's app registry, never a static frontend map.
+  Enabled remotes mount below their registered `/platform/` base path and expose a
+  relative named `routes: RouteObject[]` through `./routes`.
+- Route discovery uses the host router. Do not add remote routers, `useRoutes` or a
+  remote `App` shell. Cross-app launches use URL state rather than private stores.
+- `src/auth/` owns credential/session bootstrap, refresh single-flight, login,
+  registration, logout, workspace rotation and Desktop session binding. Auth pages
+  use these actions rather than generated lifecycle calls directly.
+- Platform registers auth capability in `@repo/runtime`; remotes and API transport
+  consume it without holding credentials. `@repo/api` owns transport, not identity.
+- Shared dependency alignment comes only from `@repo/shared/mf-shared`.
 
-## Hard rules
-
-- Platform must not contain MFE business logic.
-- Remote metadata comes from the admin app registry, not a static frontend map.
-- Enabled remotes mount below their registry `base_path` under `/platform/`.
-- Remotes expose `./routes` with a named `routes: RouteObject[]` export.
-- Route trees are discovered by `patchRoutesOnNavigation`; do not add a nested
-  router, `useRoutes`, or a remote `App` component.
-- Registry topology and remote registration are cached for the document
-  lifetime. Runtime registry edits take effect after a full page refresh.
-- Remote route paths are relative to their registered `base_path`.
-- Shared dependencies must stay aligned through `@repo/shared/mf-shared`.
-
-## Authentication ownership
-
-- `src/auth/` owns credentials, session bootstrap, refresh single-flight, login,
-  registration, logout, workspace rotation and desktop session binding.
-- Auth pages use these local actions, never generated IAM lifecycle operations
-  directly. Read-only IAM queries remain ordinary generated client calls.
-- Platform registers the auth capability in `@repo/runtime`; remote requests and
-  user-menu actions consume it without importing Platform or holding credentials.
-- `@repo/api` owns transport only; runtime carries the capability binding only.
-
-## URL layout
-
-- `/` — redirects to `/login`
-- `/login` and `/register` — public account flows
-- `/select-org` and `/pending` — organization onboarding
-- `/404` — platform-owned not-found page
-- `/platform` — authenticated shell, redirecting to `/platform/chat`
-- `/platform/<slug>/*` — a registry-backed remote route tree
-
-Unknown public paths resolve to login. Unknown authenticated app paths resolve
-to `/404`.
-
-## Adding a remote
-
-1. Scaffold it with `just new-mfe <slug>`.
-2. Assign its dev/deployment manifest URL and orchestration port.
-3. Register `base_path`, `remote_name`, `./routes`, and manifest `entry` through
-   the admin app registry.
-4. Add deployment asset routing.
-
-No platform source-code registration is required.
+New remotes follow the repository new-MFE playbook and Admin registry contract;
+Platform source registration is unnecessary. Run `just test frontend/platform`
+and build Platform when routing, auth, federation or global providers change.

@@ -49,4 +49,4 @@ Do not append another architecture description or historical progress log.
 
 Use [change verification](../../playbooks/change-verification.md) for coupled
 changes and [completion review](../../playbooks/completion-review.md) for
-multi-phase/service work. Follow the root test/build gates and report actual gaps.
+multi-phase/service work. Use the scoped checks in the root AGENTS and report actual gaps.

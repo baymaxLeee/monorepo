@@ -9,7 +9,7 @@
 |---|---|
 | 服务组成、分层、共享与事务边界 | [architecture](architecture.md) |
 | Go workspace、统一依赖、sqlc/pgx 与 AI-native 技术基线 | [go-service-platform](go-service-platform.md) |
-| Node.js、Python、Go 服务的内部 HTTP 契约、生成 client 与 transport policy | [inner-api-transport](inner-api-transport.md) |
+| Node.js、Python、Go 服务的内部 API 契约、生成 client 与 transport policy | [inner-api-transport](inner-api-transport.md) |
 | 主 Agent、上下文、工具与流 | [agent-runtime](agent-runtime.md) |
 | Agent 插件的 catalog、release、installation、activation、Turn snapshot 与 MCP 生命周期 | [agent-plugins](agent-plugins.md) |
 | Runtime App Server：统一 Agent/tool/Sandbox 与 durable Job；Cloud 已有 generation-fenced model-boundary recovery，Desktop restart 仍 fail closed | [session-runtime](session-runtime.md) |
@@ -19,6 +19,7 @@
 | Workflow、耐久任务、取消与审批 | [durable-execution](durable-execution.md) |
 | Asset、Knowledge、Canvas 与文件生命周期 | [files-and-assets](files-and-assets.md) |
 | 会话文件原文件编辑、同 Asset Revision 保存与跨 run 恢复 | [editable-conversation-files](editable-conversation-files.md) |
+| Canvas 快照、增量事件与断线恢复 | [Canvas 事件投影](0077-canvas-event-projection.md) |
 | IAM、scope、caller identity 与 Admin 配置 | [identity-and-configuration](identity-and-configuration.md) |
 | MFE、路由、包、AI UI 与设计边界 | [frontend](frontend.md) |
 | 数据基线、部署、密钥与观测 | [operations](operations.md) |
@@ -33,7 +34,3 @@
 `git log -- docs/ADR` 和 `git show <commit>:docs/ADR/<old-file>`。
 修改当前决策时同时更新代码、所属业务规范和验证入口；尚未实现的提案必须明确标记，
 不能以“已接受”掩盖实现缺口。
-
-本轮重写期间另一项任务新增的
-[Canvas 事件投影](0077-canvas-event-projection.md)原样保留，由该任务维护。
-它是并行工作边界，不恢复时间序列文档作为默认阅读路径。

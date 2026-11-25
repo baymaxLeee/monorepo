@@ -151,7 +151,7 @@ Agent procedure:
 
 1. Locate the owner with `just context`, state observable acceptance criteria and
    protected invariants, and reproduce a bug with a failing behavior test.
-2. Implement and run focused tests during development. Apply scoped Oxfmt,
+2. For ordinary changes, run the relevant tests and lint the edited code during development. Reuse these results for commit and push. Apply scoped Oxfmt,
    Ruff or gofmt fixes, inspect the diff, and preserve unrelated changes. Use
    `just fmt` only when the entire formatting scope belongs to the task.
 3. Use `just ci-plan origin/main` to inspect the remote code gate when scope is

@@ -59,7 +59,7 @@ just test tooling
 
 | 目录/文件 | 职责 |
 |---|---|
-| `apps/frontend/apps` | Platform host 与 Admin/Chat/Canvas remotes |
+| `apps/frontend/apps` | Platform host、业务 remotes 与 Electron 桌面应用 |
 | `apps/frontend/packages` | UI、feature、API、runtime 等公共能力 |
 | `apps/backend/services` | 自有数据库、运行时和部署边界的服务 |
 | `apps/backend/libs` | 有消费者依据的基础设施能力 |
@@ -71,8 +71,7 @@ just test tooling
 | `docs/ADR` | 按主题原地维护的当前架构决策 |
 
 应用不导入另一应用，服务不访问另一服务源码/数据库。Platform 和 Gateway
-分别拥有浏览器入口与 API 边缘；Chat 拥有交互 Agent，Executor 拥有耐久执行，
-Knowledge 拥有文件语义，Asset 拥有物理 bytes。
+分别拥有浏览器入口与 API 边缘。产品会话、执行状态和文件各有维护方，见[业务资源与所有权](docs/领域模型/index.md)。
 
 ## 故障定位
 

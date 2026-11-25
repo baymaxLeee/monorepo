@@ -13,4 +13,4 @@ wiring in `internal/api/http`, orchestration and wire projection in
 `internal/application`, and PostgreSQL/Runtime adapters in
 `internal/infrastructure`.
 
-Run `just test backend/chat` and `just build chat`.
+Run relevant tests from `just test backend/chat` and lint the changed code. Use `just build chat` for changes to the build or packaged entry points.

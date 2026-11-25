@@ -1,39 +1,18 @@
-# admin — Workspace Configuration Micro-frontend
+# Admin workspace configuration MFE
 
-Manages workspace-scoped providers, Skills, integrations and application configuration. It does not expose an Agent assembly surface; conversations bind their own reasoning model and reuse workspace capabilities. Backed by `apps/backend/services/admin`.
+Admin owns workspace-scoped providers, Skills, integrations and application
+configuration under `/platform/admin/*`. It does not expose an Agent assembly
+surface; conversations select reasoning models and reuse workspace capabilities.
 
-## Boundaries
+- This remote exposes only its relative `./routes` tree. It has no supported
+  standalone page or status shell.
+- Admin owns its second-column menu, sub-routes and local state. Platform discovers
+  the route tree but does not know Admin business capabilities.
+- Keep page-specific components and transforms with their route. Promote a
+  component to `src/components/` only when unrelated Admin pages reuse it; promote
+  across MFEs only to the matching public UI capability package.
+- Use generated `@repo/api/admin` clients. Provider/Skill/application contract
+  changes start at the backend owner and regenerate clients with root `just sync`.
 
-- This MFE owns routes under `/platform/admin/*` when mounted by platform
-- `http://localhost:3001/` is not a supported page; this app only serves federation assets
-- API calls go through `@repo/api` ONLY (no raw fetch)
-- NEVER import from any other MFE (enforced by `turbo boundaries`)
-- For cross-MFE coordination, use the `@repo/runtime` event bus
-- Runtime-critical dependencies (`react`, `react-dom`, `react-router-dom`,
-  `zustand`, platform infra packages) are provided by platform via
-  Module Federation shared scope; admin must not bundle standalone fallbacks
-- UI packages (`@repo/design-system`, `@repo/editors`, `@repo/viewers`) and `@repo/api` are normal workspace dependencies, not MF-shared
-  singletons; keep tree-shaking intact
-
-## Exposes (via Module Federation)
-
-- `./routes` — relative `RouteObject[]` mounted by platform at the registry base path
-
-## Layout
-
-- `src/router/index.tsx` — owns the relative admin route tree
-- Admin owns its local shell and menu. Platform discovers the route tree but
-  does not know admin sub-routes or capabilities.
-- No `src/main.tsx` / `src/index.html`; do not add a standalone or status page
-- `src/pages/<route>/index.tsx` — `route.lazy` module entry exporting named `Component`
-- Page-specific business components, dialogs, helpers, and data transforms stay inside that page directory; related nested routes may share their nearest route-group directory
-- `src/components/` — admin-wide UI components reused across unrelated page modules (not shared with other MFEs)
-- `src/store/` — admin-private Zustand stores; import `create` / `useShallow` directly from `zustand` packages
-- `src/hooks/` — local hooks
-
-## When to extract a component
-
-- Single-page use → keep inside that page directory
-- Reused across unrelated admin pages → keep in `src/components/`
-- Used by 2+ MFEs → promote to the matching `ui` package
-  (`@repo/design-system` for primitives, `@repo/editors` / `@repo/viewers` for heavy surfaces)
+Run `just test frontend/admin`, affected typechecks and the Admin build when routes,
+federation exports or emitted assets change.

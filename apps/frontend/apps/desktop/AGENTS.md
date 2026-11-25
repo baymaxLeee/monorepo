@@ -1,9 +1,25 @@
 # Desktop host
 
-This is the Electron host for the existing Platform, not a second UI or Federation remote. Platform owns both Web and desktop pages. Desktop shares Web's cloud routes, history, session frame and inspectors. The Chat new-conversation editor may select local or cloud execution and a natively granted project. The shared Chat sidebar lists local threads grouped by project in Electron. Local threads still render Chat's shared session components; do not add a workspace browser, second composer implementation or Desktop-only inspector. Web development does not launch Electron. Development loads an explicit Platform URL; release packaging embeds the production Platform and MFE outputs behind the privileged `app://platform` origin and proxies only same-origin `/api/*` requests to the pinned gateway. Native capabilities are exposed only to that selected renderer origin and main frame, with no Node or arbitrary HTTP/file capability.
+Desktop is the Electron host for the existing Platform, not a second UI or
+Federation remote. Browser product UI remains in Platform/Chat.
 
-`electron/` owns trusted main/preload and the Agent utility process hosting the shared harness; `native/` owns the macOS command supervisor. Browser UI belongs to the Chat MFE. Validate every IPC sender and payload. Only native directory selection grants a workspace. Inference uses IAM and the Chat relay; no provider secret, cloud conversation or Storage upload belongs here. Keep credentials out of tools.
+- Release packaging embeds Platform and MFE assets behind the privileged
+  `app://platform` origin and proxies only same-origin `/api/*` to the pinned
+  Gateway. Expose no general Node, HTTP or filesystem capability to renderers.
+- Validate every IPC sender, frame/origin and payload. Only the native directory
+  picker grants a workspace. Provider credentials, cloud conversations and Storage
+  uploads remain in their platform owners.
+- `@repo/agent-runtime` is the single RuntimeTurn/context kernel shared with Cloud.
+  `electron/runtime/` supplies only local journal, workspace, relay, plugin and
+  sandbox adapters; it must not define a second loop, input queue, prompt/tool
+  protocol or approval policy.
+- Only an authorized native directory selection may import a plugin. Resolve
+  personal installs under authenticated identity scope and pass platform choices
+  to Admin.
+- Persist local history atomically outside workspaces. Shell/file execution uses
+  Seatbelt and cleans detached descendants on cancellation or parent death; never
+  fall back to unrestricted execution. Linux and Windows refuse local execution.
 
-`@repo/agent-runtime` is the single RuntimeTurn/context kernel for Runtime server and this local host. Do not define a second ToolLoopAgent, input queue, context projection, prepareStep policy, prompt assembler, tool envelope or approval policy here. `electron/runtime/` owns only the SQLite journal, workspace, relay, local plugin installer and sandbox adapters. Only the native directory picker can authorize importing a plugin. Resolve personal installations under the authenticated identity scope and pass platform selections to Admin. Shared Bash manifests emit the same native terminal metadata and ToolOutcome as cloud tools. Native UIMessage parts own the Agent protocol. Persist local history atomically outside workspaces. Shell and file helpers use Seatbelt; never fall back to unrestricted execution. Cleanup includes detached descendants and parent death. Linux/Windows refuse local execution.
-
-Use root `just build desktop`, `just test frontend/desktop`, `just app` and `just desktop-package`. Native integration tests require macOS. Development builds do not prove signing/notarization or production model connectivity.
+Run `just test frontend/desktop`, `just build desktop`, `just app` and
+`just desktop-package` as affected. Native integration requires macOS; development
+builds do not prove signing, notarization or production model connectivity.

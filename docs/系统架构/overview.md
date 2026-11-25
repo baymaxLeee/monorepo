@@ -1,24 +1,16 @@
 # 当前系统架构
 
-```text
-Browser → Platform → Admin / Chat / Canvas remotes
-                  ↓ typed API / native streams
-               Gateway
-                  ↓ declared bindings + authenticated scope
-       IAM · Admin · Chat · Canvas · Knowledge · Telemetry · Asset
-                         ↘ Executor → Workflow Postgres World
-```
+Web 请求从 Platform 经过 Gateway 进入产品服务。以对话为例，Chat 校验会话权限，
+将产品 conversation 映射到云端 Runtime Session，代理消息流和取消请求。桌面本地
+执行由 Electron utility process 承载，与云端共用 Runtime 内核。
 
-Platform 是唯一用户入口，Gateway 是唯一公共 API 边缘；Executor 只通过内部
-契约访问。服务组成、端口、binding 和数据库唯一清单是
-[services.yaml](../../services.yaml)，不在总览维护第二份。
-
-## 所有权
-
-IAM 拥有身份与 tenant/workspace；Admin 拥有运营配置；Chat 拥有会话、交互
-Agent 与会话文件/Plan 引用；Canvas 拥有画布业务；Knowledge 拥有文档语义与检索；Asset 拥有
-durable bytes、revision、Claim 和交付；Executor 拥有耐久执行；Telemetry
-接收和查询观测数据。详细[业务词表](../领域模型/index.md)原地维护。
+| 查什么 | 事实源 |
+|---|---|
+| 谁拥有资源、授权和持久状态 | [业务资源与所有权](../领域模型/index.md) |
+| 服务有哪些出站依赖、使用 HTTP 还是 RPC、持有哪些数据库 | [服务清单](../../services.yaml) |
+| 哪些内部接口使用 gRPC、哪些保留 HTTP、SSE 或 MCP | [内部 API 传输决策](../ADR/inner-api-transport.md) |
+| 云与本地如何运行 Turn，如何从 journal 恢复 | [Session Runtime](../ADR/session-runtime.md) |
+| 浏览器断开后如何恢复进行中的消息流 | [活跃流恢复](../ADR/chat-stream-resumption.md) |
 
 ## 架构决策入口
 
@@ -31,10 +23,6 @@ durable bytes、revision、Claim 和交付；Executor 拥有耐久执行；Telem
 - [前端](../ADR/frontend.md)：MFE、公共能力包、host 路由与设计系统。
 - [运行部署](../ADR/operations.md)：Postgres、密钥、ClickHouse/OTel。
 - [工程与文档](../ADR/engineering.md)：可查询上下文、依赖验证和当前快照。
-
-同步跨服务调用使用声明的 HTTP transport；已有 Proto/event schemas 只代表
-契约面，不能据此声称部署了通用 gRPC 网络或消息 broker。Chat 的 Redis stream
-负责 transport resume，Workflow 负责持久执行，服务数据库负责业务状态。
 
 ## 事实与验证
 

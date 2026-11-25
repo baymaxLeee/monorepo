@@ -1,43 +1,33 @@
-# infra/
+# Infrastructure
 
-Deployment artifacts for all services and MFEs.
+This directory owns deployment artifacts for services and MFEs. Follow the
+closest runbook for Kubernetes, Single-VPS, images or recovery; do not copy
+environment-specific operations into this entry point.
 
-## Layout
-- `docker/`              — shared Dockerfiles (Dockerfiles also live in `apps/<…>/Dockerfile`)
-- `k8s/base/<svc>/`      — Kustomize base: `deployment.yaml`, `service.yaml`,
-                           `configmap.yaml`, `secret.yaml` (placeholder),
-                           `kustomization.yaml`
-- `k8s/base/db-migrate/` — schema migration Job template (one-shot per deploy)
-- `k8s/base/ingress.yaml` — public HTTP entry point (overlays patch host)
-- `k8s/overlays/{dev,prod}` — environment-specific patches
+## Deployment invariants
 
-## Conventions
-- Every service ConfigMap has `ENVIRONMENT` (development/staging/production).
-  Service code validates production-required fields at startup; misconfiguration
-  fails fast.
-- Sensitive values (`*_PASSWORD`, `ACCESS_TOKEN_SECRET`, `*_HOST` for managed
-  databases) live in `Secret` resources, never in ConfigMap. Real values are
-  injected out-of-band (CI / `kubectl create secret` / ExternalSecrets), not
-  committed to git.
-- Every database-backed service uses its declared PostgreSQL database and login
-  role. Storage uses the `storage` database/role and `storage-data` PVC; Single-VPS
-  uses the `storage_data` named volume. Deployment tooling accepts no legacy
-  Storage database, role, service or volume identity. Never give application
-  containers the `workflow` bootstrap superuser.
-- Liveness probe hits `/livez` (process only); readiness probe hits `/readyz`
-  (dependency-aware). Never tie liveness to Postgres/Redis health.
-- Every Deployment sets resource requests + limits, topologySpreadConstraints
-  across hostnames, and a 30s graceful shutdown window.
+- Service configuration declares `ENVIRONMENT` and fails startup on missing
+  production requirements.
+- Credentials and managed-database secrets live in Secret resources and are
+  injected out of band. Never commit real values or place them in ConfigMaps,
+  commands or logs.
+- Every database-backed service uses its declared database and login role. Never
+  give application containers the Workflow bootstrap superuser. Storage uses its
+  current `storage` database/role and environment-specific durable volume names;
+  do not restore legacy identities.
+- Liveness checks process health only; readiness reflects required dependencies
+  and draining. Never tie liveness to PostgreSQL or Redis availability.
+- Deployments set resource requests/limits, topology distribution and graceful
+  shutdown. Check each workload's actual ServiceAccount and verbs; Runtime's
+  sandbox controller uses its dedicated policy.
 
-## Adding a new service deployment
-1. Create `k8s/base/<svc>/{deployment,service,configmap,secret,kustomization}.yaml`
-2. Add to `k8s/overlays/<env>/kustomization.yaml` under `resources:`
-3. Add an `images:` mapping in each overlay so CI can pin `newTag` per deploy
-4. Wire CI: `.github/workflows/deploy-<svc>.yml` (or extend the shared one)
+## Structural changes
 
-## Rules
-- NEVER hardcode credentials in YAML — `Secret` placeholders only.
-- Resource limits MUST be set on every Deployment container.
-- Probes MUST distinguish `/livez` from `/readyz`.
-- Each service eventually has its own ServiceAccount (least-priv) —
-  currently using `default`, follow-up to harden.
+New service deployment must update the owning base/overlay or Compose definition,
+image mapping, CI/deploy path, configuration/secret injection, probes and service
+identity consistently. Follow the new-service playbook and validate the affected
+Kubernetes and Single-VPS paths rather than copying an old manifest blindly.
+
+Run `just check-repo` and the affected deployment/config validation. Infrastructure
+changes do not prove a release: observe authoritative build, registry, deploy and
+health results separately.

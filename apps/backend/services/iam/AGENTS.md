@@ -1,32 +1,20 @@
-# iam service
+# IAM service
 
-Go service that owns account identity, credentials, roles, login sessions,
-refresh tokens, and user profile preferences.
+IAM owns account identity, credentials, tenants/workspaces, membership, roles,
+login sessions, refresh-token rotation and user profile preferences. Gateway
+exposes its service-root auth and administration APIs under `/api/iam-server/*`.
 
-## Owns
-- User account rows and profile preferences
-- Password credential hashes
-- Role records and user-role assignments
-- Refresh token persistence and rotation
-- Auth REST endpoints mounted at service root (`/login`, `/register`,
-  `/refresh`, `/logout`, `/me`); externally exposed by gateway as
-  `/api/iam-server/*`
-- IAM REST endpoints mounted at service root (`/roles`, `/users/...`);
-  externally exposed by gateway as `/api/iam-server/*`
+- Password hashes, session/token persistence and identity membership state are
+  authoritative here. Other services consume authenticated identity and fetch or
+  cache IAM state; they do not replicate IAM tables.
+- IAM does not own domain-specific user behavior, resource authorization,
+  operator/provider configuration, frontend route shells or transport token
+  propagation.
+- Application use cases own transaction boundaries. SQL remains named and typed
+  through the service's checked-in sqlc output; regenerate it after query changes.
+- Keep credentials and token primitives inside the security adapter. Do not return
+  hashes, raw tokens or infrastructure errors through public contracts.
 
-## Layout
-- `internal/bootstrap/config/` — process configuration
-- `internal/api/http/router/` — HTTP routing and response mapping
-- `internal/application/contracts/` — request/response DTOs
-- `internal/api/http/middleware/` — HTTP middleware
-- `internal/application/` — auth, session, and role business logic
-- `internal/domain/` — identity, organization, and membership value rules
-- `internal/infrastructure/persistence/repositories/` — transaction boundaries, record mapping and database error translation
-- `internal/infrastructure/persistence/sql/` — named PostgreSQL queries
-- `internal/infrastructure/persistence/sqlc/` — generated pgx query bindings
-- `internal/infrastructure/security/` — password hashing and token primitives
-
-## Does not own
-- Admin-only user management workflows
-- Domain-specific user behavior outside identity/profile settings
-- Frontend route shell or token propagation
+Run `just test backend/iam`; cover token reuse/rotation, cross-workspace rejection
+and failure cleanup for authentication or membership changes. Run `just sync` when
+the public contract changes.

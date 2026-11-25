@@ -1,59 +1,16 @@
 # Single-VPS Deployment
 
-Run the entire monorepo (frontend SPA + backend services + Postgres/Redis) on **one VPS**, behind **one port** (no domain, no HTTPS, no Kubernetes). Browsers hit `http://<vps-ip>:8080` and get a fully-functional app.
+The VPS serves the Platform SPA and its remotes from nginx. The default browser
+entry is `http://<vps-ip>:8080`; `PUBLIC_PORT` selects the published port.
+Nginx forwards API traffic to Gateway. Chat reaches the internal Runtime server,
+which uses the worker and sandbox roles for durable jobs and isolated execution.
+Telemetry stores RUM in PostgreSQL and reads traces from ClickHouse via the
+observability stack.
 
-> Telemetry storage started on ClickHouse, moved to MySQL (2026-05), and now shares the single Postgres instance (every service DB consolidated onto it) to keep the single-VPS footprint under 1 GB RAM. See `apps/backend/services/telemetry/AGENTS.md` for the trade-offs.
-
-This path is intentionally **separate** from `infra/k8s/` — the K8s setup is for "future, when there are real users". Both coexist; pick one to deploy from.
-
----
-
-## When to use this
-
-| Use this when…                  | Use `infra/k8s/` when…                |
-| ------------------------------- | ------------------------------------- |
-| Demo / MVP / share with friends | Real production / paying users        |
-| ¥38–¥99 / year is the budget    | ¥900+/month OK                        |
-| One developer                   | Team of multiple                      |
-| No domain, no备案 OK            | Have domain + want HTTPS + compliance |
-| 4C4G is the whole server        | Multi-node, autoscaling               |
-
----
-
-## Architecture
-
-```
-browser
-  │
-  │ http://<vps-ip>:8080
-  ▼
-┌─────────────────────────────────────────────────────────┐
-│  VPS (4C4G 推荐)                                          │
-│                                                           │
-│  ┌─────────────────────────────────────────────────┐     │
-│  │ nginx (the `web` image — also serves SPA dist)   │     │
-│  │   ├─ /              → platform dist (host SPA)   │     │
-│  │   ├─ /mfe-admin/    → admin dist (MFE remote)    │     │
-│  │   ├─ /mfe-chat/     → chat dist (MFE remote)     │     │
-│  │   ├─ /mfe-canvas/   → canvas dist (MFE remote)   │     │
-│  │   └─ /api/*         → gateway:8000               │     │
-│  └─────────────────────────────────────────────────┘     │
-│                  │                                        │
-│      ┌───────────┴───────────┐                            │
-│      ▼                       ▼                            │
-│  gateway:8000          (db-init runs once)                │
-│      ├─ iam:8002 / admin:8001 / telemetry:8008            │
-│      ├─ chat:8009 / canvas:8012 / knowledge:8010          │
-│      └─ executor:8011                                     │
-│                                                           │
-│  redis:6379    postgres+pgvector:5432 (all service DBs)   │
-│  (volumes: /var/lib/docker/volumes/monorepo_*)            │
-└─────────────────────────────────────────────────────────┘
-```
-
-All images are pulled from GHCR (or any custom registry); the VPS only stores config files and persistent data volumes — **no source code, no build toolchains**.
-
----
+The [Compose manifest](docker-compose.prod.yml) owns service names, image tags,
+ports and volumes. The [nginx configuration](nginx.conf) owns public routing.
+The VPS pulls built images from the selected registry. For Kubernetes, use the
+[production overlay guide](../k8s/overlays/prod/README.md).
 
 ## Files in this directory
 
@@ -71,7 +28,9 @@ All images are pulled from GHCR (or any custom registry); the VPS only stores co
 | `bootstrap.sh`             | Install Docker + sops/age + generate age key on a fresh VPS (run once, on VPS)   |
 | `deploy.sh`                | Push config + restart containers (run from laptop / CI)                          |
 
-### Secrets model (see docs/ADR/0031)
+### Secrets model
+
+See the [operations decision](../../docs/ADR/operations.md).
 
 The VPS assembles its own compose `.env` from three disjoint sources — you only hand-manage the middle-column "operator" secrets:
 
@@ -165,9 +124,9 @@ Database upgrades preserve existing data: `db-init` verifies applied SQL checksu
 For a deliberate application-data reset that retains operator configuration and
 identity state, deploy with `RESET_APPLICATION_DATA=true`. It preserves the
 PostgreSQL `admin` and `iam` databases and their shared infrastructure, while it
-recreates Storage, Canvas, Chat, Executor/Workflow, Knowledge and Telemetry data.
+recreates Storage, Canvas, Chat, Runtime/Workflow, Knowledge and Telemetry data.
 It also removes all Redis cache/session state plus the Storage and ClickHouse
-data volumes. Existing logins are invalidated, but model, Agent and Provider
+data volumes. Existing logins are invalidated, but provider and integration
 configuration remains in the preserved `admin` database. The full
 `RESET_DATA=true` mode and the selective mode are mutually exclusive.
 
@@ -254,7 +213,7 @@ before this command. The project GHCR and Aliyun repository prefixes are fixed b
 the command; Docker's credential store still owns authentication. Pass explicit
 service names to resume a known subset. Never
 place registry passwords in the command, repository, shell history, or CI logs.
-Push the matching commit afterward and track `build-images`, `mirror-images`, and
+Track `build-images`, `mirror-images`, and
 `deploy-single-vps`; registry publication alone is not deployment success. A local
 `linux/amd64` build without `--from` remains available as a fallback, but it cannot
 guarantee GHCR-identical layer digests. See the tooling guide for build mirror
@@ -336,10 +295,39 @@ GitHub → Actions → **deploy-single-vps** → Run workflow → enter `sha-abc
 
 ## Day-2 operations
 
+### Canonical maintenance access
+
+The current passwordless maintenance entry point is:
+
+```bash
+ssh ubuntu@124.222.245.5
+cd /opt/monorepo
+```
+
+Use direct SSH for read-only diagnosis and explicitly authorized reset-only
+operations that must leave the stack stopped. Normal releases still go through
+the deployment workflow.
+
+### Recreate application data while retaining identity and operator configuration
+
+Only after explicit user authorization, run the deployment workflow with the
+current immutable image tag:
+
+```bash
+gh workflow run deploy-single-vps.yml --ref main \
+  -f tag=sha-<HEAD8> \
+  -f reset_application_data=true
+```
+
+This preserves the PostgreSQL `admin` and `iam` databases, but deletes Storage,
+Canvas, Chat, Runtime, Workflow, Knowledge and Telemetry data, Redis sessions and
+the Storage and ClickHouse data volumes. Never substitute `reset_data=true`, which
+destroys the whole stack. Observe the resulting deployment through health checks.
+
 ### Look at what's running
 
 ```bash
-ssh root@<vps-ip>
+ssh ubuntu@<vps-ip>
 cd /opt/monorepo
 docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs --tail=80 gateway
@@ -384,11 +372,11 @@ Copy the script to the VPS deployment directory. Ensure no deployment job is run
 
 ```bash
 cd /opt/monorepo
-docker stop monorepo-executor monorepo-workflow-db-init
+docker stop monorepo-runtime-worker monorepo-workflow-db-init
 bash repair-workflow-4-to-5.sh
 ```
 
-Keep the printed `workflow-repair.*/workflow.dump` backup. If repair succeeds, rerun the failed `deploy-single-vps` job with the same image tag to finish the official migrations and restart services. Do not start the old executor before this upgrade. If repair fails, keep services stopped and inspect the error; do not delete migration records or reset volumes.
+Keep the printed `workflow-repair.*/workflow.dump` backup. If repair succeeds, rerun the failed `deploy-single-vps` job with the same image tag to finish the official migrations and restart services. Do not start the worker before this upgrade. If repair fails, keep services stopped and inspect the error; do not delete migration records or reset volumes.
 
 The script only repairs the Workflow World database; it does not alter service database baselines. Its regression check uses an isolated disposable PostgreSQL container and the official 4.3.7 package:
 
@@ -396,15 +384,15 @@ The script only repairs the Workflow World database; it does not alter service d
 python3 infra/single-vps/tests/test-workflow-repair.py
 ```
 
-This check requires Docker (`postgres:16-alpine`), Node.js, installed executor dependencies at 5.0.5, and access to the npm registry.
+This check requires Docker (`postgres:16-alpine`), Node.js, the Runtime workspace dependencies for the Workflow upgrade, and access to the npm registry.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | `connection refused` from your laptop | Cloud security group port not open | Open `PUBLIC_PORT` in the cloud console |
-| `502 Bad Gateway` from nginx | Backend pod still booting / crashed | `docker compose logs gateway` |
-| `db-init` stuck | Postgres still initializing | First boot can take 30–60 s; if longer, check `docker compose logs postgres` |
-| Backend containers CrashLoopBackoff | Postgres role password out of sync with `.env.secrets` | Re-run `deploy.sh` (or `bash render-env.sh && docker compose up -d`) so `db-init` reconciles roles from the persisted `.env.secrets` |
-| Frontend loads but API returns 401 forever | `ACCESS_TOKEN_SECRET` differs between gateway and iam (impossible — both read the one rendered `.env`) | `docker compose exec gateway env \| grep ACCESS_TOKEN`, ditto for iam |
+| `502 Bad Gateway` from nginx | Backend pod still booting / crashed | `docker compose -f docker-compose.prod.yml logs gateway` |
+| `db-init` stuck | Postgres still initializing | First boot can take 30–60 s; if longer, check `docker compose -f docker-compose.prod.yml logs postgres` |
+| Backend containers CrashLoopBackoff | Postgres role password out of sync with `.env.secrets` | Re-run `deploy.sh` (or `bash render-env.sh && docker compose -f docker-compose.prod.yml up -d`) so `db-init` reconciles roles from the persisted `.env.secrets` |
+| Authenticated API requests repeatedly return 401 | Expired session or inconsistent Gateway and IAM configuration | Check the Gateway and IAM logs for authentication errors. Verify both services use the same rendered secret reference in the [Compose manifest](docker-compose.prod.yml). |
 | `render-env.sh` fails: age key not found | VPS not bootstrapped / key deleted | Re-run `bootstrap.sh` on the VPS; it regenerates `age.key` and reprints the public key (re-encrypt `secrets.sops.env` if the key changed) |
 | `render-env.sh` fails: sops decrypt error | `.sops.yaml` public key ≠ the VPS's age key | Ensure `.sops.yaml` has the exact public key from `bootstrap.sh`, then `sops updatekeys infra/single-vps/secrets.sops.env` and redeploy |
 | Pulling images is slow / fails | GHCR rate limit (free tier) | Sign in: `docker login ghcr.io -u <github-user>` (use a PAT with `read:packages`) |

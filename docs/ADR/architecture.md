@@ -13,7 +13,7 @@ Runtime 三个角色都保持内部访问，浏览器只经 Chat 产品 API 进�
 
 ## 所有权与依赖
 
-- 服务不导入其他服务源码、不读写其他服务数据库；使用声明的 HTTP binding 和 transport client。跨栈/跨服务契约由 [schemas](../../schemas/AGENTS.md) 管理；多语言同步调用的生成、认证、trace、deadline 与错误边界见 [内部 API 传输决策](inner-api-transport.md)。
+- 服务不导入其他服务源码、不读写其他服务数据库；通过声明的 HTTP 或 RPC binding 调用对方。跨栈/跨服务契约由 [schemas](../../schemas/AGENTS.md) 管理；多语言同步调用的生成、认证、trace、deadline 与错误边界见 [内部 API 传输决策](inner-api-transport.md)。
 - 应用是依赖图叶节点，其他 app/package 不依赖其源码；共享包通过公开 exports 消费。运行时协作通过 URL、事件或后端状态，不跨 app 读取私有 store。
 - 共享实现需要真实多消费者，或必须集中处理的安全/协议原因。提取前列明消费者、需要和当前位置，选择共享实现、只共享契约或继续服务本地实现。
 - `libs/` 不放领域模型；不为语言对称性创建 kernel/transport 包。认证、数据库事务和加密不得随普通工具函数一起抽进大内核。

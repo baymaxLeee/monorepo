@@ -1,219 +1,77 @@
-# Frontend Monorepo — Micro-frontends (Module Federation 2.0)
+# Frontend applications and packages
 
-For UI, design-system, component primitive, or overlay work, read the repository-root `DESIGN.md` before editing. It is the current executable design specification; ADRs only preserve decision history.
+React 19, TypeScript, Tailwind and Rspack applications live here. For UI,
+design-system, primitive or overlay work, read root [DESIGN.md](../../DESIGN.md)
+before editing. The [frontend decision](../../docs/ADR/frontend.md) owns current
+architecture. Use root `just` commands and start with `just context <path>`.
 
-React 19 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
+## Application and package boundaries
 
-JS/TS style is shared with Node backend services and repository scripts through
-root `oxlint.config.ts` and `oxfmt.config.ts`. Root `just lint-ts` checks lint and
-format (including `.mts`/`.cts`); `just typecheck-ts` checks the unified workspace.
-Browser/React source uses an override; build configuration and scripts use Node.
-Browser source rejects Node builtins and ambient Node globals. Test files
-(`*.test.*` / `*.spec.*`) and `test` / `tests` / `__tests__` directories explicitly
-allow both Node and jsdom APIs. Locally declared bundler constants remain valid.
-Package `lint`/`format` commands call the same root tools. Do not add a parallel
-ESLint/Prettier policy. Before committing, run root `just pre-commit` on staged
-files; hook installation is optional and must preserve managed Git hooks.
+- Platform is the only browser entry, `RouterProvider`, authentication boundary
+  and dynamic remote loader. Each remote owns its relative route tree, local shell,
+  state, API use and deploy artifact.
+- MFEs never import one another or read another app's private state. Coordinate
+  through URL state, `@repo/runtime` events or authoritative backend state.
+- `turbo.json` tags enforce the dependency direction:
+  `app -> feature/ui/data/runtime/util`, `feature -> ui/data/runtime/util`,
+  `ui -> ui/util`, `data -> runtime/util`, `runtime -> util`. Nothing depends on
+  an app. Every new package must declare its tag.
+- Consume workspace packages by their real `@repo/*` name and declare
+  `"workspace:*"`. Export public APIs through `package.json#exports`; never import
+  another package's `src/` implementation. Keep heavy capabilities behind public
+  subpaths instead of the main barrel.
 
-## Architecture
+## Runtime, routing and data
 
-```
-platform (host @ :3000)
-  ├── /login                — auth (host-only)
-  ├── loads → admin         (remote @ :3001)  routes: /platform/admin/*
-  ├── loads → chat          (remote @ :3005)  routes: /platform/chat/*
-  └── …                     — new remotes: /platform/<slug>/*
-```
+- Platform provides only identity-critical Module Federation singletons: React,
+  Router, query/state runtime and repository runtime infrastructure. Remotes must
+  not bundle fallbacks for those packages. UI and API capabilities remain ordinary
+  tree-shakeable workspace dependencies. The exact list is owned by
+  `@repo/shared/mf-shared`.
+- Remotes expose `./routes` as a named relative `RouteObject[]`; lazy route modules
+  export `Component`. Do not create a remote router, call `useRoutes` or add a
+  standalone remote page.
+- Ordinary HTTP uses generated clients through `@repo/api`; its single transport
+  owns auth refresh and default error notification. Streaming, blob, redirect and
+  other raw protocols use only the narrow runtime helpers owned by that package.
+  Do not duplicate global error toasts in business code.
+- Platform owns credentials and registers the auth capability in `@repo/runtime`.
+  Remotes consume the capability without importing Platform or persisting tokens.
 
-**platform owns**: auth, top-level routing, layout, global error boundary, MFE registry. **Each `mfe-*` owns**: its sub-routes, state, API calls, deploy artifact.
+## UI and build ownership
 
-## Internal package imports
+- Root `DESIGN.md` owns visual, accessibility, layout and overlay conventions.
+  Design-system registry and primitive work follows the closest
+  [`design-system/AGENTS.md`](packages/design-system/AGENTS.md).
+- Platform loads the single global Tailwind/theme entry. Remotes do not create a
+  second Tailwind/PostCSS pipeline; component-owned CSS and third-party styles stay
+  with their owner or lazy entry.
+- Shared TS, Rspack, Module Federation and browser-capability rules live in the
+  closest [`shared/AGENTS.md`](packages/shared/AGENTS.md). Use installed
+  configuration as fact; do not copy tool versions or compiler settings into apps.
+- AI components use official AI SDK message/tool/file/source parts and existing
+  AI Elements compositions. Custom Chat stream parts follow
+  [`schemas/streaming/chat-uimessage-stream.md`](../../schemas/streaming/chat-uimessage-stream.md).
 
-The Electron Node host also consumes the portable root `@repo/agent-runtime` library through its public exports. This is cross-stack shared infrastructure, not an import of a backend service; browser MFEs do not import it.
+## Generated clients
 
-Browser-facing internal packages are scoped `@repo/*` and is imported by its real pnpm workspace package name — that name is the single module identity:
+Generated API modules are read-only. Change the backend contract and run root
+`just sync`; follow [`packages/api/AGENTS.md`](packages/api/AGENTS.md) for transport
+exceptions and public imports. Do not add handwritten REST facades or copied DTOs.
 
-| Package | Tag | Purpose |
-| --- | --- | --- |
-| `@repo/design-system` | `ui` | shadcn/ui primitives, layout, Tailwind v4 theme (`styles.css`) |
-| `@repo/ai-elements` | `feature` | AI Elements primitives plus the `/conversation` Chat session and workspace compositions |
-| `@repo/editors` | `ui` | Authoring surfaces: markdown (tiptap), code (CodeMirror), file workspace |
-| `@repo/viewers` | `ui` | Read-only previewers: PDF, XMind |
-| `@repo/api` | `data` | Unified axios runtime, auth/session, OpenAPI-generated clients |
-| `@repo/runtime` | `runtime` | MFE registry, event bus, auth context |
-| `@repo/observability` | `runtime` | Tracing / logging / error reporting |
-| `@repo/shared` | `util` | Runtime utilities plus `/typescript-config`, `/rspack` and `/mf-shared` build-time resources |
+## Verification
 
-Every consumer must declare the workspace dependency in its own `package.json` using `"workspace:*"`. An app depends only on the UI packages it actually uses — `platform` needs `design-system` only, `chat` does not pull `viewers`, `admin` does not pull `ai-elements`.
+Run `just test frontend/<workspace-name>` or the target reported by `just context`;
+use `just test-affected HEAD frontend --list` to preview affected suites. Run
+affected typechecks and `turbo boundaries`; build an app when its federation
+entry, bundler configuration, global CSS input or emitted assets change.
 
-包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入 `<包名>/src/...`。如果一个包需要新增对外 API，先在该包 `package.json#exports` 声明子路径，再从包名使用。
+Vitest is the frontend unit/component runner. Use explicit Vitest imports, React
+Testing Library for interaction and accessibility queries for assertions. Unit
+tests do not replace TS7 typechecking, Rspack builds, federation integration or
+necessary rendered interaction checks. Shared testing policy lives in
+[testing.md](../../docs/开发规范/testing.md).
 
-重型组件走子路径入口（不进主 barrel，避免拖慢 tree-shaking / dev 冷启动）： `@repo/editors/markdown-editor`、`/code-editor`、`/file-workspace`、 `@repo/viewers/pdf-previewer`、`/xmind-previewer`、`@repo/ai-elements/prompt-input`。
-
-## Layout
-
-- `apps/<name>/` — independently deployable MFE
-- `packages/<name>/` — capability package, one purpose each (see table above)
-
-### Boundaries are enforced, not documented
-
-`turbo.json` declares tag rules; each package declares its tag in its own `turbo.json`. Run `turbo boundaries` (part of `just lint`) to verify:
-
-- `app` → may depend on `feature` / `ui` / `data` / `runtime` / `util`; **nothing may depend on an `app`** (this is what makes "MFEs never import each other" mechanical)
-- `feature` → `ui` / `data` / `runtime` / `util`; shared feature orchestration may consume API and UI, but never an app.
-- `ui` → `ui` / `util` only — a UI package must not reach into `@repo/api` or `@repo/runtime`
-- `data` → `runtime` / `util`
-- `runtime` → `util`
-
-Adding a package means adding its `turbo.json` with a tag; an untagged package would silently escape these rules.
-
-## Hard rules
-
-### MFE isolation
-
-- MFEs NEVER import from each other (no cross-imports between `apps/*` remotes)
-- MFEs NEVER read each other's state directly
-- Cross-MFE communication ONLY via:
-  - URL params (preferred)
-  - `runtime` event bus (for transient events)
-  - shared backend state (via API)
-
-### Shared package singletons (MF `shared`)
-
-Host provides only runtime-critical shared packages:
-
-- `react`, `react-dom`, `react-router-dom`
-- `zustand`, `@tanstack/react-query`
-- `@repo/runtime`, `@repo/shared`, `@repo/observability`
-
-Remotes consume these from the host with `import: false`; they must not bundle fallback copies of React, router, or platform runtime infra. UI packages and API clients (`@repo/design-system`, `@repo/api`, …) remain normal workspace dependencies so each app can tree-shake the imports it actually uses. MFE remotes are independently deployed asset bundles, but platform is the only user-facing entry.
-
-### Browser capabilities
-
-- Public HTTP origins remain supported. Browser business code generates IDs through
-  `randomId()` from `@repo/shared`; direct `randomUUID` access is rejected by the
-  shared Oxlint gate (`just lint-ts`). Only capability-tested fallback implementations
-  may use a narrow, explained inline exemption. Node code and tests are exempt.
-- Shared Vitest setup removes `crypto.randomUUID` before each test while preserving
-  `getRandomValues`, so consumer tests exercise the HTTP-compatible path by default.
-  Tests of native capability branches must explicitly provide that capability and
-  restore their override. This models UUID availability, not all browser HTTP behavior.
-
-### API calls
-
-- ALWAYS via `@repo/api` (typed wrappers / generated clients re-exported from package entry)
-- 所有非流式请求走**唯一 axios 单例** `apiHttp`（`packages/api/src/http.ts`）：request 拦截器注入 `Bearer` token，response 拦截器统一做 401 refresh-retry + 通用错误处理，并把后端 RFC7807 错误信息（`detail`/`message`/`title`）`toast.error` 出来。业务层 `catch` **不要再手动 toast**——那会重复提示。
-- 唯一例外是 **SSE / 流式 / raw-fetch**（AI SDK `DefaultChatTransport`、blob 源、少量 multipart/raw fetch）：它们无法过 axios，改用 `authFetch` （同样镜像 401 refresh 策略），错误在调用点自行 `toast.error(getErrorMessage(err))`。
-- 需要**抑制**拦截器全局 toast（后台探针、或页面自渲染内联错误 UI）时，给该请求传 `skipErrorNotify: true`（`ApiRequestConfig`）；内联错误文案统一用 `@repo/shared` 的 `getErrorMessage(err, fallback)` 提取。
-
-### shadcn / Tailwind v4
-
-- **Tailwind v4 + theme**: `packages/design-system/src/styles.css` (`@import "tailwindcss"`, `shadcn/tailwind.css`, `@theme` + sidebar tokens)
-- **Build**: **platform host only** — `@tailwindcss/webpack` wired in `@repo/shared/rspack`; `main.tsx` imports `@repo/design-system/styles.css`（公开 CSS 入口）
-- **@source** in `styles.css`: `apps/*/src/**/*.{ts,tsx}` + all four `ui`-tagged packages (not shared/runtime/api). 新增 UI 包必须补一条 `@source`，否则该包的 class 会被 Tailwind 漏扫。
-- **MFE remotes**: no PostCSS/Tailwind; app-level styles come from platform-injected `@repo/design-system/styles.css`. Component-owned CSS/CSS Modules and third-party CSS stay inside their owner or lazy component entries and are handled by the shared remote CSS rule.
-- **Style ownership**: every layer is Tailwind-first. Keep `packages/design-system/src/styles.css` limited to theme/tokens, base, cross-package utilities and global interaction policy; capability and app styles live beside their owning component. Editors, canvases, generated third-party DOM, pseudo-elements, print and keyframes may use private `.module.css` or a component-root-scoped `.css` when that is clearer than utilities. Less, app-specific Less loaders and cross-package private-selector overrides are forbidden.
-- **UI capability packages**: normal workspace dependencies, not MF-shared; preserve tree-shaking
-- **State**: shared cross-MFE state primitives live in `@repo/runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `@repo/runtime`.
-- **Shell 三层布局**: platform `Layout` 持有稳定的最外层 Apps rail，通过 Admin app registry 与既有访问策略展示可进入的 MFE；rail 底部同时持有全局账号菜单（个人资料、记忆入口、团队切换、退出），不复制 Admin 应用入口。它只负责应用身份、账号能力和跨 app 路由，不读取 MFE 私有状态；需要唤起 MFE 能力时使用 URL 状态。第二栏由当前 MFE 持有 menus，第三栏是该 MFE 的内容区。认证、组织准入与应用权限继续由 platform route `middleware` 处理，业务组件不得自行实现首屏路由守卫。Chat menus 含会话/项目，Canvas menus 含项目能力，Admin menus 含设置分组。登录落地 `/platform/chat`；跨 app 切换统一走 Apps rail，不在 MFE 中复制返回应用入口。不要在 platform 添加业务菜单或顶栏。
-- **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `@repo/design-system` 导出）
-- **浮层层级**: Dialog / AlertDialog / Sheet / Drawer 及其 portalled popup 必须遵循根 `DESIGN.md#overlay-layering`。业务代码不得维护 z-index 数字表或向子组件逐层透传 popup z-index；新增或修改浮层原语时先读该规范。
-- **MFE 内 Provider**: 每个 remote 的 `App` 也要挂载自己的 `TooltipProvider`；`Toaster` 保持由 platform 统一挂载
-- **表单**: 直接使用 `react-hook-form` 的 `Controller` + Base Nova `Field` + `zod`；官方 `Form` registry 文件保持完整，但业务代码不与 `Field` 混用其旧 `FormControl` 组合，业务页勿手写裸 `Label`+`useState` 校验
-- **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`
-- **原语约定（shadcn v4 / Base Nova / Tailwind v4）**: shadcn 原语一律**扁平 kebab-case 文件**放在 `packages/design-system/src/shadcn/`，命名导出，以 `@base-ui/react` 作为唯一行为底座。Base UI 组合统一使用 `render={<Element />}`，禁止新写 Radix `asChild`。原语间交叉引用写作 `@repo/design-system/shadcn/<name>`；`src/shadcn/index.ts` 与 `src/index.ts` 统一公开。业务消费方从 `@repo/design-system` 导入，重型组件归入 `@repo/ai-elements` / `@repo/editors` / `@repo/viewers`。
-- **完整 registry 基线**: design-system 保持官方 Base Nova registry 的完整组件集合；`message-scroller` 与 `questionnaire` 是 shadcn 官方复合组件，行为来自 `@shadcn/react`，不是 Base UI 原语。`@shadcn/react` 要求 React 19，因此不得回退 React 主版本或移除这两个组件。
-- **仓库级集成**: registry 生成文件只保留少量集中扩展：modal/popup 接入 `portal-layer.tsx`，`*Content` 把 `container` 传给 Base UI `Portal`，定位 props 传给 `Positioner`；`form.tsx` 保持 React Hook Form 组合。升级后统一重放这些集成并用全仓 typecheck 验证，不恢复旧 Radix fork。
-- **shadcn CLI / MCP（已接入）**: 根 `.cursor/mcp.json` 注册 `shadcn` server（cwd=`apps/frontend/packages/design-system`，`components.json#style=base-nova`、`ui` 别名=`@repo/design-system/shadcn`→`src/shadcn`）。CLI 在 monorepo 里要求 `packages/shared` 也有有效 `components.json` + `tsconfig.json`，勿删。新增多个标准原语时在一条 `pnpm ui:add <component...> --overwrite -y` 中批量生成，避免逐文件手写。
-  - **CLI 入口**: 两个包的 `ui:add` 都直接执行官方 `shadcn add`，版本统一来自 catalog。根目录 `just ui-add button` / `just ai-add @ai-elements/message` 通过 `pnpm --dir` 进入对应包，原样传参；预览直接追加官方 `--dry-run` / `--diff` / `--view`。AI Elements 配置和生成位置见该包 [README](packages/ai-elements/README.md)。
-  - **registry 取舍**: 优先官方 shadcn/Base Nova registry；不要引入另一套 Radix、Arco、Ant Design 或 MUI primitive。第三方 registry 必须适配现有 Base UI、主题和公共 API，不能带入第二套底座。
-- **组件升级/新增流程**（在 `apps/frontend/packages/design-system`）:
-  1. **必须 Node 24.18.0 + pnpm 12.5.1 环境**（用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，避免 CLI 内部 `pnpm add` 落到错误版本或 store）。
-  2. 全量升级使用根目录 `just ui-add --all --overwrite -y`；新增一批组件使用 `just ui-add <component...> --overwrite -y`（包内对应 `pnpm ui:add`，或经 shadcn MCP `add`）。两者都集中生成到 `src/shadcn/`，不要逐文件手抄。
-  3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。Base UI Toast 的命令式 `toast` 与 `Toaster` 也从该公共入口导出。
-  4. `mise exec -- pnpm -F @repo/design-system typecheck` + 受影响 app `typecheck` + `pnpm -F platform build`。
-  5. 新 MFE 通过 admin 应用注册中心登记 `base_path`、`remote_name`、`./routes` 与 manifest `entry`；platform 无需静态改源码。
-- **MFE 路由契约**: platform 是唯一 `RouterProvider`。remote 的 `./routes` 命名导出相对 `RouteObject[]`，页面入口按 `route.lazy` 约定命名导出 `Component`；禁止 remote 再建 router 或调用 `useRoutes`。
-
-### React Compiler（build-time 自动记忆化，已启用）
-
-- **原生 SWC 路线，无 Babel**: Rspack **≥ 2.2** 把 React Compiler 用 Rust 移植进 `builtin:swc-loader`，通过 `jsc.transform.reactCompiler` 开启。统一封装在 `@repo/shared/rspack` 的 `createSwcRule({ reactCompiler })`，四个 app 均以 `createSwcRule({ reactCompiler: { target: "19" } })` 接入——**别再各自内联 swc rule**。React 19 原生包含 compiler runtime；禁止重新加入 `react-compiler-runtime`。
-- **模式**: 默认 `infer`（全量自动记忆化）；`panicThreshold` 默认 `none`——违反 Rules of React 的文件会被**安全跳过**、不炸构建。若要单文件退出用 `"use no memo"`，单文件强制用 `"use memo"`。
-- **约束**: 记忆化正确性依赖遵守 Rules of React（不要在渲染期 mutate props/state、hooks 只在顶层调用）。新组件若出现 stale/异常，先怀疑规则违背，用 `"use no memo"` 临时隔离再修。
-- **版本**: `@rspack/core`/`@rspack/cli` ≥ `2.2.7`；Module Federation Enhanced ≥ `2.9.1`。React 及其 JSX runtimes、React DOM 均保持 `^19.0.0` strict singleton；勿降回旧基线或允许 remote 打包 fallback React。
-
-### TypeScript 7（原生检查器双轨过渡）
-
-- `@typescript/native` 固定原生 TypeScript 7，负责所有 `typecheck`；各包脚本显式调用 `node_modules/@typescript/native/bin/tsc`，不得改回不确定来源的裸 `tsc`。
-- `typescript` 5.x 暂时只服务仍依赖旧编程 API / peer range 的 Module Federation、Orval / TypeDoc、shadcn 等工具，不负责仓库类型检查；上游兼容稳定 API 后直接删除旧版本。
-- 普通 TS package 不得直接声明旧 `typescript`；每个含 TS 源码的 workspace package 必须提供独立 TS7 `typecheck`。只有承载明确旧 API / peer 消费者的 package 可保留 TS5。
-- 共享编译选项只维护在 `packages/shared/typescript-config.json`。所有 app/package 必须声明 `"@repo/shared": "workspace:*"` 并从 `@repo/shared/typescript-config` 继承；只有 shared 自身使用包内相对路径，避免自引用解析。禁止用跨目录相对路径继承根 `tsconfig.base.json`。
-- TS7 不支持 `baseUrl`；`paths` replacement 必须以 `./` 开头，并相对声明它的项目 `tsconfig.json`。浏览器代码不要依赖默认注入的 Node 全局类型，计时器使用 `ReturnType<typeof setTimeout>`。
-- 浏览器基线显式使用 DOM libraries 与 `types: []`；Node 构建配置显式使用仅 ES 的 `lib` 与 `types: ["node"]`。Vitest API 在测试文件显式导入，不向业务配置注入 `vitest/globals`；不通过增加 Node polyfill 来绕过检查。
-- VS Code / Cursor 使用微软 `TypeScriptTeam.native-preview` 扩展，并在编辑器设置中启用 `js/ts.experimental.useTsgo`。
-
-### Code style
-
-- Oxfmt + Oxlint use the repository root configs; the default line width is 120.
-- Components: PascalCase, ≤ 250 LoC, no default exports in libs
-- ESM public APIs: named exports only. Private lazy chunks may default-export the component loaded by `React.lazy`; React Router lazy entries export `Component`, and Module Federation route entries export `routes`.
-- Hooks: `use*`, named exports only
-- Types: no `any`, prefer `unknown` + narrow
-- Styles: Tailwind utilities from the `@repo/design-system` theme; avoid arbitrary values
-
-## Commands (from `apps/frontend/`)
-
-| Command             | Purpose                                           |
-| ------------------- | ------------------------------------------------- |
-| `just dev platform` | Start platform only (port 3000)                   |
-| `just dev <mfe>`    | Start a single MFE (port from PORTS map)          |
-| `just dev-all`      | Start platform + all MFEs (heavy)                 |
-| `just lint`         | Oxlint + Oxfmt check + TS7 typecheck + boundaries |
-| `just test [workspace-name]` | Run Vitest; use `@repo/ai-elements` for AI and conversation components |
-| `just boundaries`   | Package dependency-tag rules only                 |
-| `just fmt`          | Oxfmt rewrite (auto-run, no need to ask)          |
-| `just gen-client`   | Regen `@repo/api` from `schemas/openapi/`         |
-
-## Size limits
-
-- ≤ 250 LoC per component file
-- ≤ 400 LoC hard ceiling — split if exceeded
-
-## Forbidden zones for agents
-
-- `packages/api/index.ts` and `packages/api/src/*-server.ts` — codegen output
-- `dist/`, `.rspack/`, `node_modules/`
-
-## Done checklist
-
-1. `just lint` (includes typecheck + `turbo boundaries`)
-2. `just test <workspace>` for affected behavior
-3. `just fmt` only when formatting actually drifted — not after every edit
-4. `pnpm -F <app> build` to verify the MF artifact is valid
-
-## Frontend testing
-
-After changing behavior, run root `just test-affected HEAD frontend` or
-`just test frontend/<workspace-name>`, for
-example `just test frontend/@repo/ai-elements` or `just test frontend/chat`. Run root
-`just test frontend` after shared testing changes. CI uses `just test-affected`
-with the PR/push base SHA to select the same test targets.
-
-- Vitest is the sole frontend unit/component runner. Colocate `*.test.ts(x)` in `src` or `test`.
-- `vitest.config.mts` discovers app/package projects and preserves workspace
-  package exports; app-local `@` resolves to that app's `src`.
-- Use explicit imports from `vitest`, React Testing Library for interaction,
-  standard DOM properties / Testing Library accessibility queries for assertions,
-  and the shared `test/setup.ts` for cleanup.
-- The workspace exposes `pnpm test` (one run) and `pnpm test:watch`. A selected
-  project with no tests fails; `just test-list` exposes packages without suites.
-- Rspack remains the build tool. Test configuration must not load federation
-  plugins or replace workspace exports with unrelated source files. Vitest
-  does not replace TS7 typechecking, Rspack builds or federation integration tests.
-- Projects may provide `test/global-setup.ts` for compiled/native test prerequisites;
-  the root runner discovers it before starting workers, avoiding per-suite build races.
-- `.pnpmfile.mjs` removes unused webpack peers from the Rspack loaders/plugins.
-  Keep it in every install context, including Docker. After changing the hook or
-  upgrading its consumers, regenerate the lockfile and run root `just build frontend`.
-- New frontend packages with tests declare their test dependencies using the
-  workspace catalog, including `vitest`; no package-specific test framework.
+Use the root Oxc configuration; do not add ESLint/Prettier. Apply scoped format or
+lint fixes explicitly and inspect the diff. Never hand-edit generated clients,
+`dist/`, `.rspack/` or dependencies under `node_modules/`.

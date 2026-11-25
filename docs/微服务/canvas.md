@@ -3,7 +3,7 @@
 Canvas 是 Go 服务，监听 `8012`，拥有项目、画布、节点、素材、生成任务和用量记录；
 业务元数据归 `canvas` PostgreSQL 数据库所有。媒体 bytes 由 Storage 持久化，
 Canvas 自有的 durable 任务由同一镜像的 `worker` 进程领取，模型与运营配置从
-`admin` 获取，服务之间只走声明过的 HTTP binding。
+`admin` 获取，Canvas 通过声明的 gRPC binding 调用 Admin 和 Storage。
 
 ## 运行配置
 

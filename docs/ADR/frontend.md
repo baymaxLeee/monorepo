@@ -100,7 +100,7 @@ Streamdown 使用 sanitize + harden，禁止模型 Markdown 图片自动发起�
 `@shadcn/helpers/ai-sdk` 仅用于确定性测试传输，测试真实 `useChat` 的授权拒绝和
 历史加载；生产传输仍由 feature 层持有。
 
-Checkpoint 是跨 Chat/Knowledge 的新会话分支，行为见 [Chat](../微服务/chat.md)。
+创建会话分支时，Chat 校验产品权限并映射新会话，Runtime 执行 Session fork。见 [Chat 分支用例](../../apps/backend/services/chat/internal/application/service.go)。
 UI 组合不创建运行时：Subagent 依赖实际工具 outcome，FileTree 打开受权资源，
 TestResults 只识别完整 TAP 13 标准输出。
 

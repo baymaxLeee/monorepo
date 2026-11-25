@@ -1,25 +1,27 @@
 # Project Monorepo
 
-Python, TypeScript and Go services in `apps/backend/`; React/Rspack micro-frontends
-in `apps/frontend/`. Run commands from the repository root.
+Python, TypeScript and Go services live in `apps/backend/`; React/Rspack
+micro-frontends live in `apps/frontend/`. Run repository commands from the root.
 
-## Locate the task
+## Locate and route the task
 
-Use `just context <path-or-target>` for owner, AGENTS chain, dependencies,
-consumers and test command. `just repo-map` lists projects; both support `--json`.
-Read only relevant routes and every closer AGENTS file. See the
+Start with `just context <path-or-target>` to find the owner, applicable AGENTS
+chain, dependencies, consumers and test command. Use `just repo-map` to list
+projects; both commands support `--json`. Read only the relevant route and every
+closer AGENTS file. See the
 [CLI usage guide](scripts/README.md#agent-command-guide) for examples and limits.
 
 | Task | Required route |
 |---|---|
-| Frontend UI/design-system/overlay | [frontend](apps/frontend/AGENTS.md) → [DESIGN.md](DESIGN.md) → closest AGENTS |
-| Frontend non-UI | [frontend](apps/frontend/AGENTS.md) → closest AGENTS |
-| Backend service/library | [backend](apps/backend/AGENTS.md) → closest AGENTS |
+| Frontend UI/design-system/overlay | [frontend](apps/frontend/AGENTS.md) -> [DESIGN.md](DESIGN.md) -> closest AGENTS |
+| Frontend non-UI | [frontend](apps/frontend/AGENTS.md) -> closest AGENTS |
+| Backend service/library | [backend](apps/backend/AGENTS.md) -> closest AGENTS |
 | Contracts/codegen | [schemas](schemas/AGENTS.md) |
 | Infrastructure/deployment | [infra](infra/AGENTS.md) |
+| VPS operations or data recovery | [infra](infra/AGENTS.md) -> [Single-VPS runbook](infra/single-vps/README.md#day-2-operations) |
+| Registry mirror failure / domestic publish | [tooling](scripts/AGENTS.md) -> [registry recovery](infra/single-vps/README.md#recover-a-failed-cross-region-mirror) |
 | Repository scripts/CI/test tooling | [tooling](scripts/AGENTS.md) |
-| Registry mirror failure / domestic registry publish | [tooling](scripts/AGENTS.md) → [Single-VPS registry guide](infra/single-vps/README.md#recover-a-failed-cross-region-mirror) |
-| Architecture/business documentation | [documentation rules](docs/AGENTS.md) → [current specs](docs/index.md) |
+| Architecture/business documentation | [documentation rules](docs/AGENTS.md) -> [current specs](docs/index.md) |
 | Design/architecture/review/refactor/non-trivial planning | [plan skill](.agents/skills/plan/SKILL.md) |
 | Full-stack feature | [full-stack playbook](.agents/playbooks/full-stack-feature.md) |
 | New service / MFE | [service](.agents/playbooks/new-microservice.md) / [MFE](.agents/playbooks/new-mfe.md) |
@@ -28,29 +30,7 @@ Read only relevant routes and every closer AGENTS file. See the
 | Behavior/config/contract/lifecycle change | [change verification](.agents/playbooks/change-verification.md) |
 | Unclear edit scope | [scope guidance](.agents/scopes/default.yaml) |
 
-## Critical recovery commands
-
-1. **Large refactor image prewarm — `just publish-images`.** After a large
-   refactor changes many image layers, wait for `build-images` to publish the
-   exact current HEAD, then run this command from a clean checkout. It compares
-   every immutable GHCR `sha-<HEAD8>` image with Aliyun, syncs only mismatches,
-   verifies the complete set and moves `main` only after all requested images
-   match. Use it proactively before relying on the cross-region `mirror-images`
-   transfer; a local rebuild is only a fallback.
-2. **VPS application-data rebuild — `gh workflow run deploy-single-vps.yml --ref main -f tag=sha-<HEAD8> -f reset_application_data=true`.** Use only when the user explicitly authorizes
-   recreating VPS application data while retaining identity and operator
-   configuration. It preserves the PostgreSQL `admin` and `iam` databases, but
-   deletes Storage, Canvas, Chat, Runtime, Workflow, Knowledge and Telemetry data
-   plus Redis sessions and the Storage and ClickHouse data volumes. Never
-   substitute `reset_data=true`, which destroys the whole stack. Observe the
-   resulting deploy through health checks.
-3. **VPS maintenance SSH — `ssh ubuntu@124.222.245.5`.** This is the canonical
-   passwordless maintenance entry point for `/opt/monorepo`. Use direct SSH for
-   read-only diagnosis and explicitly authorized reset-only operations that must
-   leave the stack stopped; normal releases still go through the deployment
-   workflow.
-
-## Architectural invariants
+## Repository-wide invariants
 
 - One primary agent owns a feature end to end. Helpers are limited to mechanical
   work, read-only exploration and independent review; never split frontend and
@@ -62,116 +42,70 @@ Read only relevant routes and every closer AGENTS file. See the
   contain proven infrastructure capabilities, never domain models.
 - IAM owns identity, tenants/workspaces, membership and roles. Admin owns scoped
   operator configuration: providers, skills, integrations and app registry.
-  Consumers fetch/cache authoritative state rather than replicating owner tables.
+  Consumers fetch or cache authoritative state instead of replicating owner tables.
 - Agent assembly is not a product or runtime concept. Do not add configurable
-  Agents/Bots, Agent factories/profiles, resolved-Agent contracts or per-Agent
-  capability selection; each host runs the single shared loop and capability set.
-- For runtime and lower-level agent-harness architecture—including the agent
-  loop, session and context lifecycle, tool execution, approvals, sandbox and
-  process isolation, permissions, cancellation and recovery—inspect the local
-  `~/projects/codex` and `~/projects/pi` checkouts and the relevant current
-  `openai/codex` and `earendil-works/pi` upstream implementations before designing
-  or changing it. Treat proven Codex patterns as the default engineering and
-  safety baseline; use Pi as a complementary reference for a small core, compact
-  hot-tool surface and Bash-first generality. Adapt both to this repository's
-  single shared AI SDK loop and boundaries: do not rebase the runtime on Pi or
-  introduce a second loop, permission model or tool protocol. Current
-  primary-source research into Claude Code may supplement those references;
-  document intentional divergences and tradeoffs, and respect applicable
-  licenses rather than copying blindly.
+  Agents/Bots, factories/profiles, resolved-Agent contracts or per-Agent
+  capability selection. Runtime and lower-level harness changes must follow the
+  current [Agent Runtime decision](docs/ADR/agent-runtime.md), preserve the single
+  AI SDK loop and verify unfamiliar choices against the referenced primary sources.
 - Reuse official AI SDK message, stream, tool and artifact primitives. Verify
-  unfamiliar APIs against installed types/source and platform decisions against
-  current primary sources. Do not invent limits or orchestration policy.
-- Refactor systemic problems directly while preserving stored data and deployment
-  compatibility. Database changes require new versioned migrations, never edits
-  to applied baselines or data resets. Unless the user explicitly opens a new
-  release, append the next contiguous step inside that service's highest existing
-  three-part migration directory; never create a new major, minor or patch
-  migration directory on your own. Follow
-  [database migrations](docs/开发规范/database-migrations.md).
-  Preserve unrelated working-tree changes.
+  unfamiliar APIs against installed types/source; do not invent limits or
+  orchestration policy.
+- Preserve stored data and deployment compatibility. Database changes follow the
+  [migration contract](docs/开发规范/database-migrations.md): append versioned
+  migrations, never rewrite applied history or reset data to make an upgrade pass.
+- Put narrower rules in the closest AGENTS file. Do not copy owner-specific
+  inventories or runbooks into this repository entry point.
 
 ## Work and verification
 
-Before behavior edits, trace entry point → implementation → consumers → tests.
+Before behavior edits, trace entry point -> implementation -> consumers -> tests.
 State the observable result and protected invariant. Reproduce bugs with a focused
-failing test before fixing them; if unavailable, state the gap. Lifecycle,
-authorization, concurrency and retry changes need failure/cleanup coverage.
+failing test before fixing them; if that is unavailable, state the gap. Lifecycle,
+authorization, concurrency and retry changes need failure and cleanup coverage.
 
-| Command | Purpose |
-|---|---|
-| `just install` | Dependencies and local examples |
-| `just up` / `just down` / `just dev` | Local infrastructure/development |
-| `just build [target]` | Build apps/services |
-| `just sync` | Regenerate contracts and clients |
-| `just test-list` | Targets and missing suites |
-| `just test <target> [args...]` | Target tests, e.g. `frontend/@repo/ai-elements` |
-| `just test-affected [base] [scope] [--list]` | Dependency-aware tests; HEAD includes local edits |
-| `just check-repo` | Project graph and documentation navigation |
-| `just lint` / `just check` | Static checks / lint + tests + generated-contract checks |
-| `just lint-ts` / `just typecheck-ts` | Shared frontend, Node and scripts Oxc checks / TS7 types |
-| `just lint-py [args...]` / `just fmt-py [args...]` | Native Ruff lint / format; checks do not rewrite unless requested |
-| `just check-py` | Repository-wide Ruff lint + format check and backend mypy |
-| `just pre-commit [--all-files]` | Read-only staged checks / all tracked files |
-| `just ci-plan [base]` / `just ci [base]` | Optional preview / local diagnostic of the remote code gate |
-| `just push [remote] [branch]` | Validate clean Git refs against fresh remote main, then push one fixed SHA without code checks |
-| `just publish-images [services...] [--dry-run]` | Compare the current immutable GHCR release with Aliyun, sync mismatches and verify the complete image set |
-| `just publish-images-local <target> <sha-tag> [services...] [--from <source>] [--alias main]` | Advanced local build or exact registry-sync interface |
-| `just status` / `just doctor` | Repository/environment health |
+Use `just --list` and the [CLI guide](scripts/README.md) for command details.
+`just test <target>` verifies one target; `just test-affected HEAD all --list`
+previews affected suites. Use `just build <target>` for affected applications,
+`just sync` for generated contracts and `just check-repo` for repository and
+documentation consistency.
 
-After code changes, run affected-target tests and builds. Test runner/discovery
-changes that can alter every suite require root `just test`; local CI planner and
-safe-push changes require the tooling suite plus representative plan tests.
-Repository-wide quality-policy changes require root `just lint`.
-Contract changes require `just sync` and producer/consumer verification. Structural
-changes must keep affected install, infra, dev, build, sync and lint recipes
-working. Multi-phase/service work follows the
+For ordinary code changes, run the tests that cover the change and lint the edited code.
+Reuse those results for commit and push while the checked inputs are unchanged.
+Add a local typecheck for a changed type boundary or a build when the deliverable
+depends on packaging, code generation or build configuration. Remote CI runs the
+complete code gate for the pushed SHA. Runner/discovery changes that
+can alter every suite require root `just test`; repository-wide quality-policy
+changes require root `just lint`; contract changes require `just sync` plus
+producer and consumer verification. Multi-phase work follows the
 [completion review](.agents/playbooks/completion-review.md).
-[Test policy](docs/开发规范/testing.md) owns empty-suite and runner behavior.
 
 Reuse passing checks until affected code changes. Missing dependencies, skipped
 tests and absent suites are unverified, never passes. Distinguish tests, lint,
-typechecks, builds and integration checks. Report results/gaps briefly, without
-a separate validation report. Documentation-only work needs link, command and
-consistency checks, not application builds.
+typechecks, builds and integration checks. Documentation-only work needs link,
+command and consistency checks, not application builds. Review the final diff and
+report actual results and gaps without creating a separate validation report.
 
-Do not repeat equivalent lint, type, test or build checks merely because a commit
-or push is next. Use `just pre-commit` only when the staged snapshot was not already
-covered by equivalent focused format/lint checks; use `just pre-commit --all-files`
-after changing shared quality configuration. Hooks use the workspace-locked
-Ruff/Oxc versions; never override a managed `core.hooksPath` to install them. Fix
-explicitly with native `--fix` or format commands, review the diff and stage it again.
+## Editing and external state
 
-Before pushing, follow the [local CI loop](scripts/README.md#local-ci-and-fast-push).
-Fix failures found during development, review the final diff, and create the
-authorized commit. `just ci-plan` and `just ci` remain optional diagnostics; do
-not run them only to duplicate focused checks before commit or push. Use
-`just push [remote] [branch]` for clean-tree, ancestry, destination and remote-race
-checks plus a fixed-SHA push; it intentionally runs no lint, test or build. Never
-bypass a failed Git/ref safety check with raw Git, force or hook overrides. Do not
-weaken tests or suppress missing suites to obtain a pass. Inspect authoritative
-remote CI for the pushed SHA; a successful push does not establish code quality,
-image publication or deployment success.
-This workflow does not itself authorize a commit or push.
-
-When `mirror-images` fails on cross-region blob transfer, inspect the failed job first. After `build-images` publishes the current HEAD, use `just publish-images` to compare and sync the exact immutable GHCR release into the configured Aliyun registry; its repository endpoints are intentionally fixed for this project. A local rebuild of the same source may produce different layer digests and is only a fallback through the advanced `publish-images-local` command. The command must move `main` only after every requested immutable image verifies. Never use mutable source tags or embed credentials in commands/files. Registry recovery is not proof of deployment; observe mirror and deploy afterward.
-
-## Editing and context discipline
-
-- Root `just` recipes are the public CLI; update every caller when changing them.
-- Preserve unrelated edits; never reset, stage or rewrite them.
-- Never hand-edit generated output. Do not edit secrets, `.env*`, migrations,
-  worktrees or lockfiles unless required by the task or owning routed rules.
-- Run `just fmt` only when requested or needed. Comments explain non-obvious reasons.
-- Use source, logs, tests and local APIs first. Browser/computer tools require an
-  explicit request or a claim only verifiable through rendering/interaction.
-- Put rules in the closest AGENTS. Update current architecture/business conventions
-  in place through [docs/index.md](docs/index.md). Topic-based ADRs describe current
-  decisions; Git preserves prior versions. A durable decision with its own retrieval
-  key, cross-boundary lifecycle or material tradeoff may need a new descriptive ADR;
-  use [ADR instructions](docs/ADR/AGENTS.md) instead of burying it in a catch-all.
-  Old plans/progress notes are opt-in history. Do not append conflicting updates to
-  a current specification.
+- Preserve unrelated working-tree changes. Never reset, stage, rewrite or delete
+  them. Do not hand-edit generated output, secrets or `.env*`; edit migrations,
+  lockfiles and worktrees only when the task and owning rules require it.
+- Apply fixes explicitly with the owning formatter or `--fix` command, inspect the
+  diff and stage again. Do not run broad formatting merely because a commit is next.
+- Prefer source, logs, tests and local APIs. Use browser/computer tools only when
+  explicitly requested or when a claim requires real rendering or interaction.
+- Update the current owning specification in place through
+  [docs/index.md](docs/index.md). Git preserves history; do not append conflicting
+  overrides or duplicate architecture manuals. Follow
+  [ADR instructions](docs/ADR/AGENTS.md) for durable cross-boundary decisions.
+- Commit and push only when authorized. Follow the
+  [local CI loop](scripts/README.md#local-ci-and-fast-push), use `just push` for
+  Git/ref safety and never bypass its failure with raw Git, force or hook
+  overrides. Inspect authoritative remote CI for the pushed SHA; a successful
+  push does not prove code quality, image publication or deployment success.
+- Destructive recovery requires explicit user authorization and the owning
+  runbook. Resolve exact targets first; never substitute a broader reset.
 - Ask only when a remaining decision changes scope, product behavior or external
-  state. Existing user authorization applies throughout the task.
-- Use Conventional Commits with a scope, e.g. `fix(canvas): ...`.
+  state. Existing authorization remains valid within the agreed task.
+- Use Conventional Commits with a scope, for example `fix(canvas): ...`.

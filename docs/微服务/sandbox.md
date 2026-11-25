@@ -8,7 +8,7 @@
 
 首次执行工具或 SDK sandbox 调用懒创建一个 run 沙箱。Runtime 从精确 Storage revision 恢复可编辑的会话产物与 Plan，并将用户附件写入只读 `/workspace/sources/attachments/<upload-id>/<filename>`。显式刷新来源时，Knowledge 原件导入 `sources/documents/`。`sources/workspace-manifest.json` 记录 file id、路径、revision、可编辑状态和 ETag。除 `.home` 和 `sources` 外的业务树可写。进程的 cwd 和环境变量不跨命令继承，文件在同一 run 内保留。
 
-- `bash`：唯一模型可见的 shell 工具。`{command,workdir?}` 通过当前 run 的官方 AI SDK `SandboxSession.run` 启动；未终止时返回 `session_id`，后续仍用 `bash({session_id,stdin?})` 写入或轮询。Stop 传播 AbortSignal，输出按模型提供的 token budget 保留首尾和遗漏元数据；需要完整日志时命令显式重定向到工作区文件。
+- `bash`：唯一模型可见的 shell 工具。`{command,workdir?}` 通过当前 run 的官方 AI SDK `SandboxSession.run` 启动；未终止时返回 `session_id`，后续仍用 `bash({session_id,stdin?})` 写入或轮询。Stop 传播 AbortSignal，输出按模型提供的 token budget 保留首尾和遗漏元数据；截断且宿主已保留完整输出时，结果携带日志路径，可用 Bash 按字节分段读取。见[命令会话测试](../../packages/agent-runtime/src/execution/command-sessions.test.ts)。
 - `read_file`、`apply_patch`、`write_file`：模型可见的原生 UTF-8 文件工具。shared execution host 在执行前解析并冻结精确路径集合，拒绝 workspace escape、受保护路径和 profile 未授权访问；Cloud adapter 通过条件 upload/delete contract 执行，SHA-256 不匹配时拒绝过期覆盖。它们与 Bash 共用 Turn 级 `ToolOrchestrator + ProcessManager`、process identity 和 AbortSignal，不从 Runtime Node `fs` 旁路。
 - SDK sandbox adapter 同时实现 binary/text read/write 和 `spawn`。SDK 可写业务树但不能写 `.home/sources`；当前 transport 不支持 writable spawn stdin，必须在启动前明确拒绝 `stdin: true`。
 - 首次需要工作区的 Bash 或文件工具自动导入当前会话 source；`refresh_session_sources` 只导入并返回本轮其他工具随后新增或更新的路径，并通过 `tool_search` 按需加载。

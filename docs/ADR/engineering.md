@@ -27,7 +27,7 @@ Node workspace dependency/dev/peer/optional 构成源码依赖图，应用保持
 算通过。测试工具变更执行全量入口；仅文档变更不需要应用构建。
 
 推送授权与验证生命周期由[本地验证与受控推送](verified-push.md)维护；
-模型负责诊断修复，CLI 依据实际检查结果约束固定提交的推送。
+模型负责诊断修复，推送命令检查 Git 引用并发送固定提交，远端 CI 对该 SHA 执行代码门禁。
 
 ## 端到端代码规范与提交前自检
 
@@ -76,6 +76,18 @@ agent 先加载短指令，再按任务读取相关决策，不必把整本架�
 这里使用 Git 保存旧版本，工作树只提供当前快照。追溯历史用 `git log -- docs/ADR`
 和 `git show <commit>:<path>`，默认开发不加载旧计划、基线或进展记录。
 尚未落地的提案与当前实现分开，不能以文档“已接受”替代真实代码验证。
+
+## 仓库入口的设计依据
+
+OpenAI 的工程实践把根指令作为目录，使代理逐步发现知识。这里将命令枚举交给
+`just --list`，服务拓扑交给 manifest，文档索引负责回答“去哪查”。导航检查能发现
+文件消失，仍有效的链接也可能指向过时的说明；涉及服务归属或能力移除时，还需核对
+注册入口、消费者和测试。[OpenAI 的仓库组织实践](https://openai.com/index/harness-engineering/)
+
+多客户端共享目录级 AGENTS。Copilot 的支持范围随 CLI、云代理和 IDE 功能变化；
+Claude Code 的加载受版本、配置与同路径 CLAUDE 文件影响。进入子项目时，
+`just context` 提供可复查的规则链。[Copilot 指令支持范围](https://docs.github.com/en/copilot/reference/custom-instructions-support)、
+[Claude Code 项目指令](https://code.claude.com/docs/en/memory)
 
 ## 参考与适用边界
 

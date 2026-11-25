@@ -19,6 +19,8 @@
 | AI 开发流程 | [根规则](../AGENTS.md)、[agent workspace](../.agents/README.md) |
 | 部署 | [部署规则](../infra/AGENTS.md)、[Single-VPS](../infra/single-vps/README.md)、[K8s 生产](../infra/k8s/overlays/prod/README.md) |
 
+查某个接口或功能是否仍在使用，先从对应服务的 schema、注册入口或行为测试取证。例如视频工具的名称与完成条件见 [Runtime 工具清单测试](../apps/backend/services/runtime/src/application/agent/tools/builtins/media.test.ts)，Chat 持久化的表见 [Chat migrations](../apps/backend/services/chat/migrations)。重命名服务或移除能力时，同时搜索现行总览、业务说明、ADR 和运行手册里的旧名，更新指向同一事实源的入口。
+
 各服务业务说明从[微服务索引](微服务/index.md)进入，只读任务涉及的服务。
 `just context <path-or-target>` 定位代码与规则，不需要遍历文档树。
 

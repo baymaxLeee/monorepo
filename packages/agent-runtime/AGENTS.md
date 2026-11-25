@@ -1,7 +1,21 @@
 # Shared Runtime Agent harness
 
-Runtime server and the Electron utility process are the two hosts. This package owns the portable RuntimeTurn, SDK loop adapter, input queue, context manager, instruction renderer, tool manifest/outcome, execution scheduler, approval policy and portable tool registry. Do not add Agent factories or reusable Agent profiles. The registry exposes one shared manifest set; hosts inject model, sandbox, persistence and observation capabilities and append only their real host/domain manifests. Duplicate tool names fail closed instead of replacing or selecting capabilities. Hosts must not enumerate shared manifests independently. Never import a service, database, Electron, credentials or host filesystem here. Keep SDK native approval, cancellation and UIMessage protocols. No parallel local tool protocol.
+Follow the current [Agent Runtime decision](../../docs/ADR/agent-runtime.md). This
+portable package is consumed by Runtime server and the Electron utility process.
 
-Keep one TypeScript source root. Organize implementation by runtime responsibility: `turn/` owns lifecycle and the thin AI SDK adapter; `context/` owns journal projection, compaction and instructions; `tools/` owns declarations, outcomes and portable tools; `execution/` owns authority, command/file admission and process lifetime; `plugins/` owns frozen plugin snapshots and MCP connections. Codex supplies lifecycle and safety semantics, not directory names. Pi supplies the small hot-tool surface and narrow host ports, not a second loop. The package exposes one root API; hosts must not import implementation paths. Cloud Storage, database checkout records, and native process transports belong to the hosts.
+- Own one `RuntimeTurn`, AI SDK loop adapter, input queue, context/instruction
+  projection, tool manifest/outcome, execution authority, approval policy and
+  portable tool registry. Do not add Agent factories/profiles or a second loop,
+  permission model, prompt assembler or tool protocol.
+- Hosts inject model, sandbox, persistence, process and observation capabilities
+  plus only their real domain manifests. Duplicate tool names fail closed; hosts
+  do not enumerate shared manifests independently.
+- Keep host concerns out: no service source, database, Electron API, credentials,
+  cloud Storage or host filesystem implementation.
+- Preserve AI SDK native message, stream, approval and cancellation protocols.
+  Codex/Pi references in the ADR guide semantics and exposure, not package layout
+  or a replacement runtime.
+- Export one public root API. Hosts never import implementation paths.
 
-Run `just test shared/agent-runtime`, both host tests and builds, and root lint.
+Run `just test shared/agent-runtime`, both host tests/builds and root lint for
+public lifecycle, manifest or protocol changes.

@@ -15,6 +15,6 @@
 - Plan 由云端 `tool-upload_artifacts` 批量结果或本地真实文件变更投影成 `data-file`，携带稳定的运行时文件引用；后续 run 从服务端会话历史和 conversation-file registry 恢复。后端把该不可变 Plan 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求先用Bash 完整读取。执行结束后按钮变为“再次执行”而不是永久禁用，后续点击仍携带稳定 id，不依赖长对话里的旧计划内容。
 - `upload_artifacts` 的官方批量 tool output 携带 `files[]`；tool part 按通用工具 UI 保持可观测，不使用专用预览卡；流层另逐文件生成 `data-file` 正文 file tag，且不复制成原生 `file` part。原生 model `file`/`reasoning-file` 仍按文件 part 呈现，两类产物保持不同协议语义。
 - HTML artifact 使用独立右侧普通 iframe，按浏览器原生语义开放脚本、模块、表单、存储、导航、Canvas/WebGL、Worker、媒体和交互能力，不维护 sandbox allow-list。完整正文经 Chat 的鉴权 file delivery facade 按需加载，不进入聊天消息。Markdown/Plan file id 在同一面板只读渲染。
-- 视频工具在进入耐久审批点后返回普通完成态并结束 SSE。右侧导演工作台按 production id 读取 Executor 投影，展示并结构化编辑分镜，预览/重拍/选择每镜头 Take，并展示成本、QA、暂存成片和事件；批准或拒绝直接恢复 Workflow Hook，不创建新的 Agent run，也不让模型重建执行状态。视频生成请求必须直接调用 `create_video_production`；模型不得在聊天正文中模拟分镜、预算、Take 或发布审批，也不得让用户通过回复文字完成这些审批。
+- 视频生成调用 Runtime 的 `generate_video`。工具等待生成并发布会话文件，前端通过对话中的文件引用呈现结果。
 
 普通 CRUD 使用 `@repo/api`；禁止跨 MFE import，跨域通信使用 `@repo/runtime` 事件总线。

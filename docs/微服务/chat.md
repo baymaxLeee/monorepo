@@ -27,7 +27,7 @@ Turn capability，并透明转发响应流和取消信号。proxy adapter 不向
 
 ## 数据与 API
 
-Chat PostgreSQL 只保存 `conversations` 产品表和 `runtime_session_id` 映射。当前 fresh baseline
+Chat PostgreSQL 保存产品会话及其 Runtime 映射（`conversations`）和用户记忆（`user_memories`）。当前 fresh baseline
 为 `v1.0.0.0`，不包含 messages、runs、files 或 durable tasks。
 
 - `POST /conversations`：先创建 Runtime Session，再写入 product mapping；

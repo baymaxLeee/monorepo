@@ -22,7 +22,7 @@
 | 表单或异步操作 | [Forms、validation 与 feedback](#formsvalidation-与-feedback) | schema、错误恢复、pending/empty/error |
 | Chat、Agent 或生成式 UI | [AI-native interfaces](#ai-native-interfaces) | AI SDK parts、`@repo/ai-elements`、streaming contract |
 | Dialog、Popover 或 portal | [Overlay layering](#overlay-layering) | React 所有权、stacking context、docs/ADR/frontend.md |
-| UI review | [UI review checklist](#ui-review-checklist) | scoped typecheck、lint、build、必要的渲染验证 |
+| UI review | [UI review checklist](#ui-review-checklist) | 相关测试、改动代码的 lint、必要的渲染验证 |
 
 ## 产品设计原则
 
@@ -385,7 +385,7 @@ AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-
 
 ### 验证时
 
-- 运行 design-system/AI Elements 与受影响 app 的 typecheck、lint 和 build；公共组件变更验证至少一个真实 consumer。
+- 运行覆盖本次改动的测试并 lint 改动代码。公共组件接口变化时验证受影响的调用方，打包入口或资源产物变化时构建对应 app。
 - 检查键盘操作、focus return、读屏名称、触控命中区域、light/dark、窄屏、长文本、空态、错误态和 reduced motion。
 - 只有布局、真实交互、无障碍树或浏览器运行时行为无法从源码和测试确认时，才使用浏览器验证。
 - 不因本任务格式化或重写无关脏文件；不要手改生成文件。
@@ -416,7 +416,7 @@ pnpm lint:ui-contracts
 - [ ] 可导航状态可 deep-link，前进/后退和刷新行为合理。
 - [ ] AI parts、stream、tool、source、confirmation 和 Artifact 复用标准语义，副作用边界清楚。
 - [ ] modal/popup 依靠 layer scope，没有业务 z-index 数字表。
-- [ ] scoped typecheck、lint、build 和必要的交互验证通过。
+- [ ] 相关测试、改动代码的 lint 和本次需要的交互验证通过。
 
 ## 上游依据
 

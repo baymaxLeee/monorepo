@@ -12,4 +12,4 @@ Execution kernel for Web Chat, Desktop, Canvas and future hosts. Read
 - Worker writes are fenced by attempt epoch; process loss does not prove the old writer stopped.
 - Runtime business tables never query Workflow World tables. Sandbox guests receive no business credentials.
 
-Run `just test backend/runtime` and `just build runtime`. Skipped PostgreSQL integration tests are unverified, not passes.
+Run relevant tests from `just test backend/runtime` and lint the changed code. Use `just build runtime` for changes to the build or packaged entry points. Skipped PostgreSQL integration tests are unverified, not passes.

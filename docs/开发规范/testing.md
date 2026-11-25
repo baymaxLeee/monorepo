@@ -36,7 +36,7 @@ scope 允许尚无测试的包存在，但打印 UNTESTED；全前端无测试�
 和缺依赖如实报告，不计为通过。
 
 根 `just check` 聚合 lint、测试与生成契约检查。测试工具变化执行根 `just test`；
-代码变化执行受影响测试与构建，契约变化额外 `just sync`。复用仍有效的结果。
+普通代码修改在开发时跑覆盖改动的测试并 lint 改动代码。改到类型接口时检查相关消费者，改到打包入口或配置时验证相应构建；契约变化按要求执行 `just sync`。提交和推送复用这些结果。
 
 前端 Vitest 的统一测试上限为 15 秒，覆盖编辑器 readiness 最长 10 秒的契约并
 为固定 Ubuntu 24.04 runner 留出调度余量。测试仍应等待可观察状态，不以 sleep
@@ -44,6 +44,5 @@ scope 允许尚无测试的包存在，但打印 UNTESTED；全前端无测试�
 Range 空几何；需要具体坐标的测试在自己的用例中显式覆盖。
 CI 与本地用同一入口，不用跳过失败取得绿灯。
 
-提交推送流程与 CLI 见 [本地 CI 闭环](../../scripts/README.md#local-ci-and-verified-push)。
-`just ci` 提供诊断，`just push` 在干净提交上重新执行门禁后推送固定 SHA；
-任一步失败都不得推送。远端注册表、镜像同步和部署仍需检查对应 SHA 的 CI 结果。
+提交推送流程与 CLI 见 [本地 CI 闭环](../../scripts/README.md#local-ci-and-fast-push)。
+`just ci` 供本地诊断。`just push` 校验工作树、提交与远端引用后推送固定 SHA，完整代码门禁由远端 CI 执行。远端注册表、镜像同步和部署仍需检查对应 SHA 的 CI 结果。

@@ -18,16 +18,14 @@
 
 task admission 与 Workflow `start()` 不是跨数据库事务。业务 task row 先作为持久 dispatch intent 落库；`start()` 超时或异常保持 queued，由周期 reconciler 重试。每个候选 run 在任何业务/付费副作用前通过 `claimTaskStep` 原子绑定 task，未取得 claim 的重复 run 失败并被取消。该模式允许多建无副作用的候选 run，不声称 World 与业务库 exactly-once；告警与积压监控必须覆盖长期 queued admission。
 
-普通问答、Bash、artifact、workspace 保存和普通审批都由 runtime-server inline ToolLoop 执行。只有必须跨 Turn、进程、部署或长等待继续的 detached Job 才进入 Workflow。工具收到稳定 Job ID 即表示“已受理”，不表示生成已完成；当前 Turn 可以继续或结束。
+普通问答、Bash、artifact、workspace 保存和普通审批都由 runtime-server inline ToolLoop 执行。只有必须跨 Turn、进程、部署或长等待继续的 detached Job 才进入 Workflow。Worker 受理后返回稳定任务 ID。媒体工具通过该 ID 持续观察同一任务，直到发布 Session file 才结束工具调用。
 
 ## 媒体生成
 
-Runtime server 的图片/视频工具提交 durable task。图片 Workflow 调用 provider 并把成功结果写入 Storage/Knowledge。视频 Workflow 管理创作规划、分镜/预算投影、审批、付费生成、Take 审核、合成、确定性 QA、暂存与发布；审批先持久化 action ID、payload 与 projection version，再恢复 Workflow Hook。相同 action ID 只接受相同 payload，Worker 重启后仍恢复同一 run。
-
-输入/输出流式处理并使用临时文件，持久 bytes 进入 Storage，Runtime projection 只保存 revision 引用。确定性 QA 不替代语义审核；需要人工判断的发布继续保留业务审批。
+Worker 的[图片工作流](../../apps/backend/services/runtime/workflows/image-generation.ts)与[视频工作流](../../apps/backend/services/runtime/workflows/video-generation.ts)将生成结果写入 Storage 并取得对应 revision 的 Claim。Runtime server 将结果登记为会话文件。一次视频调用返回一个文件，一次批量图片调用可返回多个文件；这条产品边界由[工具实现](../../apps/backend/services/runtime/src/application/agent/tools/builtins/media.ts)和[清单测试](../../apps/backend/services/runtime/src/application/agent/tools/builtins/media.test.ts)定义。
 
 ## 实现与验证
 
 入口：[task routes](../../apps/backend/services/runtime/src/api/http/routes/tasks.ts)、[service](../../apps/backend/services/runtime/src/application/tasks/service.ts)、[worker bootstrap](../../apps/backend/services/runtime/src/bootstrap/worker-runtime.ts)、[production wrapper](../../apps/backend/services/runtime/src/cmd/worker/production.ts)、[Nitro app entry](../../apps/backend/services/runtime/src/cmd/worker/app.ts)、[local worker entry](../../apps/backend/services/runtime/src/cmd/worker/main.ts)、[workflows](../../apps/backend/services/runtime/workflows)。生产从同一 Runtime image 启动显式 wrapper，再加载 Nitro server；不得在 bundle 外导入第二份 bootstrap。worker 使用 application-managed shutdown，停止并等待 recovery loop、等待 `world.close()`，再关闭数据库；Nitro 在同一信号上停止 listener 并 drain 已接受的请求。不使用 `RUNTIME_ROLE`，也不恢复 `/runtime/worker` 子包。
 
-验证至少运行 `just test backend/runtime` 与 `just build runtime`。持久恢复、重复 step、取消补偿、审批恢复和 World 数据库故障必须有真实 Workflow/PostgreSQL 证据；单元 mock 与类型检查不能证明 durable 语义。
+验证至少运行 `just test backend/runtime` 与 `just build runtime`。持久恢复、重复 step、取消补偿和 World 数据库故障必须有真实 Workflow/PostgreSQL 证据；单元 mock 与类型检查不能证明 durable 语义。

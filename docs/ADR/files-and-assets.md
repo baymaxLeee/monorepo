@@ -25,7 +25,7 @@ HMAC 的 upload capability 上传，裸 session ID 不授权；最后由 owner �
 
 Web Chat 通过已授权的产品会话申请上传。Runtime 将身份、Session 和前端的 `client_ref` 绑定到 Storage 上传凭据。上传完成后，Runtime 校验归属和状态，在同一个事务中登记固定 revision 的会话文件和 strong Claim intent。重复完成会返回同一个 `file_id`。同名文件按上传 ID 分目录，原件在沙箱中的稳定只读路径为 `/workspace/sources/attachments/<upload-id>/<filename>`。
 
-消息只保存 AI SDK 原生 `file` 引用。Chat 将当前产品会话的文件路由映射到 Runtime Session，Runtime 从文件记录取得文件名、类型和路径。模型通过工作区工具读取普通文件，视觉输入按需从 Storage 的原件生成有尺寸上限的图片。Knowledge 在显式导入知识或生成媒体时管理文档。这一设计沿用 Codex 分开保存附件与按引用解析模型输入的做法。[Codex AttachmentStore](https://github.com/openai/codex/blob/main/codex-rs/attachment-store/src/lib.rs)
+消息只保存 AI SDK 原生 `file` 引用。Chat 将当前产品会话的文件路由映射到 Runtime Session，Runtime 从文件记录取得文件名、类型和路径。模型通过工作区工具读取普通文件，视觉输入按需从 Storage 的原件生成有尺寸上限的图片。显式导入知识时，Knowledge 管理相应文档。生成媒体的会话引用由 Runtime 持有。这一设计沿用 Codex 分开保存附件与按引用解析模型输入的做法。[Codex AttachmentStore](https://github.com/openai/codex/blob/main/codex-rs/attachment-store/src/lib.rs)
 
 服务上传使用 caller-scoped 幂等键；相同键/元数据重放返回已有 revision，冲突元数据拒绝。上传完成
 时 Storage 为 caller 创建覆盖精确 revision 的 24 小时 active lease，作为该 workload 接纳资源的

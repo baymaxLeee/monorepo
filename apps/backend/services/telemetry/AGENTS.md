@@ -1,62 +1,21 @@
-# telemetry service
+# Telemetry service
 
-Telemetry ingestion and query microservice. Owns PostgreSQL-backed RUM event
-storage and dashboard query APIs.
+Telemetry owns PostgreSQL-backed RUM ingestion and dashboard queries plus
+operational trace queries through its ClickHouse adapter. The Single-VPS
+[collector configuration](../../../../infra/single-vps/otel-collector.yaml) owns
+the trace export path.
 
-## Owns
+- `/rum/*` is the write path used by `@repo/observability`; dashboard and `/ops/*`
+  reads remain authenticated and appropriately scoped.
+- Gateway verifies tokens and propagates identity. Anonymous writes are allowed
+  only on `/rum/batch`; never trust frontend `user_id`, `username`, `email` or
+  `is_admin` fields.
+- Validation, redaction, sampling and fingerprinting remain application behavior.
+  HTTP handlers do not issue SQL or ClickHouse queries directly.
+- PostgreSQL owns RUM event/dashboard data. Operational trace queries use the
+  ClickHouse adapter; do not silently merge their storage or retention semantics.
+- Frontend SDK behavior and backend tracing exporters remain with their own
+  packages/services.
 
-- PostgreSQL database: `telemetry`
-- HTTP API:
-  - `/rum/*` — RUM write path used by `packages/observability`
-  - `/errors/*` and `/performance/*` — user/admin dashboard reads
-  - `/ops/*` — super_admin-only observability status and trace queries
-  - `/livez`, `/readyz`, `/healthz` — service probes
-- Private RUM write protocol used by `@packages/observability`
-
-## Does NOT own
-
-- Authentication token verification; gateway verifies and propagates identity.
-- Frontend SDK implementation.
-- Backend service tracing exporters.
-
-## Conventions
-
-- Routers are thin: request/response wiring only.
-- Write-path validation, redaction, sampling, fingerprinting, and dispatch
-  live in `internal/application/ingestion.go`.
-- PostgreSQL queries live in `internal/infrastructure/persistence/`; HTTP
-  handlers do not issue SQL directly.
-- Repository methods own transaction boundaries and use explicit PostgreSQL
-  transactions for multi-statement writes.
-- Query endpoints must require `X-Auth-*`; anonymous writes are allowed only
-  on `/rum/batch`.
-- Never trust frontend `user_id`, `username`, `email`, or `is_admin` fields.
-
-## Storage backend
-
-Telemetry was originally specced for ClickHouse (column store, MergeTree,
-materialized views). For the demo phase we collapsed it onto the shared
-Postgres instance so the single-VPS footprint stays under 1 GB RAM and so we
-have one DB to back up.
-
-Trade-offs we accepted:
-
-- `sessions` uses `INSERT ... ON CONFLICT DO UPDATE` to emulate the
-  `ReplacingMergeTree(ts_server)` semantics.
-- Pre-aggregated materialized views (`errors_by_fingerprint_daily`,
-  `vitals_p75_by_route_daily`) were dropped. The handful of query endpoints
-  we ship just run `GROUP BY` against the raw event tables.
-- Row-level TTL is deferred to a periodic `DELETE` job; demo volume doesn't
-  warrant it yet.
-
-If event ingest rate climbs into the "tens of millions of rows per day"
-range, revisit ClickHouse — the migration path is documented in
-`docs/微服务/index.md`.
-
-Consider these rules if they affect your changes.
-
-## Verification after code changes
-
-Run `just test backend/telemetry` from the repository root. Go test conventions and
-runner configuration are owned by `apps/backend/AGENTS.md`; add regression
-coverage for changed behavior before reporting completion.
+Run `just test backend/telemetry`; cover anonymous/authenticated scope, redaction
+and storage failure behavior. Run `just sync` when the public contract changes.
