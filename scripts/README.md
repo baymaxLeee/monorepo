@@ -86,13 +86,14 @@ To enable automatic checks on machines without managed hooks, run the official
 replace an existing managed `core.hooksPath`; use `just pre-commit` explicitly
 there, or have the hook owner integrate the command.
 
-## Local CI and verified push
+## Local CI and fast push
 
-`just ci-code [base]` is the canonical code gate shared by the local verifier
-and the `build-images` GitHub workflow. It owns frozen dependency installation,
-static checks, affected behavior tests, contract consistency and application
-builds. GitHub and local push verification therefore execute the same command
-graph; only the operating system and available machine resources can differ.
+`just ci-code [base]` is the canonical code gate executed authoritatively by the
+`build-images` GitHub workflow and available locally as an explicit diagnostic.
+It owns frozen dependency installation, static checks, affected behavior tests,
+contract consistency and application builds. `just push` does not execute this
+graph: focused checks happen during development and the complete gate runs once
+remotely for the pushed SHA.
 For ordinary project source changes it resolves the owner and declared transitive
 consumers. Format and source lint receive only changed files; typechecks, tests and
 builds run for the affected owners and consumers. Cross-stack Chat stream contracts map directly to their Chat producer
@@ -104,7 +105,7 @@ a narrower result would be unreliable.
 
 `just ci-plan [base]` prints JSON with the resolved merge base, all changed files
 (including committed work) and exact commands. `just ci [base]` runs the same
-push gate sequentially with `CI=true`, stops on the first failure and writes logs plus
+code gate sequentially with `CI=true`, stops on the first failure and writes logs plus
 `result.json` under the worktree's Git directory (`git rev-parse --git-path agent-ci`).
 The default base is `origin/main`; fetch it first when using these diagnostic
 commands. Missing bases fail closed. Results are diagnostic evidence, never a
@@ -153,44 +154,47 @@ Agent procedure:
 2. Implement and run focused tests during development. Apply scoped Oxfmt,
    Ruff or gofmt fixes, inspect the diff, and preserve unrelated changes. Use
    `just fmt` only when the entire formatting scope belongs to the task.
-3. Use `just ci-plan origin/main` to inspect the clean-HEAD gate when scope is
+3. Use `just ci-plan origin/main` to inspect the remote code gate when scope is
    unclear, and `just ci origin/main` only as an explicit diagnostic. Do not run
-   it routinely immediately before `just push`, which executes that gate itself.
+   it merely to repeat focused checks before commit or push.
    Use `just ci-release-plan origin/main` and `just ci-release origin/main` only
    for explicit image/release-pipeline work. Read the first failed step's log,
    fix its cause and repeat. Do not remove assertions, add skips, relax timeouts
    without diagnosis, or suppress an empty suite. Missing tools/services are
    blockers to verification, not passing results.
 4. Review the complete diff against the requirement, including consumers and
-   failure/cleanup paths. Stage only task files and run `just pre-commit` before
-   an authorized commit. Generated-contract differences need review and commit;
-   `sync-check` compares generated files with Git, including intended changes.
+   failure/cleanup paths. Stage only task files. Run `just pre-commit` only when
+   equivalent focused format/lint checks have not already covered the staged
+   snapshot; committing is not a reason to repeat tests or builds. Generated-contract
+   differences need review and commit; `sync-check` compares generated files with
+   Git, including intended changes.
 5. For an authorized push run `just push origin <current-branch>`. This requires
    a clean tree, fetches remote main and destination, rejects a branch behind
-   main or a diverged destination, and runs the affected code gate once on clean HEAD.
-   It checks source/HEAD and remote refs again, then pushes a single fixed SHA.
-   Failures never execute push. New feature branches are supported. Main is the
+   main or a diverged destination, rechecks HEAD and remote refs, then pushes a
+   single fixed SHA. It runs no lint, test or build. Git/ref safety failures never
+   execute push. New feature branches are supported. Main is the
    repository integration branch; custom release destinations are not supported.
 6. Inspect GitHub Actions for that SHA with `gh run list --commit <sha>` and
    `gh run view <id> --log-failed`. Fix the first failed dependency before
    retrying downstream workflows. Report local results separately from image
    publication, mirroring and deployment.
 
-`just push` does not reuse an uncommitted diagnostic result; it runs one
-dependency-aware gate against the clean commit and fresh remote base. Running
-`just ci` immediately beforehand is redundant. The command never stashes,
-commits, force-pushes or replaces company-managed Git hooks.
-Concurrent checks in the same worktree are rejected. If a process is killed,
+`just push` intentionally neither runs nor reuses a local code-gate result. It is
+a fast Git transport-safety command; remote `build-images.quality` is the single
+complete code gate for the pushed SHA and blocks image publication on failure.
+The command never stashes, commits, force-pushes or replaces company-managed Git
+hooks. Concurrent local diagnostic checks in the same worktree are rejected. If a process is killed,
 confirm it has stopped before removing the Git-local `agent-ci/lock` directory;
 rerun the gate from the start. Logs may contain application test output; keep
 them local and review before sharing.
 
-This CLI cannot prevent someone from invoking raw Git or editing the gate.
-For enforcement across clients, configure remote branch rules requiring PRs and
-successful checks, restrict bypass permissions, and have the managed hook owner
-integrate the gate if required. These external settings are not changed by the
-CLI. Local checks cannot prove registry credentials, mirror connectivity or
-production deployment success. Remote CI remains authoritative for those steps;
+This CLI cannot prevent someone from invoking raw Git or editing the gate. Without
+remote branch rules, quality failures are detected after a direct push; the
+workflow still fails closed before image publication and deployment. For pre-merge
+enforcement across clients, configure remote branch rules requiring PRs and
+successful checks and restrict bypass permissions. These external settings are
+not changed by the CLI. Local checks cannot prove registry credentials, mirror
+connectivity or production deployment success. Remote CI remains authoritative;
 service-specific end-to-end checks must also follow their owning routes.
 
 ### Registry mirror recovery

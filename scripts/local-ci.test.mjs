@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -43,6 +43,32 @@ if (process.argv[2] === 'ci-code' && fs.existsSync('.git/move')) require('node:c
 if (process.argv[2] === 'ci-code' && fs.existsSync('.git/signal')) process.kill(process.pid, 'SIGTERM');
 if (process.argv[2] === 'ci-code' && fs.existsSync('.git/fail')) process.exit(7);
 if (process.argv[2] === 'ci-code' && fs.existsSync('.git/mutate')) fs.appendFileSync('apps/example.ts', 'mutation');
+`,
+    { mode: 0o755 },
+  );
+  const realGit = process.env.PATH.split(":")
+    .map((directory) => join(directory, "git"))
+    .find(existsSync);
+  assert.ok(realGit, "git executable is available");
+  writeFileSync(
+    join(bin, "git"),
+    `#!${process.execPath}
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const args = process.argv.slice(2);
+const marker = path.join(process.cwd(), '.git/move');
+if (fs.existsSync(marker) && args[0] === 'ls-remote' && args.at(-1) === 'refs/heads/feature') {
+  const countPath = path.join(process.cwd(), '.git/move-count');
+  const count = Number(fs.existsSync(countPath) ? fs.readFileSync(countPath, 'utf8') : 0) + 1;
+  fs.writeFileSync(countPath, String(count));
+  if (count === 2) {
+    const moved = spawnSync(${JSON.stringify(realGit)}, ['push', 'origin', 'HEAD~1:refs/heads/feature'], { stdio: 'ignore' });
+    if (moved.status !== 0) process.exit(moved.status ?? 1);
+  }
+}
+const result = spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' });
+process.exit(result.status ?? 1);
 `,
     { mode: 0o755 },
   );
@@ -96,26 +122,43 @@ test("Go workspace policy pins one toolchain and shared dependency version", (t)
   assert.match(issues, /uses toolchain go1\.26\.3/);
   assert.match(issues, /divergent workspace versions/);
 });
-test("failed checks block push and preserve actionable evidence", async (t) => {
+test("push skips the local code gate and relies on remote CI", async (t) => {
   const f = fixture(t);
   writeFileSync(join(f.root, ".git/fail"), "");
-  await assert.rejects(push(f.root, "origin", "feature"), /code failed/);
-  assert.equal(f.git("ls-remote", "origin", "refs/heads/feature"), "");
-  assert.equal(f.report().status, "failed");
-  assert.equal(f.report().steps.at(-1).code, 7);
-  assert.ok(!f.report().steps.some((s) => s.name === "build"));
+  await push(f.root, "origin", "feature");
+  assert.equal(f.git("ls-remote", "origin", "refs/heads/feature").split(/\s/)[0], f.git("rev-parse", "HEAD"));
 });
-test("successful gate pushes only the verified commit", async (t) => {
+test("fast push sends only the selected clean commit", async (t) => {
   const f = fixture(t);
   await push(f.root, "origin", "feature");
   assert.equal(f.git("ls-remote", "origin", "refs/heads/feature").split(/\s/)[0], f.git("rev-parse", "HEAD"));
-  assert.equal(f.report().status, "passed");
+  assert.equal(existsSync(join(f.root, ".git/agent-ci/result.json")), false);
 });
 test("dirty work and wrong destinations are rejected", async (t) => {
   const f = fixture(t);
   await assert.rejects(push(f.root, "origin", "main"), /destination/);
   writeFileSync(join(f.root, "untracked.txt"), "uncommitted");
   await assert.rejects(push(f.root, "origin", "feature"), /clean working tree/);
+});
+test("a branch behind remote main is rejected before push", async (t) => {
+  const f = fixture(t);
+  f.git("checkout", "main");
+  writeFileSync(join(f.root, "main-only.txt"), "remote main advanced");
+  f.git("add", ".");
+  f.git("commit", "-m", "advance main");
+  f.git("push", "origin", "main");
+  f.git("checkout", "feature");
+  await assert.rejects(push(f.root, "origin", "feature"), /Integrate current remote main/);
+});
+test("a diverged remote destination is rejected before push", async (t) => {
+  const f = fixture(t);
+  f.git("checkout", "main");
+  writeFileSync(join(f.root, "remote-only.txt"), "remote feature advanced");
+  f.git("add", ".");
+  f.git("commit", "-m", "advance remote feature");
+  f.git("push", "origin", "HEAD:refs/heads/feature");
+  f.git("checkout", "feature");
+  await assert.rejects(push(f.root, "origin", "feature"), /Remote branch has diverged/);
 });
 test("check-induced changes invalidate verification and release the lock", async (t) => {
   const f = fixture(t);
@@ -264,7 +307,7 @@ test("Python libraries typecheck authored sources without treating generated stu
     ["type-backend/inner-api-py", "uv", "run", "--directory", "apps/backend/libs/inner-api-py", "mypy", "src"],
   );
 });
-test("the push gate remains fast while the optional release gate retains production-platform images", () => {
+test("the optional local diagnostic retains the canonical code and release plans", () => {
   assert.deepEqual(plan("base-sha"), [["code", "just", "ci-code", "base-sha"]]);
   const steps = releasePlan("base-sha", ["scripts/test.mjs", "apps/frontend/apps/chat/src/example.ts"], "linux/amd64");
   assert.deepEqual(steps[0], ["code", "just", "ci-code", "base-sha"]);
@@ -283,7 +326,7 @@ test("the release workflow invokes the canonical code gate on the pinned runner"
   assert.doesNotMatch(workflow, /uses: \.\/\.github\/workflows\/(?:backend|frontend|tooling|contracts)\.yml/);
 });
 
-test("remote movement during checks prevents the verified commit from being pushed", async (t) => {
+test("remote movement immediately before push prevents the selected commit from being pushed", async (t) => {
   const f = fixture(t);
   writeFileSync(join(f.root, ".git/move"), "");
   await assert.rejects(push(f.root, "origin", "feature"), /Remote moved/);
@@ -302,12 +345,11 @@ test("documentation plans avoid application builds but retain tooling verificati
   assert.ok(!steps.some((step) => step[0] === "build"));
 });
 
-test("a terminated check blocks push and releases the verification lock", async (t) => {
+test("a terminated diagnostic check fails and releases the verification lock", async (t) => {
   const f = fixture(t);
   writeFileSync(join(f.root, ".git/signal"), "");
-  await assert.rejects(push(f.root, "origin", "feature"), /code failed/);
+  await assert.rejects(verify(f.root, f.base), /code failed/);
   assert.equal(f.report().steps.at(-1).signal, "SIGTERM");
-  assert.equal(f.git("ls-remote", "origin", "refs/heads/feature"), "");
   rmSync(join(f.root, ".git/signal"));
   await verify(f.root, f.base);
   assert.equal(f.report().status, "passed");

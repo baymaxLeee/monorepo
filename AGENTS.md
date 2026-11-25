@@ -113,15 +113,15 @@ authorization, concurrency and retry changes need failure/cleanup coverage.
 | `just lint-py [args...]` / `just fmt-py [args...]` | Native Ruff lint / format; checks do not rewrite unless requested |
 | `just check-py` | Repository-wide Ruff lint + format check and backend mypy |
 | `just pre-commit [--all-files]` | Read-only staged checks / all tracked files |
-| `just ci-plan [base]` / `just ci [base]` | Optional preview / diagnostic execution of the push gate |
-| `just push [remote] [branch]` | Run the clean-HEAD affected gate against fresh remote main, then push the verified SHA |
+| `just ci-plan [base]` / `just ci [base]` | Optional preview / local diagnostic of the remote code gate |
+| `just push [remote] [branch]` | Validate clean Git refs against fresh remote main, then push one fixed SHA without code checks |
 | `just publish-images [services...] [--dry-run]` | Compare the current immutable GHCR release with Aliyun, sync mismatches and verify the complete image set |
 | `just publish-images-local <target> <sha-tag> [services...] [--from <source>] [--alias main]` | Advanced local build or exact registry-sync interface |
 | `just status` / `just doctor` | Repository/environment health |
 
 After code changes, run affected-target tests and builds. Test runner/discovery
 changes that can alter every suite require root `just test`; local CI planner and
-verified-push changes require the tooling suite plus representative plan tests.
+safe-push changes require the tooling suite plus representative plan tests.
 Repository-wide quality-policy changes require root `just lint`.
 Contract changes require `just sync` and producer/consumer verification. Structural
 changes must keep affected install, infra, dev, build, sync and lint recipes
@@ -135,20 +135,23 @@ typechecks, builds and integration checks. Report results/gaps briefly, without
 a separate validation report. Documentation-only work needs link, command and
 consistency checks, not application builds.
 
-Before committing, run `just pre-commit` on the staged snapshot in addition to
-the affected checks above. Use `just pre-commit --all-files` after changing shared
-quality configuration. Hooks use the workspace-locked Ruff/Oxc versions; never
-override a managed `core.hooksPath` to install them. Fix explicitly with native
-`--fix` or format commands, review the diff and stage it again.
+Do not repeat equivalent lint, type, test or build checks merely because a commit
+or push is next. Use `just pre-commit` only when the staged snapshot was not already
+covered by equivalent focused format/lint checks; use `just pre-commit --all-files`
+after changing shared quality configuration. Hooks use the workspace-locked
+Ruff/Oxc versions; never override a managed `core.hooksPath` to install them. Fix
+explicitly with native `--fix` or format commands, review the diff and stage it again.
 
-Before pushing, follow the [local CI loop](scripts/README.md#local-ci-and-verified-push).
-Fix failures, review the final diff, run staged checks, and create the authorized
-commit. Then use `just push [remote] [branch]` as the single authoritative
-clean-HEAD gate; do not routinely run the same `just ci` gate immediately before
-it. `just ci-plan` and `just ci` remain optional diagnostics. Never bypass a
-failed/incomplete push gate with raw Git, `--no-verify`, force or hook overrides.
-Do not weaken tests or suppress missing suites to obtain a pass. Inspect remote
-CI for the pushed SHA; local success does not establish deployment success.
+Before pushing, follow the [local CI loop](scripts/README.md#local-ci-and-fast-push).
+Fix failures found during development, review the final diff, and create the
+authorized commit. `just ci-plan` and `just ci` remain optional diagnostics; do
+not run them only to duplicate focused checks before commit or push. Use
+`just push [remote] [branch]` for clean-tree, ancestry, destination and remote-race
+checks plus a fixed-SHA push; it intentionally runs no lint, test or build. Never
+bypass a failed Git/ref safety check with raw Git, force or hook overrides. Do not
+weaken tests or suppress missing suites to obtain a pass. Inspect authoritative
+remote CI for the pushed SHA; a successful push does not establish code quality,
+image publication or deployment success.
 This workflow does not itself authorize a commit or push.
 
 When `mirror-images` fails on cross-region blob transfer, inspect the failed job first. After `build-images` publishes the current HEAD, use `just publish-images` to compare and sync the exact immutable GHCR release into the configured Aliyun registry; its repository endpoints are intentionally fixed for this project. A local rebuild of the same source may produce different layer digests and is only a fallback through the advanced `publish-images-local` command. The command must move `main` only after every requested immutable image verifies. Never use mutable source tags or embed credentials in commands/files. Registry recovery is not proof of deployment; observe mirror and deploy afterward.

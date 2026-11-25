@@ -248,7 +248,7 @@ ci-release-plan base="origin/main":
 ci-release base="origin/main":
     @node scripts/local-ci.mjs release "$@"
 
-# Verify a clean commit against fresh remote main, then push that exact SHA.
+# Validate clean Git refs against fresh remote main, then push that exact SHA.
 push remote="origin" branch="":
     @node scripts/local-ci.mjs push "$@"
 

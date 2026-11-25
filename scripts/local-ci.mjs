@@ -451,7 +451,7 @@ export async function push(root, remote, branch) {
   const head = git(root, "rev-parse", "HEAD");
   if (!git(root, "remote").split("\n").includes(remote)) throw new Error("Use a configured Git remote name");
   if (git(root, "remote", "get-url", "--all", remote) !== git(root, "remote", "get-url", "--push", "--all", remote)) {
-    throw new Error("Fetch and push URLs must match for verified push");
+    throw new Error("Fetch and push URLs must match for safe push");
   }
   const current = git(root, "symbolic-ref", "--short", "HEAD");
   branch ||= current;
@@ -461,20 +461,18 @@ export async function push(root, remote, branch) {
   // Fetch explicit refs without changing local branches or managed hooks.
   git(root, "fetch", "--no-tags", remote, "refs/heads/main");
   const main = git(root, "rev-parse", "FETCH_HEAD");
-  if (git(root, "merge-base", head, main) !== main)
-    throw new Error("Integrate current remote main before verified push");
+  if (git(root, "merge-base", head, main) !== main) throw new Error("Integrate current remote main before push");
   if (target) {
     git(root, "fetch", "--no-tags", remote, `refs/heads/${branch}`);
     if (git(root, "merge-base", head, target) !== target)
-      throw new Error("Remote branch has diverged; integrate it and verify again");
+      throw new Error("Remote branch has diverged; integrate it before push");
   }
-  await verify(root, main);
   clean(root);
-  if (git(root, "rev-parse", "HEAD") !== head) throw new Error("HEAD changed during verification");
+  if (git(root, "rev-parse", "HEAD") !== head) throw new Error("HEAD changed before push");
   if (remoteHead(root, remote, branch) !== target || remoteHead(root, remote, "main") !== main) {
-    throw new Error("Remote moved during verification; rerun just push");
+    throw new Error("Remote moved before push; rerun just push");
   }
-  // Push only the verified commit, even if another process moves the local branch.
+  // Push only the selected commit, even if another process moves the local branch.
   console.log(git(root, "-c", "push.followTags=false", "push", remote, `${head}:refs/heads/${branch}`));
 }
 export function checkGoModules(root) {

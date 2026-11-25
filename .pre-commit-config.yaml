@@ -24,4 +24,4 @@ repos:
         entry: pnpm exec oxfmt --check
         language: system
         types: [text]
-        files: '^((apps/(frontend|backend)|scripts)/.*\.(?:[cm]?[jt]s|[jt]sx|jsonc?)|ox(lint|fmt)\.config\.ts|package\.json)$'
+        files: '^((apps/(frontend|backend)|packages|scripts)/.*\.(?:[cm]?[jt]s|[jt]sx|jsonc?)|ox(lint|fmt)\.config\.ts|package\.json)$'

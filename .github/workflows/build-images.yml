@@ -48,7 +48,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
-      - name: Run the same code gate used before local push
+      - name: Run the authoritative code gate
         env:
           TEST_BASE: ${{ github.event.before || 'all' }}
         run: just ci-code "${TEST_BASE}"
