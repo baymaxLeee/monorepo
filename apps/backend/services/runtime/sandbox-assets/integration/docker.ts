@@ -42,6 +42,7 @@ test(
       session_id: "test",
       run_id: randomUUID(),
       attempt_epoch: "1",
+      workspace_generation: "1",
     };
     let processId = 0;
     const sandbox = (allowedHosts: string[] = []) => ({

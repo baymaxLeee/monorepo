@@ -111,6 +111,65 @@ test("a typed denial binds one fresh approved retry to the same command and viol
   );
 });
 
+test("a malformed persisted retry consumes its claimed denial lineage", () => {
+  const original = { command: "curl https://api.example.com", sandbox_permissions: "use_default" as const };
+  const retry = {
+    ...original,
+    retry_of: "retry-1",
+    sandbox_permissions: "with_additional_permissions" as const,
+    additional_permissions: { network: { enabled: true } },
+  };
+  const runtime = new ToolOrchestrator({
+    approvalPolicy: "on-request",
+    permissionProfile: workspace,
+    fileSystemPolicy: { workspaceRoot: "/workspace", workingDirectory: "/workspace/work" },
+    execPolicy: new ExecPolicy(),
+    continuation: {
+      id: "assistant",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-bash",
+          toolCallId: "original",
+          state: "output-available",
+          input: original,
+          output: {
+            ok: false,
+            status: "partial",
+            error: { code: "SANDBOX_DENIED", message: "denied", retryable: true },
+            data: {
+              termination: {
+                type: "sandbox-violation",
+                retryId: "retry-1",
+                violation: { type: "network", host: "api.example.com", protocol: "https", port: 443 },
+              },
+            },
+          },
+        },
+        {
+          type: "tool-bash",
+          toolCallId: "approved-retry",
+          state: "approval-responded",
+          input: retry,
+          approval: { id: "approval", approved: true },
+        },
+        {
+          type: "tool-bash",
+          toolCallId: "malformed-retry",
+          state: "output-denied",
+          input: { ...retry, justification: "Invalid with additional permissions." },
+          approval: { id: "automatic", approved: false, isAutomatic: true },
+        },
+      ],
+    },
+  });
+
+  assert.equal(
+    runtime.reviewBash("approved-retry", { ...retry, timeout_ms: 1_800_000 }).type,
+    "forbidden",
+  );
+});
+
 test("retry keeps the sandbox when the base profile contains denied reads", async () => {
   const base: PermissionProfile = {
     type: "managed",

@@ -33,6 +33,7 @@ function setup() {
         turnSequence: 0n,
         itemSequence: 3n,
         historyRevision: 0n,
+        sandboxGeneration: 0n,
         selectedItemId: "2",
         createdAt: new Date(),
         updatedAt: new Date(),

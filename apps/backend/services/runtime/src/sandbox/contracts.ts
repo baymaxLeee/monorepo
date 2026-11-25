@@ -59,6 +59,10 @@ export const scopeSchema = z
       .string()
       .regex(/^[1-9][0-9]*$/)
       .max(20),
+    workspace_generation: z
+      .string()
+      .regex(/^[1-9][0-9]*$/)
+      .max(20),
   })
   .strict();
 export type Scope = z.infer<typeof scopeSchema>;

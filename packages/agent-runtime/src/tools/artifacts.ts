@@ -22,6 +22,10 @@ export interface PublishedWorkspaceFile {
   workspace_path?: string;
 }
 
+export type ArtifactPublicationOptions<CONTEXT extends Record<string, unknown>> = ToolExecutionOptions<CONTEXT> & {
+  artifactIndex: number;
+};
+
 export interface UploadedArtifacts {
   files: PublishedWorkspaceFile[];
 }
@@ -68,7 +72,7 @@ const uploadArtifactsInputSchema = z.object({
 type UploadArtifactsInput = z.infer<typeof uploadArtifactsInputSchema>;
 
 export function createUploadArtifactsTool<CONTEXT extends Record<string, unknown> = Record<string, unknown>>(
-  publish: (path: string, options: ToolExecutionOptions<CONTEXT>) => Promise<PublishedWorkspaceFile>,
+  publish: (path: string, options: ArtifactPublicationOptions<CONTEXT>) => Promise<PublishedWorkspaceFile>,
   options: { contextSchema?: z.ZodType<CONTEXT> } = {},
 ) {
   return defineAgentTool(
@@ -84,7 +88,7 @@ export function createUploadArtifactsTool<CONTEXT extends Record<string, unknown
         for (const [index, path] of paths.entries()) {
           try {
             execution.abortSignal?.throwIfAborted();
-            files.push(await publish(path, { ...execution, toolCallId: `${execution.toolCallId}:${index}` }));
+            files.push(await publish(path, { ...execution, artifactIndex: index }));
           } catch (error) {
             if (!files.length || shouldRethrowToolError(error, execution.abortSignal)) throw error;
             return toolPartial({ files }, normalizeToolIssue(error, { details: { failedPath: path } }));

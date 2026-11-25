@@ -133,7 +133,11 @@ export async function createCloudToolAdapters(
       },
       refreshSources: (options) => requireRunSandbox(options.experimental_sandbox).refresh(options.abortSignal),
       deliver: (input, options) =>
-        requireRunSandbox(options.experimental_sandbox).save(input, options.toolCallId, options.abortSignal),
+        requireRunSandbox(options.experimental_sandbox).save(
+          input,
+          { toolCallId: options.toolCallId, artifactIndex: options.artifactIndex },
+          options.abortSignal,
+        ),
     },
     { contextSchema: artifactToolContextSchema },
   );

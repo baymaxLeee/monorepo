@@ -188,3 +188,53 @@ test("a replacement cloud execution resumes only the approved retry in its assis
   );
   await consumed.dispose();
 });
+
+test("approval continuation ignores unrelated automatically denied Bash input", async () => {
+  const approved = {
+    command: "curl https://example.com",
+    sandbox_permissions: "require_escalated" as const,
+    justification: "Fetch the approved external resource.",
+    prefix_rule: ["curl"],
+  };
+  const continuation = {
+    id: "assistant",
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "tool-bash" as const,
+        toolCallId: "automatically-denied",
+        state: "output-denied" as const,
+        input: {
+          command: "curl https://example.invalid",
+          sandbox_permissions: "with_additional_permissions" as const,
+          additional_permissions: { network: { enabled: true } },
+          justification: "This invalid combination was rejected before execution.",
+        },
+        approval: {
+          id: "automatic-approval",
+          approved: false,
+          isAutomatic: true,
+          reason: "justification and prefix_rule require require_escalated",
+        },
+      },
+      {
+        type: "tool-bash" as const,
+        toolCallId: "approved",
+        state: "approval-responded" as const,
+        input: approved,
+        approval: { id: "user-approval", approved: true },
+      },
+    ],
+  };
+
+  const runtime = await createCloudToolAdapters(undefined, continuation);
+  try {
+    const requirement = await runtime.toolApproval({
+      toolCall: { toolCallId: "approved", toolName: "bash", input: approved },
+      messages: [],
+    } as never);
+    assert.equal((requirement as { type: string }).type, "user-approval");
+  } finally {
+    await runtime.dispose();
+  }
+});

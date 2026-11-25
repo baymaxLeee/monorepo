@@ -140,9 +140,19 @@ vi.mock("@repo/design-system", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick: () => void }) => (
     <button onClick={onClick}>{children}</button>
   ),
-  MessageScrollerItem: ({ children, messageId }: { children: ReactNode; messageId?: string }) => {
+  MessageScrollerItem: ({
+    children,
+    messageId,
+    scrollAnchor: _scrollAnchor,
+    ...props
+  }: {
+    children: ReactNode;
+    messageId?: string;
+    scrollAnchor?: boolean;
+    "aria-label"?: string;
+  }) => {
     if (messageId) state.rowRenders.push(messageId);
-    return <div>{children}</div>;
+    return <div {...props}>{children}</div>;
   },
   Spinner: () => null,
   toast: { add: vi.fn() },

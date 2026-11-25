@@ -3,7 +3,6 @@ import {
   MessageAction,
   MessageActions,
   MessageBranch,
-  MessageBranchContent,
   MessageBranchNext,
   MessageBranchPage,
   MessageBranchPrevious,
@@ -17,15 +16,32 @@ import { Button, Spinner } from "@repo/design-system";
 import { cn } from "@repo/shared";
 import { isFileUIPart, isReasoningFileUIPart, isToolUIPart } from "ai";
 import { PencilIcon, RefreshCwIcon, SaveIcon, XIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
 import { documentIdFromFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
+import { shallowEqualSnapshotList } from "./chat-render-cache";
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { Sources } from "./ChatCitedResponse";
 import { ChatMessagePart } from "./ChatMessagePart";
 import { visibleMessageParts } from "./ChatPlanState";
+
+const StableSources = memo(
+  function StableSources({
+    sources,
+    resolveSourceHref,
+    resolveSourceAction,
+  }: Pick<ChatMessageViewProps, "resolveSourceHref" | "resolveSourceAction"> & { sources: SourceItem[] }) {
+    return (
+      <Sources sources={sources} resolveSourceHref={resolveSourceHref} resolveSourceAction={resolveSourceAction} />
+    );
+  },
+  (previous, next) =>
+    shallowEqualSnapshotList(previous.sources, next.sources) &&
+    previous.resolveSourceHref === next.resolveSourceHref &&
+    previous.resolveSourceAction === next.resolveSourceAction,
+);
 
 export interface ChatMessageViewProps {
   message: ChatUIMessage;
@@ -93,12 +109,17 @@ export function ChatMessageView({
       }),
     [message.parts],
   );
+  const imageRefsRef = useRef(imageRefs);
+  useLayoutEffect(() => {
+    imageRefsRef.current = imageRefs;
+  }, [imageRefs]);
   const onOpenImage = useCallback(
     (partIndex: number) => {
-      const idx = imageRefs.findIndex((ref) => ref.partIndex === partIndex);
-      openImagePreview(conversationId, imageRefs, Math.max(idx, 0));
+      const refs = imageRefsRef.current;
+      const idx = refs.findIndex((ref) => ref.partIndex === partIndex);
+      openImagePreview(conversationId, refs, Math.max(idx, 0));
     },
-    [conversationId, imageRefs, openImagePreview],
+    [conversationId, openImagePreview],
   );
 
   return (
@@ -129,7 +150,11 @@ export function ChatMessageView({
             ),
         )}
         {!isUser && (
-          <Sources sources={sources} resolveSourceHref={resolveSourceHref} resolveSourceAction={resolveSourceAction} />
+          <StableSources
+            sources={sources}
+            resolveSourceHref={resolveSourceHref}
+            resolveSourceAction={resolveSourceAction}
+          />
         )}
       </MessageContent>
       {editing ? (
@@ -261,17 +286,13 @@ function BranchSelector({
   return (
     <MessageBranch
       currentBranch={selectedIndex}
+      totalBranches={branch.candidates.length}
       onBranchChange={(index) => {
         const candidate = branch.candidates[index];
         if (!candidate || candidate.message_id === branch.selected_message_id) return;
         void onSelect(candidate.leaf_message_id);
       }}
     >
-      <MessageBranchContent>
-        {branch.candidates.map((candidate) => (
-          <span key={candidate.message_id} />
-        ))}
-      </MessageBranchContent>
       <MessageBranchSelector aria-label="消息候选">
         <MessageBranchPrevious disabled={busy} />
         <MessageBranchPage />

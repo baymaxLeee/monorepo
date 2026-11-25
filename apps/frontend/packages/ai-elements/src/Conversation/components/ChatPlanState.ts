@@ -61,44 +61,42 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
 
 // The persisted UIMessage tool parts remain authoritative. This projection gives
 // the composer one current snapshot without introducing another stream.
-export function projectActiveTodoList(messages: ChatUIMessage[]): ActiveTodoList | null {
-  let toolCallId: string | null = null;
-  let ownerMessageId: string | null = null;
-  let todos: TodoItem[] | null = null;
-  let deliverableCompletion = emptyDeliverableCompletion();
-
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (!isToolUIPart(part)) continue;
-      if (toolUiKind(part) === "todo-list" && part.state === "output-available") {
-        const snapshot = parseTodoListOutput(part.output);
-        if (snapshot) {
-          toolCallId = snapshot.todos.length > 0 ? part.toolCallId : null;
-          ownerMessageId = snapshot.todos.length > 0 ? message.id : null;
-          todos = snapshot.todos.length > 0 ? snapshot.todos : null;
-          deliverableCompletion = emptyDeliverableCompletion();
-          continue;
-        }
-      }
-      if (!todos || ownerMessageId !== message.id) continue;
-      const kind = toolUiKind(part);
+export function projectMessageActiveTodoList(message: ChatUIMessage): ActiveTodoList | null | undefined {
+  for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex--) {
+    const part = message.parts[partIndex];
+    if (!isToolUIPart(part) || toolUiKind(part) !== "todo-list" || part.state !== "output-available") continue;
+    const snapshot = parseTodoListOutput(part.output);
+    if (!snapshot) continue;
+    if (snapshot.todos.length === 0) return null;
+    const deliverableCompletion = emptyDeliverableCompletion();
+    for (const candidate of message.parts.slice(partIndex + 1)) {
+      if (!isToolUIPart(candidate)) continue;
+      const kind = toolUiKind(candidate);
       const deliverable = kind && DELIVERABLE_BY_UI_KIND.get(kind);
-      if (deliverable) deliverableCompletion[deliverable].push(deliverablePartStatus(part));
+      if (deliverable) deliverableCompletion[deliverable].push(deliverablePartStatus(candidate));
     }
+    return {
+      revision: JSON.stringify([part.toolCallId, snapshot.todos, deliverableCompletion]),
+      todos: snapshot.todos,
+      deliverableCompletion,
+    };
   }
+  return undefined;
+}
 
-  if (!toolCallId || !todos) return null;
-  return {
-    revision: JSON.stringify([toolCallId, todos, deliverableCompletion]),
-    todos,
-    deliverableCompletion,
-  };
+export function projectActiveTodoList(messages: ChatUIMessage[]): ActiveTodoList | null {
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
+    const projection = projectMessageActiveTodoList(messages[messageIndex]);
+    if (projection !== undefined) return projection;
+  }
+  return null;
 }
 
 // Plan progress lives in the active composer surface. Approval and failure
 // states remain in the transcript because they require user action or diagnosis.
 export function visibleMessageParts(parts: ChatUIMessage["parts"]): (ChatUIMessage["parts"][number] | null)[] {
   return parts.map((part) => {
+    if (part.type === "source-url" || part.type === "source-document" || part.type === "step-start") return null;
     if (!isToolUIPart(part) || toolUiKind(part) !== "todo-list") return part;
     if (
       part.state === "approval-requested" ||

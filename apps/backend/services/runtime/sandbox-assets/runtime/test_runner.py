@@ -5,6 +5,7 @@ import os
 import pathlib
 import socket
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -15,6 +16,7 @@ from runner import (
     Runtime,
     bwrap_argv,
     command_seccomp_rules,
+    reset_directory,
     safe_open,
     safe_unlink,
     workspace_files,
@@ -24,8 +26,24 @@ from runner import (
 class RuntimeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
+        self.scratch = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self.temp.name)
-        self.runtime = Runtime(self.root, uid=os.getuid(), gid=os.getgid(), output_limit=128, workspace_edit_wait=0)
+        self.temp_root = pathlib.Path(self.scratch.name)
+        self.runtime = Runtime(
+            self.root,
+            uid=os.getuid(),
+            gid=os.getgid(),
+            output_limit=128,
+            workspace_edit_wait=0,
+            temp_root=self.temp_root,
+        )
+        self.scope = {
+            "session_id": "session",
+            "run_id": "first",
+            "attempt_epoch": "1",
+            "workspace_generation": "1",
+        }
+        self.request({"op": "bind_scope", "scope": self.scope, "expires_at": int(time.time() * 1000) + 60_000})
         self.sandbox = {
             "attempt": 1,
             "sandboxed": False,
@@ -36,9 +54,10 @@ class RuntimeTests(unittest.TestCase):
     def tearDown(self):
         self.runtime.close()
         self.temp.cleanup()
+        self.scratch.cleanup()
 
     def start(self, command, **kw):
-        return self.runtime.request(
+        return self.request(
             {
                 "op": "start",
                 "request_id": str(time.time_ns()),
@@ -49,6 +68,11 @@ class RuntimeTests(unittest.TestCase):
             }
         )
 
+    def request(self, request):
+        if request["op"] not in {"health", "bind_scope"} and "scope" not in request:
+            request = {**request, "scope": self.runtime.scope or self.scope}
+        return self.runtime.request(request)
+
     def test_exit_output_and_shared_files(self):
         result = self.start("printf hello > notes; printf error >&2; exit 7")
         self.assertEqual(result["termination"], {"type": "exit", "exit_code": 7})
@@ -57,11 +81,11 @@ class RuntimeTests(unittest.TestCase):
 
     def test_rejects_commands_without_an_explicit_sandbox_attempt(self):
         with self.assertRaisesRegex(ValueError, "sandbox attempt is required"):
-            self.runtime.request({"op": "start", "request_id": "missing", "command": "true"})
+            self.request({"op": "start", "request_id": "missing", "command": "true"})
 
     def test_bubblewrap_profile_uses_read_only_root_and_specific_mounts(self):
         sources = self.root / "sources"
-        sources.mkdir()
+        sources.mkdir(exist_ok=True)
         request = {
             "command": "true",
             "workdir": str(self.root),
@@ -174,7 +198,7 @@ class RuntimeTests(unittest.TestCase):
     def test_live_process_stdin_and_offsets(self):
         first = self.start("read line; printf '%s' \"$line\"", yield_time_ms=0)
         self.assertIsNone(first["termination"])
-        result = self.runtime.request(
+        result = self.request(
             {
                 "op": "write",
                 "session_id": first["session_id"],
@@ -184,7 +208,7 @@ class RuntimeTests(unittest.TestCase):
             }
         )
         self.assertEqual(result["stdout"], "world")
-        replay = self.runtime.request(
+        replay = self.request(
             {"op": "poll", "session_id": first["session_id"], "stdout_offset": result["stdout_offset"]}
         )
         self.assertEqual(replay["stdout"], "")
@@ -197,8 +221,8 @@ class RuntimeTests(unittest.TestCase):
             "request_id": "binary",
             "stdin_base64": base64.b64encode(b"\x03\xff\x00").decode(),
         }
-        self.runtime.request(write)
-        self.runtime.request(write)
+        self.request(write)
+        self.request(write)
         eof = {
             "op": "write",
             "session_id": child["session_id"],
@@ -206,10 +230,10 @@ class RuntimeTests(unittest.TestCase):
             "close_stdin": True,
             "yield_time_ms": 1000,
         }
-        result = self.runtime.request(eof)
+        result = self.request(eof)
         self.assertEqual(result["termination"], {"type": "exit", "exit_code": 0})
         self.assertEqual(base64.b64decode(result["stdout"]), b"\x03\xff\x00")
-        self.assertEqual(self.runtime.request(eof)["stdout"], result["stdout"])
+        self.assertEqual(self.request(eof)["stdout"], result["stdout"])
 
     def test_failed_stdin_write_cannot_replay_as_success(self):
         child = self.start("cat", pipe_stdin=True, binary_io=True, yield_time_ms=0)
@@ -248,7 +272,7 @@ class RuntimeTests(unittest.TestCase):
         process.retained_output = mock.Mock()
         process.retained_output.write.side_effect = OSError("disk full")
 
-        result = self.runtime.request({"op": "poll", "session_id": first["session_id"], "yield_time_ms": 1000})
+        result = self.request({"op": "poll", "session_id": first["session_id"], "yield_time_ms": 1000})
 
         self.assertEqual(result["termination"]["type"], "start-error")
         self.assertIn("failed to retain complete command output", result["termination"]["message"])
@@ -274,11 +298,11 @@ class RuntimeTests(unittest.TestCase):
             "yield_time_ms": 1000,
             "sandbox": self.sandbox,
         }
-        self.runtime.request(request)
-        self.runtime.request(request)
+        self.request(request)
+        self.request(request)
         self.assertEqual((self.root / "count").read_text(), "x\n")
         with self.assertRaises(ValueError):
-            self.runtime.request({**request, "command": "echo y >> count"})
+            self.request({**request, "command": "echo y >> count"})
 
     def test_completed_command_retry_survives_workspace_edit_and_close(self):
         request = {
@@ -288,14 +312,14 @@ class RuntimeTests(unittest.TestCase):
             "yield_time_ms": 1000,
             "sandbox": self.sandbox,
         }
-        first = self.runtime.request(request)
-        self.runtime.request({"op": "begin_workspace_edit", "token": "edit"})
-        self.assertEqual(self.runtime.request(request)["session_id"], first["session_id"])
-        self.runtime.request({"op": "end_workspace_edit", "token": "edit"})
+        first = self.request(request)
+        self.request({"op": "begin_workspace_edit", "token": "edit"})
+        self.assertEqual(self.request(request)["session_id"], first["session_id"])
+        self.request({"op": "end_workspace_edit", "token": "edit"})
         self.runtime.close()
-        self.assertEqual(self.runtime.request(request)["session_id"], first["session_id"])
+        self.assertEqual(self.request(request)["session_id"], first["session_id"])
         with self.assertRaisesRegex(ValueError, "different input"):
-            self.runtime.request({**request, "command": "echo y >> count"})
+            self.request({**request, "command": "echo y >> count"})
         self.assertEqual((self.root / "count").read_text(), "x\n")
 
     def test_file_transfer_rejects_escape_symlink_and_fifo(self):
@@ -317,32 +341,34 @@ class RuntimeTests(unittest.TestCase):
     def test_teardown_stops_pending_process(self):
         first = self.start("sleep 30", yield_time_ms=0)
         self.runtime.close()
-        result = self.runtime.request({"op": "poll", "session_id": first["session_id"]})
+        result = self.request({"op": "poll", "session_id": first["session_id"]})
         self.assertIsNotNone(result["termination"])
 
     def test_workspace_edit_fences_processes_and_is_idempotent(self):
         token = "edit-1"
-        self.assertEqual(self.runtime.request({"op": "begin_workspace_edit", "token": token}), {"token": token})
-        self.assertEqual(self.runtime.request({"op": "begin_workspace_edit", "token": token}), {"token": token})
+        self.assertEqual(self.request({"op": "begin_workspace_edit", "token": token}), {"token": token})
+        self.assertEqual(self.request({"op": "begin_workspace_edit", "token": token}), {"token": token})
         with self.assertRaisesRegex(ValueError, "workspace edit in progress"):
             self.start("true")
         with self.assertRaisesRegex(ValueError, "token mismatch"):
-            self.runtime.request({"op": "end_workspace_edit", "token": "other"})
-        self.assertEqual(self.runtime.request({"op": "end_workspace_edit", "token": token}), {"released": True})
+            self.request({"op": "end_workspace_edit", "token": "other"})
+        self.assertEqual(self.request({"op": "end_workspace_edit", "token": token}), {"released": True})
         self.assertEqual(self.start("printf resumed")["stdout"], "resumed")
 
     def test_workspace_edit_rejects_an_active_process(self):
         first = self.start("sleep 30", yield_time_ms=0)
         with self.assertRaisesRegex(ValueError, "active process"):
-            self.runtime.request({"op": "begin_workspace_edit", "token": "edit-1"})
-        self.runtime.request({"op": "cancel", "session_id": first["session_id"]})
+            self.request({"op": "begin_workspace_edit", "token": "edit-1"})
+        self.request({"op": "cancel", "session_id": first["session_id"]})
 
     def test_workspace_edit_waits_for_an_admitted_process(self):
         runtime = Runtime(self.root, uid=os.getuid(), gid=os.getgid(), output_limit=128, workspace_edit_wait=1)
         try:
+            runtime.request({"op": "bind_scope", "scope": self.scope, "expires_at": int(time.time() * 1000) + 60_000})
             runtime.request(
                 {
                     "op": "start",
+                    "scope": self.scope,
                     "request_id": "short",
                     "command": "sleep 0.1",
                     "yield_time_ms": 0,
@@ -350,25 +376,184 @@ class RuntimeTests(unittest.TestCase):
                 }
             )
             self.assertEqual(
-                runtime.request({"op": "begin_workspace_edit", "token": "edit-1"}),
+                runtime.request({"op": "begin_workspace_edit", "scope": self.scope, "token": "edit-1"}),
                 {"token": "edit-1"},
             )
-            runtime.request({"op": "end_workspace_edit", "token": "edit-1"})
+            runtime.request({"op": "end_workspace_edit", "scope": self.scope, "token": "edit-1"})
         finally:
             runtime.close()
 
     def test_snapshot_waits_for_workspace_edit_release(self):
-        self.runtime.request({"op": "begin_workspace_edit", "token": "edit-1"})
+        self.request({"op": "begin_workspace_edit", "token": "edit-1"})
         with self.assertRaisesRegex(ValueError, "workspace edit in progress"):
-            self.runtime.request({"op": "snapshot"})
-        self.assertTrue(self.runtime.request({"op": "health"})["ready"])
-        self.runtime.request({"op": "end_workspace_edit", "token": "edit-1"})
-        self.assertEqual(self.runtime.request({"op": "snapshot"}), {"files": []})
+            self.request({"op": "snapshot"})
+        self.assertTrue(self.request({"op": "health"})["ready"])
+        self.request({"op": "end_workspace_edit", "token": "edit-1"})
+        self.assertEqual(self.request({"op": "snapshot"}), {"files": []})
+
+    def test_new_workspace_generation_reopens_finalized_runtime_and_fences_old_scope(self):
+        first = {
+            "session_id": "session",
+            "run_id": "first",
+            "attempt_epoch": "1",
+            "workspace_generation": "1",
+        }
+        second = {**first, "run_id": "second", "workspace_generation": "2"}
+        now = int(time.time() * 1000)
+        self.assertEqual(
+            self.request({"op": "bind_scope", "scope": first, "expires_at": now + 60_000}),
+            {"bound": True},
+        )
+        self.assertEqual(self.start("printf kept > notes")["termination"], {"type": "exit", "exit_code": 0})
+        self.request({"op": "snapshot"})
+        self.request({"op": "retain_scope"})
+
+        self.assertEqual(
+            self.request({"op": "bind_scope", "scope": second, "expires_at": now + 60_000}),
+            {"bound": True},
+        )
+        self.assertEqual(self.start("cat notes")["stdout"], "kept")
+        with self.assertRaisesRegex(ValueError, "superseded"):
+            self.request({"op": "assert_scope", "scope": first})
+        with self.assertRaisesRegex(ValueError, "superseded"):
+            self.request({"op": "bind_scope", "scope": first, "expires_at": now + 60_000})
+
+    def test_rebind_clears_attempt_local_state_but_keeps_business_files(self):
+        first = {
+            "session_id": "session",
+            "run_id": "first",
+            "attempt_epoch": "1",
+            "workspace_generation": "1",
+        }
+        second = {**first, "run_id": "second", "workspace_generation": "2"}
+        now = int(time.time() * 1000)
+        self.request({"op": "bind_scope", "scope": first, "expires_at": now + 60_000})
+        (self.root / "sources" / "old.txt").write_text("old")
+        (self.root / ".home" / "old.txt").write_text("old")
+        (self.temp_root / "old.txt").write_text("old")
+        (self.root / "work.txt").write_text("kept")
+        self.request({"op": "snapshot", "scope": first, "allow_expired": True})
+        self.request({"op": "retain_scope", "scope": first, "allow_expired": True})
+
+        self.request({"op": "bind_scope", "scope": second, "expires_at": now + 60_000})
+
+        self.assertFalse((self.root / "sources" / "old.txt").exists())
+        self.assertFalse((self.root / ".home" / "old.txt").exists())
+        self.assertFalse((self.temp_root / "old.txt").exists())
+        self.assertEqual((self.root / "work.txt").read_text(), "kept")
+
+    def test_stale_scope_cannot_snapshot_or_destroy_a_rebound_workspace(self):
+        first = {
+            "session_id": "session",
+            "run_id": "first",
+            "attempt_epoch": "1",
+            "workspace_generation": "1",
+        }
+        second = {**first, "run_id": "second", "workspace_generation": "2"}
+        now = int(time.time() * 1000)
+        self.request({"op": "bind_scope", "scope": first, "expires_at": now + 60_000})
+        self.request({"op": "snapshot", "scope": first, "allow_expired": True})
+        self.request({"op": "retain_scope", "scope": first, "allow_expired": True})
+        self.request({"op": "bind_scope", "scope": second, "expires_at": now + 60_000})
+
+        for op in ("snapshot", "destroy_scope"):
+            with self.assertRaisesRegex(ValueError, "superseded"):
+                self.request({"op": op, "scope": first, "allow_expired": True})
+
+        self.assertEqual(self.start("printf alive")["stdout"], "alive")
+
+    def test_rebind_waits_for_scoped_operations_that_already_passed_the_fence(self):
+        first = self.scope
+        second = {**first, "run_id": "second", "workspace_generation": "2"}
+        now = int(time.time() * 1000)
+        self.request({"op": "snapshot", "scope": first, "allow_expired": True})
+        self.request({"op": "retain_scope", "scope": first, "allow_expired": True})
+        entered = threading.Event()
+        release = threading.Event()
+        result = []
+        original = self.runtime.scoped_request
+
+        def block_after_scope_check(request):
+            entered.set()
+            release.wait(1)
+            return original(request)
+
+        with mock.patch.object(self.runtime, "scoped_request", side_effect=block_after_scope_check):
+            thread = threading.Thread(
+                target=lambda: result.append(
+                    self.request({"op": "assert_scope", "scope": first, "allow_expired": True})
+                )
+            )
+            thread.start()
+            self.assertTrue(entered.wait(1))
+            with self.assertRaisesRegex(ValueError, "active operation"):
+                self.request({"op": "bind_scope", "scope": second, "expires_at": now + 60_000})
+            release.set()
+            thread.join(1)
+
+        self.assertEqual(result, [{"bound": True}])
+        self.assertEqual(
+            self.request({"op": "bind_scope", "scope": second, "expires_at": now + 60_000}),
+            {"bound": True},
+        )
+
+    def test_rebind_does_not_expose_the_new_scope_until_attempt_cleanup_finishes(self):
+        first = self.scope
+        second = {**first, "run_id": "second", "workspace_generation": "2"}
+        now = int(time.time() * 1000)
+        self.request({"op": "snapshot", "scope": first, "allow_expired": True})
+        self.request({"op": "retain_scope", "scope": first, "allow_expired": True})
+        entered = threading.Event()
+        release = threading.Event()
+        result = []
+
+        def blocked_reset(path, *, uid, gid):
+            entered.set()
+            release.wait(1)
+            return reset_directory(path, uid=uid, gid=gid)
+
+        with mock.patch("runner.reset_directory", side_effect=blocked_reset):
+            thread = threading.Thread(
+                target=lambda: result.append(
+                    self.request({"op": "bind_scope", "scope": second, "expires_at": now + 60_000})
+                )
+            )
+            thread.start()
+            self.assertTrue(entered.wait(1))
+            self.assertEqual(self.runtime.scope, first)
+            with self.assertRaisesRegex(ValueError, "superseded"):
+                self.request({"op": "assert_scope", "scope": second})
+            release.set()
+            thread.join(1)
+
+        self.assertEqual(result, [{"bound": True}])
+        self.assertEqual(self.runtime.scope, second)
+
+    def test_file_read_lease_blocks_writers_retention_and_rebind(self):
+        first = self.scope
+        second = {**first, "run_id": "second", "workspace_generation": "2"}
+        now = int(time.time() * 1000)
+        self.assertEqual(self.request({"op": "begin_file_read", "token": "read-1"}), {"token": "read-1"})
+        with self.assertRaisesRegex(ValueError, "workspace read in progress"):
+            self.request({"op": "begin_workspace_edit", "token": "edit-1"})
+        with self.assertRaisesRegex(ValueError, "workspace read in progress"):
+            self.start("true")
+        self.request({"op": "end_file_read", "token": "read-1", "allow_expired": True})
+
+        self.request({"op": "snapshot", "scope": first, "allow_expired": True})
+        self.request({"op": "begin_file_read", "scope": first, "token": "read-2", "allow_expired": True})
+        with self.assertRaisesRegex(ValueError, "operation in progress"):
+            self.request({"op": "retain_scope", "scope": first, "allow_expired": True})
+        self.request({"op": "end_file_read", "scope": first, "token": "read-2", "allow_expired": True})
+        self.request({"op": "retain_scope", "scope": first, "allow_expired": True})
+        self.request({"op": "bind_scope", "scope": second, "expires_at": now + 60_000})
+        with self.assertRaisesRegex(ValueError, "superseded"):
+            self.request({"op": "end_file_read", "scope": first, "token": "read-2", "allow_expired": True})
 
     def test_workspace_manifest_is_sorted_hashed_and_excludes_sources(self):
         (self.root / "b.txt").write_bytes(b"two")
         (self.root / "a.txt").write_bytes(b"one")
-        (self.root / "sources").mkdir()
+        (self.root / "sources").mkdir(exist_ok=True)
         (self.root / "sources" / "attachment.txt").write_text("external")
         self.assertEqual([item["path"] for item in workspace_files(self.root)], ["a.txt", "b.txt"])
         self.assertEqual(

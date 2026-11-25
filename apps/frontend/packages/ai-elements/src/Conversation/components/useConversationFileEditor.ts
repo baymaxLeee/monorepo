@@ -1,3 +1,4 @@
+import { resolveArtifactPreviewKind } from "@repo/ai-elements";
 import { ApiError, createStorageDownloadUrl, fetchAssetText } from "@repo/api";
 import { getConversationFile, type ConversationFile, updateConversationFileContent } from "@repo/api/chat";
 import { getErrorMessage, randomId } from "@repo/shared";
@@ -6,6 +7,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { registerArtifactNavigationGuard } from "../store/artifactNavigationGuard";
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "conflict" | "error";
+
+function opensInEditor(metadata: ConversationFile) {
+  const kind = resolveArtifactPreviewKind(undefined, metadata.mime_type, metadata.filename);
+  return metadata.editable && (kind === "markdown" || kind === "text");
+}
+
+async function fetchEditingContent(metadata: ConversationFile, conversationId: string, fileId: string) {
+  const capability = await createStorageDownloadUrl({
+    assetId: metadata.asset_id,
+    revisionId: metadata.revision_id,
+    owner: { kind: "conversation-file", conversationId, fileId },
+  });
+  return fetchAssetText(capability.url, undefined, metadata.edit_max_bytes);
+}
 
 export function useConversationFileEditor(
   conversationId: string | null,
@@ -41,10 +56,22 @@ export function useConversationFileEditor(
     if (!open || !conversationId || !fileId) return;
     setLoading(true);
     void getConversationFile(conversationId, fileId, { signal: controller.signal })
-      .then((metadata) => {
+      .then(async (metadata) => {
         if (epoch.current !== generation) return;
         state.current.file = metadata;
         setFile(metadata);
+        if (!opensInEditor(metadata)) return;
+        try {
+          const content = await fetchEditingContent(metadata, conversationId, fileId);
+          if (epoch.current !== generation) return;
+          state.current = { file: metadata, draft: content, saved: content };
+          setDraft(content);
+          setEditing(true);
+        } catch (cause) {
+          if (epoch.current === generation && !controller.signal.aborted) {
+            setError(getErrorMessage(cause, "无法加载编辑内容，请重试"));
+          }
+        }
       })
       .catch((cause) => {
         if (!controller.signal.aborted) setError(getErrorMessage(cause, "无法加载文件"));
@@ -70,12 +97,7 @@ export function useConversationFileEditor(
     try {
       const metadata = await getConversationFile(conversationId, fileId);
       if (!metadata.editable) throw new Error("此文件不支持编辑或超过文本编辑大小限制");
-      const capability = await createStorageDownloadUrl({
-        assetId: metadata.asset_id,
-        revisionId: metadata.revision_id,
-        owner: { kind: "conversation-file", conversationId, fileId },
-      });
-      const content = await fetchAssetText(capability.url, undefined, metadata.edit_max_bytes);
+      const content = await fetchEditingContent(metadata, conversationId, fileId);
       if (epoch.current !== generation) return;
       state.current = { file: metadata, draft: content, saved: content };
       setFile(metadata);

@@ -280,7 +280,7 @@ AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-
 - Subagent 展示后端实际委派批次进度，FileTree 打开真实文件/文档。TestResults 消费完整 TAP 13 报告；部分、格式不支持或中断的输出保留为终端原文，不从退出码推导测试通过。
 - Checkpoint 使用“从此处创建分支”：保留到选定回复为止的消息和当前文件不可变快照，保留原会话，不回滚文件、不重放工具、不接续授权或 provider response chain。未完成调用在副本中终止，视频等外部任务仍在原会话审批。
 - 自动滚动只在用户处于底部附近时跟随输出。用户向上阅读后不得抢回滚动位置，应提供“回到底部”。
-- Chat 正文、展开的推理和工具详情共用 `Conversation` 的滚动视口和触底状态，不另设限高滚动区或返回底部按钮。`Conversation` 组合当前 shadcn/ui `MessageScroller`，所有消息与占位行使用 `MessageScrollerItem`，用户消息作为轮次锚点。滚动位置和跟随状态由官方组件管理；触底后的继续向下操作通过其公开命令恢复跟随，不维护第二套状态机。消息内代码块和表格取消默认纵向限高，保留必要的横向滚动。
+- Chat 正文、展开的推理和工具详情共用 `Conversation` 的滚动视口和触底状态，不另设限高滚动区或返回底部按钮。`Conversation` 组合当前 shadcn/ui `MessageScroller`，已进入 transcript 的消息与占位行使用 `MessageScrollerItem`，用户消息作为轮次锚点。active-run admission 后、正式 `steering-message` 到达前的 pending input 尚不属于 transcript，固定渲染在 composer 上方的独立非滚动队列，不进入 `MessageScrollerContent` 的 ResizeObserver/滚动校正边界；正式 part 到达后才进入 transcript。滚动位置和跟随状态由官方组件管理；触底后的继续向下操作通过其公开命令恢复跟随，不维护第二套状态机。消息内代码块和表格取消默认纵向限高，保留必要的横向滚动。
 - 统一滚动采用渐进披露：普通工具默认只展示名称与状态，原始输入输出按需展开；Bash 默认展示命令首行与执行状态，完整命令和日志按需展开。推理随生成状态自动展开或收起，用户手动选择优先；授权、待回答问题和错误反馈保持直接可见。
 - AI 不确定性通过来源、状态、可编辑结果和确认边界表达，不使用拟人化动画或“正在思考”掩盖未知后台状态。
 

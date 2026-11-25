@@ -1,16 +1,24 @@
 import type { SandboxSession } from "#runtime/transport";
 
-import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
+import type {
+  RuntimeSandboxAdapter,
+  SandboxAttemptScope,
+  SandboxScope,
+} from "../../../infrastructure/clients/sandbox.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
-import { isMissingSandboxResourceError, workspaceFinalizationIsObsolete } from "../../cloud-workspace.js";
-import type { SandboxExecutionLifecycle } from "../runs/sandbox-executions.js";
+import {
+  isMissingSandboxResourceError,
+  type WorkspaceFinalizationSummary,
+  workspaceFinalizationIsObsolete,
+} from "../../cloud-workspace.js";
+import type { SandboxExecutionLifecycle, SandboxTerminalRecord } from "../runs/sandbox-executions.js";
 
 interface SandboxLeaseOptions {
-  scope: SandboxScope;
-  client: () => Pick<RuntimeSandboxAdapter, "create" | "destroy">;
+  scope: SandboxAttemptScope;
+  client: () => Pick<RuntimeSandboxAdapter, "create" | "destroy" | "retain">;
   journal: SandboxExecutionLifecycle;
-  restore(id: string): Promise<unknown>;
-  persist(id: string): Promise<void>;
+  restore(id: string, scope: SandboxScope): Promise<unknown>;
+  persist(id: string, scope: SandboxScope): Promise<WorkspaceFinalizationSummary>;
   stopProcesses(): void;
   owner?: AbortSignal;
 }
@@ -23,6 +31,7 @@ export class SandboxLease {
   private closing?: Promise<void>;
   private reserved = false;
   private active?: SandboxSession;
+  private boundScope?: SandboxScope;
 
   constructor(private readonly options: SandboxLeaseOptions) {
     if (options.owner?.aborted) this.onStop();
@@ -38,6 +47,10 @@ export class SandboxLease {
   }
   get attached() {
     return this.active !== undefined && !this.closing;
+  }
+  get scope(): SandboxScope {
+    if (!this.boundScope) throw new Error("sandbox workspace is not attached");
+    return this.boundScope;
   }
 
   async open(signal?: AbortSignal): Promise<SandboxSession> {
@@ -58,13 +71,14 @@ export class SandboxLease {
   }
 
   private async acquire() {
-    const { scope, client, journal, restore } = this.options;
-    await journal.restoring(scope);
+    const { scope: attemptScope, client, journal, restore } = this.options;
+    const scope = await journal.restoring(attemptScope);
+    this.boundScope = scope;
     this.reserved = true;
     // Observe create before destroy: a timed-out or cancelled request may still allocate a guest.
     const session = await client().create(scope);
     this.signal.throwIfAborted();
-    await restore(session.id);
+    await restore(session.id, scope);
     await journal.active(scope, session);
     this.active = session;
     return session;
@@ -85,27 +99,34 @@ export class SandboxLease {
   }
 
   private async finalize() {
-    const { scope, journal, persist } = this.options;
+    const { client, journal, persist } = this.options;
     await this.opening?.catch(() => undefined);
     if (!this.reserved) return;
+    const scope = this.scope;
     if (this.active) {
       try {
         await journal.finalizing(scope);
-        await persist(this.active.id);
+        const finalization = await persist(this.active.id, scope);
+        await client().retain(this.active.id, scope);
+        await journal.released(scope, { outcome: "retained", finalization });
+        return;
       } catch (error) {
         if (!workspaceFinalizationIsObsolete(error)) {
           await journal.finalizationFailed(scope, error);
           throw error;
         }
-        await this.release(error);
+        await journal.released(scope, {
+          outcome: isMissingSandboxResourceError(error) ? "resource_missing" : "superseded",
+        });
         throw error;
       }
     }
-    await this.release();
+    await this.release(undefined, { outcome: "destroyed" });
   }
 
-  private async release(reason?: unknown) {
-    const { scope, client, journal } = this.options;
+  private async release(reason: unknown, terminal: SandboxTerminalRecord) {
+    const { client, journal } = this.options;
+    const scope = this.scope;
     await journal.releasing(scope, reason);
     try {
       await client().destroy(scope);
@@ -114,7 +135,8 @@ export class SandboxLease {
         await journal.releasing(scope, error);
         throw error;
       }
+      if (terminal.outcome !== "superseded") terminal = { ...terminal, outcome: "resource_missing" };
     }
-    await journal.released(scope);
+    await journal.released(scope, terminal);
   }
 }

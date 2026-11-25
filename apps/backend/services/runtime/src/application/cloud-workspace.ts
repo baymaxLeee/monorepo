@@ -15,6 +15,16 @@ export interface CloudWorkspaceScope {
   sessionId: string;
   runId: string;
   attemptEpoch: string;
+  workspaceGeneration: string;
+}
+
+export interface WorkspaceFinalizationSummary {
+  manifestSha256: string;
+  files: number;
+  bytes: number;
+  created: number;
+  updated: number;
+  deleted: number;
 }
 
 export interface CloudWorkspaceDependencies {
@@ -46,8 +56,18 @@ export function isMissingSandboxResourceError(error: unknown): boolean {
 }
 
 export function workspaceFinalizationIsObsolete(error: unknown): boolean {
+  const body =
+    error instanceof Error && "body" in error && error.body && typeof error.body === "object" ? error.body : null;
   return (
     (error instanceof ConflictError && error.code === "workspace_writer_superseded") ||
+    (error instanceof Error &&
+      "service" in error &&
+      error.service === "runtime-sandbox" &&
+      "status" in error &&
+      error.status === 409 &&
+      body != null &&
+      "code" in body &&
+      body.code === "sandbox_scope_superseded") ||
     isMissingSandboxResourceError(error)
   );
 }
@@ -65,16 +85,33 @@ export async function persistCloudWorkspace(
   context: CloudWorkspaceScope,
   sandboxId: string,
   deps: CloudWorkspaceDependencies = defaults,
-): Promise<void> {
+): Promise<WorkspaceFinalizationSummary> {
   const scope = {
     session_id: context.sessionId,
     run_id: context.runId,
     attempt_epoch: context.attemptEpoch,
+    workspace_generation: context.workspaceGeneration,
   };
   const [snapshot, files] = await Promise.all([deps.sandbox().snapshot(sandboxId, scope), deps.checkout(context)]);
   const baseline = new Map(files.map((file) => [file.workspace_path, file]));
   const livePaths = new Set<string>();
   let published: Map<string, Awaited<ReturnType<typeof listSessionFiles>>[number]> | undefined;
+  const summary: WorkspaceFinalizationSummary = {
+    manifestSha256: createHash("sha256")
+      .update(
+        JSON.stringify(
+          snapshot.files
+            .map(({ path, size, sha256 }) => ({ path, size, sha256 }))
+            .sort((left, right) => left.path.localeCompare(right.path)),
+        ),
+      )
+      .digest("hex"),
+    files: snapshot.files.length,
+    bytes: snapshot.files.reduce((total, entry) => total + entry.size, 0),
+    created: 0,
+    updated: 0,
+    deleted: 0,
+  };
 
   for (const entry of snapshot.files) {
     const workspacePath = `/workspace/${entry.path}`;
@@ -86,18 +123,20 @@ export async function persistCloudWorkspace(
     const current = baseline.get(workspacePath);
     if (current?.sha256 === entry.sha256 && current.size === entry.size) continue;
     if (current) {
+      const operationId = createHash("sha256")
+        .update(`${context.runId}:workspace-update:${workspacePath}:${entry.sha256}`)
+        .digest("hex");
       await deps.update(
         {
           sessionId: context.sessionId,
           fileId: current.id,
           expectedEtag: current.etag,
           contentSha256: entry.sha256,
-          operationId: createHash("sha256")
-            .update(`${context.runId}:workspace-update:${workspacePath}:${entry.sha256}`)
-            .digest("hex"),
+          operationId,
           writerType: "agent",
           writerId: context.runId,
           sandboxAttempt: context,
+          workspaceEffect: { id: operationId, producer: "workspace-finalizer" },
           workspacePath,
           expectedPathGeneration: current.path_generation,
         },
@@ -129,6 +168,7 @@ export async function persistCloudWorkspace(
           }
         },
       );
+      summary.updated += 1;
       continue;
     }
 
@@ -172,7 +212,9 @@ export async function persistCloudWorkspace(
         writerType: "agent",
         writerId: context.runId,
         sandboxAttempt: context,
+        workspaceEffect: { id: idempotencyKey, producer: "workspace-finalizer" },
       });
+      summary.created += 1;
     } finally {
       if (!body.locked) await body.cancel().catch(() => {});
     }
@@ -180,6 +222,9 @@ export async function persistCloudWorkspace(
 
   for (const [workspacePath, file] of baseline) {
     if (livePaths.has(workspacePath)) continue;
+    const effectId = createHash("sha256")
+      .update(`${context.runId}:workspace-delete:${workspacePath}:${file.sha256}:${file.path_generation}`)
+      .digest("hex");
     await deps.delete({
       sessionId: context.sessionId,
       fileId: file.id,
@@ -188,6 +233,9 @@ export async function persistCloudWorkspace(
       expectedEtag: file.etag,
       writerId: context.runId,
       sandboxAttempt: context,
+      workspaceEffect: { id: effectId, producer: "workspace-finalizer" },
     });
+    summary.deleted += 1;
   }
+  return summary;
 }

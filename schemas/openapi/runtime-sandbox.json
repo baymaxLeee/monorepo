@@ -530,6 +530,134 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The reusable workspace is attached to a newer attempt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxScopeSuperseded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}/inventory": {
+      "get": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Sandbox-Scope",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "JSON-encoded SandboxScope"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxWorkspaceSnapshot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The scoped sandbox no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxNotFound"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The reusable workspace is attached to a newer attempt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxScopeSuperseded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}/retain": {
+      "post": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Sandbox-Scope",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "JSON-encoded SandboxScope"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "retained": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "retained"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The scoped sandbox no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxNotFound"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The reusable workspace is attached to a newer attempt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxScopeSuperseded"
+                }
+              }
+            }
           }
         }
       }
@@ -669,6 +797,24 @@
         ],
         "additionalProperties": false
       },
+      "SandboxScopeSuperseded": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "sandbox_scope_superseded"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
       "SandboxScope": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -687,12 +833,18 @@
             "type": "string",
             "maxLength": 20,
             "pattern": "^[1-9][0-9]*$"
+          },
+          "workspace_generation": {
+            "type": "string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$"
           }
         },
         "required": [
           "session_id",
           "run_id",
-          "attempt_epoch"
+          "attempt_epoch",
+          "workspace_generation"
         ],
         "additionalProperties": false
       },
@@ -717,12 +869,18 @@
                 "type": "string",
                 "maxLength": 20,
                 "pattern": "^[1-9][0-9]*$"
+              },
+              "workspace_generation": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
               }
             },
             "required": [
               "session_id",
               "run_id",
-              "attempt_epoch"
+              "attempt_epoch",
+              "workspace_generation"
             ],
             "additionalProperties": false
           },
@@ -1103,12 +1261,18 @@
                 "type": "string",
                 "maxLength": 20,
                 "pattern": "^[1-9][0-9]*$"
+              },
+              "workspace_generation": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
               }
             },
             "required": [
               "session_id",
               "run_id",
-              "attempt_epoch"
+              "attempt_epoch",
+              "workspace_generation"
             ],
             "additionalProperties": false
           },

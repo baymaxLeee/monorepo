@@ -23,6 +23,7 @@ interface ActiveWorkspace {
     session_id: string;
     run_id: string;
     attempt_epoch: string;
+    workspace_generation: string;
   };
 }
 
@@ -68,6 +69,7 @@ const defaults: CloudWorkspaceEditDependencies = {
         session_id: row.execution.threadId,
         run_id: row.execution.turnId,
         attempt_epoch: row.execution.attemptEpoch.toString(),
+        workspace_generation: row.execution.workspaceGeneration.toString(),
       },
     };
   },

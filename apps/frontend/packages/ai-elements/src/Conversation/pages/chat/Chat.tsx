@@ -193,7 +193,11 @@ export function ChatSession({
     closeImagePreview();
   }, [id, closeArtifactPreview, closeImagePreview]);
 
-  const { admit: admitRunInput, pendingInputs } = useAgentRunInputs({
+  const {
+    acknowledgeDelivered: acknowledgeDeliveredRunInputs,
+    admit: admitRunInput,
+    pendingInputs,
+  } = useAgentRunInputs({
     conversationId: id,
     activeRunId,
     recoveryRunId: activeRunId ?? detail?.latest_run_id ?? null,
@@ -346,6 +350,7 @@ export function ChatSession({
       loading={loading}
       branches={detail?.branches ?? []}
       pendingInputs={pendingInputs}
+      onPendingInputsDelivered={acknowledgeDeliveredRunInputs}
       scrollRef={conversationScrollRef}
       onStatusChange={setStatus}
       onCanvasChange={onCanvasChange}

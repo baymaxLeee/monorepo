@@ -15,13 +15,17 @@ export interface SandboxScope {
   session_id: string;
   run_id: string;
   attempt_epoch: string;
+  workspace_generation: string;
 }
+
+export type SandboxAttemptScope = Omit<SandboxScope, "workspace_generation">;
 
 function transportScope(scope: SandboxScope): TransportSandboxScope {
   return {
     session_id: scope.session_id,
     run_id: scope.run_id,
     attempt_epoch: scope.attempt_epoch,
+    workspace_generation: scope.workspace_generation,
   };
 }
 
@@ -59,6 +63,14 @@ export class RuntimeSandboxAdapter {
 
   snapshot(id: string, scope: SandboxScope): Promise<SandboxWorkspaceSnapshot> {
     return this.client.snapshot(id, transportScope(scope));
+  }
+
+  inventory(id: string, scope: SandboxScope): Promise<SandboxWorkspaceSnapshot> {
+    return this.client.inventory(id, transportScope(scope));
+  }
+
+  retain(id: string, scope: SandboxScope): Promise<{ retained: boolean }> {
+    return this.client.retain(id, transportScope(scope));
   }
 
   acquireWorkspaceEdit(id: string, scope: SandboxScope, token?: string): Promise<{ token: string }> {

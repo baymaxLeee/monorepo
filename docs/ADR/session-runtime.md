@@ -1,6 +1,6 @@
 # Session Runtime：单一执行内核与三运行角色
 
-状态：**current with explicit residual boundaries**。三角色与 BFF owner、shared `RuntimeTurn`、journal/lease/Sandbox finalizer 已实现；Cloud 已分开 logical Turn/physical attempt，并实施 waiting continuation、attempt-fenced step/effect/lease/Sandbox、immutable resume envelope、generation validation 和安全 model-boundary auto-resume。Desktop restart auto-resume、未知外部 effect reconciliation 与生产隔离环境验收仍未完成。下文分别标记当前事实与残余边界，不以旧 ADR、目录迁移或 mock 测试冒充完成。不保留旧执行服务或旧数据库模型的长期兼容层。
+状态：**current with explicit residual boundaries**。三角色与 BFF owner、shared `RuntimeTurn`、journal/lease/Sandbox finalizer 已实现；Cloud 已分开 logical Turn/physical attempt，并实施 waiting continuation、attempt-fenced step/effect/lease/Sandbox、Session workspace generation、retained guest terminal ledger、immutable resume envelope 和安全 model-boundary auto-resume。Desktop restart auto-resume、未知外部 effect reconciliation 与生产隔离环境验收仍未完成。下文分别标记当前事实与残余边界，不以旧 ADR、目录迁移或 mock 测试冒充完成。不保留旧执行服务或旧数据库模型的长期兼容层。
 
 决策键：如何让交互式 Agent loop、消息、Sandbox 与 detached durable Job 具有一个 owner，同时保持执行恢复与高权限计算的进程隔离？
 
@@ -13,7 +13,7 @@
 Runtime 使用一个镜像、三个显式 command 入口。结构参照 Canvas 的 `cmd` 装配方式：入口负责选择进程角色和该角色配置，业务模块仍统一位于 Runtime 顶层 `api/application/domain/infrastructure`，不存在嵌套的 worker 子项目，也不通过 `RUNTIME_ROLE` 在运行时分支：
 
 | 角色 | 端口 | 核心职责 | 隔离原因 |
-| --- | ---: | --- | --- |
+| --- | --: | --- | --- |
 | `runtime-server` | 8015 | Hono API、Session/messages、shared `RuntimeTurn` host、inline tools、stream/continuation | 交互主路径；loop 在 server 进程内，不存在独立 `runtime-agent` |
 | `runtime-worker` | 8011 | Nitro + Workflow，执行 detached durable Job、等待、重试和恢复 | 独立扩缩、部署恢复和长任务资源预算 |
 | `runtime-sandbox` | 8014 | 创建、限制、查询与回收 Docker/Kubernetes guest | 单独 ServiceAccount/容器权限；不持有业务或 provider 凭据 |
@@ -65,14 +65,9 @@ Chat 继续向浏览器提供 `/conversations` 产品 API：
 
 Chat 与 Runtime 使用独立 PostgreSQL database，并明确禁止通过 XA/2PC、共享数据库或跨库事务把两个服务重新耦合。创建是一段最终一致的业务流程：Chat 使用稳定 `request_id` 调用 Runtime 创建/返回同一 Session，再幂等写入本地映射；响应丢失按原键重试。进程若在 Runtime 成功后、本地映射提交前崩溃，当前实现仍需要识别并回收孤立 Session；它尚未持久化 create/delete saga。未来增强方向是 Chat 本地持久化 intent/outbox、补偿和 reconciliation，不是追求跨库 ACID。删除先请求 Runtime，再删除本地映射，未知结果必须沿原身份对账，不能先删映射而失去 Runtime 清理责任。
 
-产品标题、项目/Canvas 绑定以 Chat/Canvas 为权威，不进入 Runtime Session 表。产品宿主在每次
-Agent run 前解析业务资源、模型、skills 与 plugins，把结果投影为 tenant-neutral 的
-`TurnCapabilities = { provider, media, plugins, skills, memories }`；其中 `memories` 只是上层已授权内容的
-冻结投影，不携带用户身份。Runtime 只冻结并消费这份执行 capability，不把
-`project_id`、`canvas_id` 或其他业务 binding 升级为 Session 元数据。产品 conversation 的
-创建/删除/查询始终经上层已授权映射，禁止直接信任客户端传入的 `runtime_session_id`。
+产品标题、项目/Canvas 绑定以 Chat/Canvas 为权威，不进入 Runtime Session 表。产品宿主在每次 Agent run 前解析业务资源、模型、skills 与 plugins，把结果投影为 tenant-neutral 的 `TurnCapabilities = { provider, media, plugins, skills, memories }`；其中 `memories` 只是上层已授权内容的冻结投影，不携带用户身份。Runtime 只冻结并消费这份执行 capability，不把 `project_id`、`canvas_id` 或其他业务 binding 升级为 Session 元数据。产品 conversation 的创建/删除/查询始终经上层已授权映射，禁止直接信任客户端传入的 `runtime_session_id`。
 
-本次 Runtime 绿地重构已明确授权丢弃并重建现有 Runtime 1.0.0 数据，因此直接重写 fresh baseline，不提供旧 Runtime Session schema 的迁移或兼容读取。数据删除只由部署时的显式 reset 执行，运行时代码不自行 drop 数据；外部资产和未决副作用仍必须由各自 owner 对账，不能因 Runtime 重建而假定已经撤销。
+本次 Runtime 绿地重构允许直接删除旧 API、旧状态模型和兼容读取，但不授权改写已经应用的 migration 或隐式删除持久数据库。终态通过同一 release 内新的 contiguous step 向前收敛；数据删除仍只由部署时另行明确授权的 reset 执行，运行时代码不自行 drop 数据。外部资产和未决副作用必须由各自 owner 对账，不能因 Runtime 模型重建而假定已经撤销。
 
 ## Messages 查询与交互恢复
 
@@ -108,15 +103,15 @@ Desktop 启动时仍把残留 `running` Turn 标记为 `interrupted`；它尚无
 
 controller 通过 Docker 或 Kubernetes adapter 管理 guest。生产 K8s 使用 gVisor、独立执行 namespace、网络策略、配额和 egress proxy；缺失隔离条件时启动/执行失败，不回退宿主机。未来若需要预热池、跨节点调度、快照迁移或高密度编排，可在同一 role contract 后替换 Go control plane；Go 组件仍是计算 adapter，不成为 Session 或 Agent owner。
 
-workspace 是 Session 的持久文件状态，guest 是临时计算资源。命令以稳定 operation ID 创建/查询，响应丢失先查原命令；checkpoint 必须协调活跃写入。Job 如需文件计算，使用不可变输入与独立输出区，发布时按路径/revision CAS，冲突保留候选结果，不能覆盖用户或前台的新修改。
+workspace 是 Session 的持久文件状态，guest 是临时计算资源。物理 guest 可在成功 finalization 后短时 retained，但执行权从不跨 attempt：Session 原子递增 `workspace_generation`，guest 的 process/file/snapshot/retain/destroy control 必须在同一操作内校验 `{ session_id, run_id, attempt_epoch, workspace_generation }`。命令以稳定 operation ID 创建/查询，响应丢失先查原命令；checkpoint 必须协调活跃写入。Job 如需文件计算，使用不可变输入与独立输出区，发布时按路径/revision CAS，冲突保留候选结果，不能覆盖用户或前台的新修改。
 
-清理责任必须持久化，server/controller 重启后仍能回收资源。保存失败不得标记成功；达到计算硬期限仍需回收并报告未保存范围。关闭 Session 拒绝新输入与 Job，取消未完成执行，保留历史和资产；删除是独立操作。fork 只复制完整历史切点及对应文件快照，不复制 live Job、审批授权或副作用执行权。
+清理责任必须持久化，server/controller 重启后仍能完成 finalization、retain 或 fenced destroy。成功路径冻结 workspace、提交 Storage/effect、`retain_scope` 后，attempt 才能以 `retained` 终态释放；保存或 retain 失败保持 `finalizing` 供 reconciler 重试。物理硬期限与容量回收仍有界，达到期限不得伪造保存成功。关闭 Session 拒绝新输入与 Job，取消未完成执行，保留历史和资产；删除是独立操作。fork 只复制完整历史切点及对应文件快照，不复制 guest、live Job、审批授权或副作用执行权。
 
 ## 数据与部署
 
 ### Runtime server 数据库采用绿地建模
 
-Runtime PostgreSQL 的 logical Turn/physical attempt/tool effect/recovery generation 模型已直接进入 fresh-install `v1.0.0.0` baseline，不是基于旧表的增量迁移。baseline 从建库起就由 `turn_attempts` 持有 request/operation/history binding，step/effect/lease/Sandbox 绑定精确 epoch，副作用 ledger 命名为 `tool_effects`，attempt-scoped `turn_resume_envelopes` 与 generation-bound `context_checkpoints` 同时建立。旧混合模型、`tool_executions` 和中间 migration 都不保留。
+Runtime PostgreSQL 的 logical Turn/physical attempt/tool effect/recovery generation 模型由 `v1.0.0.0` 建立；已应用的 `v1.0.0.1` 增加了 Sandbox finalization ledger、immutable workspace effect 与 artifact occurrence，因此保持原字节与 checksum 不变。终态由下一 contiguous `v1.0.0.2` 增加 Session workspace generation、收紧 terminal outcome 与 occurrence/effect 关联，并对 `.1` 行做确定性的向前转换；应用层不增加双读、旧 API 或兼容状态。`turn_attempts` 继续持有 request/operation/history binding，step/effect/lease/Sandbox 绑定精确 epoch，attempt-scoped `turn_resume_envelopes` 与 generation-bound `context_checkpoints` 保持不变。
 
 聚合保持小而明确，不建设通用 event store。下表描述逻辑 owner 及当前实现度；物理表名可随 owner 语义收口，但不得重新混淆 identity、generation 和终态不变量：
 
@@ -131,16 +126,18 @@ Runtime PostgreSQL 的 logical Turn/physical attempt/tool effect/recovery genera
 | `tool_effects` | current with limits | `(turn_id, tool_call_id)` 身份、attempt owner、canonical `input_digest`、redacted `input_json`、running/completed/failed 与 result；effect class、外部 operation ID 和对账引用仍按工具补齐 |
 | `context_checkpoints` | current | coverage/revision、source history revision/digest、instruction/catalog/workspace digest、compactor version、remote binding 与 estimated usage；不单独证明 effect 可恢复 |
 | `turn_leases` | current | 精确绑定当前 attempt 的 fencing token；过期只表示 owner 可替换，不表示副作用安全重放 |
-| Workspace file / operation | current with limits | `thread_files` 和 `thread_file_save_operations` 拥有 stable path、content/path generation、etag、tombstone/save identity；resume envelope 绑定当前 live workspace digest，跨 Storage 未决写回仍由 reconciliation 收敛 |
-| Sandbox attempt (`turn_sandbox_executions`) | current | 精确所属 `(turn_id, attempt_epoch)`、restoring/active/finalizing/releasing 与持久 cleanup responsibility |
+| Workspace file / save operation | current with limits | `thread_files` 和 `thread_file_save_operations` 拥有 stable path、content/path generation、etag、tombstone/save identity；resume envelope 绑定当前 live workspace digest，跨 Storage 未决写回仍由 reconciliation 收敛 |
+| `workspace_effects` | current | 每个 attempt 对稳定文件的 immutable create/update/delete；固定 producer、tool call、base/result revision、path generation，不是通用 event store |
+| `artifact_occurrences` | current in Cloud | 一次显式 Agent publication 由 `(turn, attempt, tool_call_id, artifact_index)` 唯一定位，并精确关联已提交 workspace effect、asset/revision/hash/path；仅属内部审计，不进入 public/shared file contract，Desktop 不复制该 ledger |
+| Sandbox attempt (`turn_sandbox_executions`) | current | 精确所属 `(turn_id, attempt_epoch, workspace_generation)`、restoring/active/finalizing/releasing、finalization summary、`retained | destroyed | resource_missing | superseded` 终态与持久 cleanup responsibility |
 
-当前由数据库约束/事务承担的不变量包括：每个 Session 至多一个 `waiting/running/cancel_requested` logical Turn；每个 Turn 的 attempt epoch 唯一且递增；lease、step 和 Sandbox 精确绑定 attempt；tool-call identity 只在 logical Turn 内稳定且输入不可变；live workspace path 在 Session 内唯一，旧 writer/attempt 不能推进当前文件；只有持有完整 immutable envelope 且 generation 未漂移的 replay-safe boundary 才能 claim recovery。跨 Storage/Sandbox/Workflow 的结果继续通过 intent + reconciliation 收敛，不伪造跨服务事务。
+当前由数据库约束/事务承担的不变量包括：每个 Session 至多一个 `waiting/running/cancel_requested` logical Turn；每个 Turn 的 attempt epoch 唯一且递增；每个需要 guest 的 attempt 原子取得更大的 Session workspace generation；lease、step 和 Sandbox 精确绑定 attempt；tool-call identity 只在 logical Turn 内稳定且输入不可变；live workspace path 在 Session 内唯一，旧 writer/attempt 不能推进当前文件；artifact occurrence 只能引用同 Turn 已提交的 workspace effect；只有持有完整 immutable envelope 且 generation 未漂移的 replay-safe boundary 才能 claim recovery。跨 Storage/Sandbox/Workflow 的结果继续通过 intent + reconciliation 收敛，不伪造跨服务事务。
 
 `resume envelope` 是以上权威行在 attempt admission 时冻结的 reconstruction snapshot，不复制 UIMessage transcript 或第二份可变状态机。恢复时仍在事务中交叉核对 Turn/attempt/journal/effect 与 envelope，并在进入模型前重新计算 context generation；stream chunk、Redis replay、provider response id、PID 与 Sandbox session id 都不能成为恢复真源。UIMessage 正文留在 `thread_items`，tool/step 表只保存执行控制事实，避免把同一 transcript 再编码一遍。
 
 当前一个用户任务只有一个 `thread_turns.id`，continuation 只追加 `turn_attempts`；recovery 也必须沿用这一身份，不得退回新建 Turn。`turn_steps` 与 `tool_effects` 不允许恢复时把 terminal row 重置为 running；相同 identity 的异参写入直接冲突，unconfirmed effect 只有对账或显式新操作可以推进。
 
-绿地表示**模型和 API 无兼容包袱**。当前 local/VPS Runtime 业务数据被明确列为可重建，因此该 release 只保留重写后的 `v1.0.0.0`，不提供从旧 Runtime schema 的 upgrade/down 路径。部署时由显式 reset 动作重建 Runtime 数据库；运行时代码不自行 drop 数据。该 baseline 被真正作为不可重建的发布投产后，后续结构变更再恢复版本化 migration 规则。
+绿地表示**模型和 API 没有兼容包袱**，不表示可以改写已应用 migration、伪造 checksum 或默认清空开发/部署数据库。已经出现于 `public.migration` / `public.migration_history` 的 step 保持原字节；终态差异只能追加下一 contiguous step。运行时代码不自行 drop 数据，之后的结构变更继续遵循相同规则。
 
 Chat 只保留产品映射 schema。Workflow 使用自管理 PostgreSQL World 和官方 schema setup；Runtime 业务迁移与 World migration 分开执行、备份和恢复。
 

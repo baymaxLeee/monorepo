@@ -3,8 +3,8 @@ import { Button, MessageScrollerItem, Spinner } from "@repo/design-system";
 import { memo, useEffect, useMemo, useState } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
+import { createSnapshotItemIndex } from "./chat-render-cache";
 import { ChatMessageView, type ChatMessageViewProps } from "./ChatMessageView";
-import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 
 type TranscriptMessageRowProps = Omit<ChatMessageViewProps, "message"> & {
   message: ChatUIMessage | null;
@@ -43,7 +43,6 @@ type ChatTranscriptProps = Pick<
   runActive?: boolean;
   loading: boolean;
   branches: NonNullable<ChatMessageViewProps["branch"]>[];
-  pendingInputs?: readonly PendingAgentInput[];
 };
 
 function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
@@ -74,7 +73,6 @@ export const ChatTranscript = memo(function ChatTranscript({
   runActive = false,
   loading,
   branches,
-  pendingInputs = [],
   onOpenArtifact,
   onOpenFile,
   onOpenWorkspaceFile,
@@ -88,7 +86,8 @@ export const ChatTranscript = memo(function ChatTranscript({
   onFork,
 }: ChatTranscriptProps) {
   const [firstVisibleId, setFirstVisibleId] = useState<string | null>(null);
-  const anchorIndex = firstVisibleId === null ? -1 : messages.findIndex((message) => message.id === firstVisibleId);
+  const findMessageIndex = useMemo(() => createSnapshotItemIndex((message: ChatUIMessage) => message.id), []);
+  const anchorIndex = findMessageIndex(messages, firstVisibleId);
   const start = anchorIndex < 0 ? Math.max(0, messages.length - 40) : anchorIndex;
   // Anchor by identity: appending a new turn must not evict the row being read.
   useEffect(() => {
@@ -103,16 +102,6 @@ export const ChatTranscript = memo(function ChatTranscript({
     () => new Map(branches.map((branch) => [branch.selected_message_id, branch] as const)),
     [branches],
   );
-  const deliveredSteeringIds = useMemo(
-    () =>
-      new Set(
-        messages.flatMap((message) =>
-          message.parts.flatMap((part) => (part.type === "steering-message" ? [part.id] : [])),
-        ),
-      ),
-    [messages],
-  );
-  const visiblePendingInputs = pendingInputs.filter((input) => !deliveredSteeringIds.has(input.id));
 
   return (
     <>
@@ -167,7 +156,6 @@ export const ChatTranscript = memo(function ChatTranscript({
           );
         })
       )}
-      <PendingInputStack inputs={visiblePendingInputs} />
     </>
   );
 });

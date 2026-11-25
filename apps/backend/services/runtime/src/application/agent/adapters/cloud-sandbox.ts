@@ -25,6 +25,7 @@ import {
   deleteWorkspaceSessionFile,
   listSessionFiles,
   publishSessionFile,
+  recordArtifactOccurrence,
   saveSessionFile,
   type SessionFile,
 } from "../../session-files.js";
@@ -40,7 +41,17 @@ type WritableProcess = Experimental_SandboxProcess & { stdin: WritableStream<Uin
 export interface SandboxDependencies {
   sandbox: () => Pick<
     RuntimeSandboxAdapter,
-    "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download" | "deleteFile" | "snapshot"
+    | "create"
+    | "destroy"
+    | "start"
+    | "write"
+    | "cancel"
+    | "upload"
+    | "download"
+    | "deleteFile"
+    | "snapshot"
+    | "inventory"
+    | "retain"
   >;
   asset: () => Pick<StorageClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
   files: typeof listSessionFiles;
@@ -49,6 +60,7 @@ export interface SandboxDependencies {
   publish: typeof publishSessionFile;
   update: typeof saveSessionFile;
   delete: typeof deleteWorkspaceSessionFile;
+  occurrence: typeof recordArtifactOccurrence;
   execution: SandboxExecutionLifecycle;
 }
 
@@ -61,6 +73,7 @@ const defaults: SandboxDependencies = {
   publish: publishSessionFile,
   update: saveSessionFile,
   delete: deleteWorkspaceSessionFile,
+  occurrence: recordArtifactOccurrence,
   execution: sandboxExecutionLifecycle,
 };
 
@@ -164,7 +177,6 @@ export class RunSandbox implements Experimental_SandboxSession {
   private readonly observedFileEtags = new Map<string, string>();
   private fileObservationInitialized = false;
   private sourceManifest = "";
-  private readonly scope: SandboxScope;
   constructor(
     private readonly context: ArtifactToolContext & { attemptEpoch: string },
     private readonly deps: SandboxDependencies = defaults,
@@ -174,17 +186,18 @@ export class RunSandbox implements Experimental_SandboxSession {
     }).profile,
     private readonly helperProcesses: ProcessManager = new ProcessManager(),
   ) {
-    this.scope = {
+    const scope = {
       session_id: context.sessionId,
       run_id: context.runId,
       attempt_epoch: context.attemptEpoch,
     };
     this.lease = new SandboxLease({
-      scope: this.scope,
+      scope,
       client: deps.sandbox,
       journal: deps.execution,
-      restore: (id) => this.hydrate(id),
-      persist: (id) => persistCloudWorkspace(this.context, id, this.deps),
+      restore: (id, boundScope) => this.hydrate(id, boundScope),
+      persist: (id, boundScope) =>
+        persistCloudWorkspace({ ...this.context, workspaceGeneration: boundScope.workspace_generation }, id, this.deps),
       stopProcesses: () => this.helperProcesses.closeAll(),
       owner: ownerSignal,
     });
@@ -194,39 +207,53 @@ export class RunSandbox implements Experimental_SandboxSession {
     return signal ? AbortSignal.any([this.lease.signal, signal]) : this.lease.signal;
   }
 
+  private get scope(): SandboxScope {
+    return this.lease.scope;
+  }
+
   ensure(signal?: AbortSignal) {
     return this.lease.open(signal);
   }
 
-  private async hydrate(id: string) {
+  private async hydrate(id: string, scope: SandboxScope = this.scope) {
     const signal = this.lease.signal;
     const client = this.deps.sandbox();
     const imported: Array<{ path: string; document_id?: string; file_id?: string }> = [];
-    const files = await this.deps.files({
-      sessionId: this.context.sessionId,
-    });
+    const [files, inventory] = await Promise.all([
+      this.deps.files({ sessionId: this.context.sessionId }),
+      client.inventory(id, scope),
+    ]);
+    const remaining = new Map(inventory.files.map((entry) => [entry.path, entry]));
     for (const file of files) {
       signal.throwIfAborted();
       const path = sandboxRelativePath(file.workspace_path);
       const source = { path: file.workspace_path, file_id: file.id };
       const key = `file:${file.id}`;
       const fingerprint = `${file.asset_id}:${file.revision_id}:${path}`;
+      const existing = remaining.get(path);
+      remaining.delete(path);
       if (this.sources.get(key)?.fingerprint === fingerprint) continue;
-      const body = await this.deps.asset().content({
-        assetId: file.asset_id,
-        revisionId: file.revision_id,
-        signal,
-      });
-      try {
-        await client.upload(id, this.scope, path, body, signal);
-      } finally {
-        if (!body.locked) await body.cancel().catch(() => {});
+      if (existing?.sha256 !== file.sha256 || existing.size !== file.size) {
+        const body = await this.deps.asset().content({
+          assetId: file.asset_id,
+          revisionId: file.revision_id,
+          signal,
+        });
+        try {
+          await client.upload(id, scope, path, body, signal);
+        } finally {
+          if (!body.locked) await body.cancel().catch(() => {});
+        }
       }
       this.sources.set(key, { fingerprint, source });
       if (!file.workspace_path.startsWith(ATTACHMENT_ROOT)) {
         await this.deps.recordCheckout(this.context, file);
       }
       imported.push(source);
+    }
+    for (const stale of remaining.values()) {
+      signal.throwIfAborted();
+      await client.deleteFile(id, scope, stale.path, stale.sha256, signal);
     }
     const manifest = `${JSON.stringify(
       {
@@ -243,7 +270,7 @@ export class RunSandbox implements Experimental_SandboxSession {
       2,
     )}\n`;
     if (files.length > 0 && manifest !== this.sourceManifest) {
-      await client.upload(id, this.scope, "sources/workspace-manifest.json", new Blob([manifest]).stream(), signal);
+      await client.upload(id, scope, "sources/workspace-manifest.json", new Blob([manifest]).stream(), signal);
       this.sourceManifest = manifest;
     }
     return imported;
@@ -842,13 +869,39 @@ rm -- ${shellQuote(absolute)}`,
     };
   }
 
-  async save(candidate: string, requestId: string, signal?: AbortSignal) {
+  async save(candidate: string, publication: { toolCallId: string; artifactIndex: number }, signal?: AbortSignal) {
     const path = writableSandboxPath(candidate);
     const workspacePath = `/workspace/${path}`;
     if (!isValidWorkspacePath(workspacePath)) throw new Error("Invalid workspace file path.");
     const session = await this.ensure(signal);
     const baseline = (await this.deps.checkout(this.context)).find((file) => file.workspace_path === workspacePath);
     const filename = path.split("/").at(-1)!;
+    const occurrenceId = createHash("sha256")
+      .update(
+        JSON.stringify([
+          this.context.sessionId,
+          this.context.runId,
+          this.context.attemptEpoch,
+          publication.toolCallId,
+          publication.artifactIndex,
+        ]),
+      )
+      .digest("hex")
+      .slice(0, 32);
+    const effectId = createHash("sha256").update(`artifact-workspace-effect:${occurrenceId}`).digest("hex");
+    const occurrence = {
+      sessionId: this.context.sessionId,
+      sandboxAttempt: this.context,
+      occurrenceId,
+      toolCallId: publication.toolCallId,
+      artifactIndex: publication.artifactIndex,
+      workspaceEffectId: effectId,
+    };
+    const workspaceEffect = {
+      id: effectId,
+      producer: "artifact-tool" as const,
+      toolCallId: publication.toolCallId,
+    };
     if (baseline) {
       const digest = await this.fileDigest(session.id, path, this.operationSignal(signal));
       const file = await this.deps.update(
@@ -859,10 +912,11 @@ rm -- ${shellQuote(absolute)}`,
           workspacePath,
           expectedPathGeneration: baseline.path_generation,
           contentSha256: digest,
-          operationId: createHash("sha256").update(`${this.context.runId}:${requestId}`).digest("hex"),
+          operationId: effectId,
           writerType: "agent",
           writerId: this.context.runId,
           sandboxAttempt: this.context,
+          workspaceEffect,
         },
         async (idempotencyKey, current, claim) => {
           const storage = this.deps.asset();
@@ -891,6 +945,7 @@ rm -- ${shellQuote(absolute)}`,
           }
         },
       );
+      await this.deps.occurrence(occurrence, file);
       return {
         file_id: file.id,
         workspace_path: workspacePath,
@@ -910,7 +965,7 @@ rm -- ${shellQuote(absolute)}`,
         mediaType: workspaceMediaType(filename),
         category: "sandbox-artifact",
         body,
-        idempotencyKey: `${this.context.runId}:${requestId}`,
+        idempotencyKey: `${this.context.runId}:${occurrenceId}`,
         signal,
       });
       signal?.throwIfAborted();
@@ -923,12 +978,14 @@ rm -- ${shellQuote(absolute)}`,
         mediaType: asset.mediaType,
         sizeBytes: asset.sizeBytes,
         sha256: asset.sha256,
-        idempotencyKey: `${this.context.runId}:${requestId}`,
+        idempotencyKey: `${this.context.runId}:${occurrenceId}`,
         workspacePath,
         writerType: "agent",
         writerId: this.context.runId,
         sandboxAttempt: this.context,
+        workspaceEffect,
       });
+      await this.deps.occurrence(occurrence, file);
       return {
         file_id: file.id,
         workspace_path: workspacePath,

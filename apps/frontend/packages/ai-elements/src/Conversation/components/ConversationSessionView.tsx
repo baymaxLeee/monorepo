@@ -2,6 +2,7 @@ import { type ComponentProps, type ReactNode, useCallback, useState } from "reac
 
 import type { ActiveTodoList } from "./ChatPlanState";
 import { ChatStream } from "./ChatStream";
+import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 
 type ActivePlanState = { conversationId: string; plan: ActiveTodoList };
 
@@ -10,12 +11,14 @@ export function ConversationSessionView({
   issue,
   composer,
   overlay,
+  pendingInputs,
   ...stream
 }: ComponentProps<typeof ChatStream> & {
   title: string;
   issue?: ReactNode;
   composer: (activePlan: ActiveTodoList | null) => ReactNode;
   overlay?: ReactNode;
+  pendingInputs?: readonly PendingAgentInput[];
 }) {
   const [activePlan, setActivePlan] = useState<ActivePlanState | null>(null);
   const conversationId = stream.conversationId;
@@ -34,6 +37,7 @@ export function ConversationSessionView({
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <h1 className="sr-only">{title}</h1>
       <ChatStream {...stream} onActivePlanChange={onActivePlanChange} />
+      <PendingInputStack inputs={pendingInputs ?? []} />
       {issue}
       {composer(displayedPlan)}
       {overlay}

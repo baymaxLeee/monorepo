@@ -64,6 +64,20 @@ export class RuntimeSandboxClient {
       headers: { "X-Sandbox-Scope": JSON.stringify(scope) },
     });
   }
+  inventory(id: string, scope: SandboxScope): Promise<SandboxWorkspaceSnapshot> {
+    return this.http.requestJson({
+      method: "GET",
+      path: `/sessions/${encodeURIComponent(id)}/inventory`,
+      headers: { "X-Sandbox-Scope": JSON.stringify(scope) },
+    });
+  }
+  retain(id: string, scope: SandboxScope): Promise<{ retained: boolean }> {
+    return this.http.requestJson({
+      method: "POST",
+      path: `/sessions/${encodeURIComponent(id)}/retain`,
+      headers: { "X-Sandbox-Scope": JSON.stringify(scope) },
+    });
+  }
   acquireWorkspaceEdit(id: string, scope: SandboxScope, token?: string): Promise<{ token: string }> {
     return this.http.requestJson({
       method: "POST",

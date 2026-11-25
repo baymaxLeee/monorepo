@@ -42,19 +42,17 @@ export type MessageContentProps = HTMLAttributes<HTMLDivElement>;
 
 export function MessageContent({ children, className, ...props }: MessageContentProps) {
   const role = useContext(MessageRoleContext);
-  return (
+  return role === "user" ? (
     <MessageBody>
-      {role === "user" ? (
-        <Bubble align="end" variant="muted" className="max-w-full">
-          <BubbleContent className={className} {...props}>
-            {children}
-          </BubbleContent>
-        </Bubble>
-      ) : (
-        <div className={cn("min-w-0 text-sm leading-relaxed", className)} {...props}>
+      <Bubble align="end" variant="muted" className="max-w-full">
+        <BubbleContent className={className} {...props}>
           {children}
-        </div>
-      )}
+        </BubbleContent>
+      </Bubble>
+    </MessageBody>
+  ) : (
+    <MessageBody className={cn("min-w-0 gap-0 text-sm leading-relaxed", className)} {...props}>
+      {children}
     </MessageBody>
   );
 }
@@ -119,12 +117,14 @@ function useMessageBranch() {
 export type MessageBranchProps = HTMLAttributes<HTMLDivElement> & {
   defaultBranch?: number;
   currentBranch?: number;
+  totalBranches?: number;
   onBranchChange?: (branchIndex: number) => void;
 };
 
 export function MessageBranch({
   defaultBranch = 0,
   currentBranch: controlledBranch,
+  totalBranches: controlledTotalBranches,
   onBranchChange,
   className,
   ...props
@@ -132,6 +132,7 @@ export function MessageBranch({
   const [uncontrolledBranch, setUncontrolledBranch] = useState(defaultBranch);
   const currentBranch = controlledBranch ?? uncontrolledBranch;
   const [branches, setBranches] = useState<ReactElement[]>([]);
+  const totalBranches = controlledTotalBranches ?? branches.length;
   const changeBranch = useCallback(
     (next: number) => {
       if (controlledBranch === undefined) setUncontrolledBranch(next);
@@ -140,16 +141,16 @@ export function MessageBranch({
     [controlledBranch, onBranchChange],
   );
   const goToPrevious = useCallback(
-    () => changeBranch(currentBranch > 0 ? currentBranch - 1 : branches.length - 1),
-    [branches.length, changeBranch, currentBranch],
+    () => changeBranch(currentBranch > 0 ? currentBranch - 1 : totalBranches - 1),
+    [changeBranch, currentBranch, totalBranches],
   );
   const goToNext = useCallback(
-    () => changeBranch(currentBranch < branches.length - 1 ? currentBranch + 1 : 0),
-    [branches.length, changeBranch, currentBranch],
+    () => changeBranch(currentBranch < totalBranches - 1 ? currentBranch + 1 : 0),
+    [changeBranch, currentBranch, totalBranches],
   );
   const value = useMemo(
-    () => ({ branches, currentBranch, goToNext, goToPrevious, setBranches, totalBranches: branches.length }),
-    [branches, currentBranch, goToNext, goToPrevious],
+    () => ({ branches, currentBranch, goToNext, goToPrevious, setBranches, totalBranches }),
+    [branches, currentBranch, goToNext, goToPrevious, totalBranches],
   );
   return (
     <MessageBranchContext.Provider value={value}>

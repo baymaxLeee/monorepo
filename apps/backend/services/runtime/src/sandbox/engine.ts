@@ -8,8 +8,12 @@ import { filePath, processSchema, workspaceSnapshotSchema, type Scope } from "./
 
 const LABEL = "monorepo.sandbox";
 const HELPER = ["python3", "/opt/sandbox/runner.py"];
-export function resourceName(scope: Scope): string {
-  const values = [scope.session_id, scope.run_id, scope.attempt_epoch];
+type FileReadProcess = ReturnType<typeof spawn> & {
+  stdout: NonNullable<ReturnType<typeof spawn>["stdout"]>;
+  stderr: NonNullable<ReturnType<typeof spawn>["stderr"]>;
+};
+export function resourceName(scope: Pick<Scope, "session_id">): string {
+  const values = [scope.session_id];
   return `sandbox-${createHash("sha256").update(JSON.stringify(values)).digest("hex").slice(0, 40)}`;
 }
 
@@ -53,11 +57,13 @@ export async function command(
 }
 
 export class SandboxNotFoundError extends Error {}
+export class SandboxScopeSupersededError extends Error {}
 
 export class Engine {
   constructor(
     readonly config: SandboxSettings,
     readonly execute = command,
+    readonly spawnProcess = spawn,
   ) {}
   private creationTail: Promise<unknown> = Promise.resolve();
   private async admittedCreate(scope: Scope, signal?: AbortSignal) {
@@ -66,16 +72,46 @@ export class Engine {
     signal?.throwIfAborted();
     const existing = resources.find((resource) => resource.name === resourceName(scope));
     if (existing) {
-      await this.assertOwner(existing.name, scope);
-      const health = await this.control(existing.name, { op: "health" });
-      if ((health as { ready?: boolean }).ready !== true) throw new Error("sandbox not ready");
-      return {
-        id: existing.name,
-        workdir: "/workspace/work",
-        expires_at: new Date(Number(existing.labels[`${LABEL}.expires`])).toISOString(),
-      };
+      let resourceExpires: number;
+      try {
+        resourceExpires = await this.assertResourceOwner(existing.name, scope);
+      } catch (error) {
+        if (!(error instanceof Error && /expired or missing deadline/u.test(error.message))) throw error;
+        await this.remove(existing.name);
+        return this.provision(scope, signal);
+      }
+      const requiredLifetime = (this.config.ttlSeconds + this.config.finalizationGraceSeconds) * 1000;
+      if (resourceExpires - Date.now() >= requiredLifetime) return this.bind(existing.name, scope);
+      const health = (await this.control(existing.name, { op: "health" })) as { retained?: boolean };
+      if (health.retained !== true) {
+        throw new Error("previous sandbox generation is still finalizing; try a later run");
+      }
+      await this.remove(existing.name);
+      return this.provision(scope, signal);
     }
-    if (resources.length >= this.config.maxSandboxes) throw new Error("sandbox capacity exhausted; try a later run");
+    if (resources.length >= this.config.maxSandboxes) {
+      const retained = (
+        await Promise.all(
+          resources.map(async (resource) => {
+            try {
+              const health = (await this.control(resource.name, { op: "health" })) as { retained?: boolean };
+              return health.retained === true ? resource : null;
+            } catch {
+              return null;
+            }
+          }),
+        )
+      )
+        .filter((resource) => resource !== null)
+        .sort(
+          (left, right) =>
+            Number(left.labels[`${LABEL}.expires`] ?? Number.POSITIVE_INFINITY) -
+            Number(right.labels[`${LABEL}.expires`] ?? Number.POSITIVE_INFINITY),
+        );
+      const reclaim = retained[0];
+      if (!reclaim) throw new Error("sandbox capacity exhausted; try a later run");
+      await this.remove(reclaim.name);
+    }
     return this.provision(scope, signal);
   }
   create(scope: Scope, signal?: AbortSignal) {
@@ -124,12 +160,35 @@ export class Engine {
     }
     return JSON.parse(value) as Record<string, string>;
   }
-  async assertOwner(id: string, scope: Scope): Promise<void> {
+  private async assertResourceOwner(id: string, scope: Pick<Scope, "session_id">): Promise<number> {
     if (id !== resourceName(scope)) throw new Error("sandbox scope mismatch");
     const labels = await this.inspect(id);
     if (labels[LABEL] !== "true" || labels[`${LABEL}.owner`] !== id) throw new Error("sandbox ownership mismatch");
     const expires = Number(labels[`${LABEL}.expires`]);
     if (!Number.isSafeInteger(expires) || expires <= Date.now()) throw new Error("sandbox expired or missing deadline");
+    return expires;
+  }
+  async assertOwner(id: string, scope: Scope, lifetime: "compute" | "resource" = "compute"): Promise<void> {
+    await this.assertResourceOwner(id, scope);
+    try {
+      await this.control(id, { op: "assert_scope", scope, allow_expired: lifetime === "resource" });
+    } catch (error) {
+      if (error instanceof Error && /sandbox scope (?:is )?superseded|workspace generation/iu.test(error.message)) {
+        throw new SandboxScopeSupersededError("sandbox scope was superseded", { cause: error });
+      }
+      throw error;
+    }
+  }
+  private async scopedControl(id: string, scope: Scope, input: object, lifetime: "compute" | "resource" = "compute") {
+    await this.assertOwner(id, scope, lifetime);
+    try {
+      return await this.control(id, { ...input, scope, allow_expired: lifetime === "resource" });
+    } catch (error) {
+      if (error instanceof Error && /sandbox scope (?:is )?superseded|workspace generation/iu.test(error.message)) {
+        throw new SandboxScopeSupersededError("sandbox scope was superseded", { cause: error });
+      }
+      throw error;
+    }
   }
   private execArgs(name: string, helperArgs: string[], interactive = false): string[] {
     return this.config.backend === "docker"
@@ -138,11 +197,13 @@ export class Engine {
   }
   private async provision(scope: Scope, signal?: AbortSignal) {
     const name = resourceName(scope);
-    const expires = Date.now() + this.config.ttlSeconds * 1000;
+    const computeExpires = Date.now() + this.config.ttlSeconds * 1000;
+    const expires = computeExpires + (this.config.warmRetentionSeconds + this.config.finalizationGraceSeconds) * 1000;
     const attempt = randomUUID();
     const labels = {
       [LABEL]: "true",
       [`${LABEL}.owner`]: name,
+      [`${LABEL}.compute-expires`]: String(computeExpires),
       [`${LABEL}.expires`]: String(expires),
       [`${LABEL}.attempt`]: attempt,
     };
@@ -151,7 +212,9 @@ export class Engine {
       COMMAND_TIMEOUT_MS: String(this.config.commandTimeoutMs),
       MAX_COMMANDS: String(this.config.maxCommands),
       PIDS_LIMIT: String(this.config.pids),
-      SANDBOX_TTL_SECONDS: String(this.config.ttlSeconds),
+      SANDBOX_TTL_SECONDS: String(
+        this.config.ttlSeconds + this.config.warmRetentionSeconds + this.config.finalizationGraceSeconds,
+      ),
       ...(this.config.backend === "docker" && this.config.proxy
         ? { SANDBOX_PROXY_SOCKET: "/run/egress/proxy.sock" }
         : {}),
@@ -231,7 +294,7 @@ export class Engine {
           });
         }
       }
-      return { id: name, workdir: "/workspace/work", expires_at: new Date(expires).toISOString() };
+      return this.bind(name, scope);
     } catch (error) {
       const current = await this.inspect(name).catch(() => null);
       if (current?.[`${LABEL}.attempt`] === attempt) await this.remove(name).catch(() => {});
@@ -248,7 +311,8 @@ export class Engine {
         automountServiceAccountToken: false,
         enableServiceLinks: false,
         restartPolicy: "Never",
-        activeDeadlineSeconds: this.config.ttlSeconds,
+        activeDeadlineSeconds:
+          this.config.ttlSeconds + this.config.warmRetentionSeconds + this.config.finalizationGraceSeconds,
         terminationGracePeriodSeconds: 5,
         securityContext: { seccompProfile: { type: "Unconfined" } },
         containers: [
@@ -302,21 +366,47 @@ export class Engine {
     if (value.error || !value.result) throw new Error(value.error ?? "missing runner response");
     return value.result;
   }
+  private async bind(id: string, scope: Scope) {
+    const computeExpires = Date.now() + this.config.ttlSeconds * 1000;
+    try {
+      await this.control(id, { op: "bind_scope", scope, expires_at: computeExpires });
+    } catch (error) {
+      if (error instanceof Error && /sandbox scope (?:is )?superseded|workspace generation/iu.test(error.message)) {
+        throw new SandboxScopeSupersededError("sandbox scope was superseded", { cause: error });
+      }
+      throw error;
+    }
+    const health = await this.control(id, { op: "health" });
+    if ((health as { ready?: boolean }).ready !== true) throw new Error("sandbox not ready");
+    return { id, workdir: "/workspace/work", expires_at: new Date(computeExpires).toISOString() };
+  }
   async process(id: string, scope: Scope, input: object) {
-    await this.assertOwner(id, scope);
-    return processSchema.parse(await this.control(id, input));
+    return processSchema.parse(await this.scopedControl(id, scope, input));
   }
   async snapshot(id: string, scope: Scope) {
-    await this.assertOwner(id, scope);
-    return workspaceSnapshotSchema.parse(await this.control(id, { op: "snapshot" }));
+    return workspaceSnapshotSchema.parse(await this.scopedControl(id, scope, { op: "snapshot" }, "resource"));
+  }
+  async inventory(id: string, scope: Scope) {
+    return workspaceSnapshotSchema.parse(await this.scopedControl(id, scope, { op: "inventory" }));
+  }
+  async retain(id: string, scope: Scope) {
+    return this.scopedControl(id, scope, { op: "retain_scope" }, "resource") as Promise<{ retained: boolean }>;
   }
   async acquireWorkspaceEdit(id: string, scope: Scope, token: string = randomUUID()) {
-    await this.assertOwner(id, scope);
-    return this.control(id, { op: "begin_workspace_edit", token }) as Promise<{ token: string }>;
+    return this.scopedControl(id, scope, { op: "begin_workspace_edit", token }) as Promise<{ token: string }>;
   }
   async releaseWorkspaceEdit(id: string, scope: Scope, token: string) {
-    await this.assertOwner(id, scope);
-    return this.control(id, { op: "end_workspace_edit", token }) as Promise<{ released: boolean }>;
+    return this.scopedControl(id, scope, { op: "end_workspace_edit", token }, "resource") as Promise<{
+      released: boolean;
+    }>;
+  }
+  private async acquireFileRead(id: string, scope: Scope, token: string = randomUUID()) {
+    return this.scopedControl(id, scope, { op: "begin_file_read", token }, "resource") as Promise<{ token: string }>;
+  }
+  private async releaseFileRead(id: string, scope: Scope, token: string) {
+    return this.scopedControl(id, scope, { op: "end_file_read", token }, "resource") as Promise<{
+      released: boolean;
+    }>;
   }
   async remove(name: string) {
     try {
@@ -330,11 +420,10 @@ export class Engine {
     }
   }
   async destroy(id: string, scope: Scope) {
-    if (id !== resourceName(scope)) throw new Error("sandbox scope mismatch");
+    await this.scopedControl(id, scope, { op: "destroy_scope" }, "resource");
     // Delete by the unforgeable scoped name; succeeds even when initialization
     // never completed. The manager namespace is dedicated to these resources.
-    const resources = await this.list();
-    if (resources.some((r) => r.name === id && r.labels[`${LABEL}.owner`] === id)) await this.remove(id);
+    await this.remove(id);
   }
   async list(): Promise<Array<{ name: string; labels: Record<string, string> }>> {
     if (this.config.backend === "docker") {
@@ -472,16 +561,23 @@ export class Engine {
     }
   }
   async download(id: string, scope: Scope, path: string, signal: AbortSignal) {
-    await this.assertOwner(id, scope);
     filePath(path);
-    const info = JSON.parse(
-      await this.call(this.execArgs(id, ["stat", path, String(this.config.maxTransferBytes)])),
-    ) as { size: number };
-    const child = spawn(
-      this.executable,
-      [...this.prefix, ...this.execArgs(id, ["read", path, String(this.config.maxTransferBytes)])],
-      { stdio: ["ignore", "pipe", "pipe"], signal },
-    );
+    const lease = await this.acquireFileRead(id, scope);
+    let info: { size: number };
+    let child: FileReadProcess;
+    try {
+      info = JSON.parse(await this.call(this.execArgs(id, ["stat", path, String(this.config.maxTransferBytes)]))) as {
+        size: number;
+      };
+      child = this.spawnProcess(
+        this.executable,
+        [...this.prefix, ...this.execArgs(id, ["read", path, String(this.config.maxTransferBytes)])],
+        { stdio: ["ignore", "pipe", "pipe"], signal },
+      ) as FileReadProcess;
+    } catch (error) {
+      await this.releaseFileRead(id, scope, lease.token);
+      throw error;
+    }
     let stderr = "";
     child.stderr.on("data", (data: Buffer) => {
       stderr = (stderr + data.toString()).slice(-2000);
@@ -493,17 +589,29 @@ export class Engine {
     // Observe rejection immediately, but do not report EOF until the helper has
     // confirmed the entire transfer. Truncated artifacts must never be published.
     void completion.catch(() => {});
+    let cleanupPromise: Promise<void> | undefined;
+    const cleanup = () => {
+      cleanupPromise ??= (async () => {
+        child.kill("SIGKILL");
+        await completion.catch(() => {});
+        await this.releaseFileRead(id, scope, lease.token);
+      })();
+      return cleanupPromise;
+    };
     const stream = Readable.from(
       (async function* () {
         try {
           yield* child.stdout;
           await completion;
         } finally {
-          child.kill("SIGKILL");
-          await completion.catch(() => {});
+          await cleanup();
         }
       })(),
     );
+    // Cancellation can close a never-started async generator without entering
+    // its finally block. The stream close hook still terminates the helper and
+    // releases the guest-owned scope lease.
+    stream.once("close", () => void cleanup().catch(() => {}));
     return { body: Readable.toWeb(stream) as ReadableStream<Uint8Array>, size: info.size };
   }
 }

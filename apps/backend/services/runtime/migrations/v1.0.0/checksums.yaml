@@ -5,3 +5,11 @@ steps:
       checksum: 563b79c7ef69f03d5f0210a759338d2d757ec91daf9a8c63f7c969c6ffeacf13
       files:
         v1.0.0.0.up.sql: 6ef4f8f49692d0188a9bd1416f4a94a3d28414d2986494f56d32c9a8b392ac78
+    - version: v1.0.0.1
+      checksum: d9be25eac49a845a5b35eb6d2d4786c9f8cf6795019f5792ac4bd2adcc858856
+      files:
+        v1.0.0.1.up.sql: b223df48deed2cf3a586a406facd999a190fc1c788324513191cda510f4984b9
+    - version: v1.0.0.2
+      checksum: c95501df3bbdfbda2f1a871749694fa0a09468e5e7d676b632289d7c0ceb96d4
+      files:
+        v1.0.0.2.up.sql: e741089d4c76c4be6a53394300ebb405a4622821b730a76999d91986f6b527fa

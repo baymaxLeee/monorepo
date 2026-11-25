@@ -8,30 +8,16 @@ import {
 import { Badge, Spinner } from "@repo/design-system";
 import { isFileUIPart, isReasoningFileUIPart, isToolUIPart } from "ai";
 import { SparklesIcon } from "lucide-react";
-import { lazy, Suspense } from "react";
+import { lazy, memo, Suspense } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
+import { shallowEqualSnapshot, shallowEqualSnapshotList } from "./chat-render-cache";
 import { ChatCitedResponse } from "./ChatCitedResponse";
 import { ChatFileTag } from "./ChatFileTag";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
 const ToolPartView = lazy(() => import("./ChatToolPart").then((m) => ({ default: m.ChatToolPart })));
 
-export function ChatMessagePart({
-  part,
-  sources,
-  partIndex,
-  conversationId,
-  streaming,
-  variant,
-  onOpenArtifact,
-  onOpenFile,
-  onOpenWorkspaceFile,
-  resolveSourceHref,
-  resolveSourceAction,
-  onOpenImage,
-  onAnswerClientTool,
-  onToolApproval,
-}: {
+type ChatMessagePartProps = {
   part: ChatUIMessage["parts"][number];
   sources: SourceItem[];
   partIndex: number;
@@ -46,7 +32,24 @@ export function ChatMessagePart({
   onOpenImage: (partIndex: number) => void;
   onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval?: (approvalId: string, approved: boolean) => void;
-}) {
+};
+
+export const ChatMessagePart = memo(function ChatMessagePart({
+  part,
+  sources,
+  partIndex,
+  conversationId,
+  streaming,
+  variant,
+  onOpenArtifact,
+  onOpenFile,
+  onOpenWorkspaceFile,
+  resolveSourceHref,
+  resolveSourceAction,
+  onOpenImage,
+  onAnswerClientTool,
+  onToolApproval,
+}: ChatMessagePartProps) {
   if (part.type === "reasoning") {
     const isReasoningStreaming = streaming && part.state === "streaming";
     if (!isReasoningStreaming && !part.text.trim()) {
@@ -173,4 +176,25 @@ export function ChatMessagePart({
   }
 
   return null;
+}, sameMessagePartProps);
+
+// ReactChatState snapshots every part with a top-level spread on each delta.
+// Compare that public snapshot shape so unchanged siblings keep their subtree.
+function sameMessagePartProps(previous: ChatMessagePartProps, next: ChatMessagePartProps) {
+  return (
+    shallowEqualSnapshot(previous.part, next.part) &&
+    shallowEqualSnapshotList(previous.sources, next.sources) &&
+    previous.partIndex === next.partIndex &&
+    previous.conversationId === next.conversationId &&
+    previous.streaming === next.streaming &&
+    previous.variant === next.variant &&
+    previous.onOpenArtifact === next.onOpenArtifact &&
+    previous.onOpenFile === next.onOpenFile &&
+    previous.onOpenWorkspaceFile === next.onOpenWorkspaceFile &&
+    previous.resolveSourceHref === next.resolveSourceHref &&
+    previous.resolveSourceAction === next.resolveSourceAction &&
+    previous.onOpenImage === next.onOpenImage &&
+    previous.onAnswerClientTool === next.onAnswerClientTool &&
+    previous.onToolApproval === next.onToolApproval
+  );
 }

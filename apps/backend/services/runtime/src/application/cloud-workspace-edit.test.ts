@@ -36,6 +36,7 @@ const workspace = {
     session_id: "session",
     run_id: "run",
     attempt_epoch: "1",
+    workspace_generation: "1",
   },
 };
 const input = {

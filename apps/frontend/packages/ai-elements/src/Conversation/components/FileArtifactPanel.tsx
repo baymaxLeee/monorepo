@@ -64,7 +64,8 @@ export function FileArtifactPanel({
   onClose: () => void;
 }) {
   const kind = resolveArtifactPreviewKind(undefined, file?.mimeType, file?.filename);
-  const markdown = /\.(md|markdown)$/i.test(file?.filename ?? "");
+  const markdown = kind === "markdown";
+  const editorOnly = file?.editable && (kind === "markdown" || kind === "text");
   const [downloading, setDownloading] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -111,7 +112,7 @@ export function FileArtifactPanel({
       <ArtifactRouteGuard dirty={editor.dirty} confirm={editor.requestNavigation} />
       <div className="flex h-11 shrink-0 items-center gap-2 px-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{file?.title ?? (editor.loading ? "加载中…" : "预览")}</p>
+          <p className="truncate text-sm font-medium">{file?.title ?? (editor.loading ? "加载中…" : "文件")}</p>
           {file ? (
             <p className="truncate text-xs text-muted-foreground">
               {file.filename}
@@ -127,23 +128,25 @@ export function FileArtifactPanel({
         <Toolbar aria-label="文件操作">
           {file?.editable ? (
             <>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <ToolbarButton
-                      aria-label={editor.editing ? "查看已保存预览" : "编辑文件"}
-                      disabled={editor.loading}
-                      onClick={() => {
-                        if (editor.editing) editor.setEditing(false);
-                        else void editor.beginEditing();
-                      }}
-                    />
-                  }
-                >
-                  {editor.editing ? <EyeIcon className="size-4" /> : <Code2Icon className="size-4" />}
-                </TooltipTrigger>
-                <TooltipContent>{editor.editing ? "预览" : "编辑"}</TooltipContent>
-              </Tooltip>
+              {kind === "html" ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <ToolbarButton
+                        aria-label={editor.editing ? "查看已保存预览" : "编辑文件"}
+                        disabled={editor.loading}
+                        onClick={() => {
+                          if (editor.editing) editor.setEditing(false);
+                          else void editor.beginEditing();
+                        }}
+                      />
+                    }
+                  >
+                    {editor.editing ? <EyeIcon className="size-4" /> : <Code2Icon className="size-4" />}
+                  </TooltipTrigger>
+                  <TooltipContent>{editor.editing ? "预览" : "编辑"}</TooltipContent>
+                </Tooltip>
+              ) : null}
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -189,7 +192,7 @@ export function FileArtifactPanel({
               {fullscreen ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
             </ToolbarButton>
           ) : null}
-          <ToolbarButton aria-label="关闭预览" onClick={onClose}>
+          <ToolbarButton aria-label="关闭文件" onClick={onClose}>
             <XIcon className="size-4" />
           </ToolbarButton>
         </Toolbar>
@@ -225,6 +228,10 @@ export function FileArtifactPanel({
               className="h-full min-h-0 w-full"
             />
           )
+        ) : file && editorOnly ? (
+          <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">
+            无法加载编辑内容
+          </div>
         ) : file ? (
           <ChatArtifactPreview
             title={file.title}

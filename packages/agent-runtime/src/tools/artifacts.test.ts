@@ -18,9 +18,9 @@ const published = {
 };
 
 test("deliverables use workspace paths and publish each selected file once", async () => {
-  const calls: string[] = [];
+  const calls: Array<{ toolCallId: string; artifactIndex: number }> = [];
   const manifest = createUploadArtifactsTool(async (path, options) => {
-    calls.push(options.toolCallId);
+    calls.push({ toolCallId: options.toolCallId, artifactIndex: options.artifactIndex });
     return { ...published, filename: path };
   });
   const definition = manifest.tool as Tool<unknown, unknown>;
@@ -31,7 +31,10 @@ test("deliverables use workspace paths and publish each selected file once", asy
   );
   assert.ok(isToolOutcome(result) && result.status === "completed");
   assert.deepEqual(result.data, { files: [published, { ...published, filename: "other.js" }] });
-  assert.deepEqual(calls, ["save:0", "save:1"]);
+  assert.deepEqual(calls, [
+    { toolCallId: "save", artifactIndex: 0 },
+    { toolCallId: "save", artifactIndex: 1 },
+  ]);
 });
 
 test("a failed batch reports already published files and stops before the remaining drafts", async () => {

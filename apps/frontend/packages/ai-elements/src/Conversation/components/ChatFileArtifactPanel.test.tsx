@@ -89,14 +89,13 @@ describe("editable conversation file panel", () => {
   it("keeps raw HTML Markdown in the MarkdownEditor", async () => {
     api.fetchAssetText.mockResolvedValue("<details><summary>Title</summary>Body</details>\n");
     render(<ChatFileArtifactPanel />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     expect(await screen.findByTestId("markdown-editor")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "查看已保存预览" })).toBeNull();
     expect(api.updateConversationFileContent).not.toHaveBeenCalled();
   });
 
   it("does not replace the Markdown editor when formatting emits HTML", async () => {
     render(<ChatFileArtifactPanel />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     const original = await screen.findByTestId("markdown-editor");
     fireEvent.change(original, { target: { value: "**<u>underlined</u>**" } });
     expect(screen.getByTestId("markdown-editor")).toBe(original);
@@ -107,16 +106,28 @@ describe("editable conversation file panel", () => {
   it("reopens saved underlined Markdown in the rich editor", async () => {
     api.fetchAssetText.mockResolvedValue("**<u>underlined</u>**");
     render(<ChatFileArtifactPanel />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     expect(await screen.findByTestId("markdown-editor")).toBeTruthy();
   });
 
-  it("uses the editable CodeEditor after switching a code file into edit mode", async () => {
+  it("opens a code file directly in the editable CodeEditor", async () => {
     api.getConversationFile.mockResolvedValue({ ...file, filename: "script.js", mime_type: "text/javascript" });
     api.createStorageDownloadUrl.mockResolvedValue({ url: "https://storage.test/file", filename: "script.js" });
     render(<ChatFileArtifactPanel />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     expect((await screen.findByRole("textbox", { name: "源码" })).hasAttribute("readonly")).toBe(false);
+    expect(screen.queryByText("已保存预览")).toBeNull();
+  });
+
+  it("keeps preview and source switching for HTML files", async () => {
+    api.getConversationFile.mockResolvedValue({ ...file, filename: "page.html", mime_type: "text/html" });
+    api.createStorageDownloadUrl.mockResolvedValue({ url: "https://storage.test/file", filename: "page.html" });
+    render(<ChatFileArtifactPanel />);
+
+    expect(await screen.findByText("已保存预览")).toBeTruthy();
+    expect(api.fetchAssetText).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "编辑文件" }));
+    expect(await screen.findByRole("textbox", { name: "源码" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "查看已保存预览" }));
+    expect(await screen.findByText("已保存预览")).toBeTruthy();
   });
 
   it("blocks route changes until the user discards the draft", async () => {
@@ -125,7 +136,6 @@ describe("editable conversation file panel", () => {
       { path: "/next", element: <div>Next page</div> },
     ]);
     render(<RouterProvider router={router} />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "源码" }), { target: { value: "unsaved" } });
     await act(async () => {
       await router.navigate("/next");
@@ -148,7 +158,6 @@ describe("editable conversation file panel", () => {
       }),
     );
     render(<ChatFileArtifactPanel />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     const editor = await screen.findByRole("textbox", { name: "源码" });
     fireEvent.change(editor, { target: { value: "first\n" } });
     fireEvent.click(screen.getByRole("button", { name: "保存文件" }));
@@ -186,23 +195,21 @@ describe("editable conversation file panel", () => {
   it("offers save, discard, or cancel before closing a dirty file", async () => {
     const onClose = vi.fn();
     render(<ChatFileArtifactPanel onClose={onClose} />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "源码" }), { target: { value: "dirty\n" } });
-    fireEvent.click(screen.getByRole("button", { name: "关闭预览" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭文件" }));
     expect(await screen.findByRole("heading", { name: "保存对文件的修改？" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "继续编辑" }));
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "关闭预览" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭文件" }));
     fireEvent.click(await screen.findByRole("button", { name: "放弃修改" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
-  it("loads editing bytes only on demand and uses the MarkdownEditor", async () => {
+  it("loads editing bytes immediately and uses the MarkdownEditor", async () => {
     render(<ChatFileArtifactPanel />);
-    const edit = await screen.findByRole("button", { name: "编辑文件" });
-    expect(api.fetchAssetText).not.toHaveBeenCalled();
-    fireEvent.click(edit);
     expect(await screen.findByTestId("markdown-editor")).toBeTruthy();
+    expect(api.fetchAssetText).toHaveBeenCalledWith("https://storage.test/file", undefined, file.edit_max_bytes);
+    expect(screen.queryByRole("button", { name: "编辑文件" })).toBeNull();
     expect(api.updateConversationFileContent).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,7 @@ import { createLogger, traceMiddleware, requestLogger } from "#runtime/foundatio
 
 import type { SandboxSettings } from "../config/sandbox.js";
 import { continueSchema, scopeSchema, startSchema, workspaceEditSchema } from "../sandbox/contracts.js";
-import { Engine, resourceName, SandboxNotFoundError } from "../sandbox/engine.js";
+import { Engine, resourceName, SandboxNotFoundError, SandboxScopeSupersededError } from "../sandbox/engine.js";
 
 export function createApp(config: SandboxSettings, engine = new Engine(config)) {
   const app = new Hono();
@@ -188,6 +188,14 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
     const scope = headerScope(c.req.header("X-Sandbox-Scope"));
     return c.json(await engine.snapshot(c.req.param("id"), scope));
   });
+  app.get("/sessions/:id/inventory", async (c) => {
+    const scope = headerScope(c.req.header("X-Sandbox-Scope"));
+    return c.json(await engine.inventory(c.req.param("id"), scope));
+  });
+  app.post("/sessions/:id/retain", async (c) => {
+    const scope = headerScope(c.req.header("X-Sandbox-Scope"));
+    return c.json(await engine.retain(c.req.param("id"), scope));
+  });
   app.post("/sessions/:id/workspace-edits", async (c) => {
     const scope = headerScope(c.req.header("X-Sandbox-Scope"));
     const token = c.req.header("X-Sandbox-Workspace-Edit") || undefined;
@@ -206,6 +214,8 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
     if (error instanceof HTTPException) return error.getResponse();
     if (error instanceof SandboxNotFoundError)
       return c.json({ code: "sandbox_not_found", message: error.message }, 404);
+    if (error instanceof SandboxScopeSupersededError)
+      return c.json({ code: "sandbox_scope_superseded", message: error.message }, 409);
     const invalid = error instanceof z.ZodError || error instanceof SyntaxError;
     return c.json({ message: invalid ? "invalid sandbox request" : error.message }, invalid ? 400 : 422);
   });

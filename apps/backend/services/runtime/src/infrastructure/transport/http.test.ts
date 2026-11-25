@@ -53,7 +53,7 @@ test("replayed terminal input keeps its identity and cursor after a lost respons
     },
   });
   const input: SandboxContinue = {
-    scope: { session_id: "c", run_id: "r", attempt_epoch: "1" },
+    scope: { session_id: "c", run_id: "r", attempt_epoch: "1", workspace_generation: "1" },
     request_id: "write-once",
     chars: "line\n",
     stdout_offset: 0,

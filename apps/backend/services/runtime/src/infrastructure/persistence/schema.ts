@@ -47,6 +47,15 @@ export interface PersistedTurnResumeSnapshot {
   };
 }
 
+export interface PersistedWorkspaceFinalizationSummary {
+  manifestSha256: string;
+  files: number;
+  bytes: number;
+  created: number;
+  updated: number;
+  deleted: number;
+}
+
 /** Canonical conversation metadata. Mutable execution state belongs to Turns. */
 export const threads = pgTable(
   "threads",
@@ -61,6 +70,7 @@ export const threads = pgTable(
     turnSequence: bigint("turn_sequence", { mode: "bigint" }).notNull().default(0n),
     itemSequence: bigint("item_sequence", { mode: "bigint" }).notNull().default(0n),
     historyRevision: bigint("history_revision", { mode: "bigint" }).notNull().default(0n),
+    sandboxGeneration: bigint("sandbox_generation", { mode: "bigint" }).notNull().default(0n),
     selectedItemId: varchar("selected_item_id", { length: 32 }),
     createRequestId: varchar("create_request_id", { length: 64 }).notNull(),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
@@ -351,6 +361,7 @@ export const turnSandboxExecutions = pgTable(
       .notNull()
       .references(() => threadTurns.id, { onDelete: "cascade" }),
     attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
+    workspaceGeneration: bigint("workspace_generation", { mode: "bigint" }).notNull(),
     threadId: varchar("thread_id", { length: 32 })
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
@@ -358,6 +369,10 @@ export const turnSandboxExecutions = pgTable(
     sandboxId: varchar("sandbox_id", { length: 128 }),
     expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true, precision: 6 }),
     lastError: text("last_error"),
+    terminalOutcome: varchar("terminal_outcome", { length: 32 }),
+    finalizationSummary: jsonb("finalization_summary").$type<PersistedWorkspaceFinalizationSummary | null>(),
+    finalizedAt: timestamp("finalized_at", { mode: "date", withTimezone: true, precision: 6 }),
+    releasedAt: timestamp("released_at", { mode: "date", withTimezone: true, precision: 6 }),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
@@ -367,6 +382,44 @@ export const turnSandboxExecutions = pgTable(
     foreignKey({
       columns: [t.turnId, t.attemptEpoch],
       foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
+  ],
+);
+
+/** Immutable file mutations committed by one sandbox attempt. */
+export const workspaceEffects = pgTable(
+  "workspace_effects",
+  {
+    id: varchar("id", { length: 64 }).notNull(),
+    threadId: varchar("thread_id", { length: 32 }).notNull(),
+    turnId: varchar("turn_id", { length: 32 }).notNull(),
+    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
+    producer: varchar("producer", { length: 32 }).notNull(),
+    toolCallId: varchar("tool_call_id", { length: 128 }),
+    operation: varchar("operation", { length: 12 }).notNull(),
+    fileId: varchar("file_id", { length: 32 }).notNull(),
+    workspacePath: varchar("workspace_path", { length: 1024 }).notNull(),
+    baseRevisionId: uuid("base_revision_id"),
+    resultRevisionId: uuid("result_revision_id"),
+    basePathGeneration: bigint("base_path_generation", { mode: "bigint" }),
+    resultPathGeneration: bigint("result_path_generation", { mode: "bigint" }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.turnId, t.id] }),
+    index("ix_workspace_effects_attempt").on(t.turnId, t.attemptEpoch, t.createdAt),
+    index("ix_workspace_effects_file").on(t.threadId, t.fileId, t.createdAt),
+    foreignKey({
+      columns: [t.threadId, t.turnId],
+      foreignColumns: [threadTurns.threadId, threadTurns.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.threadId, t.fileId],
+      foreignColumns: [threadFiles.threadId, threadFiles.id],
     }).onDelete("cascade"),
   ],
 );
@@ -424,6 +477,47 @@ export const threadFiles = pgTable(
     uniqueIndex("ux_thread_files_live_workspace_path")
       .on(t.threadId, t.workspacePath)
       .where(sql`${t.workspaceState} = 'live'`),
+  ],
+);
+
+/** Immutable agent publication of an exact durable file revision. */
+export const artifactOccurrences = pgTable(
+  "artifact_occurrences",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    threadId: varchar("thread_id", { length: 32 }).notNull(),
+    turnId: varchar("turn_id", { length: 32 }).notNull(),
+    attemptEpoch: bigint("attempt_epoch", { mode: "bigint" }).notNull(),
+    toolCallId: varchar("tool_call_id", { length: 128 }).notNull(),
+    artifactIndex: integer("artifact_index").notNull(),
+    workspaceEffectId: varchar("workspace_effect_id", { length: 64 }).notNull(),
+    fileId: varchar("file_id", { length: 32 }).notNull(),
+    assetId: uuid("asset_id").notNull(),
+    revisionId: uuid("revision_id").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    workspacePath: varchar("workspace_path", { length: 1024 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("ux_artifact_occurrences_publication").on(t.turnId, t.attemptEpoch, t.toolCallId, t.artifactIndex),
+    index("ix_artifact_occurrences_file_revision").on(t.threadId, t.fileId, t.revisionId),
+    index("ix_artifact_occurrences_attempt").on(t.turnId, t.attemptEpoch, t.artifactIndex),
+    foreignKey({
+      columns: [t.threadId, t.turnId],
+      foreignColumns: [threadTurns.threadId, threadTurns.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.turnId, t.attemptEpoch],
+      foreignColumns: [turnAttempts.turnId, turnAttempts.attemptEpoch],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.threadId, t.fileId],
+      foreignColumns: [threadFiles.threadId, threadFiles.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.turnId, t.workspaceEffectId],
+      foreignColumns: [workspaceEffects.turnId, workspaceEffects.id],
+    }),
   ],
 );
 

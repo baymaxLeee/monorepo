@@ -427,6 +427,133 @@ export interface paths {
             "application/json": components["schemas"]["SandboxNotFound"];
           };
         };
+        /** @description The reusable workspace is attached to a newer attempt */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxScopeSuperseded"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sessions/{id}/inventory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header: {
+          /** @description JSON-encoded SandboxScope */
+          "X-Sandbox-Scope": string;
+        };
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description success */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxWorkspaceSnapshot"];
+          };
+        };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
+        /** @description The reusable workspace is attached to a newer attempt */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxScopeSuperseded"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sessions/{id}/retain": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header: {
+          /** @description JSON-encoded SandboxScope */
+          "X-Sandbox-Scope": string;
+        };
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description success */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              retained: boolean;
+            };
+          };
+        };
+        /** @description The scoped sandbox no longer exists */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxNotFound"];
+          };
+        };
+        /** @description The reusable workspace is attached to a newer attempt */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SandboxScopeSuperseded"];
+          };
+        };
       };
     };
     delete?: never;
@@ -533,16 +660,23 @@ export interface components {
       code: "sandbox_not_found";
       message: string;
     };
+    SandboxScopeSuperseded: {
+      /** @constant */
+      code: "sandbox_scope_superseded";
+      message: string;
+    };
     SandboxScope: {
       session_id: string;
       run_id: string;
       attempt_epoch: string;
+      workspace_generation: string;
     };
     SandboxStart: {
       scope: {
         session_id: string;
         run_id: string;
         attempt_epoch: string;
+        workspace_generation: string;
       };
       request_id: string;
       sandbox: {
@@ -637,6 +771,7 @@ export interface components {
         session_id: string;
         run_id: string;
         attempt_epoch: string;
+        workspace_generation: string;
       };
       request_id: string;
       /** @default  */

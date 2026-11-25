@@ -11,6 +11,41 @@ import type { PendingAgentInput } from "../components/PendingInputStack";
 
 type PendingInput = AgentRunInputStatus;
 
+function samePendingInput(previous: PendingInput, next: PendingInput) {
+  return (
+    previous.clientMessageId === next.clientMessageId &&
+    previous.mode === next.mode &&
+    previous.reason === next.reason &&
+    previous.runId === next.runId &&
+    previous.state === next.state &&
+    previous.stepNumber === next.stepNumber &&
+    previous.text === next.text
+  );
+}
+
+export function reconcilePendingInputs(current: PendingInput[], results: readonly (PendingInput | null)[]) {
+  const updates = new Map(results.filter((input) => input !== null).map((input) => [input.clientMessageId, input]));
+  let changed = false;
+  const next = current.flatMap((input) => {
+    const update = updates.get(input.clientMessageId);
+    if (!update) return [input];
+    if (update.state === "delivered") {
+      changed = true;
+      return [];
+    }
+    if (samePendingInput(input, update)) return [input];
+    changed = true;
+    return [update];
+  });
+  return changed ? next : current;
+}
+
+export function removeDeliveredPendingInputs(current: PendingInput[], deliveredIds: ReadonlySet<string>) {
+  if (deliveredIds.size === 0) return current;
+  const next = current.filter((input) => !deliveredIds.has(input.clientMessageId));
+  return next.length === current.length ? current : next;
+}
+
 export function useAgentRunInputs({
   conversationId,
   activeRunId,
@@ -73,6 +108,10 @@ export function useAgentRunInputs({
     [activeRunId, conversationId],
   );
 
+  const acknowledgeDelivered = useCallback((deliveredIds: ReadonlySet<string>) => {
+    setPending((current) => removeDeliveredPendingInputs(current, deliveredIds));
+  }, []);
+
   useEffect(() => {
     const pollable = pending.filter((input) => input.state === "accepted" || input.state === "dispatching");
     if (pollable.length === 0) return;
@@ -86,16 +125,7 @@ export function useAgentRunInputs({
         ),
       ).then((results) => {
         if (cancelled) return;
-        const updates = new Map(
-          results.filter((input) => input !== null).map((input) => [input.clientMessageId, input]),
-        );
-        setPending((current) =>
-          current.flatMap((input) => {
-            const next = updates.get(input.clientMessageId);
-            if (!next) return [input];
-            return next.state === "delivered" ? [] : [next];
-          }),
-        );
+        setPending((current) => reconcilePendingInputs(current, results));
       });
     }, 250);
     return () => {
@@ -124,5 +154,5 @@ export function useAgentRunInputs({
     [pending],
   );
 
-  return { admit, pendingInputs: visible };
+  return { acknowledgeDelivered, admit, pendingInputs: visible };
 }

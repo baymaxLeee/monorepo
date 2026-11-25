@@ -82,6 +82,11 @@ function fixture() {
       return { destroyed: true };
     },
     snapshot: async () => ({ files: [] }),
+    inventory: async () => ({ files: [] }),
+    retain: async () => {
+      calls.push("retain");
+      return { retained: true };
+    },
     upload: async (_id, _scope, path, body, _signal, _workspaceEditToken, conditions) => {
       importedPaths.push(path);
       const content = new Uint8Array(await new Response(body).arrayBuffer());
@@ -211,9 +216,16 @@ function fixture() {
       return saved;
     },
     delete: async () => {},
+    occurrence: async (input, file) => {
+      calls.push("occurrence");
+      assert.equal(input.sessionId, context.sessionId);
+      assert.equal(input.sandboxAttempt?.runId, context.runId);
+      assert.equal(file.revision_id.length > 0, true);
+    },
     execution: {
-      restoring: async () => {
+      restoring: async (scope) => {
         executionStates.push("restoring");
+        return { ...scope, workspace_generation: "1" };
       },
       active: async () => {
         executionStates.push("active");
@@ -253,18 +265,46 @@ test("lazy run allocation is single-flight; session files hydrate before executi
   assert.equal(f.calls.length, 0);
   await Promise.all([run.runAttempt(attempt(), { command: "one" }), run.runAttempt(attempt(), { command: "two" })]);
   assert.equal(f.calls.filter((c) => c === "create").length, 1);
-  assert.deepEqual(f.sandboxScopes, [{ session_id: "c", run_id: "r", attempt_epoch: "1" }]);
+  assert.deepEqual(f.sandboxScopes, [{ session_id: "c", run_id: "r", attempt_epoch: "1", workspace_generation: "1" }]);
   assert.deepEqual(f.importedPaths, ["sources/attachments/input/source.bin", "sources/workspace-manifest.json"]);
   assert.deepEqual(f.imported[0], bytes);
   await run.refresh();
   assert.equal(f.importedPaths.length, 2);
   assert.ok(!f.calls.includes("publish"));
-  const saved = await run.save("/workspace/outputs/output.bin", "save");
+  const saved = await run.save("/workspace/outputs/output.bin", { toolCallId: "save", artifactIndex: 0 });
   assert.equal(saved.file_id, "saved");
-  assert.deepEqual(f.calls.slice(-2), ["upload", "publish"]);
+  assert.deepEqual(f.calls.slice(-3), ["upload", "publish", "occurrence"]);
   await Promise.all([run.dispose(), run.dispose()]);
-  assert.equal(f.calls.filter((c) => c === "destroy").length, 1);
-  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "releasing", "released"]);
+  assert.equal(f.calls.filter((c) => c === "destroy").length, 0);
+  assert.equal(f.calls.filter((c) => c === "retain").length, 1);
+  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "released"]);
+});
+
+test("warm workspace attach reuses matching bytes and removes paths absent from Storage", async () => {
+  const f = fixture();
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  const file = sessionFile({
+    id: "notes",
+    filename: "notes.bin",
+    workspace_path: "/workspace/notes.bin",
+    sha256: digest,
+    size: bytes.length,
+  });
+  f.deps.files = async () => [file];
+  f.client.inventory = async () => ({
+    files: [
+      { path: "notes.bin", size: bytes.length, sha256: digest },
+      { path: "stale.bin", size: 1, sha256: "f".repeat(64) },
+    ],
+  });
+  f.client.snapshot = async () => ({ files: [{ path: "notes.bin", size: bytes.length, sha256: digest }] });
+  const run = new RunSandbox(context, f.deps);
+
+  await run.refresh();
+
+  assert.equal(f.importedPaths.includes("notes.bin"), false);
+  assert.deepEqual(f.conditionalDeletes, [{ path: "stale.bin", expectedSha256: "f".repeat(64) }]);
+  await run.dispose();
 });
 
 test("command timeout remains the primary result until finalization snapshots the workspace", async () => {
@@ -299,8 +339,8 @@ test("command timeout remains the primary result until finalization snapshots th
   });
   assert.equal(f.calls.includes("destroy"), false);
   await run.dispose();
-  assert.equal(f.calls.includes("destroy"), true);
-  assert.deepEqual(f.executionStates.slice(-3), ["finalizing", "releasing", "released"]);
+  assert.equal(f.calls.includes("destroy"), false);
+  assert.deepEqual(f.executionStates.slice(-2), ["finalizing", "released"]);
 });
 
 test("user saves are reported once at the next controlled model step", async () => {
@@ -717,7 +757,7 @@ test("failed exports are never registered as artifacts, and later runs import pe
     });
   const run = new RunSandbox(context, f.deps);
   await run.refresh();
-  await assert.rejects(run.save("/workspace/outputs/x", "a"), /truncated/);
+  await assert.rejects(run.save("/workspace/outputs/x", { toolCallId: "a", artifactIndex: 0 }), /truncated/);
   assert.ok(!f.calls.includes("publish"));
   await run.dispose();
   const next = new RunSandbox({ ...context, runId: "next" }, f.deps);
@@ -809,7 +849,7 @@ test("session input bytes are available on the first tool call and survive an em
   await run.runAttempt(attempt(), { command: "cat" });
   assert.equal(f.importedPaths[0], "sources/attachments/upload/report.bin");
   assert.deepEqual(f.imported[0], bytes);
-  await assert.rejects(run.save(path, "save"), /imported sources/);
+  await assert.rejects(run.save(path, { toolCallId: "save", artifactIndex: 0 }), /imported sources/);
   await run.dispose();
   assert.ok(!f.calls.includes("publish"));
 });
@@ -861,7 +901,7 @@ test("agent updates preserve file identity, use the imported revision and advanc
   f.client.download = async () => new Blob([updated]).stream();
   const run = new RunSandbox(context, f.deps);
   await run.refresh();
-  const saved = await run.save("/workspace/notes.md", "save-update");
+  const saved = await run.save("/workspace/notes.md", { toolCallId: "save-update", artifactIndex: 0 });
   assert.equal(saved.file_id, "file");
   assert.equal(saved.etag, '"22222222222222222222222222222222"');
   f.deps.update = async (input) => {
@@ -869,8 +909,14 @@ test("agent updates preserve file identity, use the imported revision and advanc
     assert.equal(input.expectedPathGeneration, 1);
     throw new Error("concurrent workspace edit");
   };
-  await assert.rejects(run.save("/workspace/notes.md", "stale-update"), /concurrent workspace edit/);
-  await assert.rejects(run.save("/workspace/sources/x", "source"), /imported sources/);
+  await assert.rejects(
+    run.save("/workspace/notes.md", { toolCallId: "stale-update", artifactIndex: 0 }),
+    /concurrent workspace edit/,
+  );
+  await assert.rejects(
+    run.save("/workspace/sources/x", { toolCallId: "source", artifactIndex: 0 }),
+    /imported sources/,
+  );
   await run.dispose();
 });
 
@@ -887,7 +933,7 @@ test("finalization retains the guest if Storage returns bytes different from the
   assert.equal(f.executionStates.at(-1), "finalization-failed");
 });
 
-test("run finalization automatically persists new workspace files before destroying compute", async () => {
+test("run finalization persists new workspace files before retaining compute", async () => {
   const f = fixture();
   f.client.snapshot = async () => ({
     files: [{ path: "draft.txt", size: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") }],
@@ -896,11 +942,11 @@ test("run finalization automatically persists new workspace files before destroy
   await run.runAttempt(attempt(), { command: "create draft" });
   await run.dispose();
   assert.ok(f.calls.indexOf("upload") < f.calls.indexOf("publish"));
-  assert.ok(f.calls.indexOf("publish") < f.calls.indexOf("destroy"));
-  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "releasing", "released"]);
+  assert.equal(f.calls.includes("destroy"), false);
+  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "released"]);
 });
 
-test("run finalization records deletion tombstones before destroying compute", async () => {
+test("run finalization records deletion tombstones before retaining compute", async () => {
   const f = fixture();
   f.deps.files = async () => [
     {
@@ -931,7 +977,8 @@ test("run finalization records deletion tombstones before destroying compute", a
   const run = new RunSandbox(context, f.deps);
   await run.runAttempt(attempt(), { command: "delete notes" });
   await run.dispose();
-  assert.ok(f.calls.indexOf("delete") < f.calls.indexOf("destroy"));
+  assert.ok(f.calls.includes("delete"));
+  assert.equal(f.calls.includes("destroy"), false);
 });
 
 test("failed workspace persistence retains compute for durable finalization retry", async () => {
@@ -955,20 +1002,12 @@ test("missing sandbox cleanup is terminal instead of retrying an impossible snap
       body: { code: "sandbox_not_found", message: "sandbox-run no longer exists" },
     });
   };
-  f.client.destroy = async () => {
-    f.calls.push("destroy");
-    throw Object.assign(new Error("runtime-sandbox destroy failed: 404"), {
-      service: "runtime-sandbox",
-      status: 404,
-      body: { code: "sandbox_not_found", message: "sandbox-run no longer exists" },
-    });
-  };
   const run = new RunSandbox(context, f.deps);
   await run.runAttempt(attempt(), { command: "write draft" });
 
   await assert.rejects(run.dispose(), /snapshot failed/);
-  assert.ok(f.calls.includes("destroy"));
-  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "release-failed", "released"]);
+  assert.equal(f.calls.includes("destroy"), false);
+  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "released"]);
 });
 
 test("a rejected reservation cannot release a guest belonging to an existing lease", async () => {
@@ -1047,5 +1086,5 @@ test("finalization recovers a native output staged before the checkout write fai
   await run.dispose();
   assert.equal(f.calls.includes("publish"), false);
   assert.equal(f.calls.includes("upload"), false);
-  assert.equal(f.calls.includes("destroy"), true);
+  assert.equal(f.calls.includes("destroy"), false);
 });

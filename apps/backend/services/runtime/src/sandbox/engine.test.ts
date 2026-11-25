@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 import { parseEnv } from "node:util";
 
@@ -12,6 +14,7 @@ const scope = {
   session_id: "session",
   run_id: "run",
   attempt_epoch: "1",
+  workspace_generation: "1",
 };
 const config = getSandboxSettings({ ENVIRONMENT: "development" });
 
@@ -31,16 +34,25 @@ test("local Docker example selects runc explicitly without permitting production
   );
 });
 
-test("scope binding rejects session/run/attempt substitution before runtime access", async () => {
-  let touched = false;
-  const engine = new Engine(config, async () => {
-    touched = true;
-    return "";
+test("session resource identity is stable while guest binding rejects stale attempt scopes", async () => {
+  const engine = new Engine(config);
+  engine.inspect = async () => ({
+    "monorepo.sandbox": "true",
+    "monorepo.sandbox.owner": resourceName(scope),
+    "monorepo.sandbox.expires": String(Date.now() + 100_000),
   });
-  for (const field of Object.keys(scope)) {
-    await assert.rejects(engine.assertOwner(resourceName(scope), { ...scope, [field]: "other" }), /scope mismatch/);
-  }
-  assert.equal(touched, false);
+  engine.control = async (_id, input) => {
+    if ((input as { scope?: typeof scope }).scope?.workspace_generation !== scope.workspace_generation) {
+      throw new Error("sandbox scope is superseded by a newer workspace generation");
+    }
+    return { bound: true };
+  };
+
+  const next = { ...scope, run_id: "next", workspace_generation: "2" };
+  assert.equal(resourceName(scope), resourceName(next));
+  await engine.assertOwner(resourceName(scope), scope);
+  await assert.rejects(engine.assertOwner(resourceName(scope), { ...scope, workspace_generation: "2" }), /superseded/);
+  await assert.rejects(engine.assertOwner(resourceName(scope), { ...scope, session_id: "other" }), /scope mismatch/);
 });
 
 test("sandbox protocol rejects product identity fields", () => {
@@ -89,7 +101,7 @@ test("API refuses missing or foreign caller credentials, including session creat
   }
 });
 
-test("Pod spec has no host mounts, service identity or writable root, and bounded lifetime", () => {
+test("Pod spec bounds compute, warm retention and finalization grace", () => {
   const pod = new Engine(config).pod("sandbox-test", {}, {});
   assert.equal(pod.spec.automountServiceAccountToken, false);
   assert.equal(pod.spec.runtimeClassName, "runsc");
@@ -100,7 +112,10 @@ test("Pod spec has no host mounts, service identity or writable root, and bounde
     drop: ["ALL"],
     add: ["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"],
   });
-  assert.equal(pod.spec.activeDeadlineSeconds, config.ttlSeconds);
+  assert.equal(
+    pod.spec.activeDeadlineSeconds,
+    config.ttlSeconds + config.warmRetentionSeconds + config.finalizationGraceSeconds,
+  );
   assert.ok(pod.spec.volumes.every((v) => "emptyDir" in v));
   assert.ok(pod.spec.containers[0].volumeMounts.some((mount) => mount.mountPath === "/run/output"));
   assert.ok(pod.spec.volumes.some((volume) => volume.name === "output"));
@@ -154,9 +169,89 @@ test("workspace edit uses a scoped runtime fence", async () => {
   assert.deepEqual(acquired, { token: "edit-token" });
   assert.deepEqual(await engine.releaseWorkspaceEdit("sandbox", scope, acquired.token), { released: true });
   assert.deepEqual(controls, [
-    { op: "begin_workspace_edit", token: "edit-token" },
-    { op: "end_workspace_edit", token: "edit-token" },
+    { op: "begin_workspace_edit", token: "edit-token", scope, allow_expired: false },
+    { op: "end_workspace_edit", token: "edit-token", scope, allow_expired: true },
   ]);
+});
+
+test("download holds a scope-bound guest read lease until the stream finishes", async () => {
+  const controls: object[] = [];
+  const events = new EventEmitter();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const child = Object.assign(events, {
+    stdout,
+    stderr,
+    kill: () => true,
+  });
+  const engine = new Engine(
+    config,
+    async (_executable, args) => {
+      assert.ok(args.includes("stat"));
+      return JSON.stringify({ size: 3 });
+    },
+    (() => child) as never,
+  );
+  engine.assertOwner = async () => {};
+  engine.control = async (_id, input) => {
+    controls.push(input);
+    if ((input as { op: string }).op === "begin_file_read") {
+      return { token: (input as { token: string }).token };
+    }
+    return { released: true };
+  };
+
+  const result = await engine.download("sandbox", scope, "artifact.txt", new AbortController().signal);
+  assert.equal(result.size, 3);
+  assert.equal((controls[0] as { op: string }).op, "begin_file_read");
+  assert.equal(controls.length, 1);
+
+  const body = new Response(result.body).text();
+  stdout.end("new");
+  events.emit("close", 0);
+  assert.equal(await body, "new");
+  assert.equal((controls[1] as { op: string }).op, "end_file_read");
+  assert.deepEqual((controls[1] as { scope: typeof scope }).scope, scope);
+});
+
+test("cancelling an unread download releases its guest read lease", async () => {
+  const controls: object[] = [];
+  const events = new EventEmitter();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  let closed = false;
+  const child = Object.assign(events, {
+    stdout,
+    stderr,
+    kill: () => {
+      if (!closed) {
+        closed = true;
+        stdout.destroy();
+        queueMicrotask(() => events.emit("close", null, "SIGKILL"));
+      }
+      return true;
+    },
+  });
+  const engine = new Engine(config, async () => JSON.stringify({ size: 3 }), (() => child) as never);
+  engine.assertOwner = async () => {};
+  engine.control = async (_id, input) => {
+    controls.push(input);
+    return (input as { op: string }).op === "begin_file_read"
+      ? { token: (input as { token: string }).token }
+      : { released: true };
+  };
+
+  const result = await engine.download("sandbox", scope, "artifact.txt", new AbortController().signal);
+  await result.body.cancel();
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+
+  assert.equal(closed, true);
+  assert.deepEqual(
+    controls.map((control) => (control as { op: string }).op),
+    ["begin_file_read", "end_file_read"],
+  );
 });
 
 test("a timed-out command keeps the stopped workspace available for final snapshot", async () => {
@@ -246,6 +341,23 @@ test("host admission refuses new resources when capacity is exhausted", async ()
   await assert.rejects(engine.create(scope), /capacity exhausted/);
 });
 
+test("host admission evicts a retained guest before refusing new work", async () => {
+  const removed: string[] = [];
+  const engine = new Engine({ ...config, maxSandboxes: 1 }, async () => {
+    throw new Error("provision attempted");
+  });
+  engine.list = async () => [
+    { name: "retained", labels: { "monorepo.sandbox.expires": String(Date.now() + 100_000) } },
+  ];
+  engine.control = async () => ({ ready: false, retained: true });
+  engine.remove = async (name) => {
+    removed.push(name);
+  };
+
+  await assert.rejects(engine.create(scope), /provision attempted/);
+  assert.deepEqual(removed, ["retained"]);
+});
+
 test("API bounds command bodies and returns backpressure instead of queueing indefinitely", async () => {
   const engine = new Engine(config);
   let release!: () => void;
@@ -279,12 +391,68 @@ test("API bounds command bodies and returns backpressure instead of queueing ind
 
 test("create refuses a closing existing guest", async () => {
   const engine = new Engine(config);
+  const name = resourceName(scope);
   engine.list = async () => [
-    { name: resourceName(scope), labels: { "monorepo.sandbox.expires": String(Date.now() + 100000) } },
+    {
+      name,
+      labels: {
+        "monorepo.sandbox": "true",
+        "monorepo.sandbox.owner": name,
+        "monorepo.sandbox.expires": String(Date.now() + 10_000_000),
+      },
+    },
   ];
-  engine.assertOwner = async () => {};
-  engine.control = async () => ({ ready: false });
+  engine.inspect = async () => (await engine.list())[0].labels;
+  engine.control = async (_id, input) =>
+    (input as { op: string }).op === "bind_scope" ? { bound: true } : { ready: false };
   await assert.rejects(engine.create(scope), /not ready/);
+});
+
+test("a newer workspace generation reuses the same healthy session guest", async () => {
+  const engine = new Engine(config);
+  const name = resourceName(scope);
+  const controls: object[] = [];
+  engine.list = async () => [
+    {
+      name,
+      labels: {
+        "monorepo.sandbox": "true",
+        "monorepo.sandbox.owner": name,
+        "monorepo.sandbox.expires": String(Date.now() + 10_000_000),
+      },
+    },
+  ];
+  engine.inspect = async () => (await engine.list())[0].labels;
+  engine.control = async (_id, input) => {
+    controls.push(input);
+    return (input as { op: string }).op === "health" ? { ready: true } : { bound: true };
+  };
+
+  const session = await engine.create({ ...scope, run_id: "next", workspace_generation: "2" });
+
+  assert.equal(session.id, name);
+  assert.equal((controls[0] as { op: string }).op, "bind_scope");
+  assert.equal((controls[0] as { scope: { workspace_generation: string } }).scope.workspace_generation, "2");
+});
+
+test("admission never evicts a finalizing session guest with insufficient remaining lifetime", async () => {
+  const engine = new Engine(config);
+  const name = resourceName(scope);
+  engine.list = async () => [
+    {
+      name,
+      labels: {
+        "monorepo.sandbox": "true",
+        "monorepo.sandbox.owner": name,
+        "monorepo.sandbox.expires": String(Date.now() + 1_000),
+      },
+    },
+  ];
+  engine.inspect = async () => (await engine.list())[0].labels;
+  engine.control = async () => ({ ready: false, retained: false });
+  engine.remove = async () => assert.fail("an unretained guest may still be finalizing durable state");
+
+  await assert.rejects(engine.create({ ...scope, workspace_generation: "2" }), /still finalizing/);
 });
 
 test("aborted admission never touches the container runtime", async () => {

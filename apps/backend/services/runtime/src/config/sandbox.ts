@@ -12,6 +12,8 @@ export interface SandboxSettings {
   diskMiB: number;
   pids: number;
   ttlSeconds: number;
+  warmRetentionSeconds: number;
+  finalizationGraceSeconds: number;
   maxTransferBytes: number;
   outputBytes: number;
   commandTimeoutMs: number;
@@ -60,6 +62,8 @@ export function getSandboxSettings(env: NodeJS.ProcessEnv = process.env): Sandbo
     diskMiB: positive("SANDBOX_DISK_MIB", 512),
     pids: positive("SANDBOX_PIDS", 128),
     ttlSeconds: positive("SANDBOX_TTL_SECONDS", 1800),
+    warmRetentionSeconds: positive("SANDBOX_WARM_RETENTION_SECONDS", 1800),
+    finalizationGraceSeconds: positive("SANDBOX_FINALIZATION_GRACE_SECONDS", 300),
     maxTransferBytes: positive("SANDBOX_MAX_TRANSFER_BYTES", 104857600),
     outputBytes: positive("SANDBOX_OUTPUT_BYTES", 65536),
     commandTimeoutMs: positive("SANDBOX_COMMAND_TIMEOUT_MS", 1800000),

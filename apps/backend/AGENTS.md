@@ -42,9 +42,21 @@ and record high-risk extraction decisions before moving code.
   and every known applied head; never insert a step into an older release. If a
   database has already passed the intended position, append the next step to
   the latest opened release instead of editing history or checksums.
+- Treat any reachable persistent development database as migration history, not
+  disposable test state. Before creating or changing a step, query both
+  `public.migration` and `public.migration_history` for that service. If an ID is
+  already present with a different checksum, restore its exact applied source
+  and append the next contiguous step; never reuse the ID, rewrite its manifest,
+  edit migration tables, or reset the database to make `just up` pass. If the
+  exact applied source cannot be recovered, stop and report that recovery gap.
 - Each release directory must include a generated `checksums.yaml`. Run root
   `just migrate-checksums <service> <version>` when authoring, then
   `just migrate-check`; never regenerate applied versions to bypass drift.
+- Fresh-install migration tests do not detect drift in a persistent developer
+  database. When a reachable local service database exists, run
+  `just migrate-up <service>` against it after the isolated migration suite and
+  before handoff; an unknown head or checksum mismatch is a migration defect,
+  not a reason to delete local state.
 - Use SQL for schema and simple data changes; use compiled, registered Go
   functions for complex transactional transformations. Never mix SQL and Go in
   one step or run arbitrary Go source during deployment.

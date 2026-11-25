@@ -2,7 +2,7 @@ import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
 import type { ExecutionEnvironment } from "../context/environment.js";
-import type { PublishedWorkspaceFile } from "../tools/artifacts.js";
+import type { ArtifactPublicationOptions, PublishedWorkspaceFile } from "../tools/artifacts.js";
 import { createUploadArtifactsTool } from "../tools/artifacts.js";
 import { createApplyPatchTool, type AppliedFileChange } from "../tools/files/apply-patch.js";
 import { applyPatchToText } from "../tools/files/patch/file-update.js";
@@ -44,7 +44,7 @@ export interface ExecutionHost<CONTEXT extends Record<string, unknown> = Record<
     io: ProcessIO,
   ): Promise<SandboxAttemptResult>;
   files: ExecutionHostFileSystem<CONTEXT>;
-  deliver(path: string, options: ToolExecutionOptions<CONTEXT>): Promise<PublishedWorkspaceFile>;
+  deliver(path: string, options: ArtifactPublicationOptions<CONTEXT>): Promise<PublishedWorkspaceFile>;
   refreshSources?(options: ToolExecutionOptions<CONTEXT>): Promise<unknown>;
 }
 

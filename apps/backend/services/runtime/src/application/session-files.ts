@@ -4,12 +4,14 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
+  artifactOccurrences,
   assetClaimIntents,
   threadFiles as sessionFiles,
   threadFileSaveOperations as sessionFileSaveOperations,
   threads as sessions,
   turnLeases,
   threadTurns,
+  workspaceEffects,
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "./errors.js";
 import { assertEditableFileSize, editableFileByteLimit } from "./file-edit-limits.js";
@@ -40,7 +42,21 @@ export interface SessionFile {
 type FileScope = {
   sessionId: string;
   sandboxAttempt?: WorkspaceAttempt;
+  workspaceEffect?: WorkspaceEffectContext;
 };
+
+export interface WorkspaceEffectContext {
+  id: string;
+  producer: "artifact-tool" | "workspace-finalizer";
+  toolCallId?: string;
+}
+
+export interface ArtifactOccurrenceContext {
+  occurrenceId: string;
+  toolCallId: string;
+  artifactIndex: number;
+  workspaceEffectId: string;
+}
 
 type ChatTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
@@ -141,6 +157,66 @@ async function lockFileWriter(tx: ChatTransaction, scope: FileScope) {
   if (!owner) throw new ConflictError("sandbox workspace writer has been superseded", "workspace_writer_superseded");
 }
 
+async function recordWorkspaceEffect(
+  tx: ChatTransaction,
+  input: FileScope,
+  operation: "create" | "update" | "delete",
+  before: SessionFile | null,
+  after: SessionFile | null,
+): Promise<void> {
+  if (!input.workspaceEffect) return;
+  if (!input.sandboxAttempt) throw new Error("workspace effect requires a sandbox attempt");
+  if (
+    !/^[a-f0-9]{64}$/u.test(input.workspaceEffect.id) ||
+    (input.workspaceEffect.toolCallId && input.workspaceEffect.toolCallId.length > 128)
+  ) {
+    throw new RequestError("invalid workspace effect identity");
+  }
+  const file = after ?? before;
+  if (!file) throw new Error("workspace effect requires a file revision");
+  const values = {
+    id: input.workspaceEffect.id,
+    threadId: input.sessionId,
+    turnId: input.sandboxAttempt.runId,
+    attemptEpoch: BigInt(input.sandboxAttempt.attemptEpoch),
+    producer: input.workspaceEffect.producer,
+    toolCallId: input.workspaceEffect.toolCallId ?? null,
+    operation,
+    fileId: file.id,
+    workspacePath: file.workspace_path,
+    baseRevisionId: before?.revision_id ?? null,
+    resultRevisionId: after?.revision_id ?? null,
+    basePathGeneration: before == null ? null : BigInt(before.path_generation),
+    resultPathGeneration:
+      operation === "delete" ? BigInt(file.path_generation + 1) : after == null ? null : BigInt(after.path_generation),
+    createdAt: new Date(),
+  };
+  await tx
+    .insert(workspaceEffects)
+    .values(values)
+    .onConflictDoNothing({ target: [workspaceEffects.turnId, workspaceEffects.id] });
+  const [stored] = await tx
+    .select()
+    .from(workspaceEffects)
+    .where(and(eq(workspaceEffects.turnId, values.turnId), eq(workspaceEffects.id, values.id)));
+  if (
+    !stored ||
+    stored.threadId !== values.threadId ||
+    stored.attemptEpoch !== values.attemptEpoch ||
+    stored.producer !== values.producer ||
+    stored.toolCallId !== values.toolCallId ||
+    stored.operation !== values.operation ||
+    stored.fileId !== values.fileId ||
+    stored.workspacePath !== values.workspacePath ||
+    stored.baseRevisionId !== values.baseRevisionId ||
+    stored.resultRevisionId !== values.resultRevisionId ||
+    stored.basePathGeneration !== values.basePathGeneration ||
+    stored.resultPathGeneration !== values.resultPathGeneration
+  ) {
+    throw new ConflictError("workspace effect identity was already used for a different file mutation");
+  }
+}
+
 export async function listSessionFiles(scope: FileScope): Promise<SessionFile[]> {
   const rows = await getDb()
     .select({ file: sessionFiles })
@@ -212,6 +288,7 @@ export async function publishSessionFile(
         throw new ConflictError("file idempotency key was already used for different content");
       }
       const file = toSessionFile(existing);
+      await recordWorkspaceEffect(tx, input, "create", null, file);
       if (input.sandboxAttempt && input.checkedOut !== false)
         await recordWorkspaceCheckout(input.sandboxAttempt, file, tx);
       return file;
@@ -261,6 +338,7 @@ export async function publishSessionFile(
       })
       .where(eq(sessions.id, input.sessionId));
     const file = toSessionFile(row);
+    await recordWorkspaceEffect(tx, input, "create", null, file);
     if (input.sandboxAttempt && input.checkedOut !== false)
       await recordWorkspaceCheckout(input.sandboxAttempt, file, tx);
     return file;
@@ -539,6 +617,7 @@ export async function saveSessionFile(
       .returning();
     if (!updated) throw new Error("session file update returned no row");
     const file = toSessionFile(updated);
+    await recordWorkspaceEffect(tx, input, "update", toSessionFile(row), file);
     const claimRows = await tx
       .update(assetClaimIntents)
       .set({
@@ -605,6 +684,7 @@ export async function deleteWorkspaceSessionFile(
       throw new ConflictError("workspace file changed before deletion", "file_content_conflict");
     }
     const now = new Date();
+    const file = toSessionFile(row);
     await tx
       .update(sessionFiles)
       .set({
@@ -615,7 +695,68 @@ export async function deleteWorkspaceSessionFile(
         lastWriterId: input.writerId,
       })
       .where(eq(sessionFiles.id, input.fileId));
+    await recordWorkspaceEffect(tx, input, "delete", file, null);
     await tx.update(sessions).set({ updatedAt: now }).where(eq(sessions.id, input.sessionId));
+  });
+}
+
+export async function recordArtifactOccurrence(
+  input: FileScope & ArtifactOccurrenceContext,
+  file: SessionFile,
+): Promise<void> {
+  if (!input.sandboxAttempt) throw new Error("artifact occurrence requires a sandbox attempt");
+  if (
+    !/^[a-f0-9]{32}$/u.test(input.occurrenceId) ||
+    input.toolCallId.length < 1 ||
+    input.toolCallId.length > 128 ||
+    !Number.isSafeInteger(input.artifactIndex) ||
+    input.artifactIndex < 0
+  ) {
+    throw new RequestError("invalid artifact occurrence identity");
+  }
+  await getDb().transaction(async (tx) => {
+    await lockFileWriter(tx, input);
+    const [effect] = await tx
+      .select({ id: workspaceEffects.id })
+      .from(workspaceEffects)
+      .where(
+        and(eq(workspaceEffects.turnId, input.sandboxAttempt!.runId), eq(workspaceEffects.id, input.workspaceEffectId)),
+      );
+    if (!effect) throw new Error("artifact publication requires its committed workspace effect");
+    await tx
+      .insert(artifactOccurrences)
+      .values({
+        id: input.occurrenceId,
+        threadId: input.sessionId,
+        turnId: input.sandboxAttempt!.runId,
+        attemptEpoch: BigInt(input.sandboxAttempt!.attemptEpoch),
+        toolCallId: input.toolCallId,
+        artifactIndex: input.artifactIndex,
+        workspaceEffectId: effect.id,
+        fileId: file.id,
+        assetId: file.asset_id,
+        revisionId: file.revision_id,
+        sha256: file.sha256,
+        workspacePath: file.workspace_path,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing({ target: artifactOccurrences.id });
+    const [stored] = await tx.select().from(artifactOccurrences).where(eq(artifactOccurrences.id, input.occurrenceId));
+    if (
+      !stored ||
+      stored.threadId !== input.sessionId ||
+      stored.turnId !== input.sandboxAttempt!.runId ||
+      stored.attemptEpoch !== BigInt(input.sandboxAttempt!.attemptEpoch) ||
+      stored.toolCallId !== input.toolCallId ||
+      stored.artifactIndex !== input.artifactIndex ||
+      stored.fileId !== file.id ||
+      stored.assetId !== file.asset_id ||
+      stored.revisionId !== file.revision_id ||
+      stored.sha256 !== file.sha256 ||
+      stored.workspacePath !== file.workspace_path
+    ) {
+      throw new ConflictError("artifact occurrence identity was already used for a different revision");
+    }
   });
 }
 

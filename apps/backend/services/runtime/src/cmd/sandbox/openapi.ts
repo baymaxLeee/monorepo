@@ -25,9 +25,14 @@ const missingGuest = {
   description: "The scoped sandbox no longer exists",
   content: { "application/json": { schema: ref("SandboxNotFound") } },
 };
+const supersededScope = {
+  description: "The reusable workspace is attached to a newer attempt",
+  content: { "application/json": { schema: ref("SandboxScopeSuperseded") } },
+};
 const fileParams = [id, scope, { name: "path", in: "query", required: true, schema: { type: "string" } }];
 const schemas = {
   SandboxNotFound: z.strictObject({ code: z.literal("sandbox_not_found"), message: z.string() }),
+  SandboxScopeSuperseded: z.strictObject({ code: z.literal("sandbox_scope_superseded"), message: z.string() }),
   SandboxScope: scopeSchema,
   SandboxStart: startSchema,
   SandboxContinue: continueSchema,
@@ -129,7 +134,31 @@ process.stdout.write(
         "/sessions/{id}/snapshot": {
           post: {
             parameters: [id, scope],
-            responses: { "404": missingGuest, "200": json(ref("SandboxWorkspaceSnapshot")) },
+            responses: {
+              "404": missingGuest,
+              "409": supersededScope,
+              "200": json(ref("SandboxWorkspaceSnapshot")),
+            },
+          },
+        },
+        "/sessions/{id}/inventory": {
+          get: {
+            parameters: [id, scope],
+            responses: {
+              "404": missingGuest,
+              "409": supersededScope,
+              "200": json(ref("SandboxWorkspaceSnapshot")),
+            },
+          },
+        },
+        "/sessions/{id}/retain": {
+          post: {
+            parameters: [id, scope],
+            responses: {
+              "404": missingGuest,
+              "409": supersededScope,
+              "200": json({ type: "object", properties: { retained: { type: "boolean" } }, required: ["retained"] }),
+            },
           },
         },
         "/sessions/{id}/workspace-edits": {

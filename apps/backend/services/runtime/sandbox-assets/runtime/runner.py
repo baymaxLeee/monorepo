@@ -11,6 +11,7 @@ import pathlib
 import pty
 import resource
 import select
+import shutil
 import signal
 import socket
 import socketserver
@@ -806,6 +807,7 @@ class Runtime:
         max_processes=64,
         pids=0,
         workspace_edit_wait=10,
+        temp_root=None,
     ):
         self.root = pathlib.Path(root)
         self.output_root = pathlib.Path(output_root) if output_root is not None else self.root / ".runtime-output"
@@ -814,8 +816,15 @@ class Runtime:
         self.processes, self.requests = OrderedDict(), {}
         self.lock = threading.Lock()
         self.closed = False
+        self.retained = False
+        self.scope = None
+        self.scope_expires_at = 0
+        self.scope_requests = 0
+        self.binding = False
+        self.file_reads = set()
         self.workspace_edit = None
         self.workspace_edit_wait = workspace_edit_wait
+        self.temp_root = pathlib.Path(temp_root) if temp_root is not None else None
         self.pids = pids
         (self.root / ".home").mkdir(exist_ok=True)
         if os.getuid() == 0:
@@ -824,10 +833,116 @@ class Runtime:
     def request(self, request):
         op = request["op"]
         if op == "health":
-            return {"ready": not self.closed}
+            with self.lock:
+                return {"ready": not self.closed and not self.binding, "retained": self.retained}
+        if op == "bind_scope":
+            return self.bind_scope(request)
+        self.begin_scope_request(request)
+        try:
+            return self.scoped_request(request)
+        finally:
+            with self.lock:
+                self.scope_requests -= 1
+
+    def bind_scope(self, request):
+        scope = request["scope"]
+        generation = int(scope["workspace_generation"])
+        expires_at = int(request["expires_at"])
+        if generation <= 0 or expires_at <= int(time.time() * 1000):
+            raise ValueError("invalid workspace binding")
+        with self.lock:
+            if self.binding:
+                raise ValueError("sandbox scope is superseded by a newer workspace generation")
+            current_generation = int(self.scope["workspace_generation"]) if self.scope is not None else 0
+            if self.scope == scope:
+                if self.closed:
+                    raise ValueError("workspace generation was already finalized")
+                self.scope_expires_at = expires_at
+                return {"bound": True}
+            if generation <= current_generation:
+                raise ValueError("sandbox scope is superseded by a newer workspace generation")
+            if self.scope is not None and (not self.closed or not self.retained):
+                raise ValueError("previous sandbox attempt is not retained")
+            if self.workspace_edit is not None:
+                raise ValueError("workspace edit already in progress")
+            if self.scope_requests or self.file_reads:
+                raise ValueError("previous sandbox attempt still has an active operation")
+            self.binding = True
+        try:
+            reset_directory(self.root / "sources", uid=0, gid=0)
+            reset_directory(self.root / ".home", uid=self.uid, gid=self.gid)
+            if self.temp_root is not None:
+                reset_directory(self.temp_root, uid=self.uid, gid=self.gid)
+            reset_directory(self.output_root, uid=0, gid=0)
+            with self.lock:
+                self.processes.clear()
+                self.requests.clear()
+                self.scope = scope
+                self.scope_expires_at = expires_at
+                self.closed = False
+                self.retained = False
+                self.binding = False
+            return {"bound": True}
+        except BaseException:
+            with self.lock:
+                self.binding = False
+            raise
+
+    def begin_scope_request(self, request):
+        with self.lock:
+            if self.binding or request.get("scope") != self.scope:
+                raise ValueError("sandbox scope is superseded by a newer workspace generation")
+            if not request.get("allow_expired", False) and int(time.time() * 1000) >= self.scope_expires_at:
+                raise ValueError("sandbox compute deadline expired")
+            self.scope_requests += 1
+
+    def scoped_request(self, request):
+        op = request["op"]
+        if op == "assert_scope":
+            return {"bound": True}
+        if op == "destroy_scope":
+            self.close()
+            return {"destroying": True}
+        if op == "retain_scope":
+            with self.lock:
+                if not self.closed:
+                    raise ValueError("sandbox must be finalized before retention")
+                if self.workspace_edit is not None:
+                    raise ValueError("workspace edit in progress")
+                if self.scope_requests != 1 or self.file_reads:
+                    raise ValueError("workspace operation in progress")
+                self.retained = True
+            return {"retained": True}
+        if op == "inventory":
+            with self.lock:
+                if self.closed:
+                    raise ValueError("sandbox is closing")
+                if self.workspace_edit is not None:
+                    raise ValueError("workspace edit in progress")
+                if any(process.termination is None for process in self.processes.values()):
+                    raise ValueError("workspace has an active process")
+            return {"files": workspace_files(self.root)}
         if op == "snapshot":
+            with self.lock:
+                if self.file_reads:
+                    raise ValueError("workspace read in progress")
             self.close(reject_workspace_edit=True)
             return {"files": workspace_files(self.root)}
+        if op == "begin_file_read":
+            with self.lock:
+                token = request["token"]
+                if self.retained:
+                    raise ValueError("sandbox was already retained")
+                if self.workspace_edit is not None:
+                    raise ValueError("workspace edit in progress")
+                if any(process.termination is None for process in self.processes.values()):
+                    raise ValueError("workspace has an active process")
+                self.file_reads.add(token)
+            return {"token": token}
+        if op == "end_file_read":
+            with self.lock:
+                self.file_reads.discard(request["token"])
+            return {"released": True}
         if op == "begin_workspace_edit":
             with self.lock:
                 if self.closed:
@@ -835,6 +950,8 @@ class Runtime:
                 token = request["token"]
                 if self.workspace_edit not in (None, token):
                     raise ValueError("workspace edit already in progress")
+                if self.file_reads:
+                    raise ValueError("workspace read in progress")
                 self.workspace_edit = token
             deadline = time.monotonic() + self.workspace_edit_wait
             while True:
@@ -868,6 +985,8 @@ class Runtime:
                         raise ValueError("sandbox is closing")
                     if self.workspace_edit is not None:
                         raise ValueError("workspace edit in progress")
+                    if self.file_reads:
+                        raise ValueError("workspace read in progress")
                     if len(self.processes) >= self.max_processes:
                         expired = next((p.id for p in self.processes.values() if p.termination is not None), None)
                         if expired is None:
@@ -907,6 +1026,7 @@ class Runtime:
             if reject_workspace_edit and self.workspace_edit is not None:
                 raise ValueError("workspace edit in progress")
             self.closed = True
+            self.retained = False
             processes = list(self.processes.values())
         for process in processes:
             process.kill()
@@ -961,6 +1081,21 @@ def workspace_files(root):
     return result
 
 
+def reset_directory(path, *, uid, gid):
+    """Clear attempt-local state only after the previous scope has stopped all writers."""
+    path = pathlib.Path(path)
+    if path.is_symlink() or (path.exists() and not path.is_dir()):
+        path.unlink()
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    for entry in path.iterdir():
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    if os.getuid() == 0:
+        os.chown(path, uid, gid)
+
+
 SOCKET = "/run/control/runner.sock"
 
 
@@ -979,6 +1114,7 @@ def serve():
     runtime = Runtime(
         root,
         output_root=pathlib.Path("/run/output"),
+        temp_root=pathlib.Path("/tmp"),
         output_limit=int(os.environ.get("OUTPUT_BYTES", "65536")),
         max_timeout=int(os.environ.get("COMMAND_TIMEOUT_MS", "1800000")),
         max_processes=int(os.environ.get("MAX_COMMANDS", "64")),

@@ -35,7 +35,20 @@ export function pendingBashRetries(item: UIMessage) {
       if (part.type !== "tool-bash" || part.providerExecuted) continue;
       const parsed = bashArgs.safeParse(part.input);
       if (!parsed.success || parsed.data.command === undefined) continue;
-      const input = commandForPolicy(parsed.data);
+      let input: BashInput;
+      try {
+        input = commandForPolicy(parsed.data);
+      } catch {
+        // The journal can contain schema-valid calls that policy rejected before
+        // execution. They are not recovery evidence and must not block an
+        // unrelated approved continuation. A malformed retry still consumes its
+        // claimed lineage so it can never reveal an older replay candidate.
+        if (parsed.data.retry_of) {
+          pending.delete(parsed.data.retry_of);
+          seenRetries.add(parsed.data.retry_of);
+        }
+        continue;
+      }
       if (input.retry_of) {
         // An execution with an uncertain outcome or a second claimant cannot be replayed.
         if (
