@@ -43,8 +43,8 @@
 .fieldCount {
   margin-left: auto;
   color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 400;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-normal);
 }
 .materialHeader {
   display: flex;
@@ -73,7 +73,7 @@
 .error {
   margin: 0;
   color: var(--destructive);
-  font-size: 13px;
+  font-size: var(--text-compact);
 }
 .materialColumn {
   display: flex;
@@ -88,8 +88,8 @@
 .materialHeader {
   min-height: 2rem;
   color: var(--foreground);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
 }
 .dropzone {
   display: flex;
@@ -114,12 +114,12 @@
   outline: none;
 }
 .dropzone strong {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
 }
 .dropzone span {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .dropzoneIcon {
   margin-bottom: 0.25rem;
@@ -227,8 +227,8 @@
   border-radius: 8px;
   background: color-mix(in oklch, var(--primary) 10%, transparent);
   color: var(--primary);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-medium);
   line-height: 22px;
 }
 .setPrimaryButton {
@@ -242,11 +242,11 @@
   padding: 0 0.5rem;
   border: 1px dashed var(--border);
   border-radius: 8px;
-  background: rgba(241, 243, 245, 0.9);
+  background: var(--muted);
   color: var(--muted-foreground);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-medium);
   line-height: 22px;
   opacity: 0;
   transition: opacity 0.2s;
@@ -286,8 +286,8 @@
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.5);
   color: white;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-medium);
   line-height: 22px;
 }
 .materialCard:hover .removeButton {
@@ -319,8 +319,8 @@
   background: transparent;
   color: var(--foreground);
   cursor: text;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
   text-align: left;
 }
 .materialNameDuplicate {

@@ -12,9 +12,9 @@ const BUTTON_SIZE: Record<ButtonSize, "sm" | "default" | "lg"> = {
 };
 
 const ICON_SIZE: Record<ButtonSize, string> = {
-  28: "text-[14px]",
-  32: "text-[16px]",
-  36: "text-[16px]",
+  28: "text-sm",
+  32: "text-base",
+  36: "text-base",
 };
 
 const PADDING_X: Record<12 | 16, string> = {
@@ -54,7 +54,7 @@ export function ActionButton({
   return (
     <AsyncButton
       aria-label={ariaLabel}
-      className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-[8px] text-[13px] font-medium leading-5.5 tracking-[0.3px] ${
+      className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-[8px] text-(length:--text-compact) font-medium leading-5.5 tracking-[0.3px] ${
         square ? "px-0" : PADDING_X[paddingX]
       } ${active && variant === "default" ? "border-primary" : ""} ${
         variant === "success" && !disabled ? "border-primary bg-background text-primary" : ""

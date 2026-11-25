@@ -29,7 +29,7 @@
   background: rgba(26, 27, 30, 0.96);
 }
 .surface:focus-visible {
-  box-shadow: 0 0 0 4px rgba(22, 100, 255, 0.24);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--ring) 50%, transparent);
 }
 .loadingIcon,
 .failedIcon,

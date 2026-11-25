@@ -14,7 +14,7 @@ function Layout() {
     <div className="flex h-svh min-h-0 gap-1 overflow-hidden bg-muted p-2">
       <PlatformObservability />
       <PlatformAppRail />
-      <main className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border/80 bg-background shadow-sm">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl bg-background">
         <Outlet />
       </main>
     </div>

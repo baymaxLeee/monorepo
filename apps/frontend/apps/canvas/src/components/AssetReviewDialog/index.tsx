@@ -183,7 +183,7 @@ export function AssetReviewDialog({
               </Button>
             </div>
           ) : packages.length && submissions.length ? (
-            <div className="flex flex-col gap-4 text-[13px] leading-5.5 text-foreground">
+            <div className="flex flex-col gap-4 text-(length:--text-compact) leading-5.5 text-foreground">
               <div>
                 {t("将提交 {count} 个{materialName}至合规审核。", {
                   count: submissions.length,

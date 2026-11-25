@@ -10,7 +10,7 @@
   border: 1px solid var(--border);
   border-radius: 20px;
   background: var(--background);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   transform-origin: top center;
   animation: editor-enter 180ms ease-out;
 }
@@ -94,8 +94,8 @@
   min-width: 0;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 13px;
-  font-weight: 400;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-normal);
   line-height: 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -125,13 +125,13 @@
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  font-size: 16px;
+  font-size: var(--text-base);
 }
 .referenceRow .expandButton {
   margin-left: auto;
 }
 .expandButton:hover {
-  background: rgba(26, 27, 30, 0.05);
+  background: var(--accent);
   color: var(--muted-foreground);
 }
 .expandButtonFloating {
@@ -146,7 +146,7 @@
   min-height: 0;
   flex: 1 1 0;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--text-compact);
   line-height: 22px;
 }
 .editor:global(.markdown-editor.markdown-editor-editable) :global(.markdown-editor-content) {
@@ -202,8 +202,8 @@
   background: var(--muted-foreground);
   color: white;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-semibold);
 }
 .generateButtonTooltip {
   display: inline-flex;

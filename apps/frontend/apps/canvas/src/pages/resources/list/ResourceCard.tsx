@@ -116,7 +116,7 @@ export function ResourceCard({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <span className="absolute bottom-[5px] left-[6px] inline-flex h-4 items-center rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[10px] font-medium leading-4 text-white">
+                  <span className="absolute bottom-[5px] left-[6px] inline-flex h-4 items-center rounded-[8px] bg-black/50 px-[6px] text-[10px] font-medium leading-4 text-white">
                     {t("预置")}
                   </span>
                 }
@@ -128,7 +128,7 @@ export function ResourceCard({
           ) : null}
         </div>
         <div className="flex flex-col gap-2 px-3">
-          <h2 className="m-0 text-[16px] font-medium leading-6 text-foreground group-hover:text-primary">
+          <h2 className="m-0 text-base font-medium leading-6 text-foreground group-hover:text-primary">
             <EllipsisText>{item.Name}</EllipsisText>
           </h2>
           <div className="flex items-center gap-2">
@@ -139,9 +139,9 @@ export function ResourceCard({
                     aria-label={t("{count} 个素材", {
                       count: item.ResourceAssetCount,
                     })}
-                    className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
+                    className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-(length:--text-compact) leading-5.5 text-muted-foreground"
                   >
-                    <span className="inline-flex text-[14px]">{typeIcon}</span>
+                    <span className="inline-flex text-sm">{typeIcon}</span>
                     {item.ResourceAssetCount}
                   </span>
                 }
@@ -161,9 +161,9 @@ export function ResourceCard({
                       aria-label={t("{count} 个已审核通过素材", {
                         count: approvedResourceAssetCount,
                       })}
-                      className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
+                      className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-(length:--text-compact) leading-5.5 text-muted-foreground"
                     >
-                      <span className="inline-flex text-[14px]">
+                      <span className="inline-flex text-sm">
                         <IconComplianceLine aria-hidden size="1em" strokeWidth={1.5} />
                       </span>
                       {approvedResourceAssetCount}

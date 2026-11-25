@@ -67,7 +67,7 @@ export function PlatformAppRail() {
                     className={cn(
                       buttonVariants({ variant: "ghost", size: "icon" }),
                       "size-10 rounded-xl text-muted-foreground",
-                      active && "bg-background text-foreground shadow-sm ring-1 ring-border hover:bg-background",
+                      active && "bg-background text-foreground hover:bg-background",
                     )}
                   />
                 }

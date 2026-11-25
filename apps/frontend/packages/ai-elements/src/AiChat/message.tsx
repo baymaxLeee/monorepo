@@ -252,7 +252,7 @@ export const MessageResponse = memo(
         <Streamdown
           className={cn(
             styles.response,
-            "size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0",
+            "type-copy size-full break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0",
             className,
           )}
           plugins={streamdownPlugins}

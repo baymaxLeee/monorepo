@@ -16,6 +16,7 @@ import type { DesktopBridge, LocalThread } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { selectLocalArtifact, useLocalArtifact } from "../../stores/useLocalArtifact";
 import { localSessionState } from "./local-session-state";
 import { localPromptMessageParts } from "./local-user-message";
 import { LocalComposerEndControls, LocalComposerStartControls } from "./LocalComposerControls";
@@ -136,6 +137,17 @@ export function LocalSession({
     };
   }, [bridge, chat, initial.id, transport]);
 
+  const openWorkspaceFile = useCallback(
+    (path: string) => void selectLocalArtifact({ threadId: initial.id, path }),
+    [initial.id],
+  );
+  useEffect(
+    () => () => {
+      if (useLocalArtifact.getState().selected?.threadId === initial.id) useLocalArtifact.setState({ selected: null });
+    },
+    [initial.id],
+  );
+
   const approve = useCallback(
     async (id: string, accepted: boolean) => {
       if (approving.current) return;
@@ -233,6 +245,7 @@ export function LocalSession({
       conversationId={initial.id}
       loading={false}
       branches={[]}
+      onOpenWorkspaceFile={openWorkspaceFile}
       pendingInputs={state.pendingInputs.flatMap((input) =>
         input.state === "accepted" || input.state === "not_delivered" || input.state === "unconfirmed"
           ? [{ id: input.id, text: input.text, mode: input.mode, state: input.state }]

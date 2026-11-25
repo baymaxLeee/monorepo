@@ -131,9 +131,9 @@ export function FileList<T>({
     );
   } else if (failedPage === 1 && items.length === 0) {
     content = (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-[14px] text-muted-foreground">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-sm text-muted-foreground">
         <span>{errorText}</span>
-        <Button className="text-[13px] text-primary" onClick={retry} size="sm" variant="ghost">
+        <Button className="text-sm text-primary" onClick={retry} size="sm" variant="ghost">
           {retryText}
         </Button>
       </div>
@@ -165,8 +165,8 @@ export function FileList<T>({
                 <div className="flex size-7 shrink-0 items-center justify-center">{renderIcon(item)}</div>
               ) : null}
               <div className="min-w-0">
-                <div className="truncate text-[13px] font-medium leading-5.5 text-foreground">{renderTitle(item)}</div>
-                <div className="flex min-w-0 items-center gap-2 text-[12px] leading-5 text-muted-foreground">
+                <div className="truncate text-sm font-medium leading-5.5 text-foreground">{renderTitle(item)}</div>
+                <div className="flex min-w-0 items-center gap-2 text-xs leading-5 text-muted-foreground">
                   {renderDescription(item)}
                 </div>
               </div>
@@ -181,9 +181,9 @@ export function FileList<T>({
             <LoadingIndicator className="size-[16px]" />
           </div>
         ) : failedPage ? (
-          <div className="flex h-10 items-center justify-center gap-2 text-[12px] text-muted-foreground">
+          <div className="flex h-10 items-center justify-center gap-2 text-xs text-muted-foreground">
             <span>{errorText}</span>
-            <Button className="text-[12px] text-primary" onClick={retry} size="xs" variant="ghost">
+            <Button className="text-xs text-primary" onClick={retry} size="xs" variant="ghost">
               {retryText}
             </Button>
           </div>
@@ -194,11 +194,11 @@ export function FileList<T>({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 bg-muted px-6 py-2 text-[13px] leading-5.5 text-foreground">
+      <div className="flex shrink-0 items-center gap-2 bg-muted px-6 py-2 text-sm leading-5.5 text-foreground">
         <IconInfoCircleFill aria-hidden className="shrink-0 text-primary" size={16} strokeWidth={1.5} />
         <span>{t("下载链接有效期为 {retentionDays} 天。", { retentionDays })}</span>
         <Button
-          className="ml-auto text-[13px] text-primary"
+          className="ml-auto text-sm text-primary"
           disabled={loading}
           onClick={reloadFirstPage}
           size="sm"

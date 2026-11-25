@@ -71,9 +71,9 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
       <Tooltip>
         <TooltipTrigger
           render={
-            <div className="flex h-[47px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[8px] bg-[rgba(215,49,42,0.1)]">
-              <span className="text-[12px] font-medium leading-3 text-destructive">?</span>
-              <span className="text-[12px] font-medium leading-5 text-destructive">
+            <div className="flex h-[47px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[8px] bg-destructive/10">
+              <span className="text-xs font-medium leading-3 text-destructive">?</span>
+              <span className="text-xs font-medium leading-5 text-destructive">
                 {item.status === "cancelled" ? t("已取消") : t("生成失败")}
               </span>
             </div>
@@ -96,7 +96,7 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
   }
   if (isText) {
     return (
-      <div className="flex h-[47px] w-[84px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-[24px] text-muted-foreground">
+      <div className="flex h-[47px] w-[84px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-2xl text-muted-foreground">
         <IconText aria-hidden />
       </div>
     );
@@ -121,7 +121,7 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
       ) : (
         <IconVideo className="text-[32px]" />
       )}
-      <span className="absolute bottom-1 left-1 rounded-[8px] bg-[rgba(0,0,0,0.5)] px-1.5 py-[2px] text-[10px] font-medium leading-2.75 text-white">
+      <span className="absolute bottom-1 left-1 rounded-[8px] bg-black/50 px-1.5 py-[2px] text-[10px] font-medium leading-2.75 text-white">
         {item.duration === "-1s" ? t("自动") : item.duration}
       </span>
     </div>
@@ -145,7 +145,7 @@ function HistoryRow({
       : plainHistoryScript(item.script);
   return (
     <div className="flex h-[63px] w-full shrink-0 items-center gap-1">
-      <div className="flex w-[18px] shrink-0 items-center justify-center text-[13px] font-medium leading-6 text-muted-foreground">
+      <div className="flex w-[18px] shrink-0 items-center justify-center text-(length:--text-compact) font-medium leading-6 text-muted-foreground">
         {selected ? <span className={styles.selectedMarker} /> : number}
       </div>
       <Button
@@ -156,7 +156,7 @@ function HistoryRow({
         type="button"
       >
         <HistoryThumb item={item} />
-        <p className="m-0 line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-[13px] leading-5.5 text-foreground">
+        <p className="m-0 line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-(length:--text-compact) leading-5.5 text-foreground">
           {summary}
         </p>
       </Button>
@@ -231,7 +231,7 @@ function SelectedHistoryDetail({
         <VideoPlayer
           className={styles.videoFrame}
           empty={
-            <div className="flex h-full items-center justify-center text-[14px] text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {t("暂无可预览视频")}
             </div>
           }
@@ -241,12 +241,12 @@ function SelectedHistoryDetail({
 
       <div className="flex min-w-0 items-start justify-between gap-5">
         <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex min-w-0 items-center gap-4 text-[20px] font-medium leading-7 text-foreground">
+          <div className="flex min-w-0 items-center gap-4 text-xl font-medium leading-7 text-foreground">
             <span className="shrink-0">{t("生成记录{number}", { number })}</span>
             {item ? <span className="truncate">{formatHistoryTime(item.completedAt ?? item.createdAt)}</span> : null}
           </div>
           {item ? (
-            <div className="flex items-center gap-2 text-[13px] leading-5.5 text-foreground">
+            <div className="flex items-center gap-2 text-(length:--text-compact) leading-5.5 text-foreground">
               <span className="max-w-[240px] truncate">{modelLabel}</span>
               {item.resolution ? (
                 <>
@@ -398,13 +398,13 @@ export function GenerationHistoryDialog({
               <Button
                 variant="ghost"
                 aria-label={t("返回")}
-                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-background p-0 text-[14px] text-foreground hover:bg-muted"
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-background p-0 text-sm text-foreground hover:bg-muted"
                 onClick={onCancel}
                 type="button"
               >
                 <IconLeft />
               </Button>
-              <span className="max-w-[320px] truncate text-[14px] font-medium leading-6 text-foreground">
+              <span className="max-w-[320px] truncate text-sm font-medium leading-6 text-foreground">
                 {displayTitle}
               </span>
             </div>
@@ -425,10 +425,10 @@ export function GenerationHistoryDialog({
 
             <aside className={styles.historyPanel}>
               <div className="flex shrink-0 items-center gap-4">
-                <h2 className="m-0 text-[18px] font-medium leading-6.5 text-foreground">
+                <h2 className="m-0 text-lg font-medium leading-6.5 text-foreground">
                   {t("{shot} 生成历史", { shot: displayTitle })}
                 </h2>
-                <span className="text-[13px] leading-5.5 text-muted-foreground">
+                <span className="text-(length:--text-compact) leading-5.5 text-muted-foreground">
                   {t("共 {count} 个记录", { count: items.length })}
                 </span>
               </div>
@@ -438,7 +438,7 @@ export function GenerationHistoryDialog({
                     <IconLoading fontSize={20} />
                   </div>
                 ) : items.length === 0 ? (
-                  <div className="flex h-[240px] items-center justify-center text-[14px] text-muted-foreground">
+                  <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">
                     {t("暂无生成记录")}
                   </div>
                 ) : (

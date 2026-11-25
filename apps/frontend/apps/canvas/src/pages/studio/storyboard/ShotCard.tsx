@@ -13,8 +13,7 @@ import t from "@/utils/i18n";
 import { shotChipLabel } from "../domain/model";
 import type { Shot } from "../domain/types";
 
-const OVERLAY_CLASS =
-  "pointer-events-none absolute inset-0 flex items-center justify-center gap-1 text-[12px] leading-5";
+const OVERLAY_CLASS = "pointer-events-none absolute inset-0 flex items-center justify-center gap-1 text-xs leading-5";
 
 export function ShotCard({
   deleteDisabledReason,
@@ -50,7 +49,7 @@ export function ShotCard({
     <Button
       variant="ghost"
       aria-label={`${t("删除{label}", { label })}`}
-      className={`absolute right-[4px] top-[4px] hidden h-4 w-4 items-center justify-center rounded-[999px] border-0 bg-[rgba(0,0,0,0.5)] p-0 text-[10px] text-white group-hover:flex ${
+      className={`absolute right-[4px] top-[4px] hidden h-4 w-4 items-center justify-center rounded-[999px] border-0 bg-black/50 p-0 text-[10px] text-white group-hover:flex ${
         deleteDisabledReason ? "cursor-not-allowed" : "cursor-pointer"
       }`}
       onClick={() => {
@@ -80,7 +79,7 @@ export function ShotCard({
           <img alt={firstFrameURL ? t("分镜首帧") : ""} className="h-full w-full object-contain" src={thumbnail} />
         ) : (
           <span
-            className="flex h-full w-full items-center justify-center text-[24px] text-muted-foreground"
+            className="flex h-full w-full items-center justify-center text-2xl text-muted-foreground"
             title={firstFrameErrorMessage ?? firstFrameErrorCode}
           >
             <IconVideoDefault />
@@ -88,21 +87,21 @@ export function ShotCard({
         )}
 
         {creating ? (
-          <span className={`${OVERLAY_CLASS} bg-[rgba(255,255,255,0.86)] text-foreground`}>
+          <span className={`${OVERLAY_CLASS} bg-background/90 text-foreground`}>
             <IconLoading aria-hidden className="animate-spin" fontSize={14} />
             {t("分镜创建中")}
           </span>
         ) : shot.status === "generating" ? (
-          <span className={`${OVERLAY_CLASS} bg-[rgba(0,0,0,0.5)] text-white`}>
+          <span className={`${OVERLAY_CLASS} bg-black/50 text-white`}>
             <IconLoading aria-hidden className="animate-spin" fontSize={14} />
             {t("视频生成中")}
           </span>
         ) : failed ? (
           <span
-            className={`${OVERLAY_CLASS} bg-[rgba(215,49,42,0.1)] text-destructive`}
+            className={`${OVERLAY_CLASS} bg-destructive/10 text-destructive`}
             title={failureReason || t("视频生成失败，请重试")}
           >
-            <IconExclamationCircleRedFill aria-hidden className="text-[14px]" />
+            <IconExclamationCircleRedFill aria-hidden className="text-sm" />
             {t("视频生成失败")}
           </span>
         ) : null}
@@ -110,11 +109,11 @@ export function ShotCard({
         {settled ? (
           <>
             {thumbnail || shot.videoUrl ? (
-              <span className="pointer-events-none absolute bottom-[4px] left-[4px] rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] py-[3px] text-[10px] font-medium leading-2.75 text-white">
+              <span className="pointer-events-none absolute bottom-[4px] left-[4px] rounded-[8px] bg-black/50 px-[6px] py-[3px] text-[10px] font-medium leading-2.75 text-white">
                 {shot.duration === "-1s" ? t("自动") : shot.duration}
               </span>
             ) : null}
-            <span className="pointer-events-none absolute inset-0 hidden bg-[rgba(0,0,0,0.3)] group-hover:block" />
+            <span className="pointer-events-none absolute inset-0 hidden bg-black/30 group-hover:block" />
           </>
         ) : null}
 
@@ -143,10 +142,7 @@ export function ShotCard({
         ) : null}
       </div>
 
-      <span
-        className="flex max-w-full items-center gap-1 text-[12px] capitalize leading-5 text-foreground"
-        title={label}
-      >
+      <span className="flex max-w-full items-center gap-1 text-xs capitalize leading-5 text-foreground" title={label}>
         <IconDrag aria-hidden className="h-[14px] w-[14px] shrink-0 text-foreground" />
         <span className="min-w-0 truncate">{label}</span>
       </span>

@@ -61,5 +61,5 @@
   transition: opacity 200ms;
 }
 .removeIcon {
-  font-size: 16px;
+  font-size: var(--text-base);
 }

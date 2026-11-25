@@ -94,13 +94,9 @@ export function MentionListColumn({
         variant="ghost"
         aria-disabled={Boolean(unavailable)}
         aria-expanded={group ? expanded : undefined}
-        className={`box-border flex h-[42px] w-full cursor-pointer items-center gap-2 border-0 text-left text-[13px] leading-5.5 outline-none ${
+        className={`box-border flex h-[42px] w-full cursor-pointer items-center gap-2 border-0 text-left text-(length:--text-compact) leading-5.5 outline-none ${
           nested ? "pl-10 pr-3" : "px-3"
-        } ${
-          id === activeId
-            ? "rounded-[8px] bg-[rgba(26,27,30,0.05)] font-medium"
-            : "rounded-[8px] bg-[transparent] font-normal"
-        }`}
+        } ${id === activeId ? "rounded-[8px] bg-muted font-medium" : "rounded-[8px] bg-[transparent] font-normal"}`}
         data-mention-id={id}
         onClick={() => (group ? onToggle(node) : onSelect(node))}
         onMouseEnter={(event) => onHover(node, event.currentTarget)}
@@ -152,7 +148,7 @@ export function MentionListColumn({
       style={{ ...HIDDEN_SCROLLBAR_STYLE, msOverflowStyle: "none", maxHeight }}
     >
       {loading ? (
-        <div className="flex h-[42px] items-center px-3 text-[12px] text-muted-foreground">{t("查询中...")}</div>
+        <div className="flex h-[42px] items-center px-3 text-xs text-muted-foreground">{t("查询中...")}</div>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-1 p-[6px]">
           {sections.map((section) => {
@@ -163,7 +159,7 @@ export function MentionListColumn({
                   <Button
                     variant="ghost"
                     aria-expanded={sectionExpanded}
-                    className="flex h-[42px] w-full cursor-pointer items-center justify-between rounded-[8px] border-0 bg-[transparent] px-3 text-left text-[13px] font-normal leading-5.5 text-foreground outline-none"
+                    className="flex h-[42px] w-full cursor-pointer items-center justify-between rounded-[8px] border-0 bg-[transparent] px-3 text-left text-(length:--text-compact) font-normal leading-5.5 text-foreground outline-none"
                     onClick={() => onToggleSection(section)}
                     type="button"
                   >
@@ -189,14 +185,14 @@ export function MentionListColumn({
             );
           })}
           {empty ? (
-            <li className="flex h-[42px] items-center px-3 text-[12px] text-muted-foreground">{t("未找到匹配资产")}</li>
+            <li className="flex h-[42px] items-center px-3 text-xs text-muted-foreground">{t("未找到匹配资产")}</li>
           ) : null}
         </ul>
       )}
       {assetsExpanded && loadingMore ? (
-        <div className="flex h-7 items-center justify-center text-[12px] text-muted-foreground">{t("加载更多...")}</div>
+        <div className="flex h-7 items-center justify-center text-xs text-muted-foreground">{t("加载更多...")}</div>
       ) : assetsVisible && !loading && !empty && !hasMore ? (
-        <div className="flex h-7 items-center justify-center text-[12px] text-muted-foreground">{t("已加载完毕")}</div>
+        <div className="flex h-7 items-center justify-center text-xs text-muted-foreground">{t("已加载完毕")}</div>
       ) : null}
     </div>
   );

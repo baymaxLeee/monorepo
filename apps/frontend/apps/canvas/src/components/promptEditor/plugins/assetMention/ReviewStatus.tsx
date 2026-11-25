@@ -83,10 +83,7 @@ export function renderAssetReviewTooltipContent({
   if (!current) return null;
 
   return (
-    <div
-      className="grid gap-x-3 text-[12px] leading-5 text-white"
-      style={{ gridTemplateColumns: "auto minmax(0, 155px)" }}
-    >
+    <div className="grid gap-x-3 text-xs leading-5 text-white" style={{ gridTemplateColumns: "auto minmax(0, 155px)" }}>
       <span>{t("审核状态")}</span>
       <span>{reviewStatusText(current)}</span>
       <span>{t("权益包")}</span>
@@ -175,7 +172,7 @@ export function AssetReviewFooter({
 
   return (
     <div
-      className={`group flex h-7 items-center justify-between rounded-[8px] px-2 text-[12px] leading-5 ${
+      className={`group flex h-7 items-center justify-between rounded-[8px] px-2 text-xs leading-5 ${
         canSubmit ? "group-hover:bg-muted" : ""
       }`}
     >
@@ -218,7 +215,7 @@ export function AssetReviewFooter({
       {canSubmit || canAddToLibrary ? (
         <Button
           variant="ghost"
-          className={`shrink-0 cursor-pointer items-center gap-1 border-0 bg-[transparent] p-0 text-[12px] leading-5 text-foreground ${
+          className={`shrink-0 cursor-pointer items-center gap-1 border-0 bg-[transparent] p-0 text-xs leading-5 text-foreground ${
             canAddToLibrary ? "flex" : "hidden group-hover:flex"
           }`}
           onClick={(event) => {

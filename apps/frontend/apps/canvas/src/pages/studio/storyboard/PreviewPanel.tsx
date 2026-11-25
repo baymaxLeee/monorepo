@@ -198,7 +198,7 @@ export function PreviewPanel({
                 src={shot.videoUrl}
               />
             ) : null}
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[rgba(0,0,0,0.5)] text-[14px] leading-6 text-white">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/50 text-sm leading-6 text-white">
               <span className="flex h-10 w-10 items-center justify-center">
                 <IconLoading aria-hidden className="animate-spin" fontSize={34} />
               </span>
@@ -209,7 +209,7 @@ export function PreviewPanel({
                     <span>
                       <Button
                         variant="ghost"
-                        className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        className="cursor-pointer border-0 bg-[transparent] p-0 text-(length:--text-compact) leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                         disabled
                         type="button"
                       >
@@ -222,7 +222,7 @@ export function PreviewPanel({
               ) : (
                 <Button
                   variant="ghost"
-                  className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  className="cursor-pointer border-0 bg-[transparent] p-0 text-(length:--text-compact) leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={stoppingGeneration}
                   onClick={onStopGenerate}
                   type="button"
@@ -276,7 +276,7 @@ export function PreviewPanel({
         ) : (
           <Button
             variant="ghost"
-            className={`flex h-full w-full flex-col items-center justify-center gap-3 border-0 bg-[transparent] p-0 text-[14px] leading-6 text-muted-foreground ${
+            className={`flex h-full w-full flex-col items-center justify-center gap-3 border-0 bg-[transparent] p-0 text-sm leading-6 text-muted-foreground ${
               generatable ? "cursor-pointer" : "cursor-not-allowed"
             }`}
             disabled={!generatable}

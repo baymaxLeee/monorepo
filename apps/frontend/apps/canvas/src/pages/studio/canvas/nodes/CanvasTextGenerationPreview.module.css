@@ -3,7 +3,7 @@
   color: var(--muted-foreground) !important;
 }
 .collapseButton:hover {
-  background: rgba(26, 27, 30, 0.05) !important;
+  background: var(--accent) !important;
   color: var(--foreground) !important;
 }
 .content {
@@ -11,7 +11,7 @@
   flex: 1;
   overflow: auto;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--text-compact);
   line-height: 22px;
   scrollbar-width: none;
 }

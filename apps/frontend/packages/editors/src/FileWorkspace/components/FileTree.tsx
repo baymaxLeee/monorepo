@@ -551,13 +551,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
         onDrop={(e) => onDrop(e, null)}
       >
         {searchResults ? (
-          <div
-            className={cn(
-              "h-full overflow-y-auto overflow-x-hidden py-1",
-              "[scrollbar-width:thin] [scrollbar-color:oklch(0.82_0_0)_transparent]",
-              "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[oklch(0.82_0_0)]",
-            )}
-          >
+          <div className="scrollbar-thin h-full overflow-y-auto overflow-x-hidden py-1">
             {searchResults.length === 0 ? (
               <div className="px-3 py-8 text-center text-xs text-muted-foreground">未找到匹配的文件</div>
             ) : (
@@ -585,13 +579,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
             )}
           </div>
         ) : (
-          <div
-            className={cn(
-              "h-full overflow-y-auto overflow-x-hidden py-1",
-              "[scrollbar-width:thin] [scrollbar-color:oklch(0.82_0_0)_transparent]",
-              "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[oklch(0.82_0_0)]",
-            )}
-          >
+          <div className="scrollbar-thin h-full overflow-y-auto overflow-x-hidden py-1">
             {tree.map((n) => renderNode(n, 0))}
             {input && !input.renameId && !input.parent_id && (
               <div className={cn(NODE_BASE, TREE_NODE_CLS)} style={{ paddingLeft: 8 }}>

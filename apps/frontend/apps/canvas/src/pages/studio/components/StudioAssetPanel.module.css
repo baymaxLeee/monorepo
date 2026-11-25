@@ -25,7 +25,7 @@
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-compact);
 }
 .assetActions {
   margin-left: auto;
@@ -49,22 +49,22 @@
   stroke-width: 1.6;
 }
 .assetActionsButton:hover {
-  background: rgba(26, 27, 30, 0.05);
+  background: var(--accent);
 }
 .assetActionItem {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--text-compact);
 }
 .assetActionItem > svg {
   flex-shrink: 0;
-  font-size: 16px;
+  font-size: var(--text-base);
 }
 .activeTopTab {
-  background: rgba(26, 27, 30, 0.05);
+  background: var(--accent);
   color: var(--foreground);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 .assetBody {
   display: flex;
@@ -97,8 +97,8 @@
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 400;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-normal);
   line-height: 20px;
 }
 .typeButton span,
@@ -161,7 +161,7 @@
   height: 32px;
   padding: 5px 12px;
   border-radius: 8px;
-  background: rgba(26, 27, 30, 0.05);
+  background: var(--accent);
 }
 .groupCollapse {
   border: 0;
@@ -172,10 +172,10 @@
   border-radius: 8px;
   background: transparent;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--text-compact);
 }
 .groupTrigger:hover {
-  background: rgba(26, 27, 30, 0.03);
+  background: var(--muted);
 }
 .groupTrigger :global([data-slot="accordion-trigger-icon"]) {
   order: -1;
@@ -207,7 +207,7 @@
   flex: 0 1 auto;
   overflow: hidden;
   color: var(--foreground);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -230,7 +230,7 @@
   cursor: pointer;
 }
 .groupAdd:hover {
-  background: rgba(26, 27, 30, 0.05);
+  background: var(--accent);
 }
 .groupThumbnail {
   display: flex;
@@ -305,7 +305,7 @@
   flex: 1;
   overflow: hidden;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--text-compact);
   line-height: 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -317,7 +317,7 @@
   align-items: center;
   justify-content: center;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .groupStatus {
   display: flex;
@@ -325,7 +325,7 @@
   align-items: center;
   justify-content: center;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .nodeBody {
   display: flex;
@@ -368,7 +368,7 @@
   text-align: left;
 }
 .nodeItem:hover {
-  background: rgba(26, 27, 30, 0.05);
+  background: var(--accent);
 }
 .nodeThumbnail {
   position: relative;
@@ -403,7 +403,7 @@
   justify-content: center;
   border-radius: 50%;
   background: var(--background);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--shadow-sm);
   color: var(--foreground);
   pointer-events: none;
 }
@@ -415,7 +415,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--text-compact);
   line-height: 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -433,7 +433,7 @@
   justify-content: center;
   border-radius: 6px;
   color: var(--muted-foreground);
-  font-size: 16px;
+  font-size: var(--text-base);
   opacity: 0;
 }
 .nodeItem:hover .locateNode {
@@ -468,6 +468,6 @@
   background: color-mix(in oklch, var(--primary) 10%, transparent);
   color: var(--primary);
   font-size: 9px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   line-height: 12px;
 }

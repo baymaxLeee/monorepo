@@ -33,7 +33,7 @@ const FORMAT_TIP_ITEMS: Record<AssetCategory, string> = {
 
 function formatTip(categories: AssetCategory[]) {
   return (
-    <div className="w-[232px] text-[12px] leading-5.5">
+    <div className="w-[232px] text-xs leading-5.5">
       {t("资产格式要求")}
       <ul className="my-1 list-disc pl-[18px]">
         {categories.map((category) => (
@@ -98,7 +98,7 @@ function AssetThumb({
           >
             <AssetAvatar className="text-[40px]" asset={asset} fit="cover" />
             {asset.syncStatus === "failed" ? (
-              <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-[12px] text-destructive">
+              <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs text-destructive">
                 {t("失败")}
               </span>
             ) : null}
@@ -252,7 +252,7 @@ export function AssetStrip({
                       <IconPlus />
                     </Button>
                   )}
-                  <span className="text-[12px] leading-4.5 text-muted-foreground">{label}</span>
+                  <span className="text-xs leading-4.5 text-muted-foreground">{label}</span>
                 </div>
               );
               if (index === 0) {
@@ -265,7 +265,7 @@ export function AssetStrip({
                           variant="ghost"
                           aria-disabled={!canSwapFrames}
                           aria-label={t("左右图切换")}
-                          className={`mt-[15px] flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border-0 bg-[transparent] p-0 text-[16px] text-foreground ${
+                          className={`mt-[15px] flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border-0 bg-[transparent] p-0 text-base text-foreground ${
                             canSwapFrames ? "cursor-pointer hover:bg-muted!" : "cursor-not-allowed"
                           }`}
                           onClick={canSwapFrames ? onSwapFrames : undefined}
@@ -362,7 +362,7 @@ export function AssetStrip({
         ) : null}
 
         {(editable || reserveEmptySpace) && !firstLastFrame && assets.length === 0 && emptyHint ? (
-          <p className="m-0 self-center text-[14px] leading-5.5 text-muted-foreground">{emptyHint}</p>
+          <p className="m-0 self-center text-sm leading-5.5 text-muted-foreground">{emptyHint}</p>
         ) : null}
       </div>
       {showStats ? (
@@ -375,7 +375,7 @@ export function AssetStrip({
           }}
         >
           {statsPrefix}
-          <p className="m-0 text-[13px] leading-5.5 text-muted-foreground">
+          <p className="m-0 text-(length:--text-compact) leading-5.5 text-muted-foreground">
             {formatAssetStats(counts, assetLimits, categories, statsLabel)}
           </p>
         </div>

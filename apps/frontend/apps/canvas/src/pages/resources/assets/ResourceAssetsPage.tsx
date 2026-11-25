@@ -441,12 +441,12 @@ export function ResourceAssetsPageContent({
           size="xs"
           variant="outline"
         >
-          <IconLeft className="text-[14px]" />
+          <IconLeft className="text-sm" />
         </Button>
-        <h1 className="m-0 text-[20px] font-semibold leading-7 text-foreground">
+        <h1 className="m-0 text-xl font-semibold leading-7 text-foreground">
           {currentResource?.Name ?? item?.Name ?? t("资产")}
         </h1>
-        <span className="shrink-0 text-[20px] leading-7 text-muted-foreground">
+        <span className="shrink-0 text-xl leading-7 text-muted-foreground">
           {t("共 {count} 个{materialName}", {
             count: total,
             materialName,
@@ -471,7 +471,7 @@ export function ResourceAssetsPageContent({
               </div>
               <div className="flex items-center gap-3">
                 {isOfficial ? (
-                  <span className="inline-flex items-center rounded-[8px] bg-muted px-3 py-[6px] text-[13px] text-foreground">
+                  <span className="inline-flex items-center rounded-[8px] bg-muted px-3 py-[6px] text-(length:--text-compact) text-foreground">
                     {t("官方预置，仅支持试听与下载")}
                   </span>
                 ) : isAudio ? (
@@ -626,7 +626,7 @@ export function ResourceAssetsPageContent({
                   className="h-[320px] w-[320px] object-contain"
                   src={emptyIllustration}
                 />
-                <p className="m-0 text-[20px] font-medium leading-8 text-foreground">
+                <p className="m-0 text-xl font-medium leading-8 text-foreground">
                   {t("暂无{type}，快去添加", { type: emptyMaterialType })}
                 </p>
               </section>

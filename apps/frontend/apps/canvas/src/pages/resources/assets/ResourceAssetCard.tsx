@@ -105,7 +105,7 @@ function ResourceAssetReviewStatus({ file }: { file: resource.ResourceAsset }) {
             aria-label={t("审核状态：{status}", {
               status: reviewStatusText(review),
             })}
-            className={`${styles.reviewStatus} inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[16px]`}
+            className={`${styles.reviewStatus} inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-base`}
           >
             <IconCompliancePlanarity aria-hidden size={16} strokeWidth={1.5} />
           </span>
@@ -222,7 +222,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               <div className={styles.cardTopMeta}>
                 {file.IsPrimary ? (
                   <span
-                    className={`${styles.primaryTag} inline-flex h-6 items-center rounded-lg bg-primary/10 px-2 text-[13px] font-medium leading-5.5 text-primary`}
+                    className={`${styles.primaryTag} inline-flex h-6 items-center rounded-lg bg-primary/10 px-2 text-(length:--text-compact) font-medium leading-5.5 text-primary`}
                   >
                     {t("主{materialName}", { materialName })}
                   </span>
@@ -449,7 +449,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
         {batchSelecting || isOfficial ? (
           <EllipsisText
             popoverProps={{ position: "top" }}
-            className="w-full text-[16px] font-medium leading-6 text-foreground"
+            className="w-full text-base font-medium leading-6 text-foreground"
           >
             {file.Name}
           </EllipsisText>
@@ -459,7 +459,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               materialName,
               fileName: file.Name,
             })}
-            className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-[16px] font-medium leading-6 text-foreground outline-none"
+            className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-base font-medium leading-6 text-foreground outline-none"
             maxLength={100}
             onBlur={() => saveRename(file)}
             onChange={(event) => setRenameValue(event.currentTarget.value)}
@@ -483,7 +483,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               fileName: file.Name,
             })}
             aria-disabled={busy || generating}
-            className="w-full min-w-0 cursor-text border-0 bg-[transparent] p-0 text-left text-[16px] font-medium leading-6 text-foreground"
+            className="w-full min-w-0 cursor-text border-0 bg-[transparent] p-0 text-left text-base font-medium leading-6 text-foreground"
             onClick={() => startRename(file)}
             onKeyDown={(event) => {
               if (event.key !== "Enter" && event.key !== " ") return;

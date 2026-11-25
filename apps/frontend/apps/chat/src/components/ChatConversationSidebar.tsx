@@ -82,10 +82,10 @@ export const ChatConversationSidebar = memo(function ChatConversationSidebar() {
       <SidebarHeader className="flex-row items-center justify-between px-3 py-3">
         <Link
           to="/platform/chat"
-          className="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-base font-semibold"
+          className="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 type-panel-title"
           onClick={closeMobile}
         >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background text-foreground shadow-sm ring-1 ring-border">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-foreground">
             <MessageCircleIcon className="size-4" aria-hidden="true" />
           </span>
           <span className="truncate">Chat</span>
@@ -117,8 +117,8 @@ export const ChatConversationSidebar = memo(function ChatConversationSidebar() {
         <SidebarGroupLabel
           className={
             desktop
-              ? "mb-0.5 h-8 px-2 text-sm font-medium text-muted-foreground"
-              : "mt-2 px-2 text-xs font-medium text-muted-foreground"
+              ? "mb-0.5 h-8 px-2 type-caption text-muted-foreground"
+              : "mt-2 px-2 type-caption text-muted-foreground"
           }
         >
           最近

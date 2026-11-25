@@ -14,3 +14,38 @@
     list-style: none;
   }
 }
+
+/* Streamdown emits heading utilities. Scope reading typography to prose in the transcript. */
+.response [data-streamdown="heading-1"] {
+  font-size: var(--text-xl);
+}
+
+.response [data-streamdown="heading-2"] {
+  font-size: var(--text-lg);
+}
+
+.response [data-streamdown="heading-3"] {
+  font-size: var(--text-base);
+}
+
+.response [data-streamdown="heading-4"],
+.response [data-streamdown="heading-5"],
+.response [data-streamdown="heading-6"] {
+  font-size: var(--text-sm);
+}
+
+.response :is(h1, h2, h3, h4, h5, h6)[data-streamdown] {
+  line-height: var(--leading-snug);
+  margin-block: calc(var(--spacing) * 3) var(--spacing);
+  text-wrap: pretty;
+}
+
+.response [data-streamdown="inline-code"] {
+  font-size: var(--text-compact);
+  font-weight: inherit;
+  overflow-wrap: anywhere;
+}
+
+.response [data-streamdown="list-item"] {
+  padding-block: 0;
+}

@@ -59,7 +59,7 @@ export function CanvasGenerationFailureState({
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center" role="alert">
       <IconExclamationCircleRedFill className="text-[40px] text-destructive" />
-      <strong className="text-[14px] font-medium leading-6 text-destructive">{copy.title}</strong>
+      <strong className="text-sm font-medium leading-6 text-destructive">{copy.title}</strong>
       <GenerationFailureReason reason={message || copy.fallback} />
       <Button
         onClick={(event) => {

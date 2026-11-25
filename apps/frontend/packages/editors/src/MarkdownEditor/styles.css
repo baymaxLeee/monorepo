@@ -8,7 +8,7 @@
     flex-direction: column;
     position: relative;
     color: var(--foreground);
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
     line-height: 1.25rem;
     /* EditorContent owns scrolling; the root only isolates the local control stack. */
     isolation: isolate;
@@ -101,8 +101,8 @@
   .markdown-editor-content h4,
   .markdown-editor-content h5,
   .markdown-editor-content h6 {
-    font-weight: 700;
-    line-height: 1.25;
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--leading-snug);
     margin: 0.5em 0;
     color: var(--foreground);
     text-wrap: pretty;
@@ -114,13 +114,13 @@
     margin-bottom: 0;
   }
   .markdown-editor-content h1 {
-    font-size: 1.375em;
+    font-size: var(--text-xl);
   }
   .markdown-editor-content h2 {
-    font-size: 1.25em;
+    font-size: var(--text-lg);
   }
   .markdown-editor-content h3 {
-    font-size: 1.125em;
+    font-size: var(--text-base);
   }
   .markdown-editor-content h4,
   .markdown-editor-content h5,
@@ -231,7 +231,7 @@
   }
 
   .markdown-editor-content mark {
-    background-color: var(--yellow-2, #fefebe);
+    background-color: color-mix(in oklab, var(--color-yellow-400) 35%, var(--background));
     color: var(--foreground);
     border-radius: 3px;
     padding: 0.1em 0.2em;
@@ -298,11 +298,11 @@
   }
 
   .markdown-editor-content code {
-    font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-    font-size: 0.9em;
+    font-family: var(--font-mono);
+    font-size: var(--text-compact);
     line-height: inherit;
     color: inherit;
-    background-color: rgb(135 131 120 / 15%);
+    background-color: var(--muted);
     padding: 0.2em 0.4em;
     border-radius: 4px;
     word-break: break-word;

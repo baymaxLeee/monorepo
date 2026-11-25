@@ -89,10 +89,10 @@ export function ImageGenerationEditor({
       <div className={`flex min-h-0 flex-col ${expanded ? "flex-1 gap-5" : "h-[200px] gap-3"}`}>
         {expanded ? (
           <div className="flex items-center justify-between">
-            <div className="truncate text-[14px] font-medium leading-6 text-foreground">{title}</div>
+            <div className="truncate text-sm font-medium leading-6 text-foreground">{title}</div>
             <Button
               aria-label={t("收起生图编辑器")}
-              className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-[20px]`}
+              className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-xl`}
               disabled={generating}
               onClick={onCollapse}
               variant="ghost"
@@ -126,7 +126,7 @@ export function ImageGenerationEditor({
               <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
                 <Button
                   aria-label={t("展开生图编辑器")}
-                  className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-[16px]`}
+                  className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-base`}
                   disabled={generating}
                   onClick={onExpand}
                   variant="ghost"
@@ -140,7 +140,7 @@ export function ImageGenerationEditor({
         </div>
         <Textarea
           aria-label={title ? t("{title}提示词", { title }) : t("生图提示词")}
-          className={`m-0 min-h-0 w-full flex-1 resize-none border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-foreground outline-none placeholder:text-muted-foreground ${
+          className={`m-0 min-h-0 w-full flex-1 resize-none border-0 bg-[transparent] p-0 text-(length:--text-compact) leading-5.5 text-foreground outline-none placeholder:text-muted-foreground ${
             generating ? styles.disabledEditorArea : ""
           }`}
           disabled={generating}
@@ -164,7 +164,7 @@ export function ImageGenerationEditor({
           />
         </div>
         <div className="flex items-center gap-2">
-          {settingsError ? <span className="text-[12px] leading-5 text-destructive">{settingsError}</span> : null}
+          {settingsError ? <span className="text-xs leading-5 text-destructive">{settingsError}</span> : null}
           {!generating ? (
             <Button disabled={!canGenerate} onClick={() => void onGenerate()} variant="default">
               {t("生成")}

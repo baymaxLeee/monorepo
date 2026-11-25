@@ -168,7 +168,7 @@ export function Result({
   return (
     <div className={`flex flex-col items-center justify-center gap-3 py-16 text-center ${className ?? ""}`}>
       {icon ?? <ImageIcon className="size-12 text-muted-foreground" />}
-      {title ? <h2 className="text-lg font-medium">{title}</h2> : null}
+      {title ? <h2 className="type-section-title">{title}</h2> : null}
       {subTitle ? <p className="text-sm text-muted-foreground">{subTitle}</p> : null}
       {extra}
     </div>

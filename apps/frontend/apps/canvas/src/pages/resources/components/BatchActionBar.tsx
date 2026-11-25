@@ -50,7 +50,7 @@ export function BatchActionBar({
           </TooltipTrigger>
           <TooltipContent side="top">{allSelected ? t("取消选择当页全部") : t("选中当页全部")}</TooltipContent>
         </Tooltip>
-        <span className="whitespace-nowrap text-[13px] leading-5.5">
+        <span className="whitespace-nowrap text-(length:--text-compact) leading-5.5">
           {t("已选 {count} 项", { count: selectedCount })}
         </span>
       </div>

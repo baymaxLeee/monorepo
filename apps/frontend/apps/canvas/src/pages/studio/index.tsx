@@ -2009,7 +2009,7 @@ function StudioContent() {
       />
       {showModelAvailabilityWarning ? (
         <div
-          className={`bg-[color:oklch(0.987_0.022_95.277)] px-6 py-2 text-[13px] text-[color:oklch(0.555_0.163_48.998)] ${
+          className={`bg-amber-50 dark:bg-amber-950 px-6 py-2 text-(length:--text-compact) text-amber-800 dark:text-amber-200 ${
             view === "canvas"
               ? `absolute right-0 top-[48px] z-20 ${assetsOpen ? "left-[300px]" : "left-0"}`
               : "shrink-0"
@@ -2141,7 +2141,7 @@ function StudioContent() {
                             />
                           ) : (
                             <EllipsisText
-                              className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-foreground"
+                              className="m-0 shrink-0 truncate text-xl font-medium leading-7 text-foreground"
                               maxWidth={200}
                             >
                               {t("分镜脚本")}

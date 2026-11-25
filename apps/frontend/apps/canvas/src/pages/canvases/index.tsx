@@ -98,16 +98,16 @@ function CanvasCard({
               </span>
             </div>
           )}
-          <span className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[13px] font-medium leading-5.5 text-white">
+          <span className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-[8px] bg-black/50 px-[6px] text-sm font-medium leading-5.5 text-white">
             <IconClockCircle aria-hidden size={14} strokeWidth={1.5} />
             {hasVideo ? formatDurationMillis(item.Stats.SelectedVideoDurationMillis) : "--:--"}
           </span>
         </div>
         <div className="flex flex-col gap-1 px-3">
-          <h2 className="m-0 flex items-center text-[18px] font-medium leading-7 text-foreground group-hover:text-primary">
+          <h2 className="m-0 flex items-center type-section-title text-foreground group-hover:text-primary">
             <EllipsisText className="min-w-0 flex-1">{item.Name}</EllipsisText>
           </h2>
-          <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-muted-foreground">
+          <div className="flex items-center gap-1 truncate text-sm leading-5.5 text-muted-foreground">
             <UserLabel id={item.CreatedBy} prefix="@" showIcon={false} stableSign />
             <span>·</span>
             <EllipsisText className="min-w-0 flex-1">
@@ -119,7 +119,7 @@ function CanvasCard({
         </div>
       </Link>
       <div className="relative mt-3 px-3 pb-4">
-        <div className="flex h-6 items-center gap-2 text-[13px] font-medium leading-5.5 text-foreground group-hover:opacity-0 group-focus-within:opacity-0">
+        <div className="flex h-6 items-center gap-2 text-sm font-medium leading-5.5 text-foreground group-hover:opacity-0 group-focus-within:opacity-0">
           <span>{t("{count} 个分镜", { count: item.Stats.CanvasNodeCount })}</span>
         </div>
         <div className={styles.cardOperations}>
@@ -316,7 +316,7 @@ export default function CanvasesPage() {
         ) : (
           <div className="mt-[110px] flex flex-col items-center gap-[10px]">
             <img alt={t("项目暂无视频")} className="h-[320px] w-[320px] object-contain" src={emptyIllustration} />
-            <p className="m-0 text-[20px] font-medium leading-8 text-foreground">{t("方寸之间，万物生长")}</p>
+            <p className="m-0 text-xl font-medium leading-8 text-foreground">{t("方寸之间，万物生长")}</p>
           </div>
         )}
         {canvases.length > 0 && loadingMore ? (

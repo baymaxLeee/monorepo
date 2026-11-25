@@ -19,11 +19,11 @@ export function PageHeaderContent({ className, ...props }: HTMLAttributes<HTMLDi
 }
 
 export function PageTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
-  return <h1 className={cn("text-2xl font-semibold tracking-tight", className)} {...props} />;
+  return <h1 className={cn("type-page-title", className)} {...props} />;
 }
 
 export function PageDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-muted-foreground", className)} {...props} />;
+  return <p className={cn("type-body text-muted-foreground", className)} {...props} />;
 }
 
 export function PageActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -34,15 +34,12 @@ export function PageActions({ className, ...props }: HTMLAttributes<HTMLDivEleme
 export function InlineCode({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return (
     <code
-      className={cn(
-        "relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs font-medium text-foreground",
-        className,
-      )}
+      className={cn("relative rounded bg-muted px-[0.3rem] py-[0.2rem] type-code text-foreground", className)}
       {...props}
     />
   );
 }
 
 export function Muted({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-muted-foreground", className)} {...props} />;
+  return <p className={cn("type-body text-muted-foreground", className)} {...props} />;
 }

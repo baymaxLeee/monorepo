@@ -99,7 +99,7 @@ import { nodeTypes } from "./nodes/CanvasCard";
 import styles from "./CanvasBoard.module.css";
 
 const ADD_MENU_ITEM_CLASS_NAME =
-  "h-[34px] justify-start gap-[9px] rounded-[7px] px-3 text-[13px] font-normal leading-[22px] active:not-aria-[haspopup]:translate-y-0";
+  "h-[34px] justify-start gap-[9px] rounded-[7px] px-3 text-(length:--text-compact) font-normal leading-[22px] active:not-aria-[haspopup]:translate-y-0";
 
 function CanvasBoardInner({
   assetsOpen,

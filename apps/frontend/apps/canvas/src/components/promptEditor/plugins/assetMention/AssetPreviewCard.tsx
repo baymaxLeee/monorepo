@@ -27,7 +27,7 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
 
   if (asset.category === "text") {
     return (
-      <div className="h-[218px] w-full overflow-auto rounded-[8px] bg-muted p-3 text-[13px] leading-5.5 text-foreground">
+      <div className="h-[218px] w-full overflow-auto rounded-[8px] bg-muted p-3 text-(length:--text-compact) leading-5.5 text-foreground">
         <Markdown data={asset.description || asset.title} />
       </div>
     );
@@ -36,7 +36,7 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
   return (
     <div className="relative flex h-[218px] w-full items-center justify-center overflow-hidden rounded-[8px] bg-muted">
       {asset.category === "image" && asset.isPrimary ? (
-        <span className="absolute left-2 top-2 z-10 inline-flex h-6 items-center rounded-lg bg-primary/10 px-2 text-[13px] font-medium leading-5.5 text-primary">
+        <span className="absolute left-2 top-2 z-10 inline-flex h-6 items-center rounded-lg bg-primary/10 px-2 text-(length:--text-compact) font-medium leading-5.5 text-primary">
           {t("主形象")}
         </span>
       ) : null}
@@ -94,7 +94,7 @@ export function AssetPreviewCard({
       }}
     >
       <AssetPreviewMedia asset={asset} />
-      <p className="mb-0 truncate px-2 text-[12px] font-medium leading-5 text-foreground">{asset.title}</p>
+      <p className="mb-0 truncate px-2 text-xs font-medium leading-5 text-foreground">{asset.title}</p>
       {asset.category !== "text" && showReviewStatus ? (
         <AssetReviewFooter asset={asset} onAddToLibrary={onAddToLibrary} onSubmit={onSubmitReview} />
       ) : null}

@@ -4,8 +4,8 @@
 }
 .title {
   color: var(--foreground);
-  font-size: 18px;
-  font-weight: 500;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
   line-height: 26px;
   letter-spacing: 0.054px;
 }
@@ -27,7 +27,7 @@
   flex-shrink: 0;
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--text-compact);
   line-height: 22px;
   letter-spacing: 0.039px;
 }
@@ -57,8 +57,8 @@
 }
 .fieldLabel {
   color: var(--foreground);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
   line-height: 24px;
   letter-spacing: 0.042px;
 }
@@ -66,7 +66,7 @@
 .counter {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
 }
 .counter {
@@ -90,7 +90,7 @@
 .modelComboboxTrigger {
   width: 100%;
   justify-content: space-between;
-  font-weight: 400;
+  font-weight: var(--font-weight-normal);
 }
 .modelComboboxValue {
   min-width: 0;
@@ -145,7 +145,7 @@
   resize: none;
   caret-color: var(--foreground);
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--text-compact);
   line-height: 22px;
   padding: 0;
 }

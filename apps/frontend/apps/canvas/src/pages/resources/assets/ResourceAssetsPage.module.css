@@ -36,10 +36,10 @@
   border: 0 dashed var(--border);
   border-radius: 8px;
   margin-right: 0;
-  background: rgba(241, 243, 245, 0.9);
+  background: var(--muted);
   color: var(--muted-foreground);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-medium);
   line-height: 22px;
   opacity: 0;
   white-space: nowrap;
@@ -96,7 +96,7 @@
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
   color: white;
-  font-size: 16px;
+  font-size: var(--text-base);
   line-height: 1;
   transition: background-color 0.2s;
 }

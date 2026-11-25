@@ -277,7 +277,6 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       <div
         className={cn(
           "flex h-full min-h-0 w-full overflow-hidden border bg-background text-sm text-foreground",
-          "border-[oklch(0.9_0_0)]",
           className,
         )}
         style={{ height, ...style }}

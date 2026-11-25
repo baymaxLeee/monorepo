@@ -57,7 +57,7 @@ function ExportStatusAction({ item, canvasId, projectId }: { item: ExportItem; c
         <TooltipTrigger
           render={
             <span aria-label={t("打包中")} className="inline-flex size-5 items-center justify-center text-primary">
-              <IconLoading className="animate-spin text-[16px]" />
+              <IconLoading className="animate-spin text-base" />
             </span>
           }
         />
@@ -80,7 +80,7 @@ function ExportStatusAction({ item, canvasId, projectId }: { item: ExportItem; c
               aria-label={cancelled ? t("打包已取消") : t("打包失败")}
               className="inline-flex size-5 items-center justify-center text-destructive"
             >
-              <IconExclamationCircleRedFill className="text-[20px]" />
+              <IconExclamationCircleRedFill className="text-xl" />
             </span>
           }
         />
@@ -144,7 +144,7 @@ export function ExportHistoryDrawer({
       <SheetContent className="canvas-web-theme w-[min(440px,95vw)] sm:max-w-[440px]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <IconAgentHistory className="text-[20px]" />
+            <IconAgentHistory className="text-xl" />
             <span>{t("导出记录")}</span>
           </SheetTitle>
         </SheetHeader>

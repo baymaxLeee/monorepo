@@ -89,7 +89,7 @@ export function ShotTitle({
   return (
     <Button
       aria-label={t("编辑分镜名称：{name}", { name: visibleName })}
-      className="m-0 h-auto max-w-[200px] shrink-0 truncate p-0 text-[20px] font-medium leading-7 text-foreground"
+      className="m-0 h-auto max-w-[200px] shrink-0 truncate p-0 text-xl font-medium leading-7 text-foreground"
       disabled={disabled}
       onClick={() => {
         setValue(visibleName);

@@ -74,7 +74,7 @@ export const PromptEditor = forwardRef<
   return (
     <section className="relative flex min-h-0 flex-1 flex-col">
       <div
-        className={`min-h-0 flex-1 text-[14px] leading-6.5 text-foreground ${
+        className={`min-h-0 flex-1 text-sm leading-6.5 text-foreground ${
           locked ? "cursor-not-allowed opacity-60" : ""
         }`}
         ref={rootRef}

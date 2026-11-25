@@ -142,7 +142,7 @@ export function AddAssetToLibraryDialog({
                 {description.length}/{RESOURCE_DESCRIPTION_MAX_LENGTH}
               </FieldDescription>
             </Field>
-            {error ? <p className="m-0 text-[13px] text-destructive">{error}</p> : null}
+            {error ? <p className="m-0 text-(length:--text-compact) text-destructive">{error}</p> : null}
           </div>
         </div>
         <DialogFooter className="canvas-modal-footer mx-0 mb-0 shrink-0 px-6 py-4">

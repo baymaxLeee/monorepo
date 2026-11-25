@@ -22,7 +22,7 @@ const LABEL_MAX_WIDTH = "max-w-[200px]";
 const AVATAR_RESET = "[&_img]:m-0! [&_img]:h-full!";
 
 /** align-middle 让 chip 以自身中线对齐文字，避免在 26px 行高里被顶高。 */
-const CHIP_BASE = `mx-[2px] inline-flex h-6 ${CHIP_MAX_WIDTH} select-none items-center rounded-[6px] border-[0.5px] border-solid align-middle text-[14px] leading-5.5`;
+const CHIP_BASE = `mx-[2px] inline-flex h-6 ${CHIP_MAX_WIDTH} select-none items-center rounded-[6px] border-[0.5px] border-solid align-middle text-sm leading-5.5`;
 
 export function createAssetMentionNode(source: AssetMentionSource) {
   return function AssetMentionNode({ node }: NodeViewProps) {
@@ -35,7 +35,7 @@ export function createAssetMentionNode(source: AssetMentionSource) {
       return (
         <NodeViewWrapper
           as="span"
-          className={`${CHIP_BASE} gap-1 border-[color:oklch(0.808 0.114 19.571)] bg-[color:oklch(0.971 0.013 17.38)] px-[6px] text-destructive`}
+          className={`${CHIP_BASE} gap-1 border-destructive/30 bg-destructive/10 px-[6px] text-destructive`}
           title={`${t("{label}（资产已被移除）", { label })}`}
         >
           <IconExclamationCircle />
@@ -47,11 +47,11 @@ export function createAssetMentionNode(source: AssetMentionSource) {
     return (
       <NodeViewWrapper
         as="span"
-        className={`${CHIP_BASE} gap-[6px] border-border bg-[rgba(26,27,30,0.05)] px-1 tracking-[0.042px] text-foreground`}
+        className={`${CHIP_BASE} gap-[6px] border-border bg-muted px-1 tracking-[0.042px] text-foreground`}
         title={asset.description}
       >
         {/* 图片和视频展示缩略画面，视频额外叠加播放标识；音频回退成分类图标。 */}
-        <span className={`inline-flex h-4 w-4 shrink-0 overflow-hidden rounded-[5px] text-[12px] ${AVATAR_RESET}`}>
+        <span className={`inline-flex h-4 w-4 shrink-0 overflow-hidden rounded-[5px] text-xs ${AVATAR_RESET}`}>
           <AssetAvatar asset={asset} />
         </span>
         <span className={`min-w-0 ${LABEL_MAX_WIDTH} truncate`}>{asset.title}</span>

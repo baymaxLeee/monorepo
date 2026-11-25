@@ -20,8 +20,9 @@ import {
 } from "@repo/design-system";
 import { getDesktopBridge } from "@repo/runtime/desktop";
 import { memo, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useMatch } from "react-router-dom";
 
+import { selectLocalArtifact, useLocalArtifact } from "../stores/useLocalArtifact";
 import { ChatConversationSidebar } from "./ChatConversationSidebar";
 import { ChatInspector } from "./ChatInspector";
 
@@ -52,6 +53,8 @@ export function ChatPanels() {
   const { open, setOpen, isMobile } = useSidebar();
   const { pathname } = useLocation();
   const cloudInspectorOpen = useChatStore((s) => s.artifactPreview.open);
+  const localMatch = useMatch("/platform/chat/local/:id");
+  const localFile = useLocalArtifact((s) => (s.selected?.threadId === localMatch?.params.id ? s.selected : null));
   const wideQuery = useMemo(() => window.matchMedia("(min-width: 1024px)"), []);
   const wide = useSyncExternalStore(
     useCallback(
@@ -66,10 +69,14 @@ export function ChatPanels() {
   );
   const historyPanel = usePanelRef();
   const closeInspector = useCallback(() => {
+    if (localFile) {
+      void selectLocalArtifact(null);
+      return;
+    }
     const state = useChatStore.getState();
     state.closeArtifactPreview();
-  }, []);
-  const anyInspectorOpen = pathname.includes("/conversations/") && cloudInspectorOpen;
+  }, [localFile]);
+  const anyInspectorOpen = Boolean(localFile) || (pathname.includes("/conversations/") && cloudInspectorOpen);
   const panelIds = [!isMobile && "history", "conversation", wide && anyInspectorOpen && "artifact"].filter(
     (id): id is string => Boolean(id),
   );
@@ -140,7 +147,7 @@ export function ChatPanels() {
             className="min-w-0 overflow-hidden [contain:layout_paint_style]"
           >
             <aside aria-label="Artifact 预览" className="h-full w-full min-w-0 overflow-hidden">
-              <ChatInspector />
+              <ChatInspector localFile={localFile} onClose={closeInspector} />
             </aside>
           </ResizablePanel>
         ) : null}
@@ -157,7 +164,7 @@ export function ChatPanels() {
               <SheetTitle>Artifact 预览</SheetTitle>
               <SheetDescription>查看当前会话的产物</SheetDescription>
             </SheetHeader>
-            {anyInspectorOpen ? <ChatInspector /> : null}
+            {anyInspectorOpen ? <ChatInspector localFile={localFile} onClose={closeInspector} /> : null}
           </SheetContent>
         </Sheet>
       ) : null}

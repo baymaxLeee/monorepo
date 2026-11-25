@@ -1,10 +1,23 @@
 import { Spinner } from "@repo/design-system";
+import { getDesktopBridge } from "@repo/runtime/desktop";
 import { lazy, memo, Suspense } from "react";
+
+import type { LocalArtifact } from "../stores/useLocalArtifact";
 
 const Artifact = lazy(() =>
   import("@repo/ai-elements/conversation/components/ChatArtifactPanel").then((m) => ({ default: m.ChatArtifactPanel })),
 );
-export const ChatInspector = memo(function ChatInspector() {
+const LocalFilePanel = lazy(() =>
+  import("./LocalFileArtifactPanel").then((m) => ({ default: m.LocalFileArtifactPanel })),
+);
+export const ChatInspector = memo(function ChatInspector({
+  localFile,
+  onClose,
+}: {
+  localFile: LocalArtifact | null;
+  onClose: () => void;
+}) {
+  const bridge = getDesktopBridge();
   return (
     <Suspense
       fallback={
@@ -14,7 +27,11 @@ export const ChatInspector = memo(function ChatInspector() {
         </div>
       }
     >
-      <Artifact />
+      {localFile && bridge ? (
+        <LocalFilePanel key={JSON.stringify(localFile)} bridge={bridge} {...localFile} onClose={onClose} />
+      ) : (
+        <Artifact />
+      )}
     </Suspense>
   );
 });

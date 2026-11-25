@@ -55,10 +55,10 @@ export default function ProjectLayout() {
           size="xs"
           variant="outline"
         >
-          <IconLeft className="text-[14px]" />
+          <IconLeft className="text-sm" />
         </Button>
-        <h1 className="m-0 text-[20px] font-semibold leading-7 text-foreground">{projectName || t("项目")}</h1>
-        {summary ? <span className="shrink-0 text-[20px] leading-7 text-muted-foreground">{summary}</span> : null}
+        <h1 className="m-0 text-xl font-semibold leading-7 text-foreground">{projectName || t("项目")}</h1>
+        {summary ? <span className="shrink-0 text-xl leading-7 text-muted-foreground">{summary}</span> : null}
       </header>
       <ProjectLayoutContext.Provider value={contextValue}>
         <Outlet />

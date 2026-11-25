@@ -10,6 +10,6 @@
   color: var(--muted-foreground) !important;
 }
 .collapseButton:hover {
-  background: rgba(26, 27, 30, 0.05) !important;
+  background: var(--accent) !important;
   color: var(--foreground) !important;
 }

@@ -25,7 +25,7 @@
   border-bottom: 0;
   border-radius: 20px 20px 0 0;
   background: var(--background);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
 }
 .modal :global(.canvas-modal-title) {
   width: calc(100% - 32px);
@@ -35,7 +35,7 @@
   top: 14px;
   right: 20px;
   color: var(--foreground);
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 .modal :global(.canvas-modal-content) {
   padding: 0;
@@ -48,7 +48,7 @@
   border-top: 0;
   border-radius: 0 0 20px 20px;
   background: var(--background);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
 }
 .previewFrame {
   position: relative;
@@ -94,7 +94,7 @@
   border-radius: 6px;
   background: rgba(26, 27, 30, 0.6);
   color: white;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   opacity: 0;
   transition: opacity 0.2s;

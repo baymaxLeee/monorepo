@@ -105,18 +105,18 @@ function ProjectCard({
               </span>
             </div>
           )}
-          <span className="absolute bottom-2 left-2 inline-flex h-6 items-center rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[13px] font-medium leading-5.5 text-white">
+          <span className="absolute bottom-2 left-2 inline-flex h-6 items-center rounded-[8px] bg-black/50 px-[6px] text-sm font-medium leading-5.5 text-white">
             {t("{count} 个视频", { count: project.videos })}
           </span>
         </div>
 
         <div className="flex flex-col gap-1 px-3">
-          <h2 className="m-0 min-w-0 text-[18px] font-medium leading-7 text-foreground group-hover:text-primary">
+          <h2 className="m-0 min-w-0 type-section-title text-foreground group-hover:text-primary">
             <EllipsisText showPopover="auto" className={`w-full ${styles.projectTitle}`}>
               {project.title}
             </EllipsisText>
           </h2>
-          <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-muted-foreground">
+          <div className="flex items-center gap-1 truncate text-sm leading-5.5 text-muted-foreground">
             <UserLabel id={project.createdBy} stableSign={true} prefix="@" showIcon={false} />
             <span>·</span>
             <EllipsisText className="min-w-0 flex-1">
@@ -127,11 +127,11 @@ function ProjectCard({
           </div>
         </div>
         <div className="flex h-6 items-center gap-3 px-3">
-          <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-1.5 text-[13px] leading-5.5 text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
+          <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-1.5 text-sm leading-5.5 text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
             <IconClockCircle aria-hidden size={14} strokeWidth={1.5} />
             {project.duration}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-1.5 text-[13px] leading-5.5 text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
+          <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-1.5 text-sm leading-5.5 text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
             <IconProjectFill aria-hidden size={14} strokeWidth={1.5} />
             {t("{count} 个资产", { count: project.assets })}
           </span>
@@ -315,15 +315,15 @@ export default function ProjectsPage() {
         ) : debouncedKeyword.trim() ? (
           <section className="flex h-full min-h-[320px] flex-col items-center justify-center rounded-2xl bg-background text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <IconSearch className="text-[18px]" />
+              <IconSearch className="text-lg" />
             </div>
-            <p className="mb-0 mt-4 text-[16px] font-medium text-foreground">{t("没有找到相关项目")}</p>
-            <p className="mb-0 mt-1 text-[13px] text-muted-foreground">{t("换个关键词再试试")}</p>
+            <p className="mb-0 mt-4 text-base font-medium text-foreground">{t("没有找到相关项目")}</p>
+            <p className="mb-0 mt-1 text-sm text-muted-foreground">{t("换个关键词再试试")}</p>
           </section>
         ) : (
           <section className="mt-[110px] flex flex-col items-center gap-[10px]">
             <img alt={t("暂无项目")} className="h-[320px] w-[320px] object-contain" src={emptyIllustration} />
-            <p className="m-0 text-[20px] font-medium leading-8 text-foreground">{t("方寸之间，万物生长")}</p>
+            <p className="m-0 text-xl font-medium leading-8 text-foreground">{t("方寸之间，万物生长")}</p>
           </section>
         )}
         {projects.length > 0 && loadingMore ? (

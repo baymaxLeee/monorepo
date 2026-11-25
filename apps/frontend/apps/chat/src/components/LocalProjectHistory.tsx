@@ -81,7 +81,7 @@ export function LocalProjectHistory({
       <Button
         variant="ghost"
         size="sm"
-        className="group mb-0.5 h-8 w-full justify-start gap-1 border-0 px-2 text-sm font-medium text-muted-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground aria-expanded:hover:bg-sidebar-accent"
+        className="group mb-0.5 h-8 w-full justify-start gap-1 border-0 px-2 type-caption text-xs text-muted-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground aria-expanded:hover:bg-sidebar-accent"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >

@@ -84,7 +84,7 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 
 `@repo/design-system/styles.css` 定义 Tailwind v4 theme、light/dark CSS variables、半径和全局基础样式。platform 只加载一次；MFE 和 capability package 消费 token，不建立自己的全局 theme root。新增 UI package 时必须把源码加入该文件的 `@source`，否则 Tailwind 可能不生成其 utility。
 
-当前主题采用 shadcn neutral 风格和 OKLCH 色彩空间，支持 light/dark：
+主题沿用 components.json 的 base-nova / neutral 配置。平台在 `:root` 和 `.dark` 将 shadcn 语义变量映射到 Tailwind v4 内置色阶，再通过 `@theme inline` 提供 utility。透明度使用 Tailwind 的 `/比例` 或 `--alpha()`。
 
 - 页面：`background` / `foreground`
 - 容器：`card` / `card-foreground`
@@ -127,8 +127,34 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 ## Typography 与图标
 
 - 字体由全局 host/theme 决定。组件必须继承字体，不得在局部硬编码 `Inter`、`Geist` 或系统字体栈。若产品切换到 Geist，应在全局入口一次完成。
-- 正文默认保持可读的行高；长文本和 Markdown 不使用过宽行长，阅读区应设置合理 `max-width`。
-- 层级优先通过字号、字重和留白表达。正文通常使用 regular，标签与小标题使用 medium，页面关键标题最多 semibold；避免整页 bold。
+平台使用 Tailwind 的 `--font-sans` 和 `--font-mono`。字号、行高和字重组成下表中的排版角色，由 design-system 的 components 层一次定义，组件可用 Tailwind utility 覆盖交互状态与尺寸变体。颜色从所在表面继承，因此同一标签可用于主按钮、侧栏和浮层。数值按默认 16px 根字号换算。
+
+| 文字用途 | 公共样式 | 字号 / 行高 | 字重 | 表面与前景 |
+| --- | --- | --- | --- | --- |
+| 工作区页面标题 | `type-page-title` | 24 / 32，紧字距 | 600 | background / foreground |
+| 内容区块标题 | `type-section-title` | 18 / 24 | 600 | foreground 或所在容器的前景 |
+| 面板、卡片、弹窗标题 | `type-panel-title` | 16 / 24 | 600 | card-foreground 或 popover-foreground |
+| 正文、导航行、数据表 | `type-body` | 14 / 20 | 400 | 对应表面前景；说明用 muted-foreground |
+| 连续阅读、助手与用户消息 | `type-copy` | 14 / 22.75 | 400，强调 600 | foreground；气泡继承对应前景 |
+| 按钮、操作标签 | `type-label` | 14 / 20 | 500 | 继承按钮 variant 的前景 |
+| 侧栏分组、小标签 | `type-caption` | 12 / 16 | 500 | muted-foreground |
+| 行内标识符和文件名代码 | `type-code` | 13 / 20，等宽 | 400，正文中继承强调 | muted / foreground |
+
+字号刻度采用 `--text-xs/sm/base/lg/xl/2xl`，密集控件和行内标识符共用 `--text-compact`（13px）。字重引用 `--font-weight-normal/medium/semibold`，分别为 400/500/600。正文使用默认字距；长标识符支持换行。移动端可编辑输入使用至少 16px。Markdown 文档层级在内容区内独立，H1–H3 分别使用 20、18、16px，H4–H6 使用正文字号并加重。消息正文中的 Markdown 列表项上下内边距为零，换行沿用正文行高。
+
+| 颜色用途 | shadcn CSS 变量 | 浅色 Tailwind 色号 | 深色 Tailwind 色号 |
+| --- | --- | --- | --- |
+| 页面与主文字 | `--background / --foreground` | white / neutral-950 | neutral-950 / neutral-50 |
+| 辅助说明 | `--muted-foreground` | neutral-500 | neutral-400 |
+| 主操作及文字 | `--primary / --primary-foreground` | neutral-900 / neutral-50 | neutral-200 / neutral-900 |
+| 卡片、浮层及文字 | `--card / --card-foreground`、`--popover / --popover-foreground` | white / neutral-950 | neutral-900 / neutral-50 |
+| 侧栏及文字 | `--sidebar / --sidebar-foreground` | neutral-50 / neutral-950 | neutral-900 / neutral-50 |
+| 弱化与选中表面 | `--muted`、`--accent`、`--sidebar-accent` | neutral-100 | neutral-800 |
+| 分隔线、输入边界 | `--border / --input` | neutral-200 / neutral-200 | white 10% / white 15% |
+| 焦点、危险状态 | `--ring / --destructive` | neutral-400 / red-600 | neutral-500 / red-400 |
+
+配色的实现值由已安装 Tailwind 的 `theme.css` 提供。正文、导航和卡片优先使用表中公共样式；私有 CSS Module 可直接消费相同的字号、字重和语义颜色变量。Base UI 的 `data-*`、`aria-*` 和定位变量继续负责组件状态和几何。
+
 - 标题使用语义化 `h1`–`h6` 且层级连续，不根据视觉大小选择 HTML 标签。
 - 标识符、代码、模型名和结构化数值可以使用 `font-mono`；普通正文不使用等宽字体。
 - 数值频繁变化或需要纵向比较时使用 tabular numerals。
@@ -398,6 +424,9 @@ pnpm lint:ui-contracts
 
 - Vercel Web Interface Guidelines：https://vercel.com/design/guidelines
 - Vercel Web Interface Guidelines source：https://github.com/vercel-labs/web-interface-guidelines
+- Tailwind v4 主题与默认色阶：[Theme variables](https://tailwindcss.com/docs/theme)、[Colors](https://tailwindcss.com/docs/colors)
+- shadcn 语义变量与 Base UI 状态样式：[Theming](https://ui.shadcn.com/docs/theming)、[Styling](https://base-ui.com/react/handbook/styling)
+- 排版角色和阅读节奏：[Geist Typography](https://vercel.com/geist/typography)、[Tailwind font-size](https://tailwindcss.com/docs/font-size)、[shadcn Typeset](https://ui.shadcn.com/docs/typeset)
 - Vercel Geist：https://vercel.com/geist
 - Vercel AI Elements：https://ui.shadcn.com/docs/ai-elements
 - shadcn/ui：https://ui.shadcn.com/docs

@@ -365,7 +365,7 @@ export default function ResourcesPage() {
             options={RESOURCE_TYPE_OPTIONS.map((option) => ({
               label: (
                 <>
-                  <span className="inline-flex text-[16px]">
+                  <span className="inline-flex text-base">
                     <ResourceTypeIcon type={option.value} />
                   </span>
                   {option.label}
@@ -516,7 +516,7 @@ export default function ResourcesPage() {
               className="h-[320px] w-[320px] object-contain"
               src={emptyIllustration}
             />
-            <p className="m-0 text-[20px] font-medium leading-8 text-foreground">
+            <p className="m-0 text-xl font-medium leading-8 text-foreground">
               {t("暂无{type}资产，快去添加", { type: selectedTypeLabel })}
             </p>
           </section>

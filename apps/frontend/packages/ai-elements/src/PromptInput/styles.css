@@ -10,7 +10,7 @@
   flex-direction: column;
   overflow: hidden;
   color: var(--foreground);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.25rem;
 }
 
@@ -35,7 +35,7 @@
   min-height: calc(var(--prompt-line-height) * 2);
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: var(--prompt-line-height);
   outline: none;
 }
@@ -96,7 +96,7 @@
   background: var(--muted);
   color: var(--muted-foreground);
   vertical-align: middle;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   line-height: 1.25rem;
 }
 
@@ -222,7 +222,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.8125rem;
+  font-size: var(--text-compact);
 }
 
 .prompt-input-suggestion-desc {
@@ -242,13 +242,13 @@
 
 .prompt-input-suggestion-empty {
   padding: 0.5rem;
-  font-size: 0.8125rem;
+  font-size: var(--text-compact);
   color: var(--muted-foreground);
 }
 
 @media (pointer: coarse) {
   .prompt-input-prosemirror {
-    font-size: 1rem;
+    font-size: var(--text-base);
   }
   .prompt-input button {
     min-width: 2.75rem;

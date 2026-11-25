@@ -41,7 +41,7 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
   };
 
   return (
-    <div className="flex max-w-[310px] items-end gap-1 text-[12px] leading-5 text-muted-foreground" ref={containerRef}>
+    <div className="flex max-w-[310px] items-end gap-1 text-xs leading-5 text-muted-foreground" ref={containerRef}>
       <EllipsisText
         popoverProps={{ position: "top" }}
         className={styles.reason}
@@ -61,7 +61,7 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
         type="button"
         variant="ghost"
       >
-        <IconCopyFine className="text-[14px]" />
+        <IconCopyFine className="text-sm" />
       </Button>
     </div>
   );

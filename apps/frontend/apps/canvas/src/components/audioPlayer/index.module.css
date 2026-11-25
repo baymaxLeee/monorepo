@@ -43,8 +43,8 @@
 .player::-webkit-media-controls-time-remaining-display {
   order: 3;
   color: var(--muted-foreground);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.039px;
   text-shadow: none;
 }

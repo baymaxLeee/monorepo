@@ -102,7 +102,7 @@ const SUMMARY_KEYS: (keyof Omit<GenerationSettings, "model">)[] = [
   "watermark",
 ];
 const CHIP_CLASS =
-  "flex h-8 items-center gap-2 rounded-[8px] bg-[rgba(26,27,30,0.05)] px-3 text-[13px] font-medium leading-5.5 text-foreground";
+  "flex h-8 items-center gap-2 rounded-[8px] bg-muted px-3 text-(length:--text-compact) font-medium leading-5.5 text-foreground";
 const MODES = [
   { label: t("全能参考"), value: canvasnode.CanvasVideoInputMode.REFERENCE },
   {

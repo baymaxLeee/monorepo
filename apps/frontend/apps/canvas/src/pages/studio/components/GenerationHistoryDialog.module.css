@@ -20,7 +20,7 @@
   top: 12px;
   right: 20px;
   color: var(--foreground);
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 .dialog :global(.canvas-modal-content) {
   height: calc(100% - 48px);
@@ -64,7 +64,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--foreground);
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 26px;
   white-space: pre-wrap;
 }
@@ -140,7 +140,7 @@
   box-sizing: border-box;
   padding: 8px 12px;
   border-radius: 12px;
-  background: rgba(26, 27, 30, 0.05);
+  background: var(--accent);
 }
 .scriptPanelExpanded {
   min-height: 0;
@@ -155,7 +155,7 @@
   padding-right: 44px;
   overflow: hidden;
   color: var(--foreground);
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 26px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -184,8 +184,8 @@
   color: var(--foreground);
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-compact);
+  font-weight: var(--font-weight-medium);
   line-height: 22px;
 }
 @media (max-width: 1100px) {

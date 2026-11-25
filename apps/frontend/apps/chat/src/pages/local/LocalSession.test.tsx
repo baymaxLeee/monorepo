@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode, Ref } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 
+import { useLocalArtifact } from "../../stores/useLocalArtifact";
 import { LocalSession } from "./LocalSession";
 import { LocalChatTransport } from "./transport";
 
@@ -58,12 +59,14 @@ vi.mock("@repo/ai-elements/conversation", async (importOriginal) => ({
     chat,
     composer,
     issue,
+    onOpenWorkspaceFile,
     onToolApproval,
     runActive,
   }: {
     chat: { resumeStream(): Promise<void> };
     composer: (activePlan: null) => ReactNode;
     issue: ReactNode;
+    onOpenWorkspaceFile?: (path: string) => void;
     onToolApproval: (id: string, approved: boolean) => void;
     runActive?: boolean;
   }) => {
@@ -71,6 +74,9 @@ vi.mock("@repo/ai-elements/conversation", async (importOriginal) => ({
     sessionViewApi.runActive = Boolean(runActive);
     return (
       <div>
+        <button disabled={!onOpenWorkspaceFile} onClick={() => onOpenWorkspaceFile?.("report.md")}>
+          report.md
+        </button>
         {issue}
         {composer(null)}
         <button onClick={() => onToolApproval("approval", true)}>共享授权</button>
@@ -381,4 +387,13 @@ test("runtime recovery reloads persisted state and navigation only detaches", as
   view.unmount();
   expect(f.off).toHaveBeenCalled();
   expect(f.bridge.stop).not.toHaveBeenCalled();
+});
+
+test("enables published workspace files in a local session", async () => {
+  const f = fixture("running");
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} />);
+  fireEvent.click(screen.getByRole("button", { name: "report.md" }));
+  await waitFor(() =>
+    expect(useLocalArtifact.getState().selected).toEqual({ threadId: f.thread.id, path: "report.md" }),
+  );
 });

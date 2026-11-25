@@ -114,7 +114,7 @@ export function ResourceAssetDetailDialog({
             {renaming ? (
               <Input
                 aria-label={t("素材名称")}
-                className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-[14px] font-medium leading-6 text-foreground outline-none"
+                className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-sm font-medium leading-6 text-foreground outline-none"
                 disabled={busy || renameSaving}
                 maxLength={100}
                 onBlur={() => void finishRenaming()}
@@ -139,7 +139,7 @@ export function ResourceAssetDetailDialog({
                   materialName,
                   fileName: renameValue,
                 })}
-                className="w-full min-w-0 cursor-text truncate border-0 bg-[transparent] p-0 text-left text-[14px] font-medium leading-6 text-foreground outline-none"
+                className="w-full min-w-0 cursor-text truncate border-0 bg-[transparent] p-0 text-left text-sm font-medium leading-6 text-foreground outline-none"
                 disabled={busy}
                 onClick={() => {
                   renameCancelledRef.current = false;
@@ -151,7 +151,7 @@ export function ResourceAssetDetailDialog({
                 {renameValue}
               </Button>
             ) : (
-              <div className="truncate text-[14px] font-medium leading-6 text-foreground">{asset.Name}</div>
+              <div className="truncate text-sm font-medium leading-6 text-foreground">{asset.Name}</div>
             )}
           </DialogTitle>
           <DialogDescription className="sr-only">{t("查看和管理素材详情")}</DialogDescription>
@@ -171,7 +171,7 @@ export function ResourceAssetDetailDialog({
                   role="alert"
                 >
                   <IconExclamationCircleRedFill className="text-[40px] text-destructive" />
-                  <strong className="text-[14px] font-medium leading-6 text-destructive">{t("生成失败")}</strong>
+                  <strong className="text-sm font-medium leading-6 text-destructive">{t("生成失败")}</strong>
                   <GenerationFailureReason reason={generationFailure.message || t("生成失败，请重试")} />
                   <Button onClick={() => void generationFailure.onRetry()} variant="outline">
                     <IconRegenerate />
@@ -183,7 +183,7 @@ export function ResourceAssetDetailDialog({
               ) : previewUrl ? (
                 <img alt={asset.Name} className={styles.previewImage} src={previewUrl} />
               ) : (
-                <ResourceTypeIcon className="text-[24px]" type={resourceType} />
+                <ResourceTypeIcon className="text-2xl" type={resourceType} />
               )}
               {onReplace ? (
                 <>
@@ -226,7 +226,7 @@ export function ResourceAssetDetailDialog({
                 onClick={() => void onSetPrimary?.()}
                 variant="outline"
               >
-                <ResourceTypeIcon className="text-[16px]" type={resourceType} />
+                <ResourceTypeIcon className="text-base" type={resourceType} />
                 {asset.IsPrimary
                   ? t("已是主{materialName}", { materialName })
                   : t("设为主{materialName}", { materialName })}

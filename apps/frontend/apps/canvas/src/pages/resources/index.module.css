@@ -14,7 +14,7 @@
   color: var(--foreground);
   font-family: Inter, sans-serif;
   font-size: 10px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   line-height: 14px;
 }
 .searchInput {
