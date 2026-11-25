@@ -164,10 +164,7 @@ test("a malformed persisted retry consumes its claimed denial lineage", () => {
     },
   });
 
-  assert.equal(
-    runtime.reviewBash("approved-retry", { ...retry, timeout_ms: 1_800_000 }).type,
-    "forbidden",
-  );
+  assert.equal(runtime.reviewBash("approved-retry", { ...retry, timeout_ms: 1_800_000 }).type, "forbidden");
 });
 
 test("retry keeps the sandbox when the base profile contains denied reads", async () => {
