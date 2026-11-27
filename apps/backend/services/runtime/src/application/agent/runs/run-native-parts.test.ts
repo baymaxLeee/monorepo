@@ -691,3 +691,52 @@ test("the official response consumer completes persistence after the HTTP subscr
   assert.equal(persisted?.id, "assistant");
   assert.ok(persisted?.parts.some((part) => part.type === "text" && part.text === "before after"));
 });
+
+test("user-facing commentary arrives before a pending tool result or final answer", { timeout: 3000 }, async () => {
+  let source!: ReadableStreamDefaultController<TextStreamPart<ToolSet>>;
+  const { stream, end } = createPublishedAgentPartStream({
+    modelStream: new ReadableStream({
+      start(controller) {
+        source = controller;
+      },
+    }),
+    tools: {},
+    originalMessages: [userMessage],
+    assistantMessageId: "reply",
+    publicationContext,
+    onError: () => "failed",
+    dependencies: dependencies(),
+  });
+  const metadata = { openai: { phase: "commentary" } };
+  source.enqueue({ type: "start" });
+  source.enqueue({ type: "text-start", id: "update", providerMetadata: metadata });
+  source.enqueue({ type: "text-delta", id: "update", text: "榜单已确认，正在核对数据。" });
+  source.enqueue({ type: "text-end", id: "update", providerMetadata: metadata });
+  source.enqueue({ type: "tool-call", toolName: "web_fetch", toolCallId: "fetch", input: {}, dynamic: true });
+  const reader = stream.getReader();
+  let chunk = await reader.read();
+  while (!chunk.done && chunk.value.type !== "text-delta") chunk = await reader.read();
+  assert.ok(!chunk.done && chunk.value.type === "text-delta");
+  assert.equal(chunk.value.delta, "榜单已确认，正在核对数据。");
+  source.enqueue({
+    type: "tool-result",
+    toolName: "web_fetch",
+    toolCallId: "fetch",
+    input: {},
+    output: "result",
+    dynamic: true,
+  });
+  source.enqueue({ type: "text-start", id: "answer" });
+  source.enqueue({ type: "text-delta", id: "answer", text: "核对完成。" });
+  source.enqueue({ type: "text-end", id: "answer" });
+  source.enqueue(finishPart());
+  source.close();
+  reader.releaseLock();
+  await collect(stream);
+  const saved = (await end).responseMessage.parts.filter((part) => part.type === "text");
+  assert.deepEqual(
+    saved.map((part) => part.text),
+    ["榜单已确认，正在核对数据。", "核对完成。"],
+  );
+  assert.deepEqual(saved[0].providerMetadata, metadata);
+});

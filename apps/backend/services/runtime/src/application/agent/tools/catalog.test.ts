@@ -60,13 +60,9 @@ void test("tool catalog exposes the current inline research and sandbox workflow
       assert.ok(resolved.activeTools.includes(name), `${name} should be active`);
     }
     assert.deepEqual(Object.keys(resolved.toolCallers).sort(), ["web_fetch", "web_search"]);
-    for (const name of ["code_mode", "subagents", "refresh_session_sources"]) {
-      assert.equal(
-        resolved.manifests.find((manifest) => manifest.name === name)?.tool?.deferLoading,
-        true,
-        `${name} should load through tool_search`,
-      );
-    }
+    assert.equal(resolved.tools.refresh_session_sources?.deferLoading, true);
+    assert.notEqual(resolved.tools.code_mode?.deferLoading, true);
+    assert.notEqual(resolved.tools.subagents?.deferLoading, true);
     const codeModeCaller = getToolCaller(resolved.tools.code_mode);
     assert.equal(codeModeCaller?.type, "local");
     if (codeModeCaller?.type !== "local") throw new Error("code_mode must use a local tool caller");

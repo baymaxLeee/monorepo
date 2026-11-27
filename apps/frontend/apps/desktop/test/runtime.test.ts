@@ -533,11 +533,10 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(1);
     const initialTools = requests[0].options.tools?.map((candidate) => candidate.name) ?? [];
-    expect(initialTools).toEqual(
-      expect.arrayContaining(["bash", "read_file", "apply_patch", "write_file", "tool_search"]),
-    );
-    expect(initialTools).not.toContain("subagents");
-    expect(initialTools).not.toContain("code_mode");
+    expect(initialTools).toEqual(expect.arrayContaining(["bash", "read_file", "apply_patch", "write_file"]));
+    expect(initialTools).not.toContain("tool_search");
+    expect(initialTools).toContain("subagents");
+    expect(initialTools).toContain("code_mode");
     expect(JSON.stringify(requests[0].options.prompt)).not.toContain("工作区内容已变化");
   });
 

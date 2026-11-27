@@ -16,7 +16,7 @@
 - `upload_artifacts` 一次批量发布已经位于稳定工作区的完成文件；不承担草稿持久化边界。
 - Plan mode 用 `write_file`/`apply_patch` 创建或修改 `*-plan.md`，CLI 生成场景仍可用 Bash，并在 `upload_artifacts` 批次中发布；Runtime 以 file id 标记 Plan。
 
-`bash`、`read_file`、`apply_patch`、`write_file` 与 artifact publication 保持初始可见；Code Mode、subagents、Media/Memory、source refresh 和 plugin/MCP 等低频或大 schema 能力由 AI SDK 原生 `tool_search` 渐进加载。它们仍属于同一个 Turn catalog 和权限边界，不是可配置 Agent profile。
+`bash`、`read_file`、`apply_patch`、`write_file` 与 artifact publication 保持初始可见；Code Mode 与 subagents 首步可见，支持批量资料处理及独立只读调研。Media/Memory、source refresh 和 plugin/MCP 等低频或大 schema 能力由 AI SDK 原生 `tool_search` 渐进加载；当前 Turn 没有延迟能力时不暴露空的 `tool_search`。它们仍属于同一个 Turn catalog 和权限边界，不是可配置 Agent profile。
 
 正常结束、异常、Stop 都调用幂等销毁。Runtime 在创建前把执行责任登记为 `restoring`，恢复完成转为 `active`，收尾进入 `finalizing`，持久化成功才转为 `releasing`；只有销毁成功才删除责任记录。创建响应丢失、Runtime 崩溃、Storage 暂时失败或删除失败时，run orphan 收敛与独立 reconciler 按原 scope 重试持久化或释放；到实例硬期限仍无法读取时保留最后已提交文件并释放资源。Sandbox finalizer 完成或留下 durable finalizing/release 责任后，Runtime 才提交 terminal journal 并释放会话 run lease。浏览器 SSE 断线只断订阅，不销毁仍执行的 run。下一 run 从持久资源按相同路径恢复；未确认提交的节点丢失写入不冒充成功。历史 Runtime files、文档、UIMessage 保持可读，未重写既有数据。Code Mode 不进入 Linux guest；它在隔离 QuickJS 中通过 AI SDK caller 仅编排 Runtime 显式授权的公开 `web_search` / `web_fetch`，不获得 Bash、附件、私有 Knowledge、审批或业务写入能力。QuickJS 只提供普通 ECMAScript、Promise、JSON 与正则等本地计算能力； `URL`、`fetch`、`process`、`require`、`Buffer`、宿主文件系统和动态代码生成都不可用，网络访问必须通过已授权工具。每个嵌套工具调用必须直接 `await` 或被已等待的 `Promise.all` 观察，否则整个调用失败并给出恢复提示。外层墙钟预算为 90 秒；它不是 Linux sandbox 的命令 deadline。
 

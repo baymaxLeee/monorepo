@@ -55,25 +55,23 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
     manifests: [
       webSearchManifest,
       webFetchManifest,
-      deferAgentToolLoading(createCodeModeManifest()),
+      createCodeModeManifest(),
       createToolSearchManifest(),
       ...createPlanningToolManifests(),
       ...(clientInteraction ? createInteractionToolManifests() : []),
       ...(uiAgent ? createUIAgentToolManifests() : []),
-      deferAgentToolLoading(
-        createSubagentsManifest({
-          modelName: model.name,
-          model: model.model,
-          maxOutputTokens: model.maxOutputTokens,
-          continuation: model.continuation,
-          tools: {
-            web_search: researchTools.web_search,
-            web_fetch: researchTools.web_fetch,
-          },
-          ...(model.contextSchema ? { contextSchema: model.contextSchema } : {}),
-          ...(model.observer ? { observer: model.observer } : {}),
-        }),
-      ),
+      createSubagentsManifest({
+        modelName: model.name,
+        model: model.model,
+        maxOutputTokens: model.maxOutputTokens,
+        continuation: model.continuation,
+        tools: {
+          web_search: researchTools.web_search,
+          web_fetch: researchTools.web_fetch,
+        },
+        ...(model.contextSchema ? { contextSchema: model.contextSchema } : {}),
+        ...(model.observer ? { observer: model.observer } : {}),
+      }),
       ...skills.manifests,
     ],
     skills: skills.skills,
@@ -88,6 +86,18 @@ export function compileTurnTools(builtins: AgentToolManifest[], plugins: AgentTo
       throw new Error(`agent plugin ${plugin.policy.pluginId ?? "unknown"} contributed a non-MCP tool`);
     }
     manifests.push(deferAgentToolLoading(plugin));
+  }
+  const deferredNames = manifests
+    .filter(({ tool }) => tool?.deferLoading)
+    .map(({ name }) => name)
+    .sort();
+  const searchIndex = manifests.findIndex(({ name }) => name === "tool_search");
+  if (searchIndex >= 0) {
+    if (deferredNames.length > 0) {
+      manifests[searchIndex] = createToolSearchManifest(deferredNames);
+    } else {
+      manifests.splice(searchIndex, 1);
+    }
   }
   const tools = manifestsToTools(manifests);
   const toolCallers: Record<string, (string | typeof DIRECT_TOOL_CALL)[]> = {};

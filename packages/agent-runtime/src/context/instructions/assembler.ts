@@ -2,6 +2,7 @@ import { renderMemory } from "./context-data.js";
 import { CORE_POLICY } from "./core-policy.js";
 import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
 import { type InstructionContributions, type InstructionInput, type SkillListing } from "./types.js";
+import { USER_UPDATES } from "./user-updates.js";
 import { escapeXmlText, xmlSection } from "./xml.js";
 
 /**
@@ -11,6 +12,7 @@ import { escapeXmlText, xmlSection } from "./xml.js";
 export function assembleInstructions(input: InstructionInput, contributions: InstructionContributions = {}): string {
   const sections = [
     xmlSection(INSTRUCTION_SECTION_TAGS.corePolicy, CORE_POLICY),
+    xmlSection(INSTRUCTION_SECTION_TAGS.userUpdates, USER_UPDATES),
     renderAvailableSkills(contributions.skills),
     input.activatedSkill
       ? xmlSection(INSTRUCTION_SECTION_TAGS.activatedSkill, escapeXmlText(input.activatedSkill.body), {
