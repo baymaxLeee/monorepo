@@ -14,10 +14,11 @@
     "@ai-sdk/code-mode": "catalog:",
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/openai": "catalog:",
-    "@ai-sdk/provider": "^4.0.38",
-    "@ai-sdk/provider-utils": "^5.0.81",
+    "@ai-sdk/provider": "catalog:",
+    "@ai-sdk/provider-utils": "catalog:",
     "@ai-sdk/tool-web-fetch": "catalog:",
-    "ai": "^7.0.172",
+    "@ui-sdk/core": "catalog:",
+    "ai": "catalog:",
     "zod": "^4.6.5"
   },
   "devDependencies": {

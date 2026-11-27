@@ -717,3 +717,37 @@ test("a client answer entered before the stream ends still triggers exactly one 
   });
   expect(chat.status).toBe("ready");
 });
+
+test("Stop aborts a live page tool after the SDK stream has already paused", async () => {
+  const execute = vi.fn(
+    (_name: string, _input: unknown, { signal }: { signal: AbortSignal }) =>
+      new Promise<void>((resolve) => {
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      }),
+  );
+  const view = renderHook(() => useConversationChat("one", execute));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  let sent!: Promise<void>;
+  await act(async () => {
+    sent = view.result.current.chat.sendMessage({ text: "change it" });
+  });
+  await chunk({ type: "start", messageId: "assistant" });
+  await chunk({
+    type: "tool-input-available",
+    toolCallId: "update",
+    toolName: "act",
+    input: { steps: [] },
+    toolMetadata: { agent: { execution: "client", uiKind: "agent-ui" } },
+  });
+  await chunk({ type: "finish", finishReason: "tool-calls" });
+  await act(async () => {
+    mocks.controller!.close();
+    await sent;
+  });
+  expect(execute).toHaveBeenCalledOnce();
+  await act(async () => {
+    await view.result.current.stopRun();
+  });
+  expect(execute.mock.calls[0]?.[2].signal.aborted).toBe(true);
+  expect(mocks.send).toHaveBeenCalledOnce();
+});

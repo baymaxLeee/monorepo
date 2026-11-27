@@ -15,7 +15,7 @@ test("workload identity cannot be overridden by call or propagation headers", as
     propagatedHeaders: () => ({
       "X-Caller-Service": "forged-propagation",
       "X-Internal-Token": "forged-propagation",
-      "X-Trace-Id": "trace-1",
+      traceparent: "00-11111111111111111111111111111111-3333333333333333-01",
     }),
     fetchImpl: (request, init) => {
       observed = new Request(request, init);
@@ -33,7 +33,7 @@ test("workload identity cannot be overridden by call or propagation headers", as
   assert.ok(observed);
   assert.equal(observed.headers.get("X-Caller-Service"), "runtime");
   assert.equal(observed.headers.get("X-Internal-Token"), "secret");
-  assert.equal(observed.headers.get("X-Trace-Id"), "trace-1");
+  assert.equal(observed.headers.get("traceparent"), "00-11111111111111111111111111111111-3333333333333333-01");
 });
 
 test("replayed terminal input keeps its identity and cursor after a lost response", async () => {

@@ -5,9 +5,12 @@ import (
 	"github.com/example/monorepo/iam/internal/application"
 	"github.com/example/monorepo/iam/internal/application/contracts"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
-func (rt *Router) listTenants(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) listTenants(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	if _, ok := rt.requireSuperAdmin(w, r); !ok {
 		return
 	}
@@ -18,7 +21,8 @@ func (rt *Router) listTenants(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, rows)
 }
-func (rt *Router) createTenant(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) createTenant(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return

@@ -26,7 +26,10 @@ const promptApi = vi.hoisted(() => ({
   })),
 }));
 const sessionViewApi = vi.hoisted(() => ({
-  chat: null as { resumeStream(): Promise<void> } | null,
+  chat: null as {
+    resumeStream(): Promise<void>;
+    messages: Array<{ id: string; role: string; parts: unknown[] }>;
+  } | null,
   runActive: false,
 }));
 
@@ -63,7 +66,10 @@ vi.mock("@repo/ai-elements/conversation", async (importOriginal) => ({
     onToolApproval,
     runActive,
   }: {
-    chat: { resumeStream(): Promise<void> };
+    chat: {
+      resumeStream(): Promise<void>;
+      messages: Array<{ id: string; role: string; parts: unknown[] }>;
+    };
     composer: (activePlan: null) => ReactNode;
     issue: ReactNode;
     onOpenWorkspaceFile?: (path: string) => void;
@@ -156,7 +162,7 @@ function fixture(status: LocalThread["status"] = "idle", segment: LocalStream["s
     pluginActivations: [],
     status,
     error: null,
-    turnId: status === "running" ? "turn" : null,
+    turnId: status === "idle" ? null : "turn",
     updatedAt: "",
     pendingInputs: [],
     contextUsage: null,
@@ -175,6 +181,8 @@ function fixture(status: LocalThread["status"] = "idle", segment: LocalStream["s
     approve: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
     send: vi.fn(async () => {}),
+    getThread: vi.fn(async () => thread),
+    continueClientTool: vi.fn(async () => {}),
     submitRunInput: vi.fn(async () => ({ admission: "accepted", turnId: "turn" })),
     setModelBinding: vi.fn(async () => {}),
     setExecutionPolicy: vi.fn(async () => {}),
@@ -196,6 +204,39 @@ test("keeps the transcript pending while the native runtime is active", () => {
   render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} />);
 
   expect(sessionViewApi.runActive).toBe(true);
+});
+
+test("executes an Agent UI client tool and continues the waiting native turn", async () => {
+  const f = fixture("idle", {
+    id: "segment",
+    messages: [],
+    chunks: [
+      { type: "start", messageId: "assistant" },
+      {
+        type: "tool-input-available",
+        toolName: "snapshot",
+        toolCallId: "snapshot-call",
+        input: {},
+        toolMetadata: { agent: { execution: "client", uiKind: "agent-ui" } },
+      },
+      { type: "finish" },
+    ],
+    done: true,
+  });
+  vi.mocked(f.bridge.send).mockImplementation(async () => {
+    f.thread.turnId = "turn";
+  });
+  const transport = new LocalChatTransport(f.bridge, f.thread.id, true);
+  const execute = vi.fn(async () => []);
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={transport} clientToolExecutor={execute} />);
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() => expect(execute).toHaveBeenCalledWith("snapshot", {}, expect.any(Object)));
+  await waitFor(() => expect(f.bridge.continueClientTool).toHaveBeenCalled());
+  expect(f.bridge.continueClientTool).toHaveBeenCalledWith(
+    "local",
+    "turn",
+    expect.objectContaining({ id: "assistant", role: "assistant" }),
+  );
 });
 
 test("shows each model reconnect attempt and clears the hint after recovery", async () => {
@@ -396,4 +437,43 @@ test("enables published workspace files in a local session", async () => {
   await waitFor(() =>
     expect(useLocalArtifact.getState().selected).toEqual({ threadId: f.thread.id, path: "report.md" }),
   );
+});
+
+test("stopping the native turn also aborts its page permission and suppresses continuation", async () => {
+  const f = fixture("idle", {
+    id: "segment",
+    messages: [],
+    done: true,
+    chunks: [
+      { type: "start", messageId: "assistant" },
+      {
+        type: "tool-input-available",
+        toolName: "act",
+        toolCallId: "write",
+        input: { steps: [] },
+        toolMetadata: { agent: { execution: "client", uiKind: "agent-ui" } },
+      },
+      { type: "finish" },
+    ],
+  });
+  const execute = vi.fn(
+    (_name: string, _input: unknown, { signal }: { signal: AbortSignal }) =>
+      new Promise<void>((resolve) => {
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      }),
+  );
+  render(
+    <LocalSession
+      bridge={f.bridge}
+      initial={f.thread}
+      transport={new LocalChatTransport(f.bridge, f.thread.id, true)}
+      clientToolExecutor={execute}
+    />,
+  );
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() => expect(execute).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByText("停止测试"));
+  expect(execute.mock.calls[0]?.[2].signal.aborted).toBe(true);
+  expect(f.bridge.stop).toHaveBeenCalledWith(f.thread.id);
+  expect(f.bridge.continueClientTool).not.toHaveBeenCalled();
 });

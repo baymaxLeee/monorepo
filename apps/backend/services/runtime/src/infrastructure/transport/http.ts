@@ -27,8 +27,13 @@ export function responseTransportError(
     message,
     body,
     operation,
-    response.headers.get("X-Trace-Id") ?? undefined,
+    traceIdFromTraceParent(response.headers.get("traceparent")),
   );
+}
+
+function traceIdFromTraceParent(value: string | null): string | undefined {
+  const traceId = value?.trim().split("-")[1];
+  return traceId && /^[0-9a-f]{32}$/i.test(traceId) ? traceId.toLowerCase() : undefined;
 }
 
 export interface InternalClientOptions {

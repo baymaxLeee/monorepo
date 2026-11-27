@@ -111,6 +111,7 @@ export class LocalChatTransport implements ChatTransport<UIMessage> {
   constructor(
     private readonly bridge: DesktopBridge,
     private readonly id: string,
+    private readonly uiAgent = false,
   ) {}
   private subscribe(parent?: AbortSignal) {
     this.dispose();
@@ -125,14 +126,22 @@ export class LocalChatTransport implements ChatTransport<UIMessage> {
     return this.initial.thread;
   }
   async sendMessages(options: Parameters<ChatTransport<UIMessage>["sendMessages"]>[0]) {
-    if (options.trigger !== "submit-message") throw new Error("请发送新消息继续；不会重放已经执行的工具");
+    if (options.trigger !== "submit-message") throw new Error("本地会话不支持重新生成已执行的工具");
     const last = options.messages.at(-1);
-    if (last?.role !== "user") throw new Error("需要用户消息");
-    const parts = localUIMessageParts(last.parts);
-    if (parts.length === 0) throw new Error("需要用户消息");
     const signal = this.subscribe(options.abortSignal);
     signal.throwIfAborted();
-    await this.bridge.send(this.id, parts, last.id);
+    if (last?.role === "user") {
+      const parts = localUIMessageParts(last.parts);
+      if (parts.length === 0) throw new Error("需要用户消息");
+      if (this.uiAgent) await this.bridge.send(this.id, parts, last.id, { uiAgent: "ui-sdk" });
+      else await this.bridge.send(this.id, parts, last.id);
+    } else if (last?.role === "assistant" && this.uiAgent) {
+      const thread = await this.bridge.getThread(this.id);
+      if (!thread.turnId) throw new Error("页面工具所对应的本地轮次已经结束");
+      await this.bridge.continueClientTool(this.id, thread.turnId, last);
+    } else {
+      throw new Error("请发送新消息继续；不会重放已经执行的工具");
+    }
     const connection = await attachLocalStream(this.bridge, this.id, true, signal);
     return (
       connection.stream ??

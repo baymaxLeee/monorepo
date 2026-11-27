@@ -1,8 +1,6 @@
 package httpapi
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,11 +9,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
+	"github.com/example/monorepo/httpserver-go"
 	"github.com/example/monorepo/telemetry/internal/application"
-	"github.com/go-chi/chi/v5"
-	oteltrace "go.opentelemetry.io/otel/trace"
+	"github.com/gin-gonic/gin"
 )
 
 const maxRequestBytes = 8 << 20
@@ -26,23 +23,21 @@ type Router struct {
 
 func New(service *application.Service) http.Handler {
 	transport := &Router{service: service}
-	router := chi.NewRouter()
-	router.Use(traceID, requestLogging)
-	router.Get("/livez", func(writer http.ResponseWriter, _ *http.Request) {
-		writeJSON(writer, http.StatusOK, map[string]string{"status": "ok"})
-	})
-	router.Get("/readyz", transport.readiness)
-	router.Get("/healthz", transport.readiness)
-	router.Post("/rum/batch", transport.ingest)
-	router.Get("/errors", transport.errors)
-	router.Get("/performance", transport.performance)
-	router.Get("/ops/observability", transport.observability)
-	router.Get("/ops/traces", transport.traces)
-	router.Get("/ops/traces/{trace_id}", transport.trace)
+	router := httpserver.New("telemetry")
+	router.GET("/livez", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	router.GET("/readyz", transport.readiness)
+	router.GET("/healthz", transport.readiness)
+	router.POST("/rum/batch", transport.ingest)
+	router.GET("/errors", transport.errors)
+	router.GET("/performance", transport.performance)
+	router.GET("/ops/observability", transport.observability)
+	router.GET("/ops/traces", transport.traces)
+	router.GET("/ops/traces/:trace_id", transport.trace)
 	return router
 }
 
-func (router *Router) readiness(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) readiness(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	if err := router.service.Ping(request.Context()); err != nil {
 		writeJSON(writer, http.StatusServiceUnavailable, map[string]any{"status": "degraded", "postgres": "down"})
 		return
@@ -50,7 +45,8 @@ func (router *Router) readiness(writer http.ResponseWriter, request *http.Reques
 	writeJSON(writer, http.StatusOK, map[string]any{"status": "ok", "postgres": "up"})
 }
 
-func (router *Router) ingest(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) ingest(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	var batch application.RumBatch
 	if err := decodeJSON(writer, request, &batch); err != nil {
 		writeValidation(writer, err)
@@ -67,7 +63,8 @@ func (router *Router) ingest(writer http.ResponseWriter, request *http.Request) 
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-func (router *Router) errors(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) errors(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	auth, ok := requireAuth(writer, request)
 	if !ok {
 		return
@@ -84,7 +81,8 @@ func (router *Router) errors(writer http.ResponseWriter, request *http.Request) 
 	writeJSON(writer, http.StatusOK, response)
 }
 
-func (router *Router) performance(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) performance(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	auth, ok := requireAuth(writer, request)
 	if !ok {
 		return
@@ -101,7 +99,8 @@ func (router *Router) performance(writer http.ResponseWriter, request *http.Requ
 	writeJSON(writer, http.StatusOK, response)
 }
 
-func (router *Router) observability(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) observability(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	auth, ok := requireAdmin(writer, request)
 	if !ok || !auth.IsAdmin() {
 		return
@@ -109,7 +108,8 @@ func (router *Router) observability(writer http.ResponseWriter, request *http.Re
 	writeJSON(writer, http.StatusOK, router.service.ObservabilityStatus(request.Context()))
 }
 
-func (router *Router) traces(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) traces(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	if _, ok := requireAdmin(writer, request); !ok {
 		return
 	}
@@ -124,11 +124,12 @@ func (router *Router) traces(writer http.ResponseWriter, request *http.Request) 
 	writeJSON(writer, http.StatusOK, router.service.Traces(request.Context(), limit, minutes))
 }
 
-func (router *Router) trace(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) trace(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	if _, ok := requireAdmin(writer, request); !ok {
 		return
 	}
-	response, err := router.service.Trace(request.Context(), chi.URLParam(request, "trace_id"))
+	response, err := router.service.Trace(request.Context(), c.Param("trace_id"))
 	if err != nil {
 		writeProblem(writer, http.StatusBadRequest, err.Error())
 		return
@@ -238,69 +239,4 @@ func writeInternal(writer http.ResponseWriter, request *http.Request, err error)
 func isValidationError(err error) bool {
 	text := err.Error()
 	return strings.Contains(text, "events") || strings.Contains(text, "batch field") || strings.Contains(text, "app must")
-}
-
-type responseRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (recorder *responseRecorder) WriteHeader(status int) {
-	recorder.status = status
-	recorder.ResponseWriter.WriteHeader(status)
-}
-
-func requestLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		started := time.Now()
-		recorder := &responseRecorder{ResponseWriter: writer, status: http.StatusOK}
-		next.ServeHTTP(recorder, request)
-		slog.InfoContext(request.Context(), "http request", "method", request.Method, "path", request.URL.Path,
-			"status", recorder.status, "duration_ms", time.Since(started).Milliseconds())
-	})
-}
-
-func traceID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		trace := ""
-		if spanContext := oteltrace.SpanContextFromContext(request.Context()); spanContext.IsValid() {
-			trace = spanContext.TraceID().String()
-		}
-		if trace == "" {
-			trace = traceIDFromTraceParent(request.Header.Get("traceparent"))
-		}
-		if trace == "" {
-			trace = normalizeTraceID(request.Header.Get("X-Trace-Id"))
-		}
-		if trace == "" {
-			var value [16]byte
-			if _, err := rand.Read(value[:]); err == nil {
-				trace = hex.EncodeToString(value[:])
-			} else {
-				trace = strings.Repeat("0", 32)
-			}
-		}
-		request.Header.Set("X-Trace-Id", trace)
-		writer.Header().Set("X-Trace-Id", trace)
-		next.ServeHTTP(writer, request)
-	})
-}
-
-func traceIDFromTraceParent(value string) string {
-	parts := strings.Split(strings.TrimSpace(value), "-")
-	if len(parts) != 4 || parts[0] != "00" || len(parts[2]) != 16 || len(parts[3]) != 2 {
-		return ""
-	}
-	return normalizeTraceID(parts[1])
-}
-
-func normalizeTraceID(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if len(value) != 32 || value == strings.Repeat("0", 32) {
-		return ""
-	}
-	if _, err := hex.DecodeString(value); err != nil {
-		return ""
-	}
-	return value
 }

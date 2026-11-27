@@ -6,6 +6,7 @@ import (
 
 	adminapi "github.com/example/monorepo/admin/internal/api/generated/adminapi"
 	"github.com/example/monorepo/admin/internal/application"
+	"github.com/gin-gonic/gin"
 )
 
 func actor(r *http.Request) (application.Actor, error) { return application.ActorFromRequest(r) }
@@ -33,7 +34,8 @@ func publicProvider(value application.ProviderPublic) adminapi.ModelProvider {
 
 const timeLayout = "2006-01-02T15:04:05.999999Z"
 
-func (h *Handler) ListProviders(w http.ResponseWriter, r *http.Request, _ adminapi.ListProvidersParams) {
+func (h *Handler) ListProviders(c *gin.Context, _ adminapi.ListProvidersParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -50,7 +52,8 @@ func (h *Handler) ListProviders(w http.ResponseWriter, r *http.Request, _ admina
 	}
 	writeJSON(w, 200, out)
 }
-func (h *Handler) GetProvider(w http.ResponseWriter, r *http.Request, id string, _ adminapi.GetProviderParams) {
+func (h *Handler) GetProvider(c *gin.Context, id string, _ adminapi.GetProviderParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -63,7 +66,8 @@ func (h *Handler) GetProvider(w http.ResponseWriter, r *http.Request, id string,
 	}
 	writeJSON(w, 200, publicProvider(value))
 }
-func (h *Handler) UpdateProvider(w http.ResponseWriter, r *http.Request, id string, _ adminapi.UpdateProviderParams) {
+func (h *Handler) UpdateProvider(c *gin.Context, id string, _ adminapi.UpdateProviderParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -125,7 +129,8 @@ func (h *Handler) UpdateProvider(w http.ResponseWriter, r *http.Request, id stri
 	}
 	writeJSON(w, 200, publicProvider(updated))
 }
-func (h *Handler) CreateProvider(w http.ResponseWriter, r *http.Request, _ adminapi.CreateProviderParams) {
+func (h *Handler) CreateProvider(c *gin.Context, _ adminapi.CreateProviderParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -178,7 +183,8 @@ func (h *Handler) CreateProvider(w http.ResponseWriter, r *http.Request, _ admin
 	}
 	writeJSON(w, 201, publicProvider(value))
 }
-func (h *Handler) DeleteProvider(w http.ResponseWriter, r *http.Request, id string, _ adminapi.DeleteProviderParams) {
+func (h *Handler) DeleteProvider(c *gin.Context, id string, _ adminapi.DeleteProviderParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err == nil {
 		err = h.Providers.Delete(r.Context(), a, id)
@@ -189,7 +195,8 @@ func (h *Handler) DeleteProvider(w http.ResponseWriter, r *http.Request, id stri
 	}
 	w.WriteHeader(204)
 }
-func (h *Handler) BulkDeleteProviders(w http.ResponseWriter, r *http.Request, _ adminapi.BulkDeleteProvidersParams) {
+func (h *Handler) BulkDeleteProviders(c *gin.Context, _ adminapi.BulkDeleteProvidersParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -207,7 +214,8 @@ func (h *Handler) BulkDeleteProviders(w http.ResponseWriter, r *http.Request, _ 
 	}
 	writeJSON(w, 200, adminapi.BulkDeleteModelProvidersResult{Deleted: int(deleted)})
 }
-func (h *Handler) SetDefaultProvider(w http.ResponseWriter, r *http.Request, id string, _ adminapi.SetDefaultProviderParams) {
+func (h *Handler) SetDefaultProvider(c *gin.Context, id string, _ adminapi.SetDefaultProviderParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -221,7 +229,8 @@ func (h *Handler) SetDefaultProvider(w http.ResponseWriter, r *http.Request, id 
 	writeJSON(w, 200, publicProvider(value))
 }
 
-func (h *Handler) TestProvider(w http.ResponseWriter, r *http.Request, id string, _ adminapi.TestProviderParams) {
+func (h *Handler) TestProvider(c *gin.Context, id string, _ adminapi.TestProviderParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)

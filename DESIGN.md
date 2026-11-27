@@ -285,6 +285,8 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 
 AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-elements)。基础组件由 CLI 生成，组合组件在 `@repo/ai-elements` 维护；映射见该包 `UPSTREAM.md`。Agent 步骤统一使用 `Trace*`，代码和工具输出使用 `CodeBlock*`；终端通过 `/terminal` 子路径按需加载。
 
+Chat 工作台与 Canvas 创作页使用 UI SDK 给现有设计系统组件声明可读状态与动作。Canvas 切换视图、分镜改名都沿用人工操作的业务校验与保存路径。可信 React 页面可在顶层注册 `snapshot` / `query` / `act` 和 WebMCP，权限提示必须放在 `data-agent-hidden` 区域。会话内的 MCP App 使用独立的双层 sandbox iframe 展示工具随结果提供的 HTML。模型生成的 HTML 使用 Artifact iframe。页面工具注册权属于顶层应用。
+
 ### AI 交互规则
 
 - 流式状态必须区分 queued、streaming、completed、failed、cancelled 等真实阶段；文案不得假装任务已经完成。
@@ -293,6 +295,7 @@ AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-
 - 工具调用展示用户可理解的名称、当前状态和结果摘要。原始 JSON 只作为按需展开的诊断信息。
 - 发送消息、文件、引用和工具结果时复用 AI SDK 的标准 parts。自定义 `data-*` / `onData` 字段必须先遵循 `schemas/streaming/chat-uimessage-stream.md`。
 - 任何会写入外部系统、发送消息、消费显著资源、删除数据或改变权限的工具，都必须在执行前通过 `Confirmation*` 明确展示影响并获得用户授权。
+- Agent Bridge 的 `allow` 只决定页面动作是否执行；业务授权、资源范围和副作用校验仍由后端 owner 负责。普通 Chat 不声明 UI client capability，不向模型暴露页面动作工具。
 - 引用必须与对应陈述相邻并能打开来源；不要只在消息末尾堆积无法对应的链接。来源不可用时明确说明。
 - 推理区域默认可折叠，并以帮助用户理解决策的摘要为目标；不得伪装或暴露不应展示的内部 chain-of-thought。
 - 长生命周期输出使用 Artifact，不把完整文档、代码或媒体编辑器塞进消息气泡。Artifact 的保存、版本、关闭和未保存状态必须清楚。

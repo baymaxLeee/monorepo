@@ -10,6 +10,8 @@ import {
   AlertDialogTrigger,
   Button,
 } from "@repo/design-system";
+import { definePrimitive } from "@ui-sdk/core";
+import { createParts } from "@ui-sdk/react/primitive";
 import { useAtomValue } from "jotai";
 import {
   History as IconAgentHistory,
@@ -28,6 +30,34 @@ import type { StudioView } from "../domain/types";
 import { assetsPanelOpenAtom, studioViewAtom, studioViewChangingAtom } from "../store/index";
 
 import styles from "./StudioHeader.module.css";
+
+type ViewControl = {
+  value: StudioView;
+  shotCount: number;
+  disabled: boolean;
+  changeView: (view: StudioView) => Promise<boolean> | boolean | void;
+};
+const viewState = ({ value, shotCount, disabled }: ViewControl) => ({ value, shotCount, disabled });
+const viewPrimitive = definePrimitive({
+  name: "studio-view",
+  options: { value: "string", shotCount: "number", disabled: "boolean", changeView: "action" },
+  state: viewState,
+  sync: viewState,
+  controlled: ["value", "shotCount"],
+  agent: { actions: ["setView"] },
+  api: ({ options }) => ({
+    async setView(next: unknown) {
+      if (next !== "canvas" && next !== "storyboard") throw new Error(t("未知视图"));
+      const current = options();
+      if (current.disabled || (current.value !== next && !(await current.changeView(next)))) {
+        throw new Error(t("视图切换未完成"));
+      }
+      return next;
+    },
+  }),
+  slots: (slot) => ({ root: slot({}) }),
+});
+const { Root: StudioViewControl } = createParts(viewPrimitive, { root: "div" });
 
 export function StudioHeader({
   composable,
@@ -58,7 +88,7 @@ export function StudioHeader({
   onOpenExportHistory: () => void;
   onToggleChat: () => void;
   chatOpen?: boolean;
-  onViewChange?: (view: StudioView) => void;
+  onViewChange?: ViewControl["changeView"];
 }) {
   const assetsOpen = useAtomValue(assetsPanelOpenAtom);
   const view = useAtomValue(studioViewAtom);
@@ -88,7 +118,15 @@ export function StudioHeader({
           </Button>
           <h1 className={styles.projectTitle}>{title}</h1>
         </div>
-        <div className={styles.viewSwitch}>
+        <StudioViewControl
+          className={styles.viewSwitch}
+          aria-label={t("创作视图")}
+          data-agent-confirm={t("切换并保存画布视图")}
+          value={view}
+          disabled={viewChanging}
+          shotCount={shotCount}
+          changeView={onViewChange}
+        >
           <Button
             variant="ghost"
             aria-label={view === "canvas" ? t("画布") : t("切换到画布")}
@@ -113,20 +151,18 @@ export function StudioHeader({
             <IconStoryboardMode aria-hidden className={styles.viewIcon} strokeWidth={1.5} />
             {view === "storyboard" ? t("故事板") : null}
           </Button>
-        </div>
+        </StudioViewControl>
       </div>
 
       <div className={styles.actions}>
-        {view === "canvas" ? (
-          <ActionButton
-            icon={<IconChat />}
-            onClick={onToggleChat}
-            paddingX={12}
-            variant={chatOpen ? "primary" : undefined}
-          >
-            {t("AI 助手")}
-          </ActionButton>
-        ) : null}
+        <ActionButton
+          icon={<IconChat />}
+          onClick={onToggleChat}
+          paddingX={12}
+          variant={chatOpen ? "primary" : undefined}
+        >
+          {t("AI 助手")}
+        </ActionButton>
 
         <ActionButton icon={<IconAgentHistory />} onClick={onOpenExportHistory} paddingX={12}>
           {t("导出记录")}

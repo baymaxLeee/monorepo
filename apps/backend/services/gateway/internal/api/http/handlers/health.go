@@ -4,14 +4,17 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
-func Livez(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+func Livez(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func Healthz(ready func(context.Context) error) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Healthz(ready func(context.Context) error) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		r := c.Request
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 
@@ -26,7 +29,7 @@ func Healthz(ready func(context.Context) error) http.HandlerFunc {
 			status = "degraded"
 			code = http.StatusServiceUnavailable
 		}
-		writeJSON(w, code, map[string]string{
+		c.JSON(code, gin.H{
 			"status": status,
 			"redis":  redis,
 		})

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { realpath, rm } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
 
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import {
@@ -38,12 +39,24 @@ import {
   MODEL_STREAM_RETRIES,
   createModelStreamRetryPolicy,
   retryableModelStreamMiddleware,
+  toolOutcomeSchema,
+  uiAgentClientToolSchemas,
 } from "@repo/agent-runtime";
-import { consumeStream, createUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
+import {
+  consumeStream,
+  createUIMessageStream,
+  getToolName,
+  isToolUIPart,
+  toUIMessageStream,
+  type UIMessage,
+  type UIMessageChunk,
+} from "ai";
+import type { ZodType } from "zod";
 
 import type {
   DesktopEvent,
   LocalApprovalPolicy,
+  LocalClientCapabilities,
   LocalPendingInput,
   LocalPermissionProfileId,
   LocalPluginActivation,
@@ -86,6 +99,88 @@ function failureMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string" && error.trim()) return error;
   return fallback;
+}
+
+type AnyUIMessage = UIMessage<unknown, any, any>;
+
+function isPendingUIAgentTool(part: AnyUIMessage["parts"][number]) {
+  if (!isToolUIPart(part) || part.state !== "input-available" || part.providerExecuted) return false;
+  const agent = part.toolMetadata?.agent;
+  return (
+    !!agent &&
+    typeof agent === "object" &&
+    !Array.isArray(agent) &&
+    "execution" in agent &&
+    agent.execution === "client" &&
+    "uiKind" in agent &&
+    agent.uiKind === "agent-ui" &&
+    Object.hasOwn(uiAgentClientToolSchemas, getToolName(part))
+  );
+}
+
+function hasPendingUIAgentTools(messages: UIMessage[]) {
+  const latest = messages.at(-1) as AnyUIMessage | undefined;
+  return latest?.role === "assistant" && latest.parts.some(isPendingUIAgentTool);
+}
+
+function immutableToolIdentity(part: ReturnType<typeof asToolPart>) {
+  return Object.fromEntries(
+    Object.entries(part).filter(
+      ([key, value]) => value !== undefined && !["state", "output", "errorText", "preliminary"].includes(key),
+    ),
+  );
+}
+
+function asToolPart(part: AnyUIMessage["parts"][number]) {
+  if (!isToolUIPart(part)) throw new Error("客户端工具结果包含无效工具");
+  return part;
+}
+
+function mergeUIAgentContinuation(persisted: AnyUIMessage, client: AnyUIMessage): AnyUIMessage {
+  if (persisted.role !== "assistant" || client.role !== "assistant" || persisted.id !== client.id) {
+    throw new Error("客户端工具结果未对应当前助手消息");
+  }
+  if (!isDeepStrictEqual(persisted.metadata, client.metadata) || persisted.parts.length !== client.parts.length) {
+    throw new Error("客户端工具结果不能修改助手消息");
+  }
+  let completed = 0;
+  const parts = persisted.parts.map((original, index) => {
+    const response = client.parts[index];
+    if (!response || !isToolUIPart(original)) {
+      if (!isDeepStrictEqual(original, response)) throw new Error("客户端工具结果不能修改助手内容");
+      return original;
+    }
+    if (!isToolUIPart(response) || response.toolCallId !== original.toolCallId) {
+      throw new Error("客户端工具结果不能重排工具调用");
+    }
+    if (isDeepStrictEqual(original, response)) return original;
+    if (!isPendingUIAgentTool(original)) throw new Error(`工具 ${original.toolCallId} 不等待页面结果`);
+    if (!isDeepStrictEqual(immutableToolIdentity(response), immutableToolIdentity(original))) {
+      throw new Error(`工具 ${original.toolCallId} 身份不匹配`);
+    }
+    if (response.state !== "output-available" && response.state !== "output-error") {
+      throw new Error(`工具 ${original.toolCallId} 的页面结果状态无效`);
+    }
+    if (response.state === "output-error") {
+      if (!response.errorText || response.errorText.length > 4000 || response.output !== undefined) {
+        throw new Error(`工具 ${original.toolCallId} 的页面错误结果无效`);
+      }
+    }
+    if (response.state === "output-available") {
+      if (("preliminary" in response && response.preliminary) || response.errorText !== undefined) {
+        throw new Error("页面工具完成结果无效");
+      }
+      const toolName = getToolName(original) as keyof typeof uiAgentClientToolSchemas;
+      const schema = uiAgentClientToolSchemas[toolName];
+      if (!schema.input.safeParse(original.input).success) throw new Error(`${toolName} 页面工具输入无效`);
+      const parsed = toolOutcomeSchema(schema.output as ZodType<unknown>).safeParse(response.output);
+      if (!parsed.success || parsed.data.status !== "completed") throw new Error(`${toolName} 页面工具结果无效`);
+    }
+    completed++;
+    return response;
+  });
+  if (completed === 0) throw new Error("客户端续接没有新的页面工具结果");
+  return { ...persisted, parts };
 }
 
 export class DesktopSessionManager {
@@ -208,16 +303,31 @@ export class DesktopSessionManager {
   openStream(id: string) {
     return { thread: this.get(id), segment: this.segments.get(id) ?? null };
   }
-  send(id: string, parts: LocalUserMessagePart[], messageId: string) {
+  send(id: string, parts: LocalUserMessagePart[], messageId: string, clientCapabilities: LocalClientCapabilities = {}) {
     if (this.active.has(id)) throw new Error("当前会话仍在执行");
     if (this.closed) throw new Error("本地运行时正在关闭");
     const thread = this.get(id);
-    if (thread.status === "waiting") throw new Error("请先处理待审批的命令，或停止当前轮次");
+    if (thread.status === "waiting") throw new Error("请先处理等待中的工具，或停止当前轮次");
     thread.turnId = randomUUID();
+    thread.clientCapabilities = structuredClone(clientCapabilities);
     thread.error = null;
     if (thread.messages.length === 0) thread.title = localUserMessagePreview(parts).slice(0, 80);
     thread.messages.push({ id: messageId, role: "user", parts: structuredClone(parts) });
     this.start(thread);
+  }
+  continueClientTool(id: string, expectedTurnId: string, message: UIMessage) {
+    if (this.closed) throw new Error("本地运行时正在关闭");
+    if (this.active.has(id)) throw new Error("会话仍在执行");
+    const thread = this.get(id);
+    if (thread.status !== "waiting" || thread.turnId !== expectedTurnId) {
+      throw new Error("页面工具所对应的轮次已经变化");
+    }
+    if (thread.clientCapabilities?.uiAgent !== "ui-sdk") throw new Error("当前轮次未启用页面工具");
+    const latest = thread.messages.at(-1);
+    if (!latest) throw new Error("当前轮次没有可续接的助手消息");
+    thread.messages[thread.messages.length - 1] = mergeUIAgentContinuation(latest, message);
+    this.save(thread);
+    if (!hasPendingUIAgentTools(thread.messages) && !hasPendingToolApprovals(thread.messages)) this.start(thread);
   }
   submitRunInput(id: string, expectedTurnId: string, text: string, messageId: string, mode: LocalPendingInput["mode"]) {
     if (this.closed) throw new Error("本地运行时正在关闭");
@@ -268,7 +378,7 @@ export class DesktopSessionManager {
     if (thread.status !== "waiting") throw new Error("审批已过期");
     thread.messages = applyToolApprovalResponse(thread.messages, { approvalId, approved });
     this.save(thread);
-    if (!hasPendingToolApprovals(thread.messages)) this.start(thread);
+    if (!hasPendingToolApprovals(thread.messages) && !hasPendingUIAgentTools(thread.messages)) this.start(thread);
   }
   async setExecutionPolicy(
     id: string,
@@ -384,9 +494,10 @@ export class DesktopSessionManager {
         maxOutputTokens: config.maxOutputTokens,
       },
       webSearch: (input, options) => this.options.webSearch(input, options.abortSignal),
-      // Local transport does not yet accept SDK client-tool results. This is
-      // a host protocol gap, not a separately curated portable default set.
+      // Desktop admits only the registered Agent UI client results below;
+      // generic interaction tools still lack a local continuation contract.
       clientInteraction: false,
+      uiAgent: thread.clientCapabilities?.uiAgent === "ui-sdk",
       skillSource: { skills: [...bodies.values()], activeSkillName: continuedSkillName(thread.messages.at(-1)) },
     });
     const activePermission = compilePermissionProfile(thread.permissionProfile, { workspaceRoot: thread.workspace });
@@ -556,7 +667,8 @@ export class DesktopSessionManager {
       });
       if (persistenceError) throw persistenceError;
       turn.signal.throwIfAborted();
-      thread.status = hasPendingToolApprovals(thread.messages) ? "waiting" : "idle";
+      thread.status =
+        hasPendingToolApprovals(thread.messages) || hasPendingUIAgentTools(thread.messages) ? "waiting" : "idle";
     } catch (error) {
       thread.status = turn.cancelled && !persistenceError ? "cancelled" : "error";
       thread.error =
@@ -606,7 +718,7 @@ export class DesktopSessionManager {
     const thread = this.get(id);
     if (thread.status === "waiting") {
       thread.status = "cancelled";
-      thread.error = "用户停止了待审批轮次";
+      thread.error = "用户停止了等待工具响应的轮次";
       thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
       this.save(thread);
     }

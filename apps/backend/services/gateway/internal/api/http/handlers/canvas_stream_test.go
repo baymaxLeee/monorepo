@@ -23,7 +23,6 @@ func TestCanvasEventStreamClearsEdgeWriteDeadline(t *testing.T) {
 		want   bool
 	}{
 		{http.MethodGet, "/api/canvas-server/projects/p/canvases/c/events", true},
-		{http.MethodPost, "/api/canvas-server/projects/p/canvases/c/nodes/n/text-generations:stream", true},
 		{http.MethodGet, "/api/canvas-server/projects/p/canvases/c/nodes", false},
 	} {
 		proxy := &deadlineAwareProxy{service: "canvas-server", externalPrefix: "/api/canvas-server", inner: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })}

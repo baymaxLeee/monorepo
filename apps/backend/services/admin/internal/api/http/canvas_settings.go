@@ -6,6 +6,7 @@ import (
 
 	adminapi "github.com/example/monorepo/admin/internal/api/generated/adminapi"
 	"github.com/example/monorepo/admin/internal/application"
+	"github.com/gin-gonic/gin"
 )
 
 func settingsDTO(value application.CanvasSettings) (adminapi.CanvasSettings, error) {
@@ -15,7 +16,8 @@ func settingsDTO(value application.CanvasSettings) (adminapi.CanvasSettings, err
 	}
 	return adminapi.CanvasSettings{Revision: value.Revision, Defaults: defaults}, nil
 }
-func (h *Handler) GetCanvasSettings(w http.ResponseWriter, r *http.Request, _ adminapi.GetCanvasSettingsParams) {
+func (h *Handler) GetCanvasSettings(c *gin.Context, _ adminapi.GetCanvasSettingsParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -33,7 +35,8 @@ func (h *Handler) GetCanvasSettings(w http.ResponseWriter, r *http.Request, _ ad
 	}
 	writeJSON(w, 200, dto)
 }
-func (h *Handler) UpdateCanvasSettings(w http.ResponseWriter, r *http.Request, _ adminapi.UpdateCanvasSettingsParams) {
+func (h *Handler) UpdateCanvasSettings(c *gin.Context, _ adminapi.UpdateCanvasSettingsParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)

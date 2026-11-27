@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>知识库检索结果</title>
+<style>
+  :root { color-scheme: light dark; font: 14px/1.5 system-ui, sans-serif }
+  body { margin: .75rem }
+  summary { cursor: pointer; font-weight: 600 }
+  details + details { margin-top: .5rem }
+  p { white-space: pre-wrap; overflow-wrap: anywhere }
+</style>
+<main aria-live="polite"><p>正在读取检索结果…</p></main>
+<script>
+  const send = message => parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
+  const main = document.querySelector('main');
+  let nextId = 2;
+  addEventListener('message', event => {
+    if (event.source !== parent || event.data?.jsonrpc !== '2.0') return;
+    const message = event.data;
+    if (message.id === 1 && message.result) {
+      send({ method: 'ui/notifications/initialized' });
+      return;
+    }
+    if (message.method === 'ui/resource-teardown') { send({ id: message.id, result: {} }); return; }
+    if (message.method !== 'ui/notifications/tool-result') return;
+    const result = message.params?.structuredContent;
+    main.replaceChildren();
+    const hits = Array.isArray(result?.results) ? result.results : [];
+    if (!hits.length) main.textContent = result?.note || '没有找到相关片段。';
+    for (const hit of hits) {
+      const item = document.createElement('details');
+      const title = document.createElement('summary');
+      title.textContent = hit.title || hit.filename || '文档';
+      const passage = document.createElement('p');
+      passage.textContent = hit.content;
+      const followUp = document.createElement('button');
+      followUp.type = 'button';
+      followUp.textContent = '在对话中追问';
+      followUp.onclick = () => send({ id: nextId++, method: 'ui/message', params: { role: 'user', content: [{ type: 'text', text: '请解释《' + title.textContent + '》中这段内容：' + hit.content }] } });
+      const share = document.createElement('button');
+      share.type = 'button';
+      share.textContent = '用于下一条消息';
+      share.onclick = () => send({ id: nextId++, method: 'ui/update-model-context', params: { structuredContent: { document_id: hit.document_id, title: title.textContent, passage: hit.content } } });
+      item.append(title, passage, followUp, share);
+      main.append(item);
+    }
+  });
+  send({ id: 1, method: 'ui/initialize', params: { appInfo: { name: 'knowledge-search', version: '1.0.0' }, appCapabilities: {}, protocolVersion: '2026-01-26' } });
+</script>
+</html>

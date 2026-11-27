@@ -26,7 +26,7 @@ Version Selection 解析。把版本一致性做成可执行仓库 policy，比�
 
 | 能力 | 当前选择 | 约束 |
 |---|---|---|
-| HTTP | 标准库 `net/http` + `chi` | 显式 middleware 与 lifecycle，不引入反射 DI 或全栈 Web framework |
+| HTTP | `Gin` + `httpserver-go` | handler 与 middleware 统一使用原生 Gin API；只用 `gin.New`，不使用 `gin.Default` 或兼容 adapter |
 | 外部契约 | OpenAPI 3.1 artifact + 固定版本 codegen | 生成 wire types/server/client；Chat 的透明 streaming proxy 保持显式实现 |
 | 内部 RPC | Proto + gRPC | 生成类型；统一 caller identity、deadline、取消和 OTel stats handler |
 | PostgreSQL | `pgx/v5` + `sqlc` | `pgx` 是 driver/transaction primitive；静态 SQL 默认由 `sqlc` 生成 typed repository |
@@ -47,6 +47,19 @@ Admin、Canvas、Chat、IAM、Storage 和 Telemetry 各自拥有 PostgreSQL 迁�
 按需矩阵和目录模板在 [Go 微服务模板](../开发规范/go-services.md)。领域专用 SDK 允许只在
 真实 consumer 引入，但不得重新实现 router、config、logging、persistence、observability、
 contract 或 concurrency 等已有平台能力。
+
+### HTTP 边界
+
+所有 Go HTTP 服务从共享 `httpserver-go.New(serviceName)` 创建 Gin engine，固定执行
+`trace context → route params → OpenTelemetry → access log → recovery`。服务不得复制 trace ID、
+访问日志或 panic recovery；服务专属鉴权、限流等 middleware 直接实现 `gin.HandlerFunc`。
+共享层只接受并规范 W3C `traceparent`，并同步返回 `traceparent`，
+日志记录稳定 route template、状态码、响应大小、耗时和 trace ID。response 已写出（尤其是
+SSE）后发生 panic 时只终止并记录，不向流尾追加 JSON 错误体。
+
+Gin 只占有 transport/router 边界，路由参数从 `gin.Context` 显式读取后传给 application；
+application/domain 不导入 Gin。OpenAPI Go server binding 统一生成 `gin-server`，禁止保留
+Chi binding、`net/http` handler/middleware adapter 或在 Gin 外再包一层 server tracing handler。
 
 ## AI-native 原则
 
@@ -69,8 +82,8 @@ consumer，执行 `go work sync`，随后运行 `just check-go-modules`、受影
 及根 lint。工具版本必须固定在 recipe 中，禁止 `@latest` 进入 CI 或生成命令；“最新 stable”
 通过显式升级变更实现，而不是让构建结果随日期漂移。
 
-本轮基线按 2026-11-17 的 upstream stable release 选定：Go 1.27.4、chi 5.5.0、pgx
-5.13.0、sqlc 1.31.1、caarlos0/env 11.4.2、OpenTelemetry 1.47.0/otelhttp 0.72.0、
+本轮基线按 2026-11-27 的 upstream stable release 选定：Go 1.27.4、Gin 1.12.0、pgx
+5.13.0、sqlc 1.31.1、caarlos0/env 11.4.2、OpenTelemetry 1.47.0/otelgin 0.72.0、
 oapi-codegen 2.8.2。精确生效值仍以 manifest 为准，文档日期不构成长期锁定理由。
 
 主要证据：Go 的 [workspace 教程](https://go.dev/doc/tutorial/workspaces) 与
@@ -78,6 +91,8 @@ oapi-codegen 2.8.2。精确生效值仍以 manifest 为准，文档日期不构�
 [OpenAI 的 PostgreSQL 扩展实践](https://openai.com/index/scaling-postgresql/)、
 [Google Cloud 的 pgxpool 建议](https://docs.cloud.google.com/go/docs/reference/cloud.google.com/go/cloudsqlconn/latest)、
 [OpenTelemetry Go instrumentation](https://opentelemetry.io/docs/languages/go/instrumentation/)、
+[Gin 官方文档](https://gin-gonic.com/en/docs/) 与
+[oapi-codegen Gin server 文档](https://github.com/oapi-codegen/oapi-codegen#generating-server-side-boilerplate)、
 [MCP 官方 SDK 列表](https://modelcontextprotocol.io/docs/sdk) 及
 [Eino 官方说明](https://github.com/cloudwego/eino/blob/main/llms.txt)。
 

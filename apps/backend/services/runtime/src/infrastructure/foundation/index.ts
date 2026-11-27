@@ -9,6 +9,7 @@ export {
 } from "./trace.js";
 export { requestLogger, traceMiddleware } from "./middleware.js";
 export {
+  agentModelTelemetry,
   configureOpenTelemetry,
   finishSpan,
   getTracer,

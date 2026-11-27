@@ -33,6 +33,7 @@ export interface PersistedTurnResumeSnapshot {
     skills: Array<{ id: string; name: string; description: string }>;
     generateTitle: boolean;
     activeSkillName: string | null;
+    clientCapabilities?: { uiAgent?: "ui-sdk" };
     instructions: string | null;
     providerBinding: {
       id: string;

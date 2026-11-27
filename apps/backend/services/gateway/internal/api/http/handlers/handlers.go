@@ -9,12 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/monorepo/gateway/internal/api/http/middleware"
+	"github.com/example/monorepo/httpserver-go"
+	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-func Index(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
+func Index(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
 		"service": "gateway",
 		"docs":    "/healthz | /api/iam-server/* | /api/admin-server/*",
 	})
@@ -67,7 +68,7 @@ func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 		req.URL.RawPath = ""
 		req.Host = target.Host
 		slog.Info("proxy",
-			"trace_id", middleware.TraceIDFromContext(req.Context()),
+			"trace_id", httpserver.TraceID(req.Context()),
 			"service", service,
 			"to", target.String()+req.URL.Path,
 			"from_path", incomingPath,
@@ -75,7 +76,7 @@ func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		slog.Error("proxy_error",
-			"trace_id", middleware.TraceIDFromContext(r.Context()),
+			"trace_id", httpserver.TraceID(r.Context()),
 			"err", err,
 			"path", r.URL.Path,
 		)
@@ -97,9 +98,7 @@ func (p *deadlineAwareProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if (p.service == "chat-server" &&
 		(strings.HasSuffix(path, "/stream") ||
 			(r.Method == http.MethodPost && path == "/local-inference/stream"))) ||
-		(p.service == "canvas-server" &&
-			((r.Method == http.MethodGet && strings.HasSuffix(path, "/events")) ||
-				(r.Method == http.MethodPost && strings.HasSuffix(path, "/text-generations:stream")))) {
+		(p.service == "canvas-server" && r.Method == http.MethodGet && strings.HasSuffix(path, "/events")) {
 		_ = rc.SetWriteDeadline(time.Time{})
 	}
 	if p.service == "knowledge-server" && r.Method == http.MethodPost && path == "/ingest" {

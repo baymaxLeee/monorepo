@@ -165,3 +165,52 @@ test("free-form answers are part of the ask_user protocol", () => {
     ),
   );
 });
+
+function uiAwaiting(toolName: string, input: unknown): AnyUIMessage {
+  return message({
+    type: `tool-${toolName}`,
+    toolCallId: `call-${toolName}`,
+    state: "input-available",
+    input,
+    toolMetadata: { agent: { ...clientMetadata.agent, uiKind: "agent-ui" } },
+  });
+}
+
+function uiAnswer(toolName: string, input: unknown, data: unknown): AnyUIMessage {
+  return message({
+    ...(uiAwaiting(toolName, input).parts[0] as object),
+    state: "output-available",
+    output: { ok: true, status: "completed", data },
+  });
+}
+
+test("UI SDK snapshot, query, and act results use the existing client continuation", () => {
+  assert.doesNotThrow(() => mergeClientContinuation(uiAwaiting("snapshot", {}), uiAnswer("snapshot", {}, [])));
+  assert.doesNotThrow(() =>
+    mergeClientContinuation(
+      uiAwaiting("query", { within: "页面风格" }),
+      uiAnswer("query", { within: "页面风格" }, { error: "not found" }),
+    ),
+  );
+  const actInput = { steps: [{ ref: "页面标题", action: "setValue", args: ["New title"] }] };
+  assert.doesNotThrow(() =>
+    mergeClientContinuation(
+      uiAwaiting("act", actInput),
+      uiAnswer("act", actInput, { appeared: [], values: { 页面标题: "New title" }, steps: [], ok: true }),
+    ),
+  );
+});
+
+test("UI SDK client tools reject malformed results and unknown error continuations", () => {
+  assert.throws(
+    () => mergeClientContinuation(uiAwaiting("snapshot", {}), uiAnswer("snapshot", {}, { invented: true })),
+    /snapshot.*invalid output/i,
+  );
+  const unknown = uiAwaiting("invented", {});
+  const error = message({
+    ...(unknown.parts[0] as object),
+    state: "output-error",
+    errorText: "failed",
+  });
+  assert.throws(() => mergeClientContinuation(unknown, error), /no registered result validator/i);
+});

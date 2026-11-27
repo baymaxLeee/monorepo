@@ -37,7 +37,9 @@ function fixture(value: LocalStream) {
       return () => listeners.delete(listener);
     },
     openStream: vi.fn(async () => value),
+    getThread: vi.fn(async () => value.thread),
     send: vi.fn(async () => {}),
+    continueClientTool: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
   } as unknown as DesktopBridge;
   return {
@@ -82,6 +84,38 @@ describe("native UIMessage IPC transport", () => {
       "message",
     );
     expect(await stream.getReader().read()).toEqual({ done: true, value: undefined });
+  });
+
+  test("opts Agent UI turns in and continues the current native turn with the assistant tool result", async () => {
+    const value = snapshot();
+    value.segment = null;
+    const f = fixture(value);
+    const transport = new LocalChatTransport(f.bridge, thread.id, true);
+    const assistant = {
+      id: "assistant",
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "页面状态已读取" }],
+    };
+
+    await transport.sendMessages({
+      trigger: "submit-message",
+      chatId: thread.id,
+      messageId: "message",
+      messages: [{ id: "message", role: "user", parts: [{ type: "text", text: "配置页面" }] }],
+      abortSignal: undefined,
+    });
+    await transport.sendMessages({
+      trigger: "submit-message",
+      chatId: thread.id,
+      messageId: assistant.id,
+      messages: [assistant],
+      abortSignal: undefined,
+    });
+
+    expect(f.bridge.send).toHaveBeenCalledWith(thread.id, [{ type: "text", text: "配置页面" }], "message", {
+      uiAgent: "ui-sdk",
+    });
+    expect(f.bridge.continueClientTool).toHaveBeenCalledWith(thread.id, "turn", assistant);
   });
 
   test("deduplicates events racing with replay and preserves native chunk order", async () => {

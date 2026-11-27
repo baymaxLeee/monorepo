@@ -104,6 +104,16 @@ export {
   type WebSearchOutput,
 } from "./tools/web.js";
 export { askUserInputSchema, askUserResponseSchema } from "./tools/ask-user.js";
+export {
+  createUIAgentToolManifests,
+  uiAgentActInputSchema,
+  uiAgentActOutputSchema,
+  uiAgentClientToolSchemas,
+  uiAgentQueryInputSchema,
+  uiAgentQueryOutputSchema,
+  uiAgentSnapshotInputSchema,
+  uiAgentSnapshotOutputSchema,
+} from "./tools/ui-agent.js";
 
 export {
   applyAdditionalPermissions,

@@ -17,7 +17,7 @@ import {
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
 
-import { finishSpan, runWithActiveSpan, startSpan } from "#runtime/foundation";
+import { agentModelTelemetry, finishSpan, runWithActiveSpan, startSpan } from "#runtime/foundation";
 
 import { getServerSettings } from "../../../config/server.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
@@ -145,6 +145,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     skillSource,
     { approvalPolicy: input.approvalPolicy, permissionProfile: input.permissionProfile },
     input.continuation,
+    { uiAgent: input.client?.uiAgent === "ui-sdk" },
   );
   scope.defer(resolvedTools.dispose);
   const { tools } = resolvedTools;
@@ -232,9 +233,10 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     },
   };
   const toolApprovalSecret = getServerSettings().toolApprovalSecret;
-  const settings = {
+  const settings: RuntimeTurnSettings<AgentRuntimeContext> & { tools: ToolSet; instructions: string } = {
     id: "chat-agent",
     model: providerModel,
+    telemetry: agentModelTelemetry(),
     middleware: [retryableModelStreamMiddleware, contextCaptureMiddleware],
     instructions,
     maxOutputTokens: provider.maxOutputTokens,
@@ -402,7 +404,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         }),
       );
     },
-  } satisfies RuntimeTurnSettings<AgentRuntimeContext>;
+  };
   return {
     settings,
     sandbox,

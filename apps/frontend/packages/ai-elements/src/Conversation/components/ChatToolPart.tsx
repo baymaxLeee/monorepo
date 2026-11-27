@@ -23,6 +23,7 @@ import { ChatImageCard } from "./ChatImageCard";
 import { ChatSubagents } from "./ChatSubagents";
 import { ChatTerminalTool } from "./ChatTerminalTool";
 import { ChatVideoCard } from "./ChatVideoCard";
+import { MCPAppView, readMCPAppView } from "./MCPAppView";
 import { useToolDisclosure } from "./useToolDisclosure";
 
 export function ChatToolPart({
@@ -121,6 +122,7 @@ export function ChatToolPart({
     return <ChatSubagents output={output} errorText={errorText} />;
   }
 
+  const app = readMCPAppView(part);
   const outputErrorReason = parseToolOutputError(output);
   const askUserInput =
     kind === "ask-user" && toolName === "ask_user" && !part.providerExecuted && isClientTool(part)
@@ -128,40 +130,50 @@ export function ChatToolPart({
       : null;
   const hasError = part.state === "output-error" || outputErrorReason != null;
   return (
-    <ChatToolDisclosure part={part}>
-      <ToolHeader
-        title={part.title}
-        preliminary={!hasError && part.state === "output-available" && part.preliminary}
-        type={part.type}
-        toolName={part.type === "dynamic-tool" ? toolName : undefined}
-        state={hasError ? "output-error" : part.state}
-      />
-      <ToolContent>
-        {part.state === "input-available" && askUserInput && onAnswerClientTool ? (
-          <AskUserToolCard
-            input={askUserInput}
-            onSubmit={(answer) => onAnswerClientTool(toolName, part.toolCallId, answer)}
-          />
-        ) : null}
-        {kind === "ask-user" && part.state === "output-available" && askUserInput ? (
-          <AskUserAnsweredCard input={askUserInput} output={output} />
-        ) : null}
-        {hasError ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-relaxed text-destructive">
-            {errorText?.trim() || outputErrorReason || "工具调用失败，未返回错误详情。"}
-          </div>
-        ) : null}
-        {kind === "ask-user" ? null : (
-          <>
-            {askUserInput == null && input !== undefined ? <ToolJsonBlock value={input} /> : null}
-            {askUserInput == null && input === undefined && rawInput !== undefined ? (
-              <ToolJsonBlock value={{ rawInput }} />
-            ) : null}
-            {askUserInput == null && output !== undefined ? <ToolJsonBlock value={output} /> : null}
-          </>
-        )}
-      </ToolContent>
-    </ChatToolDisclosure>
+    <>
+      {app && <MCPAppView key={part.toolCallId} view={app} />}
+      <ChatToolDisclosure part={part}>
+        <ToolHeader
+          title={part.title}
+          preliminary={!hasError && part.state === "output-available" && part.preliminary}
+          type={part.type}
+          toolName={part.type === "dynamic-tool" ? toolName : undefined}
+          state={hasError ? "output-error" : part.state}
+        />
+        <ToolContent>
+          {kind === "agent-ui" && part.state === "input-available" && (
+            <p className="text-sm text-muted-foreground">
+              等待发起操作的页面回传结果。若已刷新，请核对页面状态后停止本轮。
+            </p>
+          )}
+          {part.state === "input-available" && askUserInput && onAnswerClientTool ? (
+            <AskUserToolCard
+              input={askUserInput}
+              onSubmit={(answer) => onAnswerClientTool(toolName, part.toolCallId, answer)}
+            />
+          ) : null}
+          {kind === "ask-user" && part.state === "output-available" && askUserInput ? (
+            <AskUserAnsweredCard input={askUserInput} output={output} />
+          ) : null}
+          {hasError ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-relaxed text-destructive">
+              {errorText?.trim() || outputErrorReason || "工具调用失败，未返回错误详情。"}
+            </div>
+          ) : null}
+          {kind === "ask-user" ? null : (
+            <>
+              {askUserInput == null && input !== undefined ? <ToolJsonBlock value={input} /> : null}
+              {askUserInput == null && input === undefined && rawInput !== undefined ? (
+                <ToolJsonBlock value={{ rawInput }} />
+              ) : null}
+              {askUserInput == null && output !== undefined ? (
+                <ToolJsonBlock value={app ? app.resultFields : output} />
+              ) : null}
+            </>
+          )}
+        </ToolContent>
+      </ChatToolDisclosure>
+    </>
   );
 }
 

@@ -6,8 +6,10 @@ import {
   toolOutcomeSchema,
   askUserInputSchema,
   askUserResponseSchema,
+  uiAgentClientToolSchemas,
 } from "@repo/agent-runtime";
 import { getToolName, isToolUIPart, type UIMessage, type UIMessagePart } from "ai";
+import type { ZodType } from "zod";
 
 import { RequestError } from "../../errors.js";
 
@@ -165,9 +167,25 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
 
   for (const part of clientResponses) {
     if (part.state === "approval-responded") continue;
-    if (getToolName(part) !== "ask_user") throw new RequestError("client tool has no registered result validator");
-    if (part.state === "output-error") continue;
+    const toolName = getToolName(part);
     const output = "output" in part ? part.output : undefined;
+    const schema = Object.hasOwn(uiAgentClientToolSchemas, toolName)
+      ? uiAgentClientToolSchemas[toolName as keyof typeof uiAgentClientToolSchemas]
+      : undefined;
+    if (toolName !== "ask_user" && !schema) {
+      throw new RequestError("client tool has no registered result validator");
+    }
+    if (part.state === "output-error") continue;
+    if (schema) {
+      if (!schema.input.safeParse(part.input).success) {
+        throw new RequestError(`${toolName} continuation has invalid input`);
+      }
+      const parsed = toolOutcomeSchema(schema.output as ZodType<unknown>).safeParse(output);
+      if (!parsed.success || parsed.data.status !== "completed") {
+        throw new RequestError(`${toolName} continuation has invalid output`);
+      }
+      continue;
+    }
     const parsed = toolOutcomeSchema(askUserResponseSchema).safeParse(output);
     if (!parsed.success || parsed.data.status !== "completed") {
       throw new RequestError("ask_user continuation has an invalid answer");

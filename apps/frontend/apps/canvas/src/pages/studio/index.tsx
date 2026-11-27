@@ -1,3 +1,4 @@
+import { AgentUIPermissionDialog, createWorkspaceBridge, useWebMCPRegistration } from "@repo/ai-elements/agent-ui";
 import { getCanvasSettings } from "@repo/api/admin";
 import { canvasCreateArchive, canvasUpdateCanvasView } from "@repo/api/canvas";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from "@repo/design-system";
@@ -146,6 +147,8 @@ export default function StudioPage() {
 }
 
 function StudioContent() {
+  const [page] = useState(createWorkspaceBridge);
+  useWebMCPRegistration(page);
   const navigate = useNavigate();
   const { projectId = "", canvasId = "" } = useParams();
   const { abortUploadAllFiles, abortUploadFile, customRequest } = useSilentUploadAsset();
@@ -1863,13 +1866,14 @@ function StudioContent() {
   };
 
   const handleViewChange = async (next: StudioView) => {
-    if (next === view || viewChanging) return;
+    if (next === view) return true;
+    if (viewChanging) return false;
     const previous = view;
     setViewChanging(true);
     const canChange = await waitForCanvasEditingBeforeViewChange(view, next, canvasBoardRef.current?.finishEditing);
     if (!canChange) {
       setViewChanging(false);
-      return;
+      return false;
     }
     stopPlayback();
     canvasBoardRef.current?.pauseMedia();
@@ -1881,7 +1885,7 @@ function StudioContent() {
     setView(next);
     if (!canvas) {
       setViewChanging(false);
-      return;
+      return true;
     }
     try {
       await mutationCoordinator.enqueue(() =>
@@ -1892,12 +1896,14 @@ function StudioContent() {
           { skipErrorNotify: true },
         ),
       );
+      return true;
     } catch {
       setView(previous);
       toast.add({
         type: "error",
         title: t("视图切换保存失败"),
       });
+      return false;
     } finally {
       setViewChanging(false);
     }
@@ -2002,7 +2008,16 @@ function StudioContent() {
         onExport={() => void handleExport()}
         onOpenExportHistory={() => setExportHistoryOpen(true)}
         onToggleChat={() => setChatOpen((open) => !open)}
-        onViewChange={(next) => guard(() => handleViewChange(next))}
+        onViewChange={async (next) => {
+          if (editing) {
+            try {
+              await finishEditing();
+            } catch {
+              return false;
+            }
+          }
+          return handleViewChange(next);
+        }}
         chatOpen={chatOpen}
         shotCount={formalShotCount}
         title={canvas?.Name || t("剧集创作")}
@@ -2133,6 +2148,7 @@ function StudioContent() {
                         <div className="flex shrink-0 items-center justify-between gap-6">
                           {selectedIndex >= 0 && currentShot ? (
                             <ShotTitle
+                              key={currentShot.id}
                               disabled={saving || creating || Boolean(currentShot.storyboardTaskRunId)}
                               index={selectedIndex}
                               name={currentShot.name}
@@ -2347,7 +2363,7 @@ function StudioContent() {
             ) : null}
           </div>
 
-          {view === "canvas" && chatOpen ? (
+          {chatOpen ? (
             <aside
               aria-label={t("画布 AI 助手")}
               className={`z-20 min-h-0 shrink-0 overflow-hidden bg-background ${
@@ -2385,7 +2401,7 @@ function StudioContent() {
                   }`}
                 />
               </div>
-              <CanvasConversation projectId={projectId} canvasId={canvasId} />
+              <CanvasConversation page={page} projectId={projectId} canvasId={canvasId} />
             </aside>
           ) : null}
         </div>
@@ -2410,6 +2426,7 @@ function StudioContent() {
           />
         ) : null}
       </div>
+      <AgentUIPermissionDialog bridge={page} />
     </main>
   );
 }

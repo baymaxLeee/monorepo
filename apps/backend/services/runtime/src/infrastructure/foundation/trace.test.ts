@@ -6,15 +6,17 @@ import { propagationHeaders, runWithContext } from "./trace.js";
 
 test("concurrent request contexts do not leak trace headers", async () => {
   await Promise.all(
-    ["a", "b"].map((suffix) =>
-      runWithContext({ traceId: `trace-${suffix}`, traceState: `vendor=${suffix}` }, async () => {
+    ["a", "b"].map((suffix, index) => {
+      const traceId = String(index + 1).repeat(32);
+      const traceParent = `00-${traceId}-${String(index + 3).repeat(16)}-01`;
+      return runWithContext({ traceId, traceParent, traceState: `vendor=${suffix}` }, async () => {
         await setImmediate();
         assert.deepEqual(propagationHeaders(), {
-          "X-Trace-Id": `trace-${suffix}`,
+          traceparent: traceParent,
           tracestate: `vendor=${suffix}`,
         });
-      }),
-    ),
+      });
+    }),
   );
   assert.deepEqual(propagationHeaders(), {});
 });

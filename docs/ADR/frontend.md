@@ -47,6 +47,30 @@ Overlay 层级按 React 所有权和 portal-layer 管理，不维护业务 z-ind
 AI UI 消费原生消息/工具/审批/来源/文件部分，依据 metadata 选择展示，不靠
 工具名称硬编码另一套协议。AI Elements 保持源码组合和重型子路径边界。
 
+Chat 的 Agent-native UI 实验使用同一 MFE 内的懒加载会话子路由，而不是新 MFE、
+第二套会话或 Artifact iframe。`@repo/ai-elements/agent-ui` 在可信顶层页面创建
+UI SDK Agent Bridge，复用会话组件，并把官方 `snapshot`、`query`、`act` 作为
+AI SDK 客户端执行工具返回现有 `addToolOutput` 续跑链路。Cloud 路由通过请求中的
+`client_capabilities.ui_agent = "ui-sdk"` opt-in；Desktop Local 路由通过受限 IPC
+把已校验的工具结果续接到同一 `turnId`。Canvas 创作页同时为内嵌会话和浏览器注册这套工具，开放创作视图、分镜数量与当前分镜名称。已确认的视图切换和改名沿用编辑器现有的保存、并发和失败处理。
+
+项目列表的搜索表单采用 WebMCP 声明式 API。浏览器可以按关键词查询当前身份可见的项目，复用项目列表 API 的权限和分页，以结构化数据返回结果。[Chrome 声明式表单](https://developer.chrome.com/docs/ai/webmcp/declarative-api)。
+
+创作页和工作台的浏览器 Agent 通过同一个 bridge 调用 WebMCP。页面挂载时检测 `document.modelContext.registerTool`，
+注册三个官方工具，离开时注销。两端的应用内会话只在发起请求的页面消费实时 `onToolCall`；
+重连与历史回放展示执行状态。Stop 和路由卸载会取消本页待确认的操作。执行状态不明时由用户核对并停止等待。
+UI SDK 在文档内保留已离开控件的最后状态，工作台会话或画布标识变化时，跨 MFE 路由加载新文档，隔离已离开页面的字段。
+
+Cloud、Canvas 和 Desktop 共用会话中的 MCP App renderer。宿主从已完成的 MCP 调用取出验证过的 HTML，将结果通过官方 JSON-RPC bridge 传入两层 opaque sandbox。内嵌应用可以读取本次调用的资源，也可提出文字追问。用户在宿主确认后文字追加至原草稿，随后由现有输入框提交。应用还可请求共享选中片段作为下一条用户消息的上下文；宿主展示内容，用户同意后按调用保存最新取值，发送成功后消费。宿主不向 iframe 提供连接凭据。参见 [AI SDK MCP Apps](https://ai-sdk.dev/docs/ai-sdk-core/mcp-apps)。
+
+字段历史仅覆盖工作台，可按来源撤销、重做和预览可还原的值。工作台用户可以选择将此后修改的字段附入下一条新消息。
+私密字段由 SDK 遮盖。页面工具返回的标签和字段值按 `private-untrusted` 数据处理。
+自定义控件通过 `definePrimitive` 的 `agent` 声明动作，保存回执只读，暴露版本与保存时间。
+前端 `allow` 负责用户确认，业务服务负责授权与保存。模型生成的 HTML 在 sandboxed Artifact iframe 中运行。
+参见 [UI SDK Agent 指南](https://ui-sdk.dev/docs/agents/connect-an-agent/guide)、
+[WebMCP 注册与工具标注](https://ui-sdk.dev/docs/agents/connect-an-agent/webmcp)
+及[历史与撤销](https://ui-sdk.dev/docs/agents/connect-an-agent/history-and-undo)。
+
 原生 part 全量处理、消息操作与恢复遵守当前
 [Chat UI 协议](chat-ui-protocol.md)。
 

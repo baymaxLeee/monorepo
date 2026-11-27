@@ -1,3 +1,4 @@
+import { OpenTelemetry } from "@ai-sdk/otel";
 import { context, SpanStatusCode, trace, type Attributes, type Context, type Span } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -5,6 +6,19 @@ import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 let shutdownTracerProvider: (() => Promise<void>) | null = null;
+
+let modelTelemetry: OpenTelemetry | undefined;
+
+export function agentModelTelemetry() {
+  return (
+    modelTelemetry && {
+      functionId: "runtime.agent",
+      recordInputs: false,
+      recordOutputs: false,
+      integrations: [modelTelemetry],
+    }
+  );
+}
 
 export function configureOpenTelemetry(serviceName: string): void {
   if (shutdownTracerProvider) {
@@ -33,12 +47,14 @@ export function configureOpenTelemetry(serviceName: string): void {
   });
 
   provider.register();
+  modelTelemetry = new OpenTelemetry();
   shutdownTracerProvider = () => provider.shutdown();
 }
 
 export async function shutdownOpenTelemetry(): Promise<void> {
   const shutdown = shutdownTracerProvider;
   shutdownTracerProvider = null;
+  modelTelemetry = undefined;
   if (shutdown) {
     await shutdown();
   }

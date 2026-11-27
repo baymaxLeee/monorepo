@@ -11,7 +11,6 @@ import (
 var forwardedHeaders = []string{
 	"traceparent",
 	"tracestate",
-	"X-Trace-Id",
 }
 
 type Client struct {

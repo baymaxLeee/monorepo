@@ -16,7 +16,6 @@ import (
 	"github.com/example/monorepo/iam/internal/infrastructure/security"
 	"github.com/example/monorepo/iam/internal/infrastructure/securityadapter"
 	"github.com/example/monorepo/observability-go"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func RunSeed(ctx context.Context) error {
@@ -90,7 +89,7 @@ func RunServer(ctx context.Context) error {
 		Auth: auth, Roles: roles, Workspace: workspace, Verify: verify,
 		IsNotFound: func(err error) bool { return errors.Is(err, repositories.ErrNotFound) },
 	})
-	server := &http.Server{Addr: ":" + cfg.Port, Handler: otelhttp.NewHandler(handler, "iam"), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Addr: ":" + cfg.Port, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	serverErrors := make(chan error, 1)
 	go func() {
 		slog.Info("iam starting", "port", cfg.Port)

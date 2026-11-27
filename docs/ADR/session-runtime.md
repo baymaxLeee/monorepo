@@ -65,7 +65,7 @@ Chat 继续向浏览器提供 `/conversations` 产品 API：
 
 Chat 与 Runtime 使用独立 PostgreSQL database，并明确禁止通过 XA/2PC、共享数据库或跨库事务把两个服务重新耦合。创建是一段最终一致的业务流程：Chat 使用稳定 `request_id` 调用 Runtime 创建/返回同一 Session，再幂等写入本地映射；响应丢失按原键重试。进程若在 Runtime 成功后、本地映射提交前崩溃，当前实现仍需要识别并回收孤立 Session；它尚未持久化 create/delete saga。未来增强方向是 Chat 本地持久化 intent/outbox、补偿和 reconciliation，不是追求跨库 ACID。删除先请求 Runtime，再删除本地映射，未知结果必须沿原身份对账，不能先删映射而失去 Runtime 清理责任。
 
-产品标题、项目/Canvas 绑定以 Chat/Canvas 为权威，不进入 Runtime Session 表。产品宿主在每次 Agent run 前解析业务资源、模型、skills 与 plugins，把结果投影为 tenant-neutral 的 `TurnCapabilities = { provider, media, plugins, skills, memories }`；其中 `memories` 只是上层已授权内容的冻结投影，不携带用户身份。Runtime 只冻结并消费这份执行 capability，不把 `project_id`、`canvas_id` 或其他业务 binding 升级为 Session 元数据。产品 conversation 的创建/删除/查询始终经上层已授权映射，禁止直接信任客户端传入的 `runtime_session_id`。
+产品标题、项目/Canvas 绑定以 Chat/Canvas 为权威，不进入 Runtime Session 表。产品宿主在每次 Agent run 前解析业务资源、模型、skills 与 plugins，把结果投影为 tenant-neutral 的 `TurnCapabilities = { provider, media, plugins, skills, memories, client? }`；其中 `memories` 只是上层已授权内容的冻结投影，不携带用户身份，`client` 只声明该 Turn 可用的非授权性浏览器执行端（例如可信顶层页面的 UI SDK bridge）。Runtime 只冻结并消费这份执行 capability，不把 `project_id`、`canvas_id` 或其他业务 binding 升级为 Session 元数据。产品 conversation 的创建/删除/查询始终经上层已授权映射，禁止直接信任客户端传入的 `runtime_session_id`。
 
 本次 Runtime 绿地重构允许直接删除旧 API、旧状态模型和兼容读取，但不授权改写已经应用的 migration 或隐式删除持久数据库。终态通过同一 release 内新的 contiguous step 向前收敛；数据删除仍只由部署时另行明确授权的 reset 执行，运行时代码不自行 drop 数据。外部资产和未决副作用必须由各自 owner 对账，不能因 Runtime 模型重建而假定已经撤销。
 
@@ -81,7 +81,7 @@ materialized step snapshot、分支 revision 与终态必须一致衔接；查�
 
 Cloud 已将一个用户任务保持为唯一 `thread_turns.id`；client-tool/approval continuation 把前 attempt 结算为 `waiting`、追加新 `turn_attempts.attempt_epoch`，而不是新建 Turn。`turn_steps`、`tool_effects`、`turn_leases`、Sandbox execution 和 workspace writer 都绑定精确 attempt；一个 Session 的 `waiting/running/cancel_requested` Turn 受同一 one-active-Turn 约束，只有匹配的 continuation 能把 waiting Turn 重新置为 running。
 
-每个 Cloud attempt 在模型请求或 host effect 前写入不可变、无 secret 的 `turn_resume_envelopes`。它绑定 Session、history item/revision/digest、instruction/tool catalog/workspace digest、compactor version、remote binding，以及冻结的 provider/model binding、operation、reasoning、skills/plugin activation、approval/permission 和 assistant item identity。tenant/workspace/user 或产品 auth scope 不进入 envelope；secret-bearing `TurnCapabilities` 由上层宿主在恢复前重新签发。
+每个 Cloud attempt 在模型请求或 host effect 前写入不可变、无 secret 的 `turn_resume_envelopes`。它绑定 Session、history item/revision/digest、instruction/tool catalog/workspace digest、compactor version、remote binding，以及冻结的 provider/model binding、operation、reasoning、skills/plugin activation、approval/permission、非授权性 client capability 和 assistant item identity。tenant/workspace/user 或产品 auth scope 不进入 envelope；secret-bearing `TurnCapabilities` 由上层宿主在恢复前重新签发，恢复时再合并 envelope 固定的 client capability 以保持同一工具目录。
 
 Cloud tool effect 的稳定身份是 `(turn_id, tool_call_id)`；execute wrapper 在进入 host code 前原子 claim，完整 canonical input digest 负责身份判等，截断/redacted `input_json` 只用于观察。completed effect 可跨 attempt 返回已持久化结果，tool/digest 改变直接冲突，任何已存在的 `running` claim 都视为 unconfirmed：同 attempt 的重复进入也不能执行第二次，跨 attempt 则必须 reconciliation。
 

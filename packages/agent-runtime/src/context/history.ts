@@ -1,5 +1,12 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
-import { convertToModelMessages, pruneMessages, type ModelMessage, type ToolSet, type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  isToolUIPart,
+  pruneMessages,
+  type ModelMessage,
+  type ToolSet,
+  type UIMessage,
+} from "ai";
 import { z } from "zod";
 
 import type { ModelStreamRetryPolicy } from "../turn/model-retry.js";
@@ -122,6 +129,25 @@ function projectedTokenCount(messages: ModelMessage[]): number {
   }, 0);
 }
 
+// MCP _meta is host-only, including captured ui:// resources. Strip it even
+// when a previous turn's plugin is no longer installed and during compaction.
+function modelVisibleMessage(message: AnyUIMessage): AnyUIMessage {
+  if (message.role !== "assistant") return message;
+  let changed = false;
+  const parts = message.parts.map((part) => {
+    if (!isToolUIPart(part) || part.state !== "output-available") return part;
+    const policy = part.toolMetadata?.agent;
+    if (!policy || typeof policy !== "object" || !("source" in policy) || policy.source !== "mcp") return part;
+    const output = part.output;
+    const data = output?.data;
+    if (!data || typeof data !== "object" || !("_meta" in data)) return part;
+    const { _meta, ...visible } = data;
+    changed = true;
+    return { ...part, output: { ...output, data: visible } };
+  });
+  return changed ? { ...message, parts } : message;
+}
+
 /** Canonical journal -> bounded model window. The journal is never mutated. */
 export async function projectRuntimeContext(input: {
   messages: AnyUIMessage[];
@@ -139,6 +165,7 @@ export async function projectRuntimeContext(input: {
   compactionRetry?: ModelStreamRetryPolicy;
   onCompaction?: (event: ContextCompactionEvent) => void;
 }) {
+  const journal = input.messages.map(modelVisibleMessage);
   const window = resolveContextWindow(input.limits);
   const checkpoint = input.checkpoint;
   const candidate = parseCheckpointState(checkpoint?.state);
@@ -148,27 +175,25 @@ export async function projectRuntimeContext(input: {
       ? null
       : compacted;
   const covered =
-    stored && checkpoint
-      ? input.messages.findIndex((message) => message.id === checkpoint.coveredThroughMessageId)
-      : -1;
+    stored && checkpoint ? journal.findIndex((message) => message.id === checkpoint.coveredThroughMessageId) : -1;
   const tail =
     covered < 0
       ? null
       : candidate?.version === "step-compaction-v1"
-        ? afterCompletedStep(input.messages, covered, candidate)
-        : input.messages.slice(covered + 1);
+        ? afterCompletedStep(journal, covered, candidate)
+        : journal.slice(covered + 1);
   let state = tail ? stored : null;
   let coveredThroughMessageId = tail ? checkpoint!.coveredThroughMessageId : null;
-  const pending = tail ?? input.messages;
+  const pending = tail ?? journal;
   const sizes = pending.map(estimateMessageTokens);
   const retentionBudget = userTextBudget(window.recentTailTokens);
-  const alreadyCovered = tail ? retainUserText(input.messages, covered + 1, retentionBudget, new Set(tail)).tokens : 0;
+  const alreadyCovered = tail ? retainUserText(journal, covered + 1, retentionBudget, new Set(tail)).tokens : 0;
   const estimated =
     alreadyCovered +
     sizes.reduce((sum, size) => sum + size, state && "summary" in state ? estimateTextTokens(state.summary) + 64 : 0);
   let splitAt = 0;
   if (Math.max(estimated, input.previousInputTokens ?? 0) >= window.compactAt) {
-    const reserve = retainUserText(input.messages, input.messages.length - 1, retentionBudget).tokens;
+    const reserve = retainUserText(journal, journal.length - 1, retentionBudget).tokens;
     const budget = window.recentTailTokens - reserve;
     splitAt = pending.length;
     let tailTokens = 0;
@@ -186,7 +211,7 @@ export async function projectRuntimeContext(input: {
     candidate.retainUser &&
     splitAt === 1 &&
     pending[0]?.role === "user" &&
-    input.messages.indexOf(pending[0]) <= covered
+    journal.indexOf(pending[0]) <= covered
   )
     splitAt = 0;
   let compactionUsage = EMPTY_RUNTIME_TOKEN_USAGE;
@@ -240,10 +265,10 @@ export async function projectRuntimeContext(input: {
       state.version === "responses-compaction-v2"
         ? input.remoteCompaction!.message(state)
         : runtimeContextMessage(renderCompaction(state, coveredThroughMessageId));
-    const end = input.messages.findIndex((message) => message.id === coveredThroughMessageId) + 1;
+    const end = journal.findIndex((message) => message.id === coveredThroughMessageId) + 1;
     projectedTokens += projectedTokenCount([checkpointMessage]);
     const room = window.compactAt - projectedTokens;
-    const retained = retainUserText(input.messages, end, Math.min(retentionBudget, room), new Set(recent));
+    const retained = retainUserText(journal, end, Math.min(retentionBudget, room), new Set(recent));
     projected.unshift(...retained.selected, checkpointMessage);
     projectedTokens += retained.tokens;
   }
@@ -263,7 +288,7 @@ export async function projectRuntimeContext(input: {
     input.onCompaction?.({ state: "completed", phase: "history" });
   }
   let revision = splitAt > 0 ? (checkpoint?.revision ?? 0) + 1 : (checkpoint?.revision ?? null);
-  const inputItem = input.messages.at(-1);
+  const inputItem = journal.at(-1);
   return {
     saveStepCheckpoint: async (step: Omit<StepCheckpoint, "version">) => {
       if (!inputItem) throw new Error("step checkpoint has no journal input");

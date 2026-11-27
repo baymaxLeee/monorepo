@@ -62,9 +62,9 @@ vi.mock("@ai-sdk/react", async () => {
 vi.mock("../../hooks/useConversationChat", async (importOriginal) => {
   const actual = await importOriginal<typeof ConversationModule>();
   return {
-    useConversationChat: (id: string) => {
+    useConversationChat: (...args: Parameters<typeof actual.useConversationChat>) => {
       state.sessionRenders++;
-      return actual.useConversationChat(id);
+      return actual.useConversationChat(...args);
     },
   };
 });
@@ -268,6 +268,7 @@ beforeEach(() => {
   state.promptClear.mockReset();
   state.sendMessage.mockReset();
   state.sendMessage.mockResolvedValue(undefined);
+  state.addToolOutput.mockReset();
   state.serverActiveRunId = "run";
 });
 
@@ -327,6 +328,35 @@ test("first request preserves composer parts after conversation creation", async
   );
 
   await waitFor(() => expect(state.sendMessage).toHaveBeenCalledWith({ parts }, { body: {} }));
+});
+
+test("hydrating an advertised UI tool never executes an action or submits a result", async () => {
+  const executor = vi.fn(async () => []);
+  const requestBody = { client_capabilities: { ui_agent: "ui-sdk" } };
+  render(
+    <MemoryRouter>
+      <ChatSession conversationId="conversation" requestBody={requestBody} clientToolExecutor={executor} />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(screen.getByText("Test")).toBeTruthy());
+  state.messages = [
+    {
+      id: "ui-tool",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-snapshot",
+          toolCallId: "snapshot-one",
+          state: "input-available",
+          input: {},
+          toolMetadata: { agent: { execution: "client", uiKind: "agent-ui" } },
+        },
+      ],
+    } as UIMessage,
+  ];
+  await publish();
+  expect(executor).not.toHaveBeenCalled();
+  expect(state.addToolOutput).not.toHaveBeenCalled();
 });
 
 test("editing a message on HTTP preserves its target and generates a new message id", async () => {

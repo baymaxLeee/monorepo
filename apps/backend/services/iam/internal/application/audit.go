@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // AuditMeta carries the request-scoped attribution for a high-value mutation:
@@ -17,11 +19,16 @@ type AuditMeta struct {
 }
 
 // AuditMetaFromHTTP reads the actor from the verified access token and the
-// trace id from the gateway-propagated header (see gateway trace_id middleware).
+// trace id from the active OpenTelemetry span.
 func AuditMetaFromHTTP(r *http.Request, actorUserID string) AuditMeta {
+	spanContext := trace.SpanContextFromContext(r.Context())
+	traceID := ""
+	if spanContext.IsValid() {
+		traceID = spanContext.TraceID().String()
+	}
 	return AuditMeta{
 		ActorUserID: actorUserID,
-		TraceID:     strings.TrimSpace(r.Header.Get("X-Trace-Id")),
+		TraceID:     traceID,
 	}
 }
 

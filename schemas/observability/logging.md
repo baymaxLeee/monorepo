@@ -81,13 +81,14 @@ logger 依 §3 的注册表**自动注入**,业务代码无需手动传入。其
 ## 3. 关联上下文(correlation context)全链路传播
 
 一次请求携带一组**低基数关联标识符**贯穿所有服务:它们既注入每条日志,也在
-服务间调用时透传。规范头一律 `X-*`(禁止 `X-Request-Id`)。
+服务间调用时透传。Trace 使用 W3C Trace Context；身份与租户字段使用受信的
+`X-*` header（禁止 `X-Request-Id`）。
 
 ### 传播字段注册表(唯一真相源)
 
 | 字段 | wire header | 日志键 | 来源 / 语义 |
 | --- | --- | --- | --- |
-| trace_id | `X-Trace-Id`(兼容 `traceparent`) | `trace_id` | gateway 边缘生成/规范化(32-hex);纯链路关联 |
+| trace_id | `traceparent` | `trace_id` | gateway 边缘生成/规范化 W3C Trace Context；日志取其中 32-hex trace-id |
 | user_id | `X-Auth-User-ID` | `user_id` | gateway 验证 JWT 后注入;身份凭证 |
 | workspace_id | `X-Workspace-Id` | `workspace_id` | 预留;gateway 拿到数据时注入 |
 | tenant_id | `X-Tenant-Id` | `tenant_id` | 预留;gateway 拿到数据时注入 |
@@ -103,7 +104,7 @@ logger 只自动注入低基数字段,避免把完整用户/profile 快照变成
 ### 每个服务遵循同一模式
 
 1. **入站**:HTTP 中间件按注册表读全部 header,存入语言原生请求上下文
-   (Go `context`、Python `contextvar`、Node `AsyncLocalStorage`),回写 `X-Trace-Id`。
+   (Go `context`、Python `contextvar`、Node `AsyncLocalStorage`),回写 `traceparent`。
 2. **日志注入**:logger 遍历注册表,把上下文里**存在**的字段注入每条日志(空则省略键)。
 3. **出站(服务间)**:HTTP 客户端遍历注册表,把当前上下文的字段写回下游请求头,
    实现跨服务串联。Node 侧 Runtime 的 service-local client 从当前请求上下文生成

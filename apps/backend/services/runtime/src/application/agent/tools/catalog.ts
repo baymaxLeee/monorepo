@@ -87,6 +87,7 @@ export class ToolCatalog {
       permissionProfile: ":workspace",
     },
     continuation?: UIMessage,
+    clientCapabilities: { uiAgent?: boolean } = {},
   ) {
     await using acquired = new AsyncDisposableStack();
     const cloudAdapters = await createCloudToolAdapters(executionPolicy, continuation);
@@ -107,6 +108,7 @@ export class ToolCatalog {
       model: createRuntimePortableToolModel(providers.textProvider),
       webSearch,
       skillSource: { activeSkillName, skills },
+      uiAgent: clientCapabilities.uiAgent === true,
     });
     let activatedSkill = null;
     if (activeSkillName) {

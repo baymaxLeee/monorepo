@@ -453,3 +453,38 @@ test("remote checkpoint replay spends the 20k carryover budget newest first on t
   const cost = retained.reduce((n, item) => n + estimateTextTokens(JSON.stringify(item)) + 64, 0);
   assert.ok(cost <= 20_000 && cost >= 19_990);
 });
+
+test("replayed MCP results keep host metadata out of the model after deselecting the plugin", async () => {
+  const journal: UIMessage = {
+    id: "view",
+    role: "assistant",
+    parts: [
+      {
+        type: "dynamic-tool",
+        toolName: "mcp__knowledge__search",
+        toolCallId: "search",
+        state: "output-available",
+        input: { query: "example" },
+        toolMetadata: { agent: { source: "mcp" } },
+        output: {
+          ok: true,
+          status: "completed",
+          data: {
+            content: [{ type: "text", text: "visible-passage" }],
+            _meta: { mcpAppResource: { html: "private-html" }, account: "private-state" },
+          },
+        },
+      },
+    ],
+  };
+  const result = await projectRuntimeContext({
+    messages: [journal],
+    model: compactionModel("summary"),
+    checkpoint: null,
+    limits: compactLimits,
+    saveCheckpoint: async () => {},
+  });
+  assert.match(JSON.stringify(result.messages), /visible-passage/);
+  assert.doesNotMatch(JSON.stringify(result.messages), /private-html|private-state|_meta/);
+  assert.match(JSON.stringify(journal), /private-html/);
+});

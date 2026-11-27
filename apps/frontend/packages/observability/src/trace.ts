@@ -12,7 +12,6 @@ export function createSpanId(): string {
 
 export function traceHeaders(traceId = createTraceId()): Record<string, string> {
   return {
-    "X-Trace-Id": traceId,
     traceparent: `00-${traceId}-${createSpanId()}-01`,
   };
 }

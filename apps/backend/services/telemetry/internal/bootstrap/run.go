@@ -13,7 +13,6 @@ import (
 	"github.com/example/monorepo/telemetry/internal/application"
 	"github.com/example/monorepo/telemetry/internal/infrastructure/clickhouse"
 	"github.com/example/monorepo/telemetry/internal/infrastructure/persistence"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func Run(ctx context.Context) error {
@@ -38,8 +37,7 @@ func Run(ctx context.Context) error {
 	defer repository.Close()
 	traceStore := clickhouse.New(config.ClickHouseHTTPURL, config.ClickHouseUser, config.ClickHousePassword)
 	service := application.NewService(repository, traceStore, config.Environment, config.OTELExporterEndpoint, config.SampleRatePerform, config.SampleRateEvent)
-	handler := otelhttp.NewHandler(httpapi.New(service), "telemetry")
-	server := &http.Server{Addr: ":" + config.Port, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	server := &http.Server{Addr: ":" + config.Port, Handler: httpapi.New(service), ReadHeaderTimeout: 10 * time.Second}
 
 	errorChannel := make(chan error, 1)
 	go func() {

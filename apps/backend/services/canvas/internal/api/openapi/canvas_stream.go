@@ -11,12 +11,13 @@ import (
 
 	stream "github.com/example/monorepo/canvas/internal/application/canvasstream"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
-	"github.com/go-chi/chi/v5"
+	"github.com/gin-gonic/gin"
 )
 
 var errCanvasFrameTooLarge = errors.New("canvas patch exceeds frame budget")
 
-func (transport *Router) canvasStream(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+func (transport *Router) canvasStream(ctx context.Context, c *gin.Context) error {
+	w, r := c.Writer, c.Request
 	raw := r.Header.Get("Last-Event-ID")
 	if raw == "" {
 		raw = r.URL.Query().Get("cursor")
@@ -26,7 +27,7 @@ func (transport *Router) canvasStream(ctx context.Context, w http.ResponseWriter
 		return errno.New(errno.ErrInvalidArgument)
 	}
 	workspace := metadataWorkspace(r)
-	project, canvas := chi.URLParam(r, "projectId"), chi.URLParam(r, "canvasId")
+	project, canvas := c.Param("projectId"), c.Param("canvasId")
 	events, err := transport.nodes.CanvasEvents(ctx, &workspace, project, canvas, cursor)
 	if err != nil && !errors.Is(err, stream.ErrCursorExpired) {
 		return err

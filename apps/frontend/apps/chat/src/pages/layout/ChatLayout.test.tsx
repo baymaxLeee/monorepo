@@ -167,6 +167,7 @@ test("narrow layouts use a modal inspector without remounting the conversation",
 test("keyboard resizing updates the separator without rendering the conversation", async () => {
   await mount();
   const separator = screen.getByRole("separator", { name: "调整会话记录宽度" });
+  expect(separator.getAttribute("class")).toContain("bg-transparent");
   const previous = separator.getAttribute("aria-valuenow");
   fireEvent.keyDown(separator, { key: "ArrowRight" });
   expect(separator.getAttribute("aria-valuenow")).not.toBe(previous);

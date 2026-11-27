@@ -1,7 +1,10 @@
-import { type ComponentProps, type ReactNode, useCallback, useState } from "react";
+import type { PromptInputRef } from "@repo/ai-elements/prompt-input";
+import { type RefObject, type ComponentProps, type ReactNode, useCallback, useState } from "react";
 
+import { MCPAppContext, type createMCPAppContext } from "../lib/mcp-app-context";
 import type { ActiveTodoList } from "./ChatPlanState";
 import { ChatStream } from "./ChatStream";
+import { MCPAppComposer } from "./MCPAppView";
 import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 
 type ActivePlanState = { conversationId: string; plan: ActiveTodoList };
@@ -12,12 +15,16 @@ export function ConversationSessionView({
   composer,
   overlay,
   pendingInputs,
+  promptRef,
+  appContext,
   ...stream
 }: ComponentProps<typeof ChatStream> & {
   title: string;
   issue?: ReactNode;
   composer: (activePlan: ActiveTodoList | null) => ReactNode;
   overlay?: ReactNode;
+  appContext?: ReturnType<typeof createMCPAppContext>;
+  promptRef?: RefObject<PromptInputRef | null>;
   pendingInputs?: readonly PendingAgentInput[];
 }) {
   const [activePlan, setActivePlan] = useState<ActivePlanState | null>(null);
@@ -36,7 +43,11 @@ export function ConversationSessionView({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <h1 className="sr-only">{title}</h1>
-      <ChatStream {...stream} onActivePlanChange={onActivePlanChange} />
+      <MCPAppContext.Provider value={appContext}>
+        <MCPAppComposer.Provider value={promptRef}>
+          <ChatStream {...stream} onActivePlanChange={onActivePlanChange} />
+        </MCPAppComposer.Provider>
+      </MCPAppContext.Provider>
       <PendingInputStack inputs={pendingInputs ?? []} />
       {issue}
       {composer(displayedPlan)}

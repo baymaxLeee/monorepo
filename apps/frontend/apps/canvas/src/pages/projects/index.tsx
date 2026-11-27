@@ -29,11 +29,11 @@ import { project } from "@/domain";
 import { useCanManageProjects } from "@/hooks/useCanManageProjects";
 import t from "@/utils/i18n";
 
-import { SearchInput } from "../../components/SearchInput";
 import { SortControl } from "../../components/SortControl";
 import { ProjectCoverImage } from "../administration/ProjectCover";
 import { ProjectDialog } from "../administration/ProjectDialog";
 import type { ProjectDialogState } from "../administration/types";
+import { ProjectSearchForm } from "./ProjectSearchForm";
 
 import styles from "./index.module.css";
 
@@ -182,6 +182,17 @@ function ProjectCardSkeleton() {
   );
 }
 
+function listProjectPage(keyword: string, ascending: boolean, pageNum: number) {
+  return listMyProjects({
+    Filter: keyword.trim() ? { Keyword: keyword.trim() } : undefined,
+    Sort: {
+      Field: project.ProjectSortField.UPDATED_AT,
+      Direction: ascending ? CanvasSortDirection.ASC : CanvasSortDirection.DESC,
+    },
+    Page: { PageSize: PAGE_SIZE, PageNum: pageNum },
+  });
+}
+
 export default function ProjectsPage() {
   const [keyword, setKeyword] = useState("");
   const [ascending, setAscending] = useState(false);
@@ -195,14 +206,7 @@ export default function ProjectsPage() {
   const { data, loading, loadingMore } = useInfiniteScroll<ProjectPage>(
     async (currentPage) => {
       const pageNum = (currentPage?.pageNum ?? 0) + 1;
-      const response = await listMyProjects({
-        Filter: debouncedKeyword.trim() ? { Keyword: debouncedKeyword.trim() } : undefined,
-        Sort: {
-          Field: project.ProjectSortField.UPDATED_AT,
-          Direction: ascending ? CanvasSortDirection.ASC : CanvasSortDirection.DESC,
-        },
-        Page: { PageSize: PAGE_SIZE, PageNum: pageNum },
-      });
+      const response = await listProjectPage(debouncedKeyword, ascending, pageNum);
 
       return {
         hasMore: pageNum * PAGE_SIZE < response.Page.Total,
@@ -266,11 +270,16 @@ export default function ProjectsPage() {
               value={sortKey}
             />
 
-            <SearchInput
-              className="w-[240px] max-w-full"
-              onChange={setKeyword}
-              placeholder={t("输入关键词搜索")}
+            <ProjectSearchForm
               value={keyword}
+              onChange={setKeyword}
+              search={async (query) => {
+                const response = await listProjectPage(query, ascending, 1);
+                return {
+                  total: response.Page.Total,
+                  projects: response.Items.map(({ ProjectID, Name }) => ({ id: ProjectID, name: Name })),
+                };
+              }}
             />
           </div>
 

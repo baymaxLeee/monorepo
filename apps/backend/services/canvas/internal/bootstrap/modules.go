@@ -72,7 +72,6 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/usageobserver"
 	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func buildModules(
@@ -83,10 +82,6 @@ func buildModules(
 	pool *pgxpool.Pool,
 	redisClient *redis.Client,
 ) (http.Handler, error) {
-	serviceName := "canvas"
-	if role == roleWorker {
-		serviceName = "canvas-worker"
-	}
 	log := slog.Default()
 	nodeRepository := canvasnodepersistence.NewRepository(db)
 	canvasJournal := canvasnodepersistence.NewEventJournal(db, nodeRepository)
@@ -506,13 +501,5 @@ func buildModules(
 		})
 		handler = workerMux
 	}
-	handler = otelhttp.NewHandler(handler, serviceName, otelhttp.WithFilter(func(request *http.Request) bool {
-		switch request.URL.Path {
-		case "/livez", "/readyz", "/healthz":
-			return false
-		default:
-			return true
-		}
-	}))
 	return handler, nil
 }

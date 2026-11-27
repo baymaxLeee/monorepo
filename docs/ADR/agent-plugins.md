@@ -22,6 +22,8 @@ Catalog 是全局可治理资源；installation 是 tenant/workspace 授权状�
 
 tenant/workspace 只存在于 Admin 与宿主 resolver 的授权输入和返回校验中，不进入 shared agent runtime。宿主确认返回 scope 与当前认证上下文一致后，投影为 tenant-neutral 的冻结 snapshot；shared plugin manager 只验证 snapshot identity、manifest、activation、grant 与 live MCP inventory。恢复时重新经过同一宿主 resolver，并以规范化后的插件内容投影拒绝配置漂移。宿主生成的 snapshot digest 是不透明审计标识，不作为核心层的业务作用域或恢复策略。
 
+共享 MCP 客户端协商官方 Apps 扩展，按 SDK 的可见性规则校验模型工具清单。工具执行成功后，同一授权连接读取所声明的 `ui://` 资源并校验 URI 和 MIME。仅宿主生成的资源随这次工具结果存入 journal 的 `_meta.mcpAppResource`，以便重开历史时展示相同版本。读取资源失败时保留工具执行结果。渲染器仅提供本次资源读取、用户确认的草稿追问和下一条消息的上下文。Turn 结束后连接 grant 失效，历史视图没有远程调用权。Code Mode 可调用的工具返回模型可见数据，普通工具的模型投影与历史压缩均移除宿主 `_meta`。参见 [AI SDK MCP Apps](https://ai-sdk.dev/docs/ai-sdk-core/mcp-apps)。
+
 Release digest 覆盖 endpoint、贡献与策略。配置和 secret 属于 installation，不进入 release digest；resolved snapshot digest 刻意排除 connection grants。持久化 projection 使用逐字段白名单，因此未来给 resolve 结果增加敏感字段也不会默认落库。
 
 ## 发布、安装与产品选择

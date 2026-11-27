@@ -6,18 +6,21 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestBodyLimitScopesLargeUploadsToStorage(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	next := func(c *gin.Context) {
+		w, r := c.Writer, c.Request
 		_, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
-	})
-	handler := BodyLimit(4)(next)
+	}
+	handler := testHandler(BodyLimit(4), next)
 	for name, testCase := range map[string]struct {
 		path string
 		want int

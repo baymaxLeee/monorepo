@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { createMCPClient, MCPClient } from "@ai-sdk/mcp";
+import { mcpAppClientCapabilities, type createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import type { JSONSchema7 } from "@ai-sdk/provider";
 
 import { loadMcpServer } from "./mcp.js";
@@ -227,4 +227,70 @@ test("a close failure reaches the owning turn and concurrent disposal closes onc
     ["rejected", "rejected"],
   );
   assert.equal(closes, 1);
+});
+
+test("MCP Apps cache verified views within a connection and keep app-only tools out of model inventory", async () => {
+  const uri = "ui://knowledge/results";
+  let calls = 0;
+  let reads = 0;
+  let failRead = true;
+  const base = fakeClient({ closes: () => {}, calls: () => {} });
+  const client: MCPClient = {
+    ...base,
+    listTools: async () => ({
+      tools: [
+        { name: "search", inputSchema, _meta: { ui: { resourceUri: uri } } },
+        { name: "expand", inputSchema, _meta: { ui: { visibility: ["app"] } } },
+      ],
+    }),
+    callTool: async () => {
+      calls++;
+      return { content: [{ type: "text", text: "passage" }], _meta: { mcpAppResource: "forged", local: "host-only" } };
+    },
+    readResource: async (request) => {
+      assert.equal(request.uri, uri);
+      reads++;
+      if (failRead) throw new Error("view unavailable");
+      return { contents: [{ uri, mimeType: "text/html;profile=mcp-app", text: "<main>Knowledge</main>" }] };
+    },
+  };
+  const loaded = loadMcpServer(
+    resolved(),
+    context,
+    {},
+    {
+      createClient: async (config) => {
+        assert.deepEqual(config.capabilities, mcpAppClientCapabilities);
+        return client;
+      },
+    },
+  );
+  assert.equal(loaded.manifests.length, 1);
+  const tool = loaded.manifests[0]!.tool as {
+    execute(input: unknown, options: object): Promise<{ ok: boolean; data: { _meta: Record<string, unknown> } }>;
+    toModelOutput(options: { output: unknown }): unknown;
+  };
+  try {
+    const fallback = await tool.execute({ query: "first" }, {});
+    assert.equal(fallback.ok, true);
+    assert.deepEqual(fallback.data._meta, { local: "host-only" });
+    failRead = false;
+    const [result, cached] = await Promise.all(["second", "third"].map((query) => tool.execute({ query }, {})));
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.data._meta.mcpAppResource, {
+      uri,
+      mimeType: "text/html;profile=mcp-app",
+      html: "<main>Knowledge</main>",
+      meta: undefined,
+    });
+    assert.deepEqual(cached.data._meta.mcpAppResource, result.data._meta.mcpAppResource);
+    assert.deepEqual(tool.toModelOutput({ output: result }), {
+      type: "content",
+      value: [{ type: "text", text: "passage" }],
+    });
+    assert.equal(reads, 2);
+    assert.equal(calls, 3);
+  } finally {
+    await loaded.dispose?.();
+  }
 });

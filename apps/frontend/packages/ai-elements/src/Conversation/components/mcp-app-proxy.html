@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src about:; img-src data:; font-src data:; base-uri 'none'; form-action 'none'">
+<title>MCP App</title>
+<style>html,body,iframe{width:100%;height:100%;margin:0;border:0;display:block}</style>
+<body>
+<script>
+  let frame;
+  const send = (target, data) => target.postMessage(data, '*');
+  addEventListener('message', event => {
+    const data = event.data;
+    if (data?.jsonrpc !== '2.0') return;
+    if (event.source === parent) {
+      if (data.method === 'ui/notifications/sandbox-resource-ready') {
+        if (frame || typeof data.params?.html !== 'string') return;
+        frame = document.createElement('iframe');
+        frame.title = 'MCP App';
+        frame.sandbox = 'allow-scripts';
+        frame.referrerPolicy = 'no-referrer';
+        frame.srcdoc = data.params.html;
+        document.body.append(frame);
+      } else if (frame) {
+        send(frame.contentWindow, data);
+      }
+    } else if (frame && event.source === frame.contentWindow && !String(data.method ?? '').startsWith('ui/notifications/sandbox-')) {
+      send(parent, data);
+    }
+  });
+  send(parent, {jsonrpc:'2.0',method:'ui/notifications/sandbox-proxy-ready'});
+</script>
+</html>

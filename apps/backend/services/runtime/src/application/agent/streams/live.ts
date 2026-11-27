@@ -355,11 +355,19 @@ export function activeRunStreamResponse(stream: ActiveRunStream): Response {
   });
 }
 
-export function detachedActiveRunResponse(runId: string, status: 204 | 409): Response {
+export function duplicateActiveRunResponse(sessionId: string, runId: string, hasPageTools: boolean): Response {
+  // A second POST may be consumed by another renderer. GET subscribers can
+  // display the same buffered calls without becoming their executor.
+  if (hasPageTools) return detachedActiveRunResponse(runId, 409, "Reconnect to observe the active page-tool Turn.");
+  return resumeActiveRunStream(sessionId, runId) ?? detachedActiveRunResponse(runId, 409);
+}
+
+export function detachedActiveRunResponse(
+  runId: string,
+  status: 204 | 409,
+  message = "The logical Turn is active but its live stream is not on this process.",
+): Response {
   const headers = { "x-agent-run-id": runId, "x-agent-run-state": "active-detached" };
   if (status === 204) return new Response(null, { status, headers });
-  return Response.json(
-    { code: "active_run_detached", message: "The logical Turn is active but its live stream is not on this process." },
-    { status, headers },
-  );
+  return Response.json({ code: "active_run_detached", message }, { status, headers });
 }

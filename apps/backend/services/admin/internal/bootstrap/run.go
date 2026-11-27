@@ -21,7 +21,6 @@ import (
 	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"github.com/example/monorepo/observability-go"
 	"github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func Run(ctx context.Context) error {
@@ -85,7 +84,7 @@ func Run(ctx context.Context) error {
 	}
 	readiness := health.Readiness{Postgres: pool, Redis: redisClient}
 	handler := httpapi.New(readiness, providers, apps, canvas, skills, benefitPackages, agentPlugins)
-	server := &http.Server{Addr: fmt.Sprintf(":%d", config.Port), Handler: otelhttp.NewHandler(handler, "admin"), ReadHeaderTimeout: config.ShutdownTimeout}
+	server := &http.Server{Addr: fmt.Sprintf(":%d", config.Port), Handler: handler, ReadHeaderTimeout: config.ShutdownTimeout}
 	rpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.RPCPort))
 	if err != nil {
 		return fmt.Errorf("listen on admin RPC port: %w", err)

@@ -24,6 +24,8 @@ import { useForkConversation } from "../../hooks/useForkConversation";
 import { useSourceAction } from "../../hooks/useSourceAction";
 import type { ChatUIMessage } from "../../lib/chat-message";
 import { buildUserFilePart } from "../../lib/file-parts";
+import { createMCPAppContext } from "../../lib/mcp-app-context";
+import type { ClientToolExecutor, PreparePageContext } from "../../lib/page-tools";
 import { contextCompactionStatusText, modelRetryStatusText } from "../../lib/runtime-status";
 import { useChatStore } from "../../store/useChatStore";
 
@@ -36,17 +38,26 @@ export type ExternalChatRequest =
     }
   | { id: string; text: string };
 
+const EMPTY_REQUEST_BODY: Record<string, unknown> = {};
+
 export function ChatSession({
   conversationId: id,
   onCanvasChange,
   externalRequest,
+  requestBody = EMPTY_REQUEST_BODY,
+  clientToolExecutor,
+  preparePageContext,
 }: {
   conversationId: string;
   onCanvasChange?: () => void;
   externalRequest?: ExternalChatRequest | null;
+  requestBody?: Record<string, unknown>;
+  clientToolExecutor?: ClientToolExecutor;
+  preparePageContext?: PreparePageContext;
 }) {
   const forkConversation = useForkConversation(id);
   const [activatedSkillName, setActivatedSkillName] = useState<string | null>(null);
+  const appContext = useMemo(createMCPAppContext, [id]);
   const promptRef = useRef<PromptInputRef>(null);
   const conversationScrollRef = useRef<ConversationScrollHandle | null>(null);
   const skillCommandsCacheRef = useRef<PromptSlashCommand[] | null>(null);
@@ -65,8 +76,6 @@ export function ChatSession({
         closeImagePreview: s.closeImagePreview,
       })),
     );
-
-  const requestBody = useMemo(() => ({}), []);
 
   useEffect(() => {
     setActivatedSkillName(null);
@@ -140,12 +149,17 @@ export function ChatSession({
     stopRun,
     selectHistory,
     pendingClientContinuationRef,
-  } = useConversationChat(id);
+  } = useConversationChat(id, clientToolExecutor, requestBody);
   const { sendMessage, regenerate, addToolOutput, addToolApprovalResponse } = chat;
+  const [pageToolWaiting, setPageToolWaiting] = useState(false);
   const [status, setStatus] = useState<typeof chat.status>(chat.status);
   const runActive = status === "streaming" || status === "submitted";
   const busy =
-    !historyReady || historyMutationPending || runActive || (issue !== null && Boolean(detail?.active_run_id));
+    pageToolWaiting ||
+    !historyReady ||
+    historyMutationPending ||
+    runActive ||
+    (issue !== null && Boolean(detail?.active_run_id));
   const updateModelBinding = useCallback(
     async (providerId: string, effort: ComposerReasoningEffort) => {
       await updateConversationModel(id, {
@@ -264,18 +278,32 @@ export function ChatSession({
       }
       promptRef.current?.clear();
       try {
+        const context = appContext.prepare(preparePageContext);
+        if (context) parts.push({ type: "text", text: context.text });
         const sent = sendMessage({ parts }, { body: requestBody });
         // Sending returns to the live conversation; the new user row then becomes
         // MessageScroller's turn anchor, even when the user was reading history.
         conversationScrollRef.current?.scrollToEnd();
         await sent;
+        if (chat.status !== "error") context?.acknowledge();
         setActivatedSkillName(null);
       } catch (error) {
         promptRef.current?.setValue(value);
         throw error;
       }
     },
-    [activatedSkillName, admitRunInput, canStartHistoryMutation, id, requestBody, runActive, sendMessage],
+    [
+      activatedSkillName,
+      admitRunInput,
+      appContext,
+      canStartHistoryMutation,
+      chat,
+      id,
+      preparePageContext,
+      requestBody,
+      runActive,
+      sendMessage,
+    ],
   );
 
   const answerClientTool = useCallback(
@@ -341,6 +369,8 @@ export function ChatSession({
   const resolveSourceAction = useSourceAction(id);
   return (
     <ConversationSessionView
+      promptRef={promptRef}
+      appContext={appContext}
       title={detail?.title ?? "新对话"}
       onFork={forkConversation}
       chat={chat}
@@ -350,6 +380,7 @@ export function ChatSession({
       loading={loading}
       branches={detail?.branches ?? []}
       pendingInputs={pendingInputs}
+      onPageToolWaiting={setPageToolWaiting}
       onPendingInputsDelivered={acknowledgeDeliveredRunInputs}
       scrollRef={conversationScrollRef}
       onStatusChange={setStatus}
@@ -395,7 +426,7 @@ export function ChatSession({
           initialPermissionProfile={(detail?.permission_profile as PermissionProfileValue | undefined) ?? ":workspace"}
           onUpdateExecutionPolicy={updateExecutionPolicy}
           busy={busy}
-          runActive={runActive}
+          runActive={runActive && !pageToolWaiting}
           activatedSkillName={activatedSkillName}
           setActivatedSkillName={setActivatedSkillName}
           traceRefreshKey={traceRefreshKey}

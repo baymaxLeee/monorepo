@@ -7,6 +7,7 @@ import (
 	adminapi "github.com/example/monorepo/admin/internal/api/generated/adminapi"
 	"github.com/example/monorepo/admin/internal/application"
 	"github.com/example/monorepo/admin/internal/domain"
+	"github.com/gin-gonic/gin"
 )
 
 func skillSummary(value domain.Skill) adminapi.SkillSummary {
@@ -61,7 +62,8 @@ func decodeBody(w http.ResponseWriter, r *http.Request, target any) error {
 	return json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20)).Decode(target)
 }
 
-func (h *Handler) ListSkills(w http.ResponseWriter, r *http.Request, _ adminapi.ListSkillsParams) {
+func (h *Handler) ListSkills(c *gin.Context, _ adminapi.ListSkillsParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -79,7 +81,8 @@ func (h *Handler) ListSkills(w http.ResponseWriter, r *http.Request, _ adminapi.
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (h *Handler) GetSkill(w http.ResponseWriter, r *http.Request, id string, _ adminapi.GetSkillParams) {
+func (h *Handler) GetSkill(c *gin.Context, id string, _ adminapi.GetSkillParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -93,7 +96,8 @@ func (h *Handler) GetSkill(w http.ResponseWriter, r *http.Request, id string, _ 
 	writeJSON(w, http.StatusOK, skillDTO(value))
 }
 
-func (h *Handler) CreateSkill(w http.ResponseWriter, r *http.Request, _ adminapi.CreateSkillParams) {
+func (h *Handler) CreateSkill(c *gin.Context, _ adminapi.CreateSkillParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.CreateSkillInput
 	if err == nil {
@@ -111,7 +115,8 @@ func (h *Handler) CreateSkill(w http.ResponseWriter, r *http.Request, _ adminapi
 	writeJSON(w, http.StatusCreated, skillDTO(value))
 }
 
-func (h *Handler) UpdateSkill(w http.ResponseWriter, r *http.Request, id string, _ adminapi.UpdateSkillParams) {
+func (h *Handler) UpdateSkill(c *gin.Context, id string, _ adminapi.UpdateSkillParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.UpdateSkillInput
 	if err == nil {
@@ -134,7 +139,8 @@ func (h *Handler) UpdateSkill(w http.ResponseWriter, r *http.Request, id string,
 	writeJSON(w, http.StatusOK, skillDTO(value))
 }
 
-func (h *Handler) GetSkillWorkspace(w http.ResponseWriter, r *http.Request, id string, _ adminapi.GetSkillWorkspaceParams) {
+func (h *Handler) GetSkillWorkspace(c *gin.Context, id string, _ adminapi.GetSkillWorkspaceParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -152,7 +158,8 @@ func (h *Handler) GetSkillWorkspace(w http.ResponseWriter, r *http.Request, id s
 	writeJSON(w, http.StatusOK, adminapi.SkillWorkspace{SkillId: id, WorkspaceSeq: skill.WorkspaceSeq, Tree: result})
 }
 
-func (h *Handler) GetSkillFile(w http.ResponseWriter, r *http.Request, skillID, nodeID string, _ adminapi.GetSkillFileParams) {
+func (h *Handler) GetSkillFile(c *gin.Context, skillID, nodeID string, _ adminapi.GetSkillFileParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -176,7 +183,8 @@ func (h *Handler) GetSkillFile(w http.ResponseWriter, r *http.Request, skillID, 
 	writeJSON(w, http.StatusOK, adminapi.SkillFileContent{Id: node.ID, StorageKind: adminapi.SkillFileContentStorageKind(node.StorageKind), MimeType: node.MimeType, Content: content, AssetId: node.AssetID, RevisionId: node.RevisionID, SizeBytes: size, Sha256: node.SHA256, Url: value.URL, Etag: value.ETag})
 }
 
-func (h *Handler) CreateSkillNode(w http.ResponseWriter, r *http.Request, skillID string, _ adminapi.CreateSkillNodeParams) {
+func (h *Handler) CreateSkillNode(c *gin.Context, skillID string, _ adminapi.CreateSkillNodeParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.CreateSkillNodeInput
 	if err == nil {
@@ -194,7 +202,8 @@ func (h *Handler) CreateSkillNode(w http.ResponseWriter, r *http.Request, skillI
 	writeJSON(w, http.StatusOK, mutationDTO(value))
 }
 
-func (h *Handler) AttachSkillAsset(w http.ResponseWriter, r *http.Request, skillID string, _ adminapi.AttachSkillAssetParams) {
+func (h *Handler) AttachSkillAsset(c *gin.Context, skillID string, _ adminapi.AttachSkillAssetParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.AttachSkillAssetInput
 	if err == nil {
@@ -212,7 +221,8 @@ func (h *Handler) AttachSkillAsset(w http.ResponseWriter, r *http.Request, skill
 	writeJSON(w, http.StatusOK, mutationDTO(value))
 }
 
-func (h *Handler) PrepareSkillUpload(w http.ResponseWriter, r *http.Request, skillID string, _ adminapi.PrepareSkillUploadParams) {
+func (h *Handler) PrepareSkillUpload(c *gin.Context, skillID string, _ adminapi.PrepareSkillUploadParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.PrepareSkillUploadInput
 	if err == nil {
@@ -230,7 +240,8 @@ func (h *Handler) PrepareSkillUpload(w http.ResponseWriter, r *http.Request, ski
 	writeJSON(w, http.StatusOK, adminapi.SkillUploadPlan{UploadSessionId: value.UploadSessionID, IntentId: value.IntentID, State: adminapi.SkillUploadPlanState(value.State), UploadUrl: value.UploadURL, ExpiresAt: value.ExpiresAt.Format("2006-01-02T15:04:05.999999Z"), AssetId: value.AssetID, RevisionId: value.RevisionID})
 }
 
-func (h *Handler) ImportSkillArchive(w http.ResponseWriter, r *http.Request, skillID string, _ adminapi.ImportSkillArchiveParams) {
+func (h *Handler) ImportSkillArchive(c *gin.Context, skillID string, _ adminapi.ImportSkillArchiveParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.ImportSkillArchiveInput
 	if err == nil {
@@ -255,7 +266,8 @@ func (h *Handler) ImportSkillArchive(w http.ResponseWriter, r *http.Request, ski
 	})
 }
 
-func (h *Handler) UpdateSkillFileContent(w http.ResponseWriter, r *http.Request, skillID, nodeID string, _ adminapi.UpdateSkillFileContentParams) {
+func (h *Handler) UpdateSkillFileContent(c *gin.Context, skillID, nodeID string, _ adminapi.UpdateSkillFileContentParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.UpdateSkillFileContentInput
 	if err == nil {
@@ -273,7 +285,8 @@ func (h *Handler) UpdateSkillFileContent(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, mutationDTO(value))
 }
 
-func (h *Handler) RenameSkillNode(w http.ResponseWriter, r *http.Request, skillID, nodeID string, _ adminapi.RenameSkillNodeParams) {
+func (h *Handler) RenameSkillNode(c *gin.Context, skillID, nodeID string, _ adminapi.RenameSkillNodeParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.RenameSkillNodeInput
 	if err == nil {
@@ -291,7 +304,8 @@ func (h *Handler) RenameSkillNode(w http.ResponseWriter, r *http.Request, skillI
 	writeJSON(w, http.StatusOK, mutationDTO(value))
 }
 
-func (h *Handler) MoveSkillNode(w http.ResponseWriter, r *http.Request, skillID, nodeID string, _ adminapi.MoveSkillNodeParams) {
+func (h *Handler) MoveSkillNode(c *gin.Context, skillID, nodeID string, _ adminapi.MoveSkillNodeParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.MoveSkillNodeInput
 	if err == nil {
@@ -309,7 +323,8 @@ func (h *Handler) MoveSkillNode(w http.ResponseWriter, r *http.Request, skillID,
 	writeJSON(w, http.StatusOK, mutationDTO(value))
 }
 
-func (h *Handler) DeleteSkillNode(w http.ResponseWriter, r *http.Request, skillID, nodeID string, params adminapi.DeleteSkillNodeParams) {
+func (h *Handler) DeleteSkillNode(c *gin.Context, skillID, nodeID string, params adminapi.DeleteSkillNodeParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -323,7 +338,8 @@ func (h *Handler) DeleteSkillNode(w http.ResponseWriter, r *http.Request, skillI
 	writeJSON(w, http.StatusOK, mutationDTO(value))
 }
 
-func (h *Handler) ValidateSkill(w http.ResponseWriter, r *http.Request, skillID string, _ adminapi.ValidateSkillParams) {
+func (h *Handler) ValidateSkill(c *gin.Context, skillID string, _ adminapi.ValidateSkillParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -337,7 +353,8 @@ func (h *Handler) ValidateSkill(w http.ResponseWriter, r *http.Request, skillID 
 	writeJSON(w, http.StatusOK, validationDTO(value))
 }
 
-func (h *Handler) PublishSkill(w http.ResponseWriter, r *http.Request, skillID string, _ adminapi.PublishSkillParams) {
+func (h *Handler) PublishSkill(c *gin.Context, skillID string, _ adminapi.PublishSkillParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.PublishSkillInput
 	if err == nil {
@@ -355,7 +372,8 @@ func (h *Handler) PublishSkill(w http.ResponseWriter, r *http.Request, skillID s
 	writeJSON(w, http.StatusOK, adminapi.PublishSkillResponse{Skill: skillDTO(skill), Validation: validationDTO(validation)})
 }
 
-func (h *Handler) DeleteSkill(w http.ResponseWriter, r *http.Request, skillID string, _ adminapi.DeleteSkillParams) {
+func (h *Handler) DeleteSkill(c *gin.Context, skillID string, _ adminapi.DeleteSkillParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err == nil {
 		err = h.Skills.Delete(r.Context(), a, skillID)
@@ -367,7 +385,8 @@ func (h *Handler) DeleteSkill(w http.ResponseWriter, r *http.Request, skillID st
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) BulkDeleteSkills(w http.ResponseWriter, r *http.Request, _ adminapi.BulkDeleteSkillsParams) {
+func (h *Handler) BulkDeleteSkills(c *gin.Context, _ adminapi.BulkDeleteSkillsParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.BulkDeleteSkillsInput
 	if err == nil {

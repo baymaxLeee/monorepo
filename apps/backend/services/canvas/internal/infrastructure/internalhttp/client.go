@@ -1,14 +1,12 @@
 package internalhttp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -22,14 +20,6 @@ func Client(provided *http.Client, timeout time.Duration) *http.Client {
 		return &clone
 	}
 	return &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport), Timeout: timeout}
-}
-
-// Propagate adds the repository correlation id. W3C trace context is injected by otelhttp.
-func Propagate(ctx context.Context, request *http.Request) error {
-	if traceID, ok := requestcontext.RequestIDFromContext(ctx); ok && request.Header.Get("X-Trace-Id") == "" {
-		request.Header.Set("X-Trace-Id", traceID)
-	}
-	return nil
 }
 
 type Error struct {
@@ -50,7 +40,7 @@ func (e *Error) Error() string {
 func ResponseError(service, operation string, response *http.Response, body []byte) error {
 	err := &Error{
 		Service: service, Operation: operation, Status: response.StatusCode,
-		Body: strings.TrimSpace(string(body)), TraceID: response.Header.Get("X-Trace-Id"),
+		Body: strings.TrimSpace(string(body)), TraceID: traceIDFromTraceParent(response.Header.Get("traceparent")),
 	}
 	var problem struct {
 		Code    string         `json:"code"`
@@ -68,6 +58,14 @@ func ResponseError(service, operation string, response *http.Response, body []by
 		err.Detail = firstNonEmpty(err.Body, http.StatusText(response.StatusCode))
 	}
 	return err
+}
+
+func traceIDFromTraceParent(value string) string {
+	parts := strings.Split(strings.TrimSpace(value), "-")
+	if len(parts) == 4 && len(parts[1]) == 32 {
+		return parts[1]
+	}
+	return ""
 }
 
 func firstNonEmpty(values ...string) string {

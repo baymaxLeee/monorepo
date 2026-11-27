@@ -5,6 +5,10 @@ export type LocalReasoningEffort = "none" | "minimal" | "low" | "medium" | "high
 export type LocalApprovalPolicy = "never" | "on-request" | "unless-trusted" | "granular";
 export type LocalPermissionProfileId = ":read-only" | ":workspace" | ":danger-full-access";
 
+export interface LocalClientCapabilities {
+  uiAgent?: "ui-sdk";
+}
+
 export interface InstalledLocalPlugin {
   pluginId: string;
   displayName: string;
@@ -51,6 +55,7 @@ export interface LocalThread {
   approvalPolicy: LocalApprovalPolicy;
   permissionProfile: LocalPermissionProfileId;
   pluginActivations: LocalPluginActivation[];
+  clientCapabilities?: LocalClientCapabilities;
   status: "idle" | "running" | "waiting" | "interrupted" | "cancelled" | "error";
   turnId: string | null;
   error: string | null;
@@ -82,7 +87,7 @@ export type DesktopEvent =
 // Only these capabilities cross preload. No arbitrary channel, path grant,
 // process spawn, fetch URL or provider credential is exposed to page code.
 export interface DesktopBridge {
-  readonly version: 8;
+  readonly version: 9;
   info(): Promise<{ platform: string; localAvailable: boolean; origin: string }>;
   bindSession(accessToken: string, expiresAt: string): Promise<void>;
   clearSession(): Promise<void>;
@@ -102,7 +107,13 @@ export interface DesktopBridge {
   referenceFile(id: string, file: File): Promise<string>;
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
-  send(id: string, parts: LocalUserMessagePart[], messageId: string): Promise<void>;
+  send(
+    id: string,
+    parts: LocalUserMessagePart[],
+    messageId: string,
+    clientCapabilities?: LocalClientCapabilities,
+  ): Promise<void>;
+  continueClientTool(id: string, expectedTurnId: string, message: UIMessage): Promise<void>;
   submitRunInput(
     id: string,
     expectedTurnId: string,

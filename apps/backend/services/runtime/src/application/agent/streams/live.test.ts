@@ -3,7 +3,14 @@ import test from "node:test";
 
 import { readUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 
-import { ActiveRunStream, ActiveStreamProjection, detachedActiveRunResponse } from "./live.js";
+import {
+  ActiveRunStream,
+  ActiveStreamProjection,
+  detachedActiveRunResponse,
+  duplicateActiveRunResponse,
+  registerActiveRunStream,
+  releaseActiveRunStream,
+} from "./live.js";
 
 async function finalMessage(chunks: UIMessageChunk[]): Promise<UIMessage | undefined> {
   const stream = new ReadableStream<UIMessageChunk>({
@@ -274,4 +281,18 @@ test("a reader stalled during snapshot replay cannot accumulate an unlimited tai
       /* drain the initial snapshot */
     }
   }, /fell behind/);
+});
+
+test("an active page-tool POST cannot give a duplicate submitter a second execution stream", async () => {
+  const active = registerActiveRunStream("ui-session", "ui-run", 1n);
+  try {
+    const observer = duplicateActiveRunResponse("ui-session", "ui-run", true);
+    assert.equal(observer.status, 409);
+    assert.equal(observer.headers.get("x-agent-run-state"), "active-detached");
+    const ordinary = duplicateActiveRunResponse("ui-session", "ui-run", false);
+    assert.equal(ordinary.status, 200);
+    await ordinary.body?.cancel();
+  } finally {
+    releaseActiveRunStream(active);
+  }
 });

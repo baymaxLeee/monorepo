@@ -20,7 +20,7 @@ export interface AgentToolPolicy {
   pluginId?: string;
   sourceProjection?: ToolSourceProjection;
   streaming?: boolean;
-  uiKind?: "artifact" | "ask-user" | "image-gallery" | "todo-list" | "video" | "terminal" | "subagent";
+  uiKind?: "artifact" | "ask-user" | "image-gallery" | "todo-list" | "video" | "terminal" | "subagent" | "agent-ui";
 }
 
 export interface AgentToolPlanning {

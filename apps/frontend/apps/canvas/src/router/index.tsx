@@ -1,3 +1,4 @@
+import { openAgentUI } from "@repo/ai-elements/agent-ui-route";
 import { type RouteObject, Navigate } from "react-router-dom";
 
 import { App } from "../App";
@@ -27,10 +28,12 @@ export const routes: RouteObject[] = [
       },
       {
         path: "projects/:projectId/studio/:canvasId",
+        loader: openAgentUI,
         lazy: async () => ({ Component: (await import("../pages/studio")).default }),
       },
       {
         path: "projects/:projectId/canvases/:canvasId",
+        loader: openAgentUI,
         lazy: async () => ({ Component: (await import("../pages/studio")).default }),
       },
       { path: "*", element: <Navigate replace to="projects" /> },

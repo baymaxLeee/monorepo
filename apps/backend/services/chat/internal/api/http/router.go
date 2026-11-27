@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,11 +9,11 @@ import (
 	"mime"
 	"net/http"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/example/monorepo/chat/internal/application"
-	"github.com/go-chi/chi/v5"
+	"github.com/example/monorepo/httpserver-go"
+	"github.com/gin-gonic/gin"
 )
 
 type authContextKey struct{}
@@ -27,48 +25,33 @@ type Router struct {
 
 func New(service *application.Service) http.Handler {
 	transport := &Router{service: service, readiness: newReadiness()}
-	router := chi.NewRouter()
-	router.Use(traceID, requestLogging)
-	router.Get("/healthz", func(writer http.ResponseWriter, _ *http.Request) {
-		writeJSON(writer, http.StatusOK, map[string]string{"status": "ok"})
-	})
-	router.Get("/livez", transport.liveness)
-	router.Get("/readyz", transport.ready)
+	transport.readiness.ready()
+	router := httpserver.New("chat")
+	router.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	router.GET("/livez", transport.liveness)
+	router.GET("/readyz", transport.ready)
 
-	router.Group(func(api chi.Router) {
-		api.Use(transport.requireReady, requireAuth)
-		api.Route("/conversations", func(conversations chi.Router) {
-			conversations.Get("/", transport.listConversations)
-			conversations.Post("/", transport.createConversation)
-			conversations.Post("/canvas", transport.createCanvasConversation)
-			conversations.Get("/{conversationID}", transport.getConversation)
-			conversations.Patch("/{conversationID}", transport.updateConversation)
-			conversations.Delete("/{conversationID}", transport.deleteConversation)
-			conversations.Post("/{conversationID}/forks", transport.forkConversation)
-			conversations.HandleFunc("/{conversationID}/*", transport.proxyConversation)
-		})
-		api.Get("/memories", transport.listActiveMemories)
-		api.Get("/memories/candidates", transport.listMemoryCandidates)
-		api.Patch("/memories/candidates/{id}", transport.updateMemoryCandidate)
-		api.Post("/memories/candidates/{id}/approve", transport.approveMemoryCandidate)
-		api.Post("/memories/candidates/{id}/reject", transport.rejectMemoryCandidate)
-		api.Delete("/memories/{id}", transport.deleteMemory)
-		api.HandleFunc("/local-inference/*", transport.proxyRuntime)
-	})
-
-	go func() {
-		if err := service.Ping(context.Background()); err != nil {
-			transport.readiness.failed(err)
-			slog.Error("chat bootstrap failed", "error", err)
-			return
-		}
-		transport.readiness.ready()
-		slog.Info("chat bootstrap complete")
-	}()
-	return recoverErrors(router)
+	api := router.Group("")
+	api.Use(transport.requireReady, requireAuth)
+	api.GET("/conversations", transport.listConversations)
+	api.POST("/conversations", transport.createConversation)
+	api.POST("/conversations/canvas", transport.createCanvasConversation)
+	api.GET("/conversations/:conversationID", transport.getConversation)
+	api.PATCH("/conversations/:conversationID", transport.updateConversation)
+	api.DELETE("/conversations/:conversationID", transport.deleteConversation)
+	api.Any("/conversations/:conversationID/*path", transport.conversationSubroute)
+	api.GET("/memories", transport.listActiveMemories)
+	api.GET("/memories/candidates", transport.listMemoryCandidates)
+	api.PATCH("/memories/candidates/:id", transport.updateMemoryCandidate)
+	api.POST("/memories/candidates/:id/approve", transport.approveMemoryCandidate)
+	api.POST("/memories/candidates/:id/reject", transport.rejectMemoryCandidate)
+	api.DELETE("/memories/:id", transport.deleteMemory)
+	api.Any("/local-inference/*path", transport.proxyRuntime)
+	return router
 }
 
-func (router *Router) liveness(writer http.ResponseWriter, _ *http.Request) {
+func (router *Router) liveness(c *gin.Context) {
+	writer := c.Writer
 	state, _ := router.readiness.current()
 	status := http.StatusOK
 	value := "ok"
@@ -78,7 +61,8 @@ func (router *Router) liveness(writer http.ResponseWriter, _ *http.Request) {
 	writeJSON(writer, status, map[string]string{"status": value})
 }
 
-func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) ready(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	state, bootError := router.readiness.current()
 	if state != "ready" {
 		result := map[string]any{"ok": false, "boot": state, "postgres": "down"}
@@ -95,39 +79,39 @@ func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {
 	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "boot": "ready", "postgres": "up"})
 }
 
-func (router *Router) requireReady(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		state, _ := router.readiness.current()
-		if state != "ready" {
-			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"code": "service_starting", "message": "chat service is not ready"})
-			return
-		}
-		next.ServeHTTP(writer, request)
-	})
+func (router *Router) requireReady(c *gin.Context) {
+	state, _ := router.readiness.current()
+	if state != "ready" {
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"code": "service_starting", "message": "chat service is not ready"})
+		return
+	}
+	c.Next()
 }
 
-func requireAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		scope := application.AuthContext{
-			UserID:        strings.TrimSpace(request.Header.Get("X-Auth-User-ID")),
-			TenantID:      strings.TrimSpace(request.Header.Get("X-Auth-Tenant-ID")),
-			WorkspaceID:   strings.TrimSpace(request.Header.Get("X-Auth-Workspace-ID")),
-			WorkspaceRole: strings.TrimSpace(request.Header.Get("X-Auth-Workspace-Role")),
-		}
-		if scope.UserID == "" || scope.TenantID == "" || scope.WorkspaceID == "" {
-			writeJSON(writer, http.StatusUnauthorized, map[string]string{"code": "unauthorized", "message": "missing auth context"})
-			return
-		}
-		next.ServeHTTP(writer, request.WithContext(context.WithValue(request.Context(), authContextKey{}, scope)))
-	})
+func requireAuth(c *gin.Context) {
+	request := c.Request
+	scope := application.AuthContext{
+		UserID:        strings.TrimSpace(request.Header.Get("X-Auth-User-ID")),
+		TenantID:      strings.TrimSpace(request.Header.Get("X-Auth-Tenant-ID")),
+		WorkspaceID:   strings.TrimSpace(request.Header.Get("X-Auth-Workspace-ID")),
+		WorkspaceRole: strings.TrimSpace(request.Header.Get("X-Auth-Workspace-Role")),
+	}
+	if scope.UserID == "" || scope.TenantID == "" || scope.WorkspaceID == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": "unauthorized", "message": "missing auth context"})
+		return
+	}
+	c.Request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, scope))
+	c.Next()
 }
 
-func (router *Router) listConversations(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) listConversations(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	value, err := router.service.List(request.Context(), auth(request))
 	writeResult(writer, request, http.StatusOK, value, err)
 }
 
-func (router *Router) createConversation(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) createConversation(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	input, err := decodeCreateInput(request)
 	if err != nil {
 		writeError(writer, request, err)
@@ -137,7 +121,8 @@ func (router *Router) createConversation(writer http.ResponseWriter, request *ht
 	writeResult(writer, request, http.StatusCreated, value, err)
 }
 
-func (router *Router) createCanvasConversation(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) createCanvasConversation(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	input, err := decodeCanvasCreateInput(request)
 	if err != nil {
 		writeError(writer, request, err)
@@ -147,12 +132,14 @@ func (router *Router) createCanvasConversation(writer http.ResponseWriter, reque
 	writeResult(writer, request, http.StatusCreated, value, err)
 }
 
-func (router *Router) getConversation(writer http.ResponseWriter, request *http.Request) {
-	value, err := router.service.Get(request.Context(), auth(request), request.Header, chi.URLParam(request, "conversationID"))
+func (router *Router) getConversation(c *gin.Context) {
+	writer, request := c.Writer, c.Request
+	value, err := router.service.Get(request.Context(), auth(request), request.Header, c.Param("conversationID"))
 	writeResult(writer, request, http.StatusOK, value, err)
 }
 
-func (router *Router) updateConversation(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) updateConversation(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	var input struct {
 		Title string `json:"title"`
 	}
@@ -160,12 +147,13 @@ func (router *Router) updateConversation(writer http.ResponseWriter, request *ht
 		writeInvalidRequest(writer)
 		return
 	}
-	value, err := router.service.Update(request.Context(), auth(request), chi.URLParam(request, "conversationID"), input.Title)
+	value, err := router.service.Update(request.Context(), auth(request), c.Param("conversationID"), input.Title)
 	writeResult(writer, request, http.StatusOK, value, err)
 }
 
-func (router *Router) deleteConversation(writer http.ResponseWriter, request *http.Request) {
-	err := router.service.Delete(request.Context(), auth(request), request.Header, chi.URLParam(request, "conversationID"))
+func (router *Router) deleteConversation(c *gin.Context) {
+	writer, request := c.Writer, c.Request
+	err := router.service.Delete(request.Context(), auth(request), request.Header, c.Param("conversationID"))
 	if err != nil {
 		writeError(writer, request, err)
 		return
@@ -173,7 +161,8 @@ func (router *Router) deleteConversation(writer http.ResponseWriter, request *ht
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-func (router *Router) forkConversation(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) forkConversation(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	var input struct {
 		MessageID string `json:"message_id"`
 		RequestID string `json:"request_id"`
@@ -185,29 +174,40 @@ func (router *Router) forkConversation(writer http.ResponseWriter, request *http
 		return
 	}
 	value, err := router.service.Fork(
-		request.Context(), auth(request), request.Header, chi.URLParam(request, "conversationID"), input.MessageID, input.RequestID,
+		request.Context(), auth(request), request.Header, c.Param("conversationID"), input.MessageID, input.RequestID,
 	)
 	writeResult(writer, request, http.StatusCreated, value, err)
 }
 
-func (router *Router) proxyConversation(writer http.ResponseWriter, request *http.Request) {
-	suffix := chi.URLParam(request, "*")
+func (router *Router) proxyConversation(c *gin.Context) {
+	writer, request := c.Writer, c.Request
+	suffix := c.Param("path")
 	if suffix != "" && !strings.HasPrefix(suffix, "/") {
 		suffix = "/" + suffix
 	}
 	response, err := router.service.ProxyConversation(
-		request.Context(), auth(request), request.Header, request.Method, chi.URLParam(request, "conversationID"),
+		request.Context(), auth(request), request.Header, request.Method, c.Param("conversationID"),
 		suffix, request.URL.RawQuery, request.Body,
 	)
 	writeProxyResponse(writer, request, response, err)
 }
 
-func (router *Router) proxyRuntime(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) conversationSubroute(c *gin.Context) {
+	if c.Request.Method == http.MethodPost && c.Param("path") == "/forks" {
+		router.forkConversation(c)
+		return
+	}
+	router.proxyConversation(c)
+}
+
+func (router *Router) proxyRuntime(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	response, err := router.service.ProxyRuntime(request.Context(), auth(request), request.Header, request.Method, request.URL.Path, request.URL.RawQuery, request.Body)
 	writeProxyResponse(writer, request, response, err)
 }
 
-func (router *Router) listActiveMemories(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) listActiveMemories(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	memories, err := router.service.ListActiveMemories(request.Context(), auth(request))
 	if err != nil {
 		writeError(writer, request, err)
@@ -216,7 +216,8 @@ func (router *Router) listActiveMemories(writer http.ResponseWriter, request *ht
 	writeJSON(writer, http.StatusOK, map[string]any{"memories": memories})
 }
 
-func (router *Router) listMemoryCandidates(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) listMemoryCandidates(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	candidates, err := router.service.ListMemoryCandidates(request.Context(), auth(request))
 	if err != nil {
 		writeError(writer, request, err)
@@ -225,8 +226,9 @@ func (router *Router) listMemoryCandidates(writer http.ResponseWriter, request *
 	writeJSON(writer, http.StatusOK, map[string]any{"candidates": candidates})
 }
 
-func (router *Router) approveMemoryCandidate(writer http.ResponseWriter, request *http.Request) {
-	memory, err := router.service.ApproveMemoryCandidate(request.Context(), auth(request), chi.URLParam(request, "id"))
+func (router *Router) approveMemoryCandidate(c *gin.Context) {
+	writer, request := c.Writer, c.Request
+	memory, err := router.service.ApproveMemoryCandidate(request.Context(), auth(request), c.Param("id"))
 	if err != nil {
 		writeError(writer, request, err)
 		return
@@ -238,8 +240,9 @@ func (router *Router) approveMemoryCandidate(writer http.ResponseWriter, request
 	writeJSON(writer, http.StatusOK, map[string]any{"memory": memory})
 }
 
-func (router *Router) rejectMemoryCandidate(writer http.ResponseWriter, request *http.Request) {
-	rejected, err := router.service.RejectMemoryCandidate(request.Context(), auth(request), chi.URLParam(request, "id"))
+func (router *Router) rejectMemoryCandidate(c *gin.Context) {
+	writer, request := c.Writer, c.Request
+	rejected, err := router.service.RejectMemoryCandidate(request.Context(), auth(request), c.Param("id"))
 	if err != nil {
 		writeError(writer, request, err)
 		return
@@ -251,7 +254,8 @@ func (router *Router) rejectMemoryCandidate(writer http.ResponseWriter, request 
 	writeJSON(writer, http.StatusOK, map[string]any{"rejected": true})
 }
 
-func (router *Router) updateMemoryCandidate(writer http.ResponseWriter, request *http.Request) {
+func (router *Router) updateMemoryCandidate(c *gin.Context) {
+	writer, request := c.Writer, c.Request
 	var input struct {
 		Category *application.MemoryCategory `json:"category"`
 		Content  *string                     `json:"content"`
@@ -277,7 +281,7 @@ func (router *Router) updateMemoryCandidate(writer http.ResponseWriter, request 
 		input.Content = &content
 	}
 	candidate, err := router.service.UpdateMemoryCandidate(
-		request.Context(), auth(request), chi.URLParam(request, "id"), input.Category, input.Content,
+		request.Context(), auth(request), c.Param("id"), input.Category, input.Content,
 	)
 	if err != nil {
 		writeError(writer, request, err)
@@ -290,8 +294,9 @@ func (router *Router) updateMemoryCandidate(writer http.ResponseWriter, request 
 	writeJSON(writer, http.StatusOK, map[string]any{"candidate": candidate})
 }
 
-func (router *Router) deleteMemory(writer http.ResponseWriter, request *http.Request) {
-	deleted, err := router.service.DeleteMemory(request.Context(), auth(request), chi.URLParam(request, "id"))
+func (router *Router) deleteMemory(c *gin.Context) {
+	writer, request := c.Writer, c.Request
+	deleted, err := router.service.DeleteMemory(request.Context(), auth(request), c.Param("id"))
 	if err != nil {
 		writeError(writer, request, err)
 		return
@@ -472,59 +477,4 @@ func writeJSON(writer http.ResponseWriter, status int, value any) {
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(status)
 	_ = json.NewEncoder(writer).Encode(value)
-}
-
-func recoverErrors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				slog.ErrorContext(request.Context(), "chat handler panicked", "panic", recovered)
-				writeJSON(writer, http.StatusInternalServerError, map[string]string{"code": "internal_error", "message": "internal server error"})
-			}
-		}()
-		next.ServeHTTP(writer, request)
-	})
-}
-
-type responseRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (recorder *responseRecorder) WriteHeader(status int) {
-	recorder.status = status
-	recorder.ResponseWriter.WriteHeader(status)
-}
-
-func (recorder *responseRecorder) Flush() {
-	if flusher, ok := recorder.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
-
-func requestLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		started := time.Now()
-		recorder := &responseRecorder{ResponseWriter: writer, status: http.StatusOK}
-		next.ServeHTTP(recorder, request)
-		slog.InfoContext(request.Context(), "http request", "method", request.Method, "path", request.URL.Path,
-			"status", recorder.status, "duration_ms", time.Since(started).Milliseconds())
-	})
-}
-
-func traceID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		value := strings.TrimSpace(request.Header.Get("X-Trace-Id"))
-		if value == "" {
-			bytes := make([]byte, 16)
-			if _, err := rand.Read(bytes); err == nil {
-				value = hex.EncodeToString(bytes)
-			}
-		}
-		if value != "" {
-			writer.Header().Set("X-Trace-Id", value)
-			request.Header.Set("X-Trace-Id", value)
-		}
-		next.ServeHTTP(writer, request)
-	})
 }

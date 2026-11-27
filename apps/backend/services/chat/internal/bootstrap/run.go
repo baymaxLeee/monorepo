@@ -16,7 +16,6 @@ import (
 	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"github.com/example/monorepo/observability-go"
 	"github.com/joho/godotenv"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func Run(ctx context.Context) error {
@@ -51,10 +50,13 @@ func Run(ctx context.Context) error {
 		adminclient.NewCapabilityResolver(adminConnection),
 	)
 	defer service.Close()
+	if err := service.Ping(ctx); err != nil {
+		return fmt.Errorf("check chat persistence readiness: %w", err)
+	}
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", config.Port),
-		Handler:           otelhttp.NewHandler(httpapi.New(service), "chat"),
+		Handler:           httpapi.New(service),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	serverErrors := make(chan error, 1)

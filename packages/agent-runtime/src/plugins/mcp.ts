@@ -1,4 +1,13 @@
-import { createMCPClient, type ListToolsResult, type MCPClient } from "@ai-sdk/mcp";
+import {
+  createMCPTools,
+  createMCPClient,
+  mcpAppClientCapabilities,
+  readMCPAppResource,
+  splitMCPAppTools,
+  type MCPAppResource,
+  type ListToolsResult,
+  type MCPClient,
+} from "@ai-sdk/mcp";
 import type { JSONSchema7, JSONValue } from "@ai-sdk/provider";
 import { jsonSchema, type ToolResultOutput } from "@ai-sdk/provider-utils";
 import { dynamicTool, type ToolSet } from "ai";
@@ -79,7 +88,11 @@ async function listAllTools(client: MCPClient, signal?: AbortSignal): Promise<Li
 function mcpToModelOutput({ output }: { output: unknown }): ToolResultOutput {
   if (typeof output === "string") return { type: "text", value: output };
   if (output == null || typeof output !== "object" || !("content" in output) || !Array.isArray(output.content)) {
-    return { type: "json", value: (output ?? null) as JSONValue };
+    const visible =
+      output && typeof output === "object" && "_meta" in output
+        ? Object.fromEntries(Object.entries(output).filter(([key]) => key !== "_meta"))
+        : output;
+    return { type: "json", value: (visible ?? null) as JSONValue };
   }
   return {
     type: "content",
@@ -112,6 +125,7 @@ function connectHttpMcp(
 ) {
   return createClient({
     clientName: "monorepo-agent-runtime",
+    capabilities: mcpAppClientCapabilities,
     version: "1.0.0",
     maxRetries: 0,
     initializationOptions: { signal, timeout: MCP_HANDSHAKE_TIMEOUT_MS },
@@ -130,11 +144,11 @@ export async function discoverInstalledMcpServer(
 ): Promise<McpServerContribution> {
   const client = await connectHttpMcp(url, headers, signal, createMCPClient);
   try {
-    const inventory = await listAllTools(client, signal);
+    const { modelVisible } = splitMCPAppTools({ tools: await listAllTools(client, signal) });
     return {
       name,
       url,
-      tools: inventory
+      tools: modelVisible.tools
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((item) => ({
           name: item.name,
@@ -162,10 +176,33 @@ export function loadMcpServer(
   dependencies: McpPluginDependencies = { createClient: createMCPClient },
 ): LoadedPluginContribution {
   const { plugin, server, grant } = resolved;
+  const appUris = new Map<string, string>();
   let clientPromise: Promise<MCPClient> | undefined;
   const lifetime = new AbortController();
   const signal = context.signal ? AbortSignal.any([context.signal, lifetime.signal]) : lifetime.signal;
   let closing: Promise<void> | undefined;
+
+  const resources = new Map<string, Promise<MCPAppResource>>();
+  const loadResource = (client: MCPClient, uri: string, caller: AbortSignal) => {
+    caller.throwIfAborted();
+    let resource = resources.get(uri);
+    if (!resource) {
+      resource = readMCPAppResource({ client, uri, options: { signal, timeout: MCP_HANDSHAKE_TIMEOUT_MS } }).catch(
+        (error) => {
+          resources.delete(uri);
+          throw error;
+        },
+      );
+      resources.set(uri, resource);
+    }
+    // The connection owns the shared read. An individual cancelled caller may
+    // stop waiting without cancelling another tool's copy of the same view.
+    return new Promise<MCPAppResource>((resolve, reject) => {
+      const abort = () => reject(caller.reason);
+      caller.addEventListener("abort", abort, { once: true });
+      void resource.then(resolve, reject).finally(() => caller.removeEventListener("abort", abort));
+    });
+  };
 
   const connect = (): Promise<MCPClient> => {
     signal.throwIfAborted();
@@ -181,7 +218,8 @@ export function loadMcpServer(
         signal.throwIfAborted();
         const client = await connectHttpMcp(server.url, grant.headers, signal, dependencies.createClient, options);
         try {
-          const inventory = await listAllTools(client, signal);
+          const { modelVisible } = splitMCPAppTools({ tools: await listAllTools(client, signal) });
+          const inventory = modelVisible.tools;
           if (inventory.length !== server.tools.length) {
             throw new Error(`MCP server ${server.name} inventory differs from the installed release`);
           }
@@ -199,6 +237,13 @@ export function loadMcpServer(
               throw new Error(
                 `MCP server ${server.name} tool ${expected.name} schema differs from the installed release`,
               );
+            }
+          }
+          // Normalize both current and legacy MCP Apps metadata with the SDK.
+          for (const [name, tool] of Object.entries(createMCPTools(inventory.filter((item) => item._meta)))) {
+            const app = tool.metadata?.app;
+            if (app && typeof app === "object" && "resourceUri" in app && typeof app.resourceUri === "string") {
+              appUris.set(name, app.resourceUri);
             }
           }
           await observe(options, {
@@ -263,7 +308,22 @@ export function loadMcpServer(
             }),
           );
         }
-        return result;
+        // Only the authenticated connection may supply the view for this call.
+        // Preserve the successful action even when its optional view cannot load.
+        const { _meta, ...payload } = result;
+        // Code Mode passes the raw result to model-authored code, bypassing toModelOutput.
+        if (contribution.policy.callableByCodeMode) return payload;
+        const { mcpAppResource: _untrustedView, ...serverMeta } = _meta ?? {};
+        const publicResult = { ...payload, ...(Object.keys(serverMeta).length ? { _meta: serverMeta } : {}) };
+        const uri = appUris.get(contribution.name);
+        if (!uri) return publicResult;
+        try {
+          const resource = await loadResource(client, uri, callSignal);
+          return { ...payload, _meta: { ...serverMeta, mcpAppResource: resource } };
+        } catch {
+          callSignal.throwIfAborted();
+          return publicResult;
+        }
       },
       toModelOutput: mcpToModelOutput,
     }) as ToolSet[string];
@@ -285,6 +345,7 @@ export function loadMcpServer(
     dispose: () => {
       if (closing) return closing;
       lifetime.abort();
+      resources.clear();
       closing = (async () => {
         const client = await clientPromise?.catch(() => undefined);
         await client?.close();

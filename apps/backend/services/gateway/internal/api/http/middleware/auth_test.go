@@ -6,19 +6,19 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestIdentityPropagationAllowsAssetDeliveryCapabilitiesOnly(t *testing.T) {
 	t.Parallel()
 
-	handler := IdentityPropagation(
+	handler := testHandler(IdentityPropagation(
 		func(string, time.Time) (Claims, error) { return Claims{}, errors.New("invalid token") },
 		[]string{"/api/storage-server/media"},
 		nil,
 		nil,
-	)(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
-		response.WriteHeader(http.StatusNoContent)
-	}))
+	), func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 	tests := []struct {
 		name       string

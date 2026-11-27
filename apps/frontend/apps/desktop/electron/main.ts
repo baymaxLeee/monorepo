@@ -239,9 +239,21 @@ async function start() {
       }
       case "send":
         return scopedCall("send", {
-          ...z.strictObject({ id, messageId: id, parts: z.unknown() }).parse(payload),
+          ...z
+            .strictObject({
+              id,
+              messageId: id,
+              parts: z.unknown(),
+              clientCapabilities: z.strictObject({ uiAgent: z.literal("ui-sdk").optional() }).optional(),
+            })
+            .parse(payload),
           parts: parseLocalUserMessageParts((payload as { parts?: unknown }).parts),
         });
+      case "continueClientTool":
+        return scopedCall(
+          "continueClientTool",
+          z.strictObject({ id, expectedTurnId: id, message: z.unknown() }).parse(payload),
+        );
       case "submitRunInput":
         return scopedCall(
           "submitRunInput",

@@ -102,6 +102,10 @@ async def test_runtime_can_initialize_list_and_call_the_tool(monkeypatch: pytest
     ):
         initialized = await client.initialize()
         inventory = await client.list_tools()
+        resource_uri = (inventory.tools[0].meta or {})["ui"]["resourceUri"]
+        resource = await client.read_resource(resource_uri)
+        assert str(resource.contents[0].uri) == resource_uri
+        assert resource.contents[0].mimeType == "text/html;profile=mcp-app"
         result = await client.call_tool(
             "knowledge_search",
             {"query": "incident response", "top_k": 3},

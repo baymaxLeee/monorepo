@@ -13,9 +13,9 @@ import (
 	"github.com/example/monorepo/gateway/internal/bootstrap/config"
 	"github.com/example/monorepo/gateway/internal/infrastructure/security"
 	"github.com/example/monorepo/gateway/internal/infrastructure/store"
+	"github.com/example/monorepo/httpserver-go"
 	"github.com/example/monorepo/observability-go"
-	"github.com/go-chi/chi/v5"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"github.com/gin-gonic/gin"
 )
 
 func Run(ctx context.Context) error {
@@ -68,18 +68,7 @@ func Run(ctx context.Context) error {
 }
 
 func buildRouter(cfg config.Config, st *store.Store) http.Handler {
-	router := chi.NewRouter()
-	router.Use(middleware.TraceId)
-	router.Use(otelhttp.NewMiddleware("gateway", otelhttp.WithFilter(func(request *http.Request) bool {
-		switch request.URL.Path {
-		case "/livez", "/readyz", "/healthz":
-			return false
-		default:
-			return true
-		}
-	})))
-	router.Use(middleware.RequestLogger)
-	router.Use(middleware.Recoverer)
+	router := httpserver.New("gateway")
 	router.Use(middleware.BodyLimit(cfg.MaxRequestBodyBytes))
 	router.Use(middleware.CORS(cfg.AllowedOrigins, cfg.IsDevelopment()))
 	router.Use(middleware.SessionOriginGuard(cfg.AllowedOrigins, !cfg.IsDevelopment()))
@@ -95,11 +84,11 @@ func buildRouter(cfg config.Config, st *store.Store) http.Handler {
 		router.Use(middleware.TrustedClientIP(!cfg.IsDevelopment()))
 		router.Use(middleware.RateLimit(st.Redis, cfg.RateLimitRequests, cfg.RateLimitWindow))
 	}
-	router.Get("/livez", handlers.Livez)
+	router.GET("/livez", handlers.Livez)
 	readiness := func(ctx context.Context) error { return st.Redis.Ping(ctx).Err() }
-	router.Get("/readyz", handlers.Healthz(readiness))
-	router.Get("/healthz", handlers.Healthz(readiness))
-	router.Get("/", handlers.Index)
+	router.GET("/readyz", handlers.Healthz(readiness))
+	router.GET("/healthz", handlers.Healthz(readiness))
+	router.GET("/", handlers.Index)
 	for _, upstream := range []struct{ path, target, name string }{
 		{"/api/iam-server", cfg.IAMServiceURL, "iam-server"},
 		{"/api/admin-server", cfg.AdminServiceURL, "admin-server"},
@@ -109,7 +98,10 @@ func buildRouter(cfg config.Config, st *store.Store) http.Handler {
 		{"/api/knowledge-server", cfg.KnowledgeServiceURL, "knowledge-server"},
 		{"/api/telemetry-server", cfg.TelemetryServiceURL, "telemetry-server"},
 	} {
-		router.Mount(upstream.path, handlers.NewServiceProxy(upstream.target, upstream.name, upstream.path))
+		proxy := handlers.NewServiceProxy(upstream.target, upstream.name, upstream.path)
+		serveProxy := func(c *gin.Context) { proxy.ServeHTTP(c.Writer, c.Request) }
+		router.Any(upstream.path, serveProxy)
+		router.Any(upstream.path+"/*path", serveProxy)
 	}
 	return router
 }

@@ -33,7 +33,7 @@ test("unexpected request failures keep the client response generic and log the o
     code: "internal_error",
     message: "An unexpected server error occurred",
   });
-  assert.match(response.headers.get("X-Trace-Id") ?? "", /^[0-9a-f]{32}$/);
+  assert.match(response.headers.get("traceparent") ?? "", /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/);
   assert.equal(errors.length, 1);
   assert.equal(errors[0]?.bindings.err, failure);
   assert.equal(errors[0]?.bindings.method, "GET");

@@ -17,7 +17,6 @@ import (
 	"github.com/example/monorepo/storage/internal/infrastructure/deliverycache"
 	"github.com/example/monorepo/storage/internal/infrastructure/persistence"
 	"github.com/example/monorepo/storage/internal/infrastructure/storage"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type utcClock struct{}
@@ -63,9 +62,9 @@ func Run(ctx context.Context) error {
 	}
 	server := &http.Server{
 		Addr: ":" + cfg.Port,
-		Handler: otelhttp.NewHandler(httpapi.NewRouter(service, readiness, cfg.MaxUploadBytes, httpapi.RouterOptions{
+		Handler: httpapi.NewRouter(service, readiness, cfg.MaxUploadBytes, httpapi.RouterOptions{
 			DeliverySigningKey: cfg.SigningKey,
-		}), "storage"),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       0,
 		WriteTimeout:      0,

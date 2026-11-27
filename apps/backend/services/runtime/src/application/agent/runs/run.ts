@@ -42,6 +42,7 @@ import type { RuntimeProviderCapability, TurnCapabilities } from "../runtime/typ
 import {
   activeRunStreamResponse,
   detachedActiveRunResponse,
+  duplicateActiveRunResponse,
   registerActiveRunStream,
   releaseActiveRunStream,
   resumeActiveRunStream,
@@ -307,6 +308,7 @@ export async function createAgentRunResponse(
         plugins: input.capabilities.plugins,
         skills: input.capabilities.skills,
         memories: input.capabilities.memories,
+        client: input.capabilities.client,
       }),
     },
     ...(operation === "tool-continuation" ? { continuationMessage: latestMessage } : {}),
@@ -327,7 +329,7 @@ export async function createAgentRunResponse(
         { status: 409, headers: { "x-agent-run-id": claim.runId, "x-agent-run-state": "settled" } },
       );
     }
-    return resumeActiveRunStream(sessionId, claim.runId) ?? detachedActiveRunResponse(claim.runId, 409);
+    return duplicateActiveRunResponse(sessionId, claim.runId, input.capabilities.client?.uiAgent === "ui-sdk");
   }
   return executeClaimedAgentRunResponse({
     session,
@@ -499,6 +501,7 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
           continuation: persistedContinuation,
           provider,
           media: input.capabilities.media,
+          client: input.capabilities.client,
           reasoningEffort: input.reasoningEffort,
           approvalPolicy,
           permissionProfile,
@@ -589,6 +592,7 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
               skills,
               generateTitle: input.generateTitle === true,
               activeSkillName: currentSkillName,
+              clientCapabilities: input.capabilities.client,
               instructions: prepared.settings.instructions ?? null,
               providerBinding: {
                 id: provider.id,
@@ -879,11 +883,15 @@ export async function resumeClaimedAgentRun(
     if (!PERMISSION_PROFILES.has(execution.permissionProfile as BuiltInPermissionProfileId)) {
       throw new Error("turn recovery contains an invalid permission profile");
     }
-    const [session, capabilities, run] = await Promise.all([
+    const [session, renewedCapabilities, run] = await Promise.all([
       deps.getSession(envelope.sessionId),
       deps.renewCapabilities(envelope, token),
       deps.getRun(token.runId),
     ]);
+    const capabilities: TurnCapabilities = {
+      ...renewedCapabilities,
+      ...(execution.clientCapabilities ? { client: execution.clientCapabilities } : {}),
+    };
     const provider = capabilities.provider;
     if (!run || run.sessionId !== envelope.sessionId) {
       throw new Error("turn recovery run no longer matches its resume envelope");

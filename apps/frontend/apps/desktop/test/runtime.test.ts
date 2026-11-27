@@ -541,6 +541,67 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(JSON.stringify(requests[0].options.prompt)).not.toContain("工作区内容已变化");
   });
 
+  it("exposes Agent UI tools only for an opted-in turn and resumes that same turn from a validated page result", async () => {
+    const requests: InferenceRequest[] = [];
+    const f = await fixture(async (request) => {
+      requests.push(request);
+      return requests.length === 1
+        ? reply([
+            {
+              type: "tool-call",
+              toolCallId: "page-snapshot",
+              toolName: "snapshot",
+              input: JSON.stringify({}),
+            },
+          ])
+        : reply(text());
+    });
+    f.runtime.send(f.thread.id, user("读取并配置页面"), randomUUID(), { uiAgent: "ui-sdk" });
+    const waiting = await done(f.runtime, f.thread.id);
+    expect(waiting.status).toBe("waiting");
+    expect(requests[0]?.options.tools?.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(["snapshot", "query", "act"]),
+    );
+    const turnId = waiting.turnId;
+    const persisted = waiting.messages.at(-1);
+    if (!turnId || persisted?.role !== "assistant") throw new Error("missing pending Agent UI turn");
+    const response = structuredClone(persisted);
+    const pending = response.parts.find(
+      (part) => isToolUIPart(part) && part.toolCallId === "page-snapshot" && part.state === "input-available",
+    );
+    if (!pending || !isToolUIPart(pending)) throw new Error("missing pending snapshot");
+    const invalid = structuredClone(response);
+    const invalidPending = invalid.parts.find(
+      (part) => isToolUIPart(part) && part.toolCallId === "page-snapshot" && part.state === "input-available",
+    );
+    if (!invalidPending || !isToolUIPart(invalidPending)) throw new Error("missing invalid snapshot fixture");
+    Object.assign(invalidPending, {
+      state: "output-available",
+      output: { ok: true, status: "completed", data: "not-a-snapshot" },
+    });
+    expect(() => f.runtime.continueClientTool(f.thread.id, turnId, invalid)).toThrow("snapshot 页面工具结果无效");
+    expect(f.runtime.get(f.thread.id).status).toBe("waiting");
+
+    Object.assign(pending, {
+      state: "output-available",
+      output: { ok: true, status: "completed", data: [] },
+    });
+
+    f.runtime.continueClientTool(f.thread.id, turnId, response);
+    const completed = await done(f.runtime, f.thread.id);
+    expect(completed.status).toBe("idle");
+    expect(completed.turnId).toBe(turnId);
+    expect(completed.messages.filter((message) => message.role === "user")).toHaveLength(1);
+    expect(JSON.stringify(requests[1]?.options.prompt)).toContain("page-snapshot");
+    expect(JSON.stringify(requests[1]?.options.prompt)).toContain('"value":[]');
+
+    f.runtime.send(f.thread.id, user("普通下一轮"), randomUUID());
+    await done(f.runtime, f.thread.id);
+    expect(requests[2]?.options.tools?.map((tool) => tool.name)).not.toEqual(
+      expect.arrayContaining(["snapshot", "query", "act"]),
+    );
+  });
+
   it("delivers a real workspace change once across read-only model steps", async () => {
     const requests: InferenceRequest[] = [];
     const f = await fixture(async (request) => {

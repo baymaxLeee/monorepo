@@ -3,11 +3,19 @@
   "toolchain": "go1.27.4",
   "capabilities": {
     "config": { "module": "github.com/caarlos0/env/v11", "version": "v11.4.2" },
-    "httpRouter": { "module": "github.com/go-chi/chi/v5", "version": "v5.5.0" },
+    "httpRouter": { "module": "github.com/gin-gonic/gin", "version": "v1.12.0" },
+    "httpServer": { "module": "github.com/example/monorepo/httpserver-go", "version": "v0.0.0" },
     "postgres": { "module": "github.com/jackc/pgx/v5", "version": "v5.13.0" },
     "redis": { "module": "github.com/redis/go-redis/v9", "version": "v9.23.0" },
     "uuid": { "module": "github.com/google/uuid", "version": "v1.6.0" },
-    "httpTracing": { "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", "version": "v0.72.0" },
+    "httpTracing": {
+      "module": "go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin",
+      "version": "v0.72.0"
+    },
+    "httpClientTracing": {
+      "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+      "version": "v0.72.0"
+    },
     "mcp": { "module": "github.com/modelcontextprotocol/go-sdk", "version": "v1.8.0" },
     "grpcTracing": {
       "module": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
@@ -23,8 +31,7 @@
   },
   "requiredForServices": [
     "github.com/caarlos0/env/v11",
-    "github.com/go-chi/chi/v5",
     "github.com/example/monorepo/observability-go",
-    "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+    "github.com/example/monorepo/httpserver-go"
   ]
 }

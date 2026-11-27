@@ -34,7 +34,6 @@ func TestClientForwardsRequestMetadataAndUsesOnlyChatIdentity(t *testing.T) {
 	headers.Set("Content-Type", "application/json")
 	headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 	headers.Set("tracestate", "vendor=value")
-	headers.Set("X-Trace-Id", "trace-id")
 	headers.Set("X-Caller-Service", "untrusted")
 	headers.Set("X-Internal-Token", "untrusted")
 	response, err := client.Do(context.Background(), application.RuntimeRequest{
@@ -55,7 +54,7 @@ func TestClientForwardsRequestMetadataAndUsesOnlyChatIdentity(t *testing.T) {
 	for name, want := range map[string]string{
 		"X-Caller-Service": "chat", "X-Internal-Token": "chat-token", "Content-Type": "application/json",
 		"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-		"tracestate":  "vendor=value", "X-Trace-Id": "trace-id",
+		"tracestate":  "vendor=value",
 	} {
 		if got := captured.Header.Get(name); got != want {
 			t.Fatalf("%s = %q, want %q", name, got, want)

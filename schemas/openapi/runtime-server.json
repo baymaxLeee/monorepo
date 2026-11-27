@@ -2459,6 +2459,18 @@
           "generate_title": {
             "type": "boolean"
           },
+          "client_capabilities": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ui_agent": {
+                "type": "string",
+                "enum": [
+                  "ui-sdk"
+                ]
+              }
+            }
+          },
           "capabilities": {
             "$ref": "#/components/schemas/TurnCapabilities"
           }

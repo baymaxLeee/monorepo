@@ -6,17 +6,8 @@ import type { Logger } from "pino";
 
 import { PROPAGATED_FIELDS, runWithContext, type RequestContext } from "./trace.js";
 
-const TRACE_HEADER = "X-Trace-Id";
 const TRACE_PARENT_HEADER = "traceparent";
 const SKIP_PATHS = new Set(["/livez", "/readyz", "/healthz"]);
-
-function normalizeTraceId(value: string | undefined): string {
-  if (!value) {
-    return "";
-  }
-  const normalized = value.trim().toLowerCase();
-  return /^[0-9a-f]{32}$/.test(normalized) ? normalized : "";
-}
 
 function normalizeTraceParent(value: string | undefined): string {
   if (!value) {
@@ -60,16 +51,12 @@ const headerGetter = {
 export function traceMiddleware(): MiddlewareHandler {
   return async (c, next) => {
     const inboundTraceParent = normalizeTraceParent(c.req.header(TRACE_PARENT_HEADER));
-    const traceId =
-      traceIdFromTraceParent(inboundTraceParent) ||
-      normalizeTraceId(c.req.header(TRACE_HEADER)) ||
-      randomBytes(16).toString("hex");
+    const traceId = traceIdFromTraceParent(inboundTraceParent) || randomBytes(16).toString("hex");
     const fallbackTraceParent = inboundTraceParent || newTraceParent(traceId);
     const carrier = Object.fromEntries(
       [...c.req.raw.headers.entries()].map(([key, value]) => [key.toLowerCase(), value]),
     );
     carrier[TRACE_PARENT_HEADER] = fallbackTraceParent;
-    carrier[TRACE_HEADER.toLowerCase()] = traceId;
     const parentContext = propagation.extract(otelContext.active(), carrier, headerGetter);
 
     await trace.getTracer("backend-http").startActiveSpan(
@@ -85,14 +72,13 @@ export function traceMiddleware(): MiddlewareHandler {
       async (span) => {
         const activeTraceParent = traceParentFromActiveSpan(fallbackTraceParent);
         const activeTraceId = traceIdFromTraceParent(activeTraceParent) || traceId;
-        c.header(TRACE_HEADER, activeTraceId);
         c.header(TRACE_PARENT_HEADER, activeTraceParent);
         const requestContext: RequestContext = {
           traceId: activeTraceId,
           traceParent: activeTraceParent,
         };
         for (const field of PROPAGATED_FIELDS) {
-          if (field.ctxKey === "traceId" || field.ctxKey === "traceParent") {
+          if (field.ctxKey === "traceParent") {
             continue;
           }
           const value = c.req.header(field.header);

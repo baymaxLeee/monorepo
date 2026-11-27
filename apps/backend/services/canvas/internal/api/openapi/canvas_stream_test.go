@@ -12,8 +12,15 @@ import (
 	handler "github.com/example/monorepo/canvas/internal/api/handler"
 	app "github.com/example/monorepo/canvas/internal/application/canvas"
 	stream "github.com/example/monorepo/canvas/internal/application/canvasstream"
-	"github.com/go-chi/chi/v5"
+	"github.com/example/monorepo/httpserver-go"
+	"github.com/gin-gonic/gin"
 )
+
+func streamContext(writer http.ResponseWriter, request *http.Request) *gin.Context {
+	c, _ := gin.CreateTestContext(writer)
+	c.Request = request
+	return c
+}
 
 type streamSource struct {
 	observe func(int)
@@ -48,7 +55,7 @@ func TestCanvasStreamInitialFlushAndCleanup(t *testing.T) {
 	router := &Router{nodes: nodes}
 	request := httptest.NewRequest(http.MethodGet, "/events?cursor=1", nil).WithContext(ctx)
 	writer := httptest.NewRecorder()
-	if err := router.canvasStream(ctx, writer, request); err != nil {
+	if err := router.canvasStream(ctx, streamContext(writer, request)); err != nil {
 		t.Fatal(err)
 	}
 	if !writer.Flushed || !strings.Contains(writer.Body.String(), "event: heartbeat") || strings.Contains(writer.Body.String(), "id:") {
@@ -58,7 +65,7 @@ func TestCanvasStreamInitialFlushAndCleanup(t *testing.T) {
 		t.Fatalf("cancelled subscriber kept reading: %d", source.calls)
 	}
 	source.calls = 0
-	if err := router.canvasStream(context.Background(), &failingStreamWriter{httptest.NewRecorder()}, request); err != nil {
+	if err := router.canvasStream(context.Background(), streamContext(&failingStreamWriter{httptest.NewRecorder()}, request)); err != nil {
 		t.Fatal(err)
 	}
 	if source.calls != 1 {
@@ -72,19 +79,19 @@ func TestCanvasStreamExpiredCursorAndInvalidSubscription(t *testing.T) {
 	router := &Router{nodes: nodes}
 	request := httptest.NewRequest(http.MethodGet, "/events?cursor=1", nil)
 	writer := httptest.NewRecorder()
-	if err := router.canvasStream(request.Context(), writer, request); err != nil {
+	if err := router.canvasStream(request.Context(), streamContext(writer, request)); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(writer.Body.String(), "event: canvas.resync_required") {
 		t.Fatalf("missing resync: %s", writer.Body.String())
 	}
 	request = httptest.NewRequest(http.MethodGet, "/events?cursor=0", nil)
-	if err := router.canvasStream(request.Context(), httptest.NewRecorder(), request); err == nil {
+	if err := router.canvasStream(request.Context(), streamContext(httptest.NewRecorder(), request)); err == nil {
 		t.Fatal("accepted cursor 0")
 	}
 	// Exercise the actual auth wrapper: missing identity never opens a stream.
-	protected := chi.NewRouter()
-	protected.Get("/events", router.nodeStreamRoute("GetCanvasGraph", 0, router.canvasStream))
+	protected := httpserver.New("canvas-test")
+	protected.GET("/events", router.nodeStreamRoute("GetCanvasGraph", 0, router.canvasStream))
 	writer = httptest.NewRecorder()
 	protected.ServeHTTP(writer, httptest.NewRequest(http.MethodGet, "/events?cursor=1", nil))
 	if writer.Code != http.StatusForbidden || writer.Flushed {
@@ -99,7 +106,7 @@ func TestCanvasStreamOversizedDeltaRequestsHTTPSnapshot(t *testing.T) {
 	router := &Router{nodes: nodes}
 	request := httptest.NewRequest(http.MethodGet, "/events?cursor=1", nil)
 	writer := httptest.NewRecorder()
-	if err := router.canvasStream(request.Context(), writer, request); err != nil {
+	if err := router.canvasStream(request.Context(), streamContext(writer, request)); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(writer.Body.String(), "event: canvas.resync_required") || strings.Contains(writer.Body.String(), "id: 2") {
@@ -132,7 +139,7 @@ func TestCanvasStreamClearsDeadlineBetweenFrames(t *testing.T) {
 	nodes.SetStream(source)
 	router := &Router{nodes: nodes}
 	request := httptest.NewRequest(http.MethodGet, "/events?cursor=1", nil).WithContext(ctx)
-	if err := router.canvasStream(ctx, writer, request); err != nil {
+	if err := router.canvasStream(ctx, streamContext(writer, request)); err != nil {
 		t.Fatal(err)
 	}
 }

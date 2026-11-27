@@ -16,6 +16,8 @@
     "./conversation/hooks/*": "./src/Conversation/hooks/*.ts",
     "./conversation/lib/*": "./src/Conversation/lib/*.ts",
     "./conversation/store/*": "./src/Conversation/store/*.ts",
+    "./agent-ui-route": "./src/AgentUI/document-route.ts",
+    "./agent-ui": "./src/AgentUI/index.ts",
     "./components/*": "./src/components/*.tsx"
   },
   "scripts": {
@@ -44,6 +46,8 @@
     "@tiptap/react": "catalog:",
     "@tiptap/starter-kit": "catalog:",
     "@tiptap/suggestion": "catalog:",
+    "@ui-sdk/core": "catalog:",
+    "@ui-sdk/react": "catalog:",
     "ai": "catalog:",
     "lucide-react": "catalog:",
     "react-hook-form": "catalog:",

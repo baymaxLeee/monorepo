@@ -532,6 +532,11 @@ const openapi = {
           expected_revision: { type: "integer", minimum: 0 },
           request_id: { type: "string", minLength: 8, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" },
           generate_title: { type: "boolean" },
+          client_capabilities: {
+            type: "object",
+            additionalProperties: false,
+            properties: { ui_agent: { type: "string", enum: ["ui-sdk"] } },
+          },
           capabilities: ref("TurnCapabilities"),
         },
       },

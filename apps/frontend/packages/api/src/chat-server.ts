@@ -62,6 +62,17 @@ export interface AgentRunInputStatus {
   text: string;
 }
 
+export type AgentRunRequestClientCapabilitiesUiAgent =
+  (typeof AgentRunRequestClientCapabilitiesUiAgent)[keyof typeof AgentRunRequestClientCapabilitiesUiAgent];
+
+export const AgentRunRequestClientCapabilitiesUiAgent = {
+  "ui-sdk": "ui-sdk",
+} as const;
+
+export type AgentRunRequestClientCapabilities = {
+  ui_agent?: AgentRunRequestClientCapabilitiesUiAgent;
+};
+
 export type AgentRunRequestMessage = { [key: string]: unknown };
 
 export type AgentRunRequestTrigger = (typeof AgentRunRequestTrigger)[keyof typeof AgentRunRequestTrigger];
@@ -235,6 +246,7 @@ export interface TurnCapabilities {
 
 export interface AgentRunRequest {
   capabilities: TurnCapabilities;
+  client_capabilities?: AgentRunRequestClientCapabilities;
   /** @minimum 0 */
   expected_revision: number;
   id?: string;

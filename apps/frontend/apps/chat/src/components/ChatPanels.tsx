@@ -126,7 +126,13 @@ export function ChatPanels() {
             <ChatConversationSidebar />
           </ResizablePanel>
         ) : null}
-        {!isMobile ? <ResizableHandle key="history-resize" aria-label="调整会话记录宽度" /> : null}
+        {!isMobile ? (
+          <ResizableHandle
+            key="history-resize"
+            aria-label="调整会话记录宽度"
+            className="bg-transparent data-[separator=active]:bg-border data-[separator=focus]:bg-border data-[separator=hover]:bg-border"
+          />
+        ) : null}
         <ResizablePanel
           key="conversation"
           id="conversation"

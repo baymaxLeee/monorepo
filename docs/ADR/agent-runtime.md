@@ -38,6 +38,10 @@ Backend 和 Desktop 只能准备 model、tools、environment、sandbox、persist
 
 上层 App 在进入 Runtime 前完成业务授权，只投影已授权且冻结的 model、plugin、tool、permission 与 execution capability。跨进程时使用 workload identity 与短期、受 audience/operation/resource/expiry 约束的 opaque capability，不能把 `tenantId`/`workspaceId` 换个字段名继续下沉，也不能把可猜测的 Session/Asset ID 当作授权。插件 snapshot 只保留内容身份、digest、manifest/activation 与瞬时 connection grant。执行环境中的 `workspaceRoot` 是文件系统能力事实，与 IAM workspace ID 无关。
 
+云端配置 OTLP 时为同一个 ToolLoopAgent 注入官方 `@ai-sdk/otel` integration。模型和工具 span 复用宿主 tracer provider 并关闭输入与输出正文采集。媒体任务使用 Workflow 5 和 PostgreSQL World；交互 Turn 的 lease、审批与恢复仍由 Session journal 驱动。参见 [AI SDK 遥测](https://ai-sdk.dev/docs/ai-sdk-core/telemetry) 与 [Workflow SDK 5](https://vercel.com/blog/workflow-sdk-5)。
+
+浏览器可按 Turn 声明非授权性的执行能力，例如可信顶层页面的 `ui-sdk` bridge。Runtime 只在该 Turn 装配官方语义对应的 `snapshot`、`query`、`act` 客户端工具，结果经原生 UIMessage tool part 和既有 client-tool continuation 回到同一个 AI SDK loop；Cloud 恢复 envelope 固定这项声明，Desktop journal 则把声明绑定到当前 `turnId`，二者都保持冻结的 tool catalog。声明只表示客户端能够执行，不能授予业务权限，且 WebMCP 不创建第二个 Runtime、journal 或工具协议。
+
 本次绿地切换不保留旧 Runtime Session 数据或旧 API 兼容层。Runtime Server 的 Session/Turn schema、HTTP admission、恢复 envelope 和 Storage 调用只使用 Runtime 自有身份；Chat/Desktop 在调用前完成产品授权、Admin 解析和业务资源映射，并把冻结的 `TurnCapabilities` 交给 Runtime。裸 Session/Asset ID 仍不是授权凭据，跨进程访问必须同时满足 workload identity 与对应 capability。
 
 ### 证据优先级

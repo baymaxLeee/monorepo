@@ -35,6 +35,9 @@ export interface TurnCapabilities {
   plugins: ResolvedTurnPluginSnapshot;
   skills: readonly FrozenSkillSnapshot[];
   memories: readonly MemoryDatum[];
+  client?: {
+    uiAgent?: "ui-sdk";
+  };
 }
 
 export interface AgentRuntimeContext {
@@ -53,6 +56,7 @@ export interface CloudTurnInput {
   pluginSnapshot: ResolvedTurnPluginSnapshot;
   provider: RuntimeProviderCapability;
   media: MediaCapabilities;
+  client?: TurnCapabilities["client"];
   reasoningEffort: ReasoningEffort;
   approvalPolicy: ApprovalPolicy;
   permissionProfile: BuiltInPermissionProfileId;

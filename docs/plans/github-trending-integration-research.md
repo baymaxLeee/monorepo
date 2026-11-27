@@ -28,7 +28,7 @@
 - 流式契约 = `schemas/streaming/chat-uimessage-stream.md`（reuse-first，官方 `text`/`reasoning`/`tool-*`/`file`/`source-*`/`metadata`）
 - 可恢复流 = Redis Streams；web 搜索 = Tavily
 - 跨栈契约 = `schemas/openapi/*`（admin/chat/knowledge/telemetry/executor）+ Orval 生成 TS 客户端
-- 边缘 trace = gateway 统一 `X-Trace-Id`，前端 `packages/observability` 已在请求注入 trace id
+- 边缘 trace = gateway 统一 W3C `traceparent`，前端通过标准传播字段关联请求
 
 ### 明确空白 / 薄弱
 
@@ -50,7 +50,7 @@
 |---|---|---|
 | `opentelemetry-*`（Go / Python / TS 各自 SDK）+ OTel Collector + ClickHouse | gateway / FastAPI 服务 / chat·executor / single-vps infra | trace + metrics + 统一 resource attributes + 单机 OLAP 观测库 |
 | AI SDK `telemetry` + ClickHouse 数据面 + Phoenix / OpenLLMetry / Langfuse / Laminar（评估） | chat（埋点）+ 观测后端 | LLM 级 token/成本/延迟/prompt/tool trace |
-| `go-chi/httprate` 或 Redis sliding-window | gateway middleware | 边缘限流，控 API/LLM 成本入口 |
+| Gin 原生 middleware + Redis sliding-window | gateway middleware | 边缘限流，控 API/LLM 成本入口 |
 | `@tanstack/react-query` | 前端 `packages/api` + admin | 服务端状态、缓存、失效、竞态 |
 | `@tanstack/react-table` | 前端 admin | 能力/服务/run/文档/事件明细表 |
 | `recharts` | 前端 admin | token 成本/延迟/转换耗时/命中率趋势图 |
@@ -97,7 +97,7 @@
 - **一期范围**：组件一步到位，数据策略克制。打通 `gateway → chat → knowledge/executor` 的 `traceparent` 传播 + resource attributes + ClickHouse exporter；默认 trace TTL 7 天，不逐条记录 SSE token chunk，不默认保存完整 prompt/response 正文。
 - 收益：一次请求全链路可见；为 P0-2 提供不锁厂商的埋点基座。
 - 风险：4C4G40G 内存和磁盘紧；ClickHouse 必须低资源配置（限制 query/merge 并发、system log 表、collector batch 队列），保留 20%-25% 磁盘空闲。
-- 依赖边界：从现有 `X-Trace-Id` 边界扩展到 W3C `traceparent`；不改业务逻辑。
+- 依赖边界：统一使用 W3C `traceparent`，删除私有 trace header；不改业务逻辑。
 - 验收信号：一条跨 `gateway → chat → knowledge/executor` 的请求在 ClickHouse `otel_traces` 中出现连续、同 trace 的多个 span，带统一 resource attributes（service.name / deploy.env）。
 - ADR：需要（ADR-0038）。`just sync`：否。
 - 前端展示：能力总览卡片"ClickHouse + OTel 基座"状态 + 近一小时 span 数。
@@ -114,7 +114,7 @@
 
 #### P0-A Gateway 边缘限流（独立）
 
-- 落点：`go-chi/httprate`（内存/单实例）或 Redis sliding window（多副本），作为 chi middleware 挂边缘。
+- 落点：Gin 原生 middleware 使用进程内 limiter（单实例）或 Redis sliding window（多副本）挂在边缘。
 - 收益：控外部请求与 LLM 成本入口，防滥用。
 - 风险：**不要把"下游 retry/backoff"塞进 gateway**——它是纯流式反向代理，无 typed client 层，对已消费/流式 body 做请求级重试是反模式。下游重试的正确落点是发起业务调用的服务端（如 chat 的 `transport-ts` 客户端），且仅限幂等、非流式、连接级失败。gateway `AGENTS.md` 相关描述需同步订正为现状。
 - 依赖边界：Redis 方案复用现有 Redis；不新增基础设施。

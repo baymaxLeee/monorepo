@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/monorepo/iam/internal/api/http/middleware"
+	"github.com/example/monorepo/httpserver-go"
 	"github.com/example/monorepo/iam/internal/application"
 	"github.com/example/monorepo/iam/internal/application/contracts"
-	"github.com/go-chi/chi/v5"
+	"github.com/gin-gonic/gin"
 )
 
 type Config struct {
@@ -56,52 +56,51 @@ func New(deps Dependencies) http.Handler {
 		store: deps.Store, cfg: deps.Config, auth: deps.Auth, roles: deps.Roles, workspace: deps.Workspace,
 		verify: deps.Verify, notFound: deps.IsNotFound,
 	}
-	r := chi.NewRouter()
-	r.Use(middleware.TraceId)
-	r.Use(middleware.RequestLogger)
-	r.Use(middleware.Recoverer)
-	r.Get("/livez", rt.livez)
-	r.Get("/readyz", rt.readyz)
-	r.Get("/healthz", rt.readyz)
-	r.Get("/account-availability", rt.accountAvailability)
+	r := httpserver.New("iam")
+	r.GET("/livez", rt.livez)
+	r.GET("/readyz", rt.readyz)
+	r.GET("/healthz", rt.readyz)
+	r.GET("/account-availability", rt.accountAvailability)
 
 	// Auth + session
-	r.Post("/register", rt.register)
-	r.Post("/login", rt.login)
-	r.Post("/refresh", rt.refresh)
-	r.Post("/logout", rt.logout)
-	r.Get("/me", rt.me)
-	r.Get("/me/memberships", rt.listMyMemberships)
-	r.Post("/me/memberships/{workspaceID}/apply", rt.applyMembership)
-	r.Post("/session/active-workspace", rt.switchActiveWorkspace)
+	r.POST("/register", rt.register)
+	r.POST("/login", rt.login)
+	r.POST("/refresh", rt.refresh)
+	r.POST("/logout", rt.logout)
+	r.GET("/me", rt.me)
+	r.GET("/me/memberships", rt.listMyMemberships)
+	r.POST("/me/memberships/:workspaceID/apply", rt.applyMembership)
+	r.POST("/session/active-workspace", rt.switchActiveWorkspace)
 
 	// Workspaces: GET /workspaces is the PUBLIC applyable list; everything else is
 	// privileged (see gateway public-path config — only GET /workspaces is public).
-	r.Get("/tenants", rt.listTenants)
-	r.Post("/tenants", rt.createTenant)
-	r.Get("/workspaces", rt.listPublicWorkspaces)
-	r.Post("/workspaces", rt.createWorkspace)
-	r.Get("/workspaces/admin", rt.listWorkspacesForAdmin)
-	r.Post("/workspaces/{workspaceID}/admins", rt.createWorkspaceAdmin)
-	r.Put("/workspaces/{workspaceID}/owner", rt.transferOwner)
-	r.Get("/workspaces/{workspaceID}/members", rt.listWorkspaceMembers)
-	r.Post("/workspaces/{workspaceID}/members/{userID}/approve", rt.approveMember)
-	r.Post("/workspaces/{workspaceID}/members/{userID}/reject", rt.rejectMember)
-	r.Put("/workspaces/{workspaceID}/members/{userID}/role", rt.setMemberRole)
+	r.GET("/tenants", rt.listTenants)
+	r.POST("/tenants", rt.createTenant)
+	r.GET("/workspaces", rt.listPublicWorkspaces)
+	r.POST("/workspaces", rt.createWorkspace)
+	r.GET("/workspaces/admin", rt.listWorkspacesForAdmin)
+	r.POST("/workspaces/:workspaceID/admins", rt.createWorkspaceAdmin)
+	r.PUT("/workspaces/:workspaceID/owner", rt.transferOwner)
+	r.GET("/workspaces/:workspaceID/members", rt.listWorkspaceMembers)
+	r.POST("/workspaces/:workspaceID/members/:userID/approve", rt.approveMember)
+	r.POST("/workspaces/:workspaceID/members/:userID/reject", rt.rejectMember)
+	r.PUT("/workspaces/:workspaceID/members/:userID/role", rt.setMemberRole)
 
 	// Platform roles (super_admin only)
-	r.Get("/roles", rt.listRoles)
-	r.Get("/users/{userID}/roles", rt.listUserRoles)
-	r.Post("/users/{userID}/roles", rt.assignUserRole)
-	r.Delete("/users/{userID}/roles/{roleID}", rt.removeUserRole)
+	r.GET("/roles", rt.listRoles)
+	r.GET("/users/:userID/roles", rt.listUserRoles)
+	r.POST("/users/:userID/roles", rt.assignUserRole)
+	r.DELETE("/users/:userID/roles/:roleID", rt.removeUserRole)
 	return r
 }
 
-func (rt *Router) livez(w http.ResponseWriter, _ *http.Request) {
+func (rt *Router) livez(c *gin.Context) {
+	w := c.Writer
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (rt *Router) readyz(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) readyz(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	if err := rt.store.Ping(r.Context()); err != nil {
 		writeProblem(w, http.StatusServiceUnavailable, "dependency_unavailable", err.Error())
 		return
@@ -109,7 +108,8 @@ func (rt *Router) readyz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (rt *Router) accountAvailability(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) accountAvailability(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	account, available, err := rt.auth.AccountAvailability(r.Context(), r.URL.Query().Get("account"))
 	if errors.Is(err, application.ErrInvalidAccount) {
 		writeProblem(w, http.StatusBadRequest, "invalid_account", "account is required and must not contain whitespace or @")
@@ -125,7 +125,8 @@ func (rt *Router) accountAvailability(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (rt *Router) register(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) register(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	var req contracts.AuthRequest
 	if !decodeJSON(w, r, &req) {
 		return
@@ -149,7 +150,8 @@ func (rt *Router) register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, response)
 }
 
-func (rt *Router) login(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) login(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	var req contracts.AuthRequest
 	if !decodeJSON(w, r, &req) {
 		return
@@ -167,7 +169,8 @@ func (rt *Router) login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (rt *Router) refresh(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) refresh(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	cookie, err := r.Cookie(rt.cfg.RefreshCookieName)
 	if err != nil || cookie.Value == "" {
 		writeProblem(w, http.StatusUnauthorized, "missing_refresh_token", "refresh token is required")
@@ -182,7 +185,8 @@ func (rt *Router) refresh(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (rt *Router) logout(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) logout(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	if cookie, err := r.Cookie(rt.cfg.RefreshCookieName); err == nil {
 		if err = rt.auth.Logout(r.Context(), cookie.Value); err != nil {
 			writeProblem(w, http.StatusInternalServerError, "logout_failed", "could not revoke session")
@@ -193,7 +197,8 @@ func (rt *Router) logout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (rt *Router) me(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) me(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return
@@ -206,7 +211,8 @@ func (rt *Router) me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user)
 }
 
-func (rt *Router) listMyMemberships(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) listMyMemberships(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return
@@ -219,12 +225,13 @@ func (rt *Router) listMyMemberships(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, memberships)
 }
 
-func (rt *Router) applyMembership(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) applyMembership(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return
 	}
-	err := rt.workspace.Apply(r.Context(), chi.URLParam(r, "workspaceID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.Apply(r.Context(), c.Param("workspaceID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
 	case errors.Is(err, application.ErrWorkspaceNotFound):
 		writeProblem(w, http.StatusNotFound, "workspace_not_found", "workspace does not exist")
@@ -239,7 +246,8 @@ func (rt *Router) applyMembership(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rt *Router) switchActiveWorkspace(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) switchActiveWorkspace(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return
@@ -275,7 +283,8 @@ func (rt *Router) switchActiveWorkspace(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (rt *Router) listPublicWorkspaces(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) listPublicWorkspaces(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	workspaces, err := rt.workspace.ListPublic(r.Context())
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "workspaces_failed", "could not list workspaces")
@@ -284,7 +293,8 @@ func (rt *Router) listPublicWorkspaces(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workspaces)
 }
 
-func (rt *Router) createWorkspace(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) createWorkspace(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return
@@ -311,7 +321,8 @@ func (rt *Router) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, view)
 }
 
-func (rt *Router) listWorkspacesForAdmin(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) listWorkspacesForAdmin(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	if _, ok := rt.requireSuperAdmin(w, r); !ok {
 		return
 	}
@@ -323,7 +334,8 @@ func (rt *Router) listWorkspacesForAdmin(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, workspaces)
 }
 
-func (rt *Router) createWorkspaceAdmin(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) createWorkspaceAdmin(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return
@@ -332,7 +344,7 @@ func (rt *Router) createWorkspaceAdmin(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	view, err := rt.workspace.CreateWorkspaceAdmin(r.Context(), chi.URLParam(r, "workspaceID"), req, application.AuditMetaFromHTTP(r, claims.Subject))
+	view, err := rt.workspace.CreateWorkspaceAdmin(r.Context(), c.Param("workspaceID"), req, application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
 	case errors.Is(err, application.ErrWorkspaceNotFound):
 		writeProblem(w, http.StatusNotFound, "workspace_not_found", "workspace does not exist")
@@ -350,7 +362,8 @@ func (rt *Router) createWorkspaceAdmin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, view)
 }
 
-func (rt *Router) transferOwner(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) transferOwner(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return
@@ -359,7 +372,7 @@ func (rt *Router) transferOwner(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	err := rt.workspace.TransferOwner(r.Context(), chi.URLParam(r, "workspaceID"), req.NewOwnerUserID, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.TransferOwner(r.Context(), c.Param("workspaceID"), req.NewOwnerUserID, application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
 	case errors.Is(err, application.ErrInvalidWorkspace):
 		writeProblem(w, http.StatusBadRequest, "invalid_workspace", "newOwnerUserId is required")
@@ -377,8 +390,9 @@ func (rt *Router) transferOwner(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rt *Router) listWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceID")
+func (rt *Router) listWorkspaceMembers(c *gin.Context) {
+	w, r := c.Writer, c.Request
+	workspaceID := c.Param("workspaceID")
 	if _, ok := rt.requireWorkspaceViewer(w, r, workspaceID); !ok {
 		return
 	}
@@ -390,18 +404,20 @@ func (rt *Router) listWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, members)
 }
 
-func (rt *Router) approveMember(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceID")
+func (rt *Router) approveMember(c *gin.Context) {
+	w, r := c.Writer, c.Request
+	workspaceID := c.Param("workspaceID")
 	claims, ok := rt.requireWorkspaceAdmin(w, r, workspaceID)
 	if !ok {
 		return
 	}
-	err := rt.workspace.Approve(r.Context(), workspaceID, chi.URLParam(r, "userID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.Approve(r.Context(), workspaceID, c.Param("userID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
 	rt.writeMembershipResult(w, err)
 }
 
-func (rt *Router) rejectMember(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceID")
+func (rt *Router) rejectMember(c *gin.Context) {
+	w, r := c.Writer, c.Request
+	workspaceID := c.Param("workspaceID")
 	claims, ok := rt.requireWorkspaceAdmin(w, r, workspaceID)
 	if !ok {
 		return
@@ -410,12 +426,13 @@ func (rt *Router) rejectMember(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	err := rt.workspace.Reject(r.Context(), workspaceID, chi.URLParam(r, "userID"), claims.Subject, req.Reason, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.Reject(r.Context(), workspaceID, c.Param("userID"), claims.Subject, req.Reason, application.AuditMetaFromHTTP(r, claims.Subject))
 	rt.writeMembershipResult(w, err)
 }
 
-func (rt *Router) setMemberRole(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceID")
+func (rt *Router) setMemberRole(c *gin.Context) {
+	w, r := c.Writer, c.Request
+	workspaceID := c.Param("workspaceID")
 	claims, ok := rt.requireWorkspaceAdmin(w, r, workspaceID)
 	if !ok {
 		return
@@ -424,7 +441,7 @@ func (rt *Router) setMemberRole(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	err := rt.workspace.SetMemberRole(r.Context(), workspaceID, chi.URLParam(r, "userID"), req.Role, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.SetMemberRole(r.Context(), workspaceID, c.Param("userID"), req.Role, application.AuditMetaFromHTTP(r, claims.Subject))
 	if errors.Is(err, application.ErrInvalidRole) {
 		writeProblem(w, http.StatusBadRequest, "invalid_role", "role must be workspace_admin or member")
 		return
@@ -448,7 +465,8 @@ func (rt *Router) writeMembershipResult(w http.ResponseWriter, err error) {
 	}
 }
 
-func (rt *Router) listRoles(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) listRoles(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	if _, ok := rt.requireSuperAdmin(w, r); !ok {
 		return
 	}
@@ -460,12 +478,13 @@ func (rt *Router) listRoles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, roles)
 }
 
-func (rt *Router) listUserRoles(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) listUserRoles(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return
 	}
-	userID := chi.URLParam(r, "userID")
+	userID := c.Param("userID")
 	if userID != claims.Subject {
 		isSuper, err := rt.roles.IsSuperAdmin(r.Context(), claims.Subject)
 		if err != nil {
@@ -485,7 +504,8 @@ func (rt *Router) listUserRoles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, roles)
 }
 
-func (rt *Router) assignUserRole(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) assignUserRole(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return
@@ -494,19 +514,20 @@ func (rt *Router) assignUserRole(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := rt.roles.Assign(r.Context(), chi.URLParam(r, "userID"), req.RoleID, application.AuditMetaFromHTTP(r, claims.Subject)); err != nil {
+	if err := rt.roles.Assign(r.Context(), c.Param("userID"), req.RoleID, application.AuditMetaFromHTTP(r, claims.Subject)); err != nil {
 		writeProblem(w, http.StatusBadRequest, "role_assignment_failed", "could not assign role")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rt *Router) removeUserRole(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) removeUserRole(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return
 	}
-	err := rt.roles.Remove(r.Context(), chi.URLParam(r, "userID"), chi.URLParam(r, "roleID"), application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.roles.Remove(r.Context(), c.Param("userID"), c.Param("roleID"), application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
 	case errors.Is(err, application.ErrLastSuperAdmin):
 		writeProblem(w, http.StatusConflict, "last_super_admin", "cannot revoke the last super_admin")

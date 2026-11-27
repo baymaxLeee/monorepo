@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { type ResolvedTurnPluginSnapshot, webSearchOutputSchema } from "@repo/agent-runtime";
+import type { UIMessage } from "ai";
 import { z } from "zod";
 
 import { inferenceConfigSchema } from "../contracts/inference.generated";
@@ -155,8 +156,20 @@ async function dispatch(method: string, payload: unknown) {
     case "get":
       return runtime.get(idSchema.parse(payload));
     case "send": {
-      const p = z.object({ id: idSchema, messageId: idSchema, parts: z.unknown() }).parse(payload);
-      runtime.send(p.id, parseLocalUserMessageParts(p.parts), p.messageId);
+      const p = z
+        .object({
+          id: idSchema,
+          messageId: idSchema,
+          parts: z.unknown(),
+          clientCapabilities: z.object({ uiAgent: z.literal("ui-sdk").optional() }).optional(),
+        })
+        .parse(payload);
+      runtime.send(p.id, parseLocalUserMessageParts(p.parts), p.messageId, p.clientCapabilities);
+      return null;
+    }
+    case "continueClientTool": {
+      const p = z.object({ id: idSchema, expectedTurnId: idSchema, message: z.unknown() }).parse(payload);
+      runtime.continueClientTool(p.id, p.expectedTurnId, p.message as UIMessage);
       return null;
     }
     case "submitRunInput": {

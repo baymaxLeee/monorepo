@@ -19,7 +19,7 @@ services/<name>/
     ├── bootstrap/
     │   ├── config.go                 # caarlos0/env typed config + Validate
     │   └── run.go                    # 唯一 composition/lifecycle root
-    ├── api/http/                     # net/http + chi + generated binding
+    ├── api/http/                     # 原生 Gin handler/middleware + generated binding
     ├── api/rpc/                      # 需要时实现 generated gRPC service
     ├── application/                  # use case 与 consumer-owned ports
     ├── domain/                       # 只有真实、无框架的 invariant
@@ -35,7 +35,7 @@ services/<name>/
 
 | 需求 | 必须采用 | 禁止另选 |
 |---|---|---|
-| HTTP | `net/http` + `chi/v5`，OpenAPI operation 尽量生成 | Gin、Echo、Fiber、Gorilla router、手写重复 DTO |
+| HTTP | `httpserver-go` + `gin/v1`；OpenAPI operation 生成 `gin-server` | Chi、Echo、Fiber、Gorilla router、`gin.Default`、手写重复 DTO/通用 middleware |
 | 配置 | `caarlos0/env/v11` typed struct；dotenv 只负责本地文件加载 | Viper、Koanf、散落 `os.Getenv`/静默 fallback parser |
 | 日志 | 标准库 `log/slog` | Zap、Logrus、Zerolog 及 service-local logger framework |
 | Trace/metrics | `observability-go` + OpenTelemetry HTTP/gRPC instrumentation | 私有 trace header 实现、供应商专用 tracing SDK |
@@ -61,6 +61,11 @@ services/<name>/
 4. 关闭顺序是 admission → HTTP/gRPC → workers → clients/pools → telemetry；每步有 deadline。
 5. repository 接收 application-owned input/output；sqlc model 不越过 infrastructure 边界。
 6. transaction 由 repository 明确拥有，retry 只在幂等且总体 deadline 内发生。
+
+HTTP route 必须注册在共享 Gin engine。跨服务 middleware 的顺序和语义由
+`httpserver-go` 唯一拥有；业务 handler 和 middleware 直接使用 `gin.Context`，解析后只把
+普通值与 `context.Context` 传入 application。新增 middleware 要先判断是跨服务 invariant 还是服务专属策略，
+并覆盖拒绝路径、panic、response 已开始和 streaming cleanup。
 
 ## 创建与验收
 

@@ -15,9 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/monorepo/httpserver-go"
 	"github.com/example/monorepo/storage/internal/application"
 	"github.com/example/monorepo/storage/internal/domain"
-	"github.com/go-chi/chi/v5"
+	"github.com/gin-gonic/gin"
 )
 
 const apiVersion = "2026-09-24"
@@ -38,21 +39,20 @@ func NewRouter(service *application.Service, readiness func(context.Context) err
 		service: service, readiness: readiness, maxBytes: maxBytes,
 		signingKey: []byte(options.DeliverySigningKey),
 	}
-	router := chi.NewRouter()
-	router.Get("/livez", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
-	router.Get("/readyz", transport.readinessRoute())
-	router.Get("/healthz", transport.readinessRoute())
-	router.Put("/upload-sessions/{uploadID}/content", transport.uploadSessionContentRoute())
-	router.MethodFunc(http.MethodGet, "/media/{assetID}/revisions/{revisionID}/content", transport.capabilityContentRoute())
-	router.MethodFunc(http.MethodHead, "/media/{assetID}/revisions/{revisionID}/content", transport.capabilityContentRoute())
+	router := httpserver.New("storage")
+	router.GET("/livez", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	router.GET("/readyz", transport.readinessRoute())
+	router.GET("/healthz", transport.readinessRoute())
+	router.PUT("/upload-sessions/:uploadID/content", transport.uploadSessionContentRoute())
+	router.GET("/media/:assetID/revisions/:revisionID/content", transport.capabilityContentRoute())
+	router.HEAD("/media/:assetID/revisions/:revisionID/content", transport.capabilityContentRoute())
 	return router
 }
 
-func (router *Router) uploadSessionContentRoute() http.HandlerFunc {
-	return func(w http.ResponseWriter, request *http.Request) {
-		uploadID := chi.URLParam(request, "uploadID")
+func (router *Router) uploadSessionContentRoute() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		w, request := c.Writer, c.Request
+		uploadID := c.Param("uploadID")
 		expires, err := strconv.ParseInt(request.URL.Query().Get("expires"), 10, 64)
 		expected := router.signUploadSession(uploadID, expires)
 		provided := request.URL.Query().Get("signature")
@@ -85,8 +85,9 @@ func (router *Router) signUploadSession(uploadID string, expires int64) string {
 	return fmt.Sprintf("%x", mac.Sum(nil))
 }
 
-func (router *Router) capabilityContentRoute() http.HandlerFunc {
-	return func(w http.ResponseWriter, request *http.Request) {
+func (router *Router) capabilityContentRoute() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		w, request := c.Writer, c.Request
 		query := request.URL.Query()
 		expires, err := strconv.ParseInt(query.Get("expires"), 10, 64)
 		if err != nil {
@@ -101,17 +102,17 @@ func (router *Router) capabilityContentRoute() http.HandlerFunc {
 				return
 			}
 		}
-		expected := router.signDeliveryVariant(chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"), expires, maxDim)
+		expected := router.signDeliveryVariant(c.Param("assetID"), c.Param("revisionID"), expires, maxDim)
 		provided := query.Get("signature")
 		if err != nil || time.Now().Unix() >= expires || len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
 			writeProblem(w, http.StatusForbidden, "forbidden", "invalid or expired delivery capability")
 			return
 		}
 		if maxDim > 0 {
-			router.imageVariantRoute()(w, request)
+			router.imageVariantRoute()(c)
 			return
 		}
-		router.serveContent(w, request)
+		router.serveContent(c)
 	}
 }
 
@@ -121,8 +122,9 @@ func (router *Router) signDelivery(assetID, revisionID string, expires int64) st
 	return fmt.Sprintf("%x", mac.Sum(nil))
 }
 
-func (router *Router) readinessRoute() http.HandlerFunc {
-	return func(w http.ResponseWriter, request *http.Request) {
+func (router *Router) readinessRoute() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		w, request := c.Writer, c.Request
 		ctx, cancel := context.WithTimeout(request.Context(), 3*time.Second)
 		defer cancel()
 		if router.readiness == nil || router.readiness(ctx) != nil {
@@ -140,8 +142,9 @@ func uploadResponse(asset domain.Asset, revision domain.Revision) map[string]any
 	}
 }
 
-func (router *Router) serveContent(w http.ResponseWriter, request *http.Request) {
-	revision, blob, err := router.service.Open(request.Context(), chi.URLParam(request, "assetID"), chi.URLParam(request, "revisionID"))
+func (router *Router) serveContent(c *gin.Context) {
+	w, request := c.Writer, c.Request
+	revision, blob, err := router.service.Open(request.Context(), c.Param("assetID"), c.Param("revisionID"))
 	if err != nil {
 		writeServiceError(w, err)
 		return

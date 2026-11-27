@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from application.contracts.retrieval import RetrieveResult
@@ -171,8 +172,17 @@ mcp = FastMCP(
         allowed_origins=[],
     ),
 )
+_SEARCH_APP_URI = "ui://knowledge/search-results.html"
+
+
+@mcp.resource(_SEARCH_APP_URI, mime_type="text/html;profile=mcp-app")
+def search_results_view() -> str:
+    return Path(__file__).with_name("search-results.html").read_text(encoding="utf-8")
+
+
 mcp.tool(
     name="knowledge_search",
+    meta={"ui": {"resourceUri": _SEARCH_APP_URI}},
     description=(
         "Search the workspace's private knowledge base for uploaded documents, incident write-ups, "
         "runbooks, internal policies and workspace-specific facts."

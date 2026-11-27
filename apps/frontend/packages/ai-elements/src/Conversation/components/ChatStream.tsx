@@ -5,9 +5,11 @@ import {
   ConversationScrollButton,
   type ConversationScrollHandle,
 } from "@repo/ai-elements";
+import { isToolUIPart } from "ai";
 import { type ComponentProps, type Ref, memo, useDeferredValue, useEffect, useMemo, useRef } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
+import { toolUiKind } from "../lib/conversation-messages";
 import { createSnapshotTailProjection } from "./chat-render-cache";
 import { projectMessageActiveTodoList, type ActiveTodoList } from "./ChatPlanState";
 import { ChatTranscript } from "./ChatTranscript";
@@ -18,6 +20,7 @@ type ChatStreamProps = Omit<ComponentProps<typeof ChatTranscript>, "messages" | 
   scrollRef: Ref<ConversationScrollHandle>;
   onStatusChange: (status: Chat<ChatUIMessage>["status"]) => void;
   onCanvasChange?: () => void;
+  onPageToolWaiting?: (waiting: boolean) => void;
   onActivePlanChange?: (plan: ActiveTodoList | null) => void;
   onPendingInputsDelivered?: (ids: ReadonlySet<string>) => void;
 };
@@ -76,6 +79,7 @@ export const ChatStreamContent = memo(function ChatStreamContent({
   resume = false,
   onStatusChange,
   onCanvasChange,
+  onPageToolWaiting,
   onActivePlanChange,
   onPendingInputsDelivered,
   ...props
@@ -104,6 +108,20 @@ export const ChatStreamContent = memo(function ChatStreamContent({
     [],
   );
   const deliveredSteeringIds = projectDeliveredSteeringIds(messages);
+  const last = messages.at(-1);
+  const waiting =
+    !!onPageToolWaiting &&
+    last?.role === "assistant" &&
+    last.parts.some(
+      (part) =>
+        isToolUIPart(part) &&
+        part.state === "input-available" &&
+        !part.providerExecuted &&
+        toolUiKind(part) === "agent-ui",
+    );
+  useEffect(() => {
+    onPageToolWaiting?.(waiting);
+  }, [onPageToolWaiting, waiting]);
   const canvasCallback = useRef(onCanvasChange);
   const pendingInputsDeliveredCallback = useRef(onPendingInputsDelivered);
   useEffect(() => {

@@ -26,6 +26,8 @@
     "@tiptap/pm": "catalog:",
     "@tiptap/react": "catalog:",
     "@tiptap/suggestion": "catalog:",
+    "@ui-sdk/core": "catalog:",
+    "@ui-sdk/react": "catalog:",
     "@xyflow/react": "catalog:",
     "ahooks": "catalog:",
     "ai": "catalog:",

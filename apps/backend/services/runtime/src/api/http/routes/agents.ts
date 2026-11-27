@@ -103,6 +103,12 @@ export function createAgentsRoutes(dependencies: { toolCatalog: ToolCatalog }) {
         .max(64)
         .regex(/^[a-zA-Z0-9_-]+$/),
       generate_title: z.boolean().optional(),
+      client_capabilities: z
+        .object({
+          ui_agent: z.literal("ui-sdk").optional(),
+        })
+        .strict()
+        .optional(),
       capabilities: capabilitiesSchema,
     })
     .strict();
@@ -133,7 +139,10 @@ export function createAgentsRoutes(dependencies: { toolCatalog: ToolCatalog }) {
       }
 
       const session = await getSessionRow(sessionId);
-      const capabilities = payload.capabilities satisfies TurnCapabilities;
+      const capabilities = {
+        ...payload.capabilities,
+        ...(payload.client_capabilities?.ui_agent ? { client: { uiAgent: payload.client_capabilities.ui_agent } } : {}),
+      } satisfies TurnCapabilities;
       const textProvider = capabilities.provider;
       const reasoningEffort = session.reasoningEffort as Parameters<typeof updateSessionModel>[1]["reasoningEffort"];
       if (session.providerId !== textProvider.id || session.model !== textProvider.model) {

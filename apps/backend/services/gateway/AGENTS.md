@@ -6,7 +6,7 @@ propagation; it owns no business state or aggregation.
 
 - External routes use `/api/<service-name>/*`. Route by service prefix, strip that
   prefix and proxy the remaining path; never enumerate business endpoints here.
-- Preserve canonical `X-Trace-Id` and W3C `traceparent` propagation.
+- Preserve canonical W3C `traceparent`, `tracestate` and baggage propagation.
 - RUM ingestion is the narrow optional-auth exception:
   `/api/telemetry-server/rum/*` accepts anonymous writes but propagates identity
   when a valid token is present. Do not treat it as a generally public prefix.

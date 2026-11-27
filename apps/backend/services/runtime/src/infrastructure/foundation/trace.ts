@@ -13,12 +13,11 @@ export interface RequestContext {
  * authorization headers terminate at the upper host.
  */
 export const PROPAGATED_FIELDS = [
-  { header: "X-Trace-Id", ctxKey: "traceId", logKey: "trace_id" },
   { header: "traceparent", ctxKey: "traceParent", logKey: "traceparent" },
   { header: "tracestate", ctxKey: "traceState", logKey: "tracestate" },
 ] as const satisfies ReadonlyArray<{
   header: string;
-  ctxKey: keyof RequestContext;
+  ctxKey: "traceParent" | "traceState";
   logKey: string;
 }>;
 

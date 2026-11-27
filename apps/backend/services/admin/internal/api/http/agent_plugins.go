@@ -7,6 +7,7 @@ import (
 	adminapi "github.com/example/monorepo/admin/internal/api/generated/adminapi"
 	"github.com/example/monorepo/admin/internal/application"
 	"github.com/example/monorepo/admin/internal/domain"
+	"github.com/gin-gonic/gin"
 )
 
 func rawObject(value map[string]interface{}) json.RawMessage {
@@ -212,7 +213,8 @@ func pluginSelectionOptionDTO(value domain.AgentPluginSelectionOption) adminapi.
 	}
 }
 
-func (h *Handler) ListAgentPluginOptions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListAgentPluginOptions(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -230,7 +232,8 @@ func (h *Handler) ListAgentPluginOptions(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (h *Handler) ListAgentPlugins(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListAgentPlugins(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -248,7 +251,8 @@ func (h *Handler) ListAgentPlugins(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (h *Handler) PublishAgentPlugin(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PublishAgentPlugin(c *gin.Context) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -273,7 +277,8 @@ func (h *Handler) PublishAgentPlugin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, pluginListItemDTO(domain.AgentPluginListItem{Catalog: catalog, Manifest: manifest}))
 }
 
-func (h *Handler) InstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginID string) {
+func (h *Handler) InstallAgentPlugin(c *gin.Context, pluginID string) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -304,7 +309,8 @@ func (h *Handler) InstallAgentPlugin(w http.ResponseWriter, r *http.Request, plu
 	writeJSON(w, http.StatusOK, pluginInstallationDTO(value))
 }
 
-func (h *Handler) SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request, pluginID string) {
+func (h *Handler) SetAgentPluginEnabled(c *gin.Context, pluginID string) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -325,7 +331,8 @@ func (h *Handler) SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, pluginInstallationDTO(value))
 }
 
-func (h *Handler) UninstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginID string) {
+func (h *Handler) UninstallAgentPlugin(c *gin.Context, pluginID string) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err == nil {
 		err = h.Plugins.Uninstall(r.Context(), a, pluginID)

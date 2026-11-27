@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -32,54 +34,53 @@ type Claims struct {
 
 type TokenVerifier func(token string, now time.Time) (Claims, error)
 
-func IdentityPropagation(verify TokenVerifier, publicPathPrefixes, publicExactPaths, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			r.Header.Del(HeaderAuthTenantID)
-			r.Header.Del(HeaderAuthUserID)
-			r.Header.Del(HeaderAuthEmail)
-			r.Header.Del(HeaderAuthName)
-			r.Header.Del(HeaderAuthWorkspaceID)
-			r.Header.Del(HeaderAuthWorkspaceRole)
-			r.Header.Del(HeaderAuthRoles)
-			r.Header.Del(HeaderInternalToken)
-			r.Header.Del(HeaderCallerService)
+func IdentityPropagation(verify TokenVerifier, publicPathPrefixes, publicExactPaths, optionalAuthPathPrefixes []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		w, r := c.Writer, c.Request
+		r.Header.Del(HeaderAuthTenantID)
+		r.Header.Del(HeaderAuthUserID)
+		r.Header.Del(HeaderAuthEmail)
+		r.Header.Del(HeaderAuthName)
+		r.Header.Del(HeaderAuthWorkspaceID)
+		r.Header.Del(HeaderAuthWorkspaceRole)
+		r.Header.Del(HeaderAuthRoles)
+		r.Header.Del(HeaderInternalToken)
+		r.Header.Del(HeaderCallerService)
 
-			// Prefix publics cover whole subtrees; method-aware exact publics
-			// open a single route (e.g. GET /api/iam-server/workspaces) WITHOUT
-			// exposing sibling management routes under the same prefix.
-			if isPublicPath(r.URL.Path, publicPathPrefixes) || isPublicExact(r.Method, r.URL.Path, publicExactPaths) {
-				next.ServeHTTP(w, r)
-				return
-			}
+		// Prefix publics cover whole subtrees; method-aware exact publics
+		// open a single route (e.g. GET /api/iam-server/workspaces) WITHOUT
+		// exposing sibling management routes under the same prefix.
+		if isPublicPath(r.URL.Path, publicPathPrefixes) || isPublicExact(r.Method, r.URL.Path, publicExactPaths) {
+			c.Next()
+			return
+		}
 
-			raw := bearerToken(r.Header.Get("Authorization"))
-			if isPublicPath(r.URL.Path, optionalAuthPathPrefixes) {
-				if raw != "" {
-					if claims, err := verify(raw, time.Now().UTC()); err == nil {
-						propagateClaims(r, claims)
-					}
+		raw := bearerToken(r.Header.Get("Authorization"))
+		if isPublicPath(r.URL.Path, optionalAuthPathPrefixes) {
+			if raw != "" {
+				if claims, err := verify(raw, time.Now().UTC()); err == nil {
+					propagateClaims(r, claims)
 				}
-				next.ServeHTTP(w, r)
-				return
 			}
+			c.Next()
+			return
+		}
 
-			if raw == "" {
-				writeProblem(w, http.StatusUnauthorized,
-					"missing_access_token", "access token is required")
-				return
-			}
+		if raw == "" {
+			writeProblem(w, http.StatusUnauthorized,
+				"missing_access_token", "access token is required")
+			return
+		}
 
-			claims, err := verify(raw, time.Now().UTC())
-			if err != nil {
-				writeProblem(w, http.StatusUnauthorized,
-					"invalid_access_token", "access token is invalid")
-				return
-			}
+		claims, err := verify(raw, time.Now().UTC())
+		if err != nil {
+			writeProblem(w, http.StatusUnauthorized,
+				"invalid_access_token", "access token is invalid")
+			return
+		}
 
-			propagateClaims(r, claims)
-			next.ServeHTTP(w, r)
-		})
+		propagateClaims(r, claims)
+		c.Next()
 	}
 }
 

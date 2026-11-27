@@ -5,12 +5,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestCORSCanvasCursor(t *testing.T) {
-	handler := CORS([]string{"https://canvas.example"}, false)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("X-Canvas-Cursor", "42")
-	}))
+	handler := testHandler(CORS([]string{"https://canvas.example"}, false), func(c *gin.Context) {
+		c.Header("X-Canvas-Cursor", "42")
+	})
 	for _, method := range []string{http.MethodOptions, http.MethodPost} {
 		req := httptest.NewRequest(method, "/api/canvas-server/projects/p/canvases/c", nil)
 		req.Header.Set("Origin", "https://canvas.example")

@@ -8,7 +8,6 @@ import (
 	"compress/flate"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,7 +16,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/go-chi/chi/v5"
+	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -1975,495 +1974,200 @@ func (t *ValidationError_Loc_Item) UnmarshalJSON(b []byte) error {
 type ServerInterface interface {
 	// ListAgentPluginOptions List Agent Plugin Selection Options
 	// (GET /agent-plugin-options)
-	ListAgentPluginOptions(w http.ResponseWriter, r *http.Request)
+	ListAgentPluginOptions(c *gin.Context)
 	// ListAgentPlugins List Agent Plugins
 	// (GET /agent-plugins)
-	ListAgentPlugins(w http.ResponseWriter, r *http.Request)
+	ListAgentPlugins(c *gin.Context)
 	// PublishAgentPlugin Publish Agent Plugin Release
 	// (POST /agent-plugins)
-	PublishAgentPlugin(w http.ResponseWriter, r *http.Request)
+	PublishAgentPlugin(c *gin.Context)
 	// UninstallAgentPlugin Uninstall Agent Plugin
 	// (DELETE /agent-plugins/{plugin_id}/installation)
-	UninstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string)
+	UninstallAgentPlugin(c *gin.Context, pluginId string)
 	// SetAgentPluginEnabled Set Agent Plugin Enabled
 	// (PATCH /agent-plugins/{plugin_id}/installation)
-	SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request, pluginId string)
+	SetAgentPluginEnabled(c *gin.Context, pluginId string)
 	// InstallAgentPlugin Install Agent Plugin
 	// (PUT /agent-plugins/{plugin_id}/installation)
-	InstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string)
+	InstallAgentPlugin(c *gin.Context, pluginId string)
 	// ListApps List Apps
 	// (GET /apps)
-	ListApps(w http.ResponseWriter, r *http.Request, params ListAppsParams)
+	ListApps(c *gin.Context, params ListAppsParams)
 	// CreateApp Create App
 	// (POST /apps)
-	CreateApp(w http.ResponseWriter, r *http.Request, params CreateAppParams)
+	CreateApp(c *gin.Context, params CreateAppParams)
 	// DeleteApp Delete App
 	// (DELETE /apps/{app_id})
-	DeleteApp(w http.ResponseWriter, r *http.Request, appId string, params DeleteAppParams)
+	DeleteApp(c *gin.Context, appId string, params DeleteAppParams)
 	// GetApp Get App
 	// (GET /apps/{app_id})
-	GetApp(w http.ResponseWriter, r *http.Request, appId string, params GetAppParams)
+	GetApp(c *gin.Context, appId string, params GetAppParams)
 	// UpdateApp Update App
 	// (PATCH /apps/{app_id})
-	UpdateApp(w http.ResponseWriter, r *http.Request, appId string, params UpdateAppParams)
+	UpdateApp(c *gin.Context, appId string, params UpdateAppParams)
 	// ListBenefitPackages List Packages
 	// (GET /benefit-packages)
-	ListBenefitPackages(w http.ResponseWriter, r *http.Request, params ListBenefitPackagesParams)
+	ListBenefitPackages(c *gin.Context, params ListBenefitPackagesParams)
 	// CreateBenefitPackage Create Package
 	// (POST /benefit-packages)
-	CreateBenefitPackage(w http.ResponseWriter, r *http.Request, params CreateBenefitPackageParams)
+	CreateBenefitPackage(c *gin.Context, params CreateBenefitPackageParams)
 	// ListBenefitPackageAssetGroupCleanups List Asset Group Cleanups
 	// (GET /benefit-packages/asset-group-cleanups)
-	ListBenefitPackageAssetGroupCleanups(w http.ResponseWriter, r *http.Request, params ListBenefitPackageAssetGroupCleanupsParams)
+	ListBenefitPackageAssetGroupCleanups(c *gin.Context, params ListBenefitPackageAssetGroupCleanupsParams)
 	// RetryBenefitPackageAssetGroupCleanup Retry Asset Group Cleanup
 	// (POST /benefit-packages/asset-group-cleanups/{cleanup_id}/retry)
-	RetryBenefitPackageAssetGroupCleanup(w http.ResponseWriter, r *http.Request, cleanupId string, params RetryBenefitPackageAssetGroupCleanupParams)
+	RetryBenefitPackageAssetGroupCleanup(c *gin.Context, cleanupId string, params RetryBenefitPackageAssetGroupCleanupParams)
 	// DeleteBenefitPackage Delete Package
 	// (DELETE /benefit-packages/{package_id})
-	DeleteBenefitPackage(w http.ResponseWriter, r *http.Request, packageId string, params DeleteBenefitPackageParams)
+	DeleteBenefitPackage(c *gin.Context, packageId string, params DeleteBenefitPackageParams)
 	// UpdateBenefitPackage Update Package
 	// (PATCH /benefit-packages/{package_id})
-	UpdateBenefitPackage(w http.ResponseWriter, r *http.Request, packageId string, params UpdateBenefitPackageParams)
+	UpdateBenefitPackage(c *gin.Context, packageId string, params UpdateBenefitPackageParams)
 	// GetCanvasSettings Get Settings
 	// (GET /canvas/settings)
-	GetCanvasSettings(w http.ResponseWriter, r *http.Request, params GetCanvasSettingsParams)
+	GetCanvasSettings(c *gin.Context, params GetCanvasSettingsParams)
 	// UpdateCanvasSettings Update Settings
 	// (PUT /canvas/settings)
-	UpdateCanvasSettings(w http.ResponseWriter, r *http.Request, params UpdateCanvasSettingsParams)
+	UpdateCanvasSettings(c *gin.Context, params UpdateCanvasSettingsParams)
 	// Healthz Healthz
 	// (GET /healthz)
-	Healthz(w http.ResponseWriter, r *http.Request)
+	Healthz(c *gin.Context)
 	// Livez Livez
 	// (GET /livez)
-	Livez(w http.ResponseWriter, r *http.Request)
+	Livez(c *gin.Context)
 	// ListProviders List Providers
 	// (GET /providers)
-	ListProviders(w http.ResponseWriter, r *http.Request, params ListProvidersParams)
+	ListProviders(c *gin.Context, params ListProvidersParams)
 	// CreateProvider Create Provider
 	// (POST /providers)
-	CreateProvider(w http.ResponseWriter, r *http.Request, params CreateProviderParams)
+	CreateProvider(c *gin.Context, params CreateProviderParams)
 	// BulkDeleteProviders Bulk Delete Providers
 	// (POST /providers/bulk-delete)
-	BulkDeleteProviders(w http.ResponseWriter, r *http.Request, params BulkDeleteProvidersParams)
+	BulkDeleteProviders(c *gin.Context, params BulkDeleteProvidersParams)
 	// DeleteProvider Delete Provider
 	// (DELETE /providers/{provider_id})
-	DeleteProvider(w http.ResponseWriter, r *http.Request, providerId string, params DeleteProviderParams)
+	DeleteProvider(c *gin.Context, providerId string, params DeleteProviderParams)
 	// GetProvider Get Provider
 	// (GET /providers/{provider_id})
-	GetProvider(w http.ResponseWriter, r *http.Request, providerId string, params GetProviderParams)
+	GetProvider(c *gin.Context, providerId string, params GetProviderParams)
 	// UpdateProvider Update Provider
 	// (PATCH /providers/{provider_id})
-	UpdateProvider(w http.ResponseWriter, r *http.Request, providerId string, params UpdateProviderParams)
+	UpdateProvider(c *gin.Context, providerId string, params UpdateProviderParams)
 	// SetDefaultProvider Set Default Provider
 	// (POST /providers/{provider_id}/set-default)
-	SetDefaultProvider(w http.ResponseWriter, r *http.Request, providerId string, params SetDefaultProviderParams)
+	SetDefaultProvider(c *gin.Context, providerId string, params SetDefaultProviderParams)
 	// TestProvider Test Provider
 	// (POST /providers/{provider_id}/test)
-	TestProvider(w http.ResponseWriter, r *http.Request, providerId string, params TestProviderParams)
+	TestProvider(c *gin.Context, providerId string, params TestProviderParams)
 	// Readyz Readyz
 	// (GET /readyz)
-	Readyz(w http.ResponseWriter, r *http.Request)
+	Readyz(c *gin.Context)
 	// ListSkills List Skills
 	// (GET /skills)
-	ListSkills(w http.ResponseWriter, r *http.Request, params ListSkillsParams)
+	ListSkills(c *gin.Context, params ListSkillsParams)
 	// CreateSkill Create Skill
 	// (POST /skills)
-	CreateSkill(w http.ResponseWriter, r *http.Request, params CreateSkillParams)
+	CreateSkill(c *gin.Context, params CreateSkillParams)
 	// BulkDeleteSkills Bulk Delete Skills
 	// (POST /skills/bulk-delete)
-	BulkDeleteSkills(w http.ResponseWriter, r *http.Request, params BulkDeleteSkillsParams)
+	BulkDeleteSkills(c *gin.Context, params BulkDeleteSkillsParams)
 	// DeleteSkill Delete Skill
 	// (DELETE /skills/{skill_id})
-	DeleteSkill(w http.ResponseWriter, r *http.Request, skillId string, params DeleteSkillParams)
+	DeleteSkill(c *gin.Context, skillId string, params DeleteSkillParams)
 	// GetSkill Get Skill
 	// (GET /skills/{skill_id})
-	GetSkill(w http.ResponseWriter, r *http.Request, skillId string, params GetSkillParams)
+	GetSkill(c *gin.Context, skillId string, params GetSkillParams)
 	// UpdateSkill Update Skill
 	// (PATCH /skills/{skill_id})
-	UpdateSkill(w http.ResponseWriter, r *http.Request, skillId string, params UpdateSkillParams)
+	UpdateSkill(c *gin.Context, skillId string, params UpdateSkillParams)
 	// PublishSkill Publish Skill
 	// (POST /skills/{skill_id}/publish)
-	PublishSkill(w http.ResponseWriter, r *http.Request, skillId string, params PublishSkillParams)
+	PublishSkill(c *gin.Context, skillId string, params PublishSkillParams)
 	// PrepareSkillUpload Prepare Skill Upload
 	// (POST /skills/{skill_id}/uploads:prepare)
-	PrepareSkillUpload(w http.ResponseWriter, r *http.Request, skillId string, params PrepareSkillUploadParams)
+	PrepareSkillUpload(c *gin.Context, skillId string, params PrepareSkillUploadParams)
 	// ValidateSkill Validate Skill
 	// (POST /skills/{skill_id}/validate)
-	ValidateSkill(w http.ResponseWriter, r *http.Request, skillId string, params ValidateSkillParams)
+	ValidateSkill(c *gin.Context, skillId string, params ValidateSkillParams)
 	// GetSkillWorkspace Get Skill Workspace
 	// (GET /skills/{skill_id}/workspace)
-	GetSkillWorkspace(w http.ResponseWriter, r *http.Request, skillId string, params GetSkillWorkspaceParams)
+	GetSkillWorkspace(c *gin.Context, skillId string, params GetSkillWorkspaceParams)
 	// AttachSkillAsset Attach Skill Asset
 	// (POST /skills/{skill_id}/workspace/assets)
-	AttachSkillAsset(w http.ResponseWriter, r *http.Request, skillId string, params AttachSkillAssetParams)
+	AttachSkillAsset(c *gin.Context, skillId string, params AttachSkillAssetParams)
 	// GetSkillFile Get Skill File
 	// (GET /skills/{skill_id}/workspace/files/{node_id})
-	GetSkillFile(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params GetSkillFileParams)
+	GetSkillFile(c *gin.Context, skillId string, nodeId string, params GetSkillFileParams)
 	// CreateSkillNode Create Skill Node
 	// (POST /skills/{skill_id}/workspace/nodes)
-	CreateSkillNode(w http.ResponseWriter, r *http.Request, skillId string, params CreateSkillNodeParams)
+	CreateSkillNode(c *gin.Context, skillId string, params CreateSkillNodeParams)
 	// DeleteSkillNode Delete Skill Node
 	// (DELETE /skills/{skill_id}/workspace/nodes/{node_id})
-	DeleteSkillNode(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params DeleteSkillNodeParams)
+	DeleteSkillNode(c *gin.Context, skillId string, nodeId string, params DeleteSkillNodeParams)
 	// UpdateSkillFileContent Update Skill File Content
 	// (PUT /skills/{skill_id}/workspace/nodes/{node_id}/content)
-	UpdateSkillFileContent(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params UpdateSkillFileContentParams)
+	UpdateSkillFileContent(c *gin.Context, skillId string, nodeId string, params UpdateSkillFileContentParams)
 	// RenameSkillNode Rename Skill Node
 	// (PUT /skills/{skill_id}/workspace/nodes/{node_id}/name)
-	RenameSkillNode(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params RenameSkillNodeParams)
+	RenameSkillNode(c *gin.Context, skillId string, nodeId string, params RenameSkillNodeParams)
 	// MoveSkillNode Move Skill Node
 	// (PUT /skills/{skill_id}/workspace/nodes/{node_id}/parent)
-	MoveSkillNode(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params MoveSkillNodeParams)
+	MoveSkillNode(c *gin.Context, skillId string, nodeId string, params MoveSkillNodeParams)
 	// ImportSkillArchive Import Skill Archive
 	// (POST /skills/{skill_id}/workspace:import-archive)
-	ImportSkillArchive(w http.ResponseWriter, r *http.Request, skillId string, params ImportSkillArchiveParams)
-}
-
-// Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
-
-type Unimplemented struct{}
-
-// ListAgentPluginOptions List Agent Plugin Selection Options
-// (GET /agent-plugin-options)
-func (_ Unimplemented) ListAgentPluginOptions(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ListAgentPlugins List Agent Plugins
-// (GET /agent-plugins)
-func (_ Unimplemented) ListAgentPlugins(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// PublishAgentPlugin Publish Agent Plugin Release
-// (POST /agent-plugins)
-func (_ Unimplemented) PublishAgentPlugin(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// UninstallAgentPlugin Uninstall Agent Plugin
-// (DELETE /agent-plugins/{plugin_id}/installation)
-func (_ Unimplemented) UninstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// SetAgentPluginEnabled Set Agent Plugin Enabled
-// (PATCH /agent-plugins/{plugin_id}/installation)
-func (_ Unimplemented) SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request, pluginId string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// InstallAgentPlugin Install Agent Plugin
-// (PUT /agent-plugins/{plugin_id}/installation)
-func (_ Unimplemented) InstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ListApps List Apps
-// (GET /apps)
-func (_ Unimplemented) ListApps(w http.ResponseWriter, r *http.Request, params ListAppsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// CreateApp Create App
-// (POST /apps)
-func (_ Unimplemented) CreateApp(w http.ResponseWriter, r *http.Request, params CreateAppParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// DeleteApp Delete App
-// (DELETE /apps/{app_id})
-func (_ Unimplemented) DeleteApp(w http.ResponseWriter, r *http.Request, appId string, params DeleteAppParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// GetApp Get App
-// (GET /apps/{app_id})
-func (_ Unimplemented) GetApp(w http.ResponseWriter, r *http.Request, appId string, params GetAppParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// UpdateApp Update App
-// (PATCH /apps/{app_id})
-func (_ Unimplemented) UpdateApp(w http.ResponseWriter, r *http.Request, appId string, params UpdateAppParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ListBenefitPackages List Packages
-// (GET /benefit-packages)
-func (_ Unimplemented) ListBenefitPackages(w http.ResponseWriter, r *http.Request, params ListBenefitPackagesParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// CreateBenefitPackage Create Package
-// (POST /benefit-packages)
-func (_ Unimplemented) CreateBenefitPackage(w http.ResponseWriter, r *http.Request, params CreateBenefitPackageParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ListBenefitPackageAssetGroupCleanups List Asset Group Cleanups
-// (GET /benefit-packages/asset-group-cleanups)
-func (_ Unimplemented) ListBenefitPackageAssetGroupCleanups(w http.ResponseWriter, r *http.Request, params ListBenefitPackageAssetGroupCleanupsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// RetryBenefitPackageAssetGroupCleanup Retry Asset Group Cleanup
-// (POST /benefit-packages/asset-group-cleanups/{cleanup_id}/retry)
-func (_ Unimplemented) RetryBenefitPackageAssetGroupCleanup(w http.ResponseWriter, r *http.Request, cleanupId string, params RetryBenefitPackageAssetGroupCleanupParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// DeleteBenefitPackage Delete Package
-// (DELETE /benefit-packages/{package_id})
-func (_ Unimplemented) DeleteBenefitPackage(w http.ResponseWriter, r *http.Request, packageId string, params DeleteBenefitPackageParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// UpdateBenefitPackage Update Package
-// (PATCH /benefit-packages/{package_id})
-func (_ Unimplemented) UpdateBenefitPackage(w http.ResponseWriter, r *http.Request, packageId string, params UpdateBenefitPackageParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// GetCanvasSettings Get Settings
-// (GET /canvas/settings)
-func (_ Unimplemented) GetCanvasSettings(w http.ResponseWriter, r *http.Request, params GetCanvasSettingsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// UpdateCanvasSettings Update Settings
-// (PUT /canvas/settings)
-func (_ Unimplemented) UpdateCanvasSettings(w http.ResponseWriter, r *http.Request, params UpdateCanvasSettingsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Healthz Healthz
-// (GET /healthz)
-func (_ Unimplemented) Healthz(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Livez Livez
-// (GET /livez)
-func (_ Unimplemented) Livez(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ListProviders List Providers
-// (GET /providers)
-func (_ Unimplemented) ListProviders(w http.ResponseWriter, r *http.Request, params ListProvidersParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// CreateProvider Create Provider
-// (POST /providers)
-func (_ Unimplemented) CreateProvider(w http.ResponseWriter, r *http.Request, params CreateProviderParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// BulkDeleteProviders Bulk Delete Providers
-// (POST /providers/bulk-delete)
-func (_ Unimplemented) BulkDeleteProviders(w http.ResponseWriter, r *http.Request, params BulkDeleteProvidersParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// DeleteProvider Delete Provider
-// (DELETE /providers/{provider_id})
-func (_ Unimplemented) DeleteProvider(w http.ResponseWriter, r *http.Request, providerId string, params DeleteProviderParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// GetProvider Get Provider
-// (GET /providers/{provider_id})
-func (_ Unimplemented) GetProvider(w http.ResponseWriter, r *http.Request, providerId string, params GetProviderParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// UpdateProvider Update Provider
-// (PATCH /providers/{provider_id})
-func (_ Unimplemented) UpdateProvider(w http.ResponseWriter, r *http.Request, providerId string, params UpdateProviderParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// SetDefaultProvider Set Default Provider
-// (POST /providers/{provider_id}/set-default)
-func (_ Unimplemented) SetDefaultProvider(w http.ResponseWriter, r *http.Request, providerId string, params SetDefaultProviderParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// TestProvider Test Provider
-// (POST /providers/{provider_id}/test)
-func (_ Unimplemented) TestProvider(w http.ResponseWriter, r *http.Request, providerId string, params TestProviderParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Readyz Readyz
-// (GET /readyz)
-func (_ Unimplemented) Readyz(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ListSkills List Skills
-// (GET /skills)
-func (_ Unimplemented) ListSkills(w http.ResponseWriter, r *http.Request, params ListSkillsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// CreateSkill Create Skill
-// (POST /skills)
-func (_ Unimplemented) CreateSkill(w http.ResponseWriter, r *http.Request, params CreateSkillParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// BulkDeleteSkills Bulk Delete Skills
-// (POST /skills/bulk-delete)
-func (_ Unimplemented) BulkDeleteSkills(w http.ResponseWriter, r *http.Request, params BulkDeleteSkillsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// DeleteSkill Delete Skill
-// (DELETE /skills/{skill_id})
-func (_ Unimplemented) DeleteSkill(w http.ResponseWriter, r *http.Request, skillId string, params DeleteSkillParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// GetSkill Get Skill
-// (GET /skills/{skill_id})
-func (_ Unimplemented) GetSkill(w http.ResponseWriter, r *http.Request, skillId string, params GetSkillParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// UpdateSkill Update Skill
-// (PATCH /skills/{skill_id})
-func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, skillId string, params UpdateSkillParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// PublishSkill Publish Skill
-// (POST /skills/{skill_id}/publish)
-func (_ Unimplemented) PublishSkill(w http.ResponseWriter, r *http.Request, skillId string, params PublishSkillParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// PrepareSkillUpload Prepare Skill Upload
-// (POST /skills/{skill_id}/uploads:prepare)
-func (_ Unimplemented) PrepareSkillUpload(w http.ResponseWriter, r *http.Request, skillId string, params PrepareSkillUploadParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ValidateSkill Validate Skill
-// (POST /skills/{skill_id}/validate)
-func (_ Unimplemented) ValidateSkill(w http.ResponseWriter, r *http.Request, skillId string, params ValidateSkillParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// GetSkillWorkspace Get Skill Workspace
-// (GET /skills/{skill_id}/workspace)
-func (_ Unimplemented) GetSkillWorkspace(w http.ResponseWriter, r *http.Request, skillId string, params GetSkillWorkspaceParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// AttachSkillAsset Attach Skill Asset
-// (POST /skills/{skill_id}/workspace/assets)
-func (_ Unimplemented) AttachSkillAsset(w http.ResponseWriter, r *http.Request, skillId string, params AttachSkillAssetParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// GetSkillFile Get Skill File
-// (GET /skills/{skill_id}/workspace/files/{node_id})
-func (_ Unimplemented) GetSkillFile(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params GetSkillFileParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// CreateSkillNode Create Skill Node
-// (POST /skills/{skill_id}/workspace/nodes)
-func (_ Unimplemented) CreateSkillNode(w http.ResponseWriter, r *http.Request, skillId string, params CreateSkillNodeParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// DeleteSkillNode Delete Skill Node
-// (DELETE /skills/{skill_id}/workspace/nodes/{node_id})
-func (_ Unimplemented) DeleteSkillNode(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params DeleteSkillNodeParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// UpdateSkillFileContent Update Skill File Content
-// (PUT /skills/{skill_id}/workspace/nodes/{node_id}/content)
-func (_ Unimplemented) UpdateSkillFileContent(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params UpdateSkillFileContentParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// RenameSkillNode Rename Skill Node
-// (PUT /skills/{skill_id}/workspace/nodes/{node_id}/name)
-func (_ Unimplemented) RenameSkillNode(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params RenameSkillNodeParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// MoveSkillNode Move Skill Node
-// (PUT /skills/{skill_id}/workspace/nodes/{node_id}/parent)
-func (_ Unimplemented) MoveSkillNode(w http.ResponseWriter, r *http.Request, skillId string, nodeId string, params MoveSkillNodeParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ImportSkillArchive Import Skill Archive
-// (POST /skills/{skill_id}/workspace:import-archive)
-func (_ Unimplemented) ImportSkillArchive(w http.ResponseWriter, r *http.Request, skillId string, params ImportSkillArchiveParams) {
-	w.WriteHeader(http.StatusNotImplemented)
+	ImportSkillArchive(c *gin.Context, skillId string, params ImportSkillArchiveParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler            ServerInterface
 	HandlerMiddlewares []MiddlewareFunc
-	ErrorHandlerFunc   func(w http.ResponseWriter, r *http.Request, err error)
+	ErrorHandler       func(*gin.Context, error, int)
 }
 
-type MiddlewareFunc func(http.Handler) http.Handler
+type MiddlewareFunc func(c *gin.Context)
 
 // ListAgentPluginOptions operation middleware
-func (siw *ServerInterfaceWrapper) ListAgentPluginOptions(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListAgentPluginOptions(w, r)
-	}))
+func (siw *ServerInterfaceWrapper) ListAgentPluginOptions(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ListAgentPluginOptions(c)
 }
 
 // ListAgentPlugins operation middleware
-func (siw *ServerInterfaceWrapper) ListAgentPlugins(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListAgentPlugins(w, r)
-	}))
+func (siw *ServerInterfaceWrapper) ListAgentPlugins(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ListAgentPlugins(c)
 }
 
 // PublishAgentPlugin operation middleware
-func (siw *ServerInterfaceWrapper) PublishAgentPlugin(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PublishAgentPlugin(w, r)
-	}))
+func (siw *ServerInterfaceWrapper) PublishAgentPlugin(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.PublishAgentPlugin(c)
 }
 
 // UninstallAgentPlugin operation middleware
-func (siw *ServerInterfaceWrapper) UninstallAgentPlugin(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) UninstallAgentPlugin(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2471,25 +2175,24 @@ func (siw *ServerInterfaceWrapper) UninstallAgentPlugin(w http.ResponseWriter, r
 	// ------------- Path parameter "plugin_id" -------------
 	var pluginId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", chi.URLParam(r, "plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", c.Param("plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter plugin_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UninstallAgentPlugin(w, r, pluginId)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.UninstallAgentPlugin(c, pluginId)
 }
 
 // SetAgentPluginEnabled operation middleware
-func (siw *ServerInterfaceWrapper) SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) SetAgentPluginEnabled(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2497,25 +2200,24 @@ func (siw *ServerInterfaceWrapper) SetAgentPluginEnabled(w http.ResponseWriter, 
 	// ------------- Path parameter "plugin_id" -------------
 	var pluginId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", chi.URLParam(r, "plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", c.Param("plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter plugin_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.SetAgentPluginEnabled(w, r, pluginId)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.SetAgentPluginEnabled(c, pluginId)
 }
 
 // InstallAgentPlugin operation middleware
-func (siw *ServerInterfaceWrapper) InstallAgentPlugin(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) InstallAgentPlugin(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2523,25 +2225,24 @@ func (siw *ServerInterfaceWrapper) InstallAgentPlugin(w http.ResponseWriter, r *
 	// ------------- Path parameter "plugin_id" -------------
 	var pluginId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", chi.URLParam(r, "plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", c.Param("plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter plugin_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.InstallAgentPlugin(w, r, pluginId)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.InstallAgentPlugin(c, pluginId)
 }
 
 // ListApps operation middleware
-func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) ListApps(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2549,20 +2250,20 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListAppsParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2575,13 +2276,13 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2594,13 +2295,13 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2613,13 +2314,13 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2632,13 +2333,13 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2651,13 +2352,13 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2670,13 +2371,13 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2684,19 +2385,18 @@ func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Reque
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListApps(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ListApps(c, params)
 }
 
 // CreateApp operation middleware
-func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) CreateApp(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2704,20 +2404,20 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 	// Parameter object where we will unmarshal all parameters from the context
 	var params CreateAppParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2730,13 +2430,13 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2749,13 +2449,13 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2768,13 +2468,13 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2787,13 +2487,13 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2806,13 +2506,13 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2825,13 +2525,13 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2839,19 +2539,18 @@ func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Requ
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateApp(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.CreateApp(c, params)
 }
 
 // DeleteApp operation middleware
-func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) DeleteApp(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2859,29 +2558,29 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 	// ------------- Path parameter "app_id" -------------
 	var appId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "app_id", chi.URLParam(r, "app_id"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "app_id", c.Param("app_id"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "app_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter app_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params DeleteAppParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2894,13 +2593,13 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2913,13 +2612,13 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2932,13 +2631,13 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2951,13 +2650,13 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2970,13 +2669,13 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -2989,13 +2688,13 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3003,19 +2702,18 @@ func (siw *ServerInterfaceWrapper) DeleteApp(w http.ResponseWriter, r *http.Requ
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteApp(w, r, appId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.DeleteApp(c, appId, params)
 }
 
 // GetApp operation middleware
-func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) GetApp(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -3023,29 +2721,29 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 	// ------------- Path parameter "app_id" -------------
 	var appId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "app_id", chi.URLParam(r, "app_id"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "app_id", c.Param("app_id"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "app_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter app_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetAppParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3058,13 +2756,13 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3077,13 +2775,13 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3096,13 +2794,13 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3115,13 +2813,13 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3134,13 +2832,13 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3153,13 +2851,13 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3167,19 +2865,18 @@ func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetApp(w, r, appId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.GetApp(c, appId, params)
 }
 
 // UpdateApp operation middleware
-func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) UpdateApp(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -3187,29 +2884,29 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 	// ------------- Path parameter "app_id" -------------
 	var appId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "app_id", chi.URLParam(r, "app_id"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "app_id", c.Param("app_id"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "app_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter app_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params UpdateAppParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3222,13 +2919,13 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3241,13 +2938,13 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3260,13 +2957,13 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3279,13 +2976,13 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3298,13 +2995,13 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3317,13 +3014,13 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3331,19 +3028,18 @@ func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Requ
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateApp(w, r, appId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.UpdateApp(c, appId, params)
 }
 
 // ListBenefitPackages operation middleware
-func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) ListBenefitPackages(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -3353,31 +3049,26 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 
 	// ------------- Optional query parameter "available_only" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "available_only", r.URL.Query(), &params.AvailableOnly, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "available_only", c.Request.URL.Query(), &params.AvailableOnly, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
 	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "available_only"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "available_only", Err: err})
-		}
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter available_only: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3390,13 +3081,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3409,13 +3100,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3428,13 +3119,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3447,13 +3138,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3466,13 +3157,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3485,13 +3176,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3499,19 +3190,18 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackages(w http.ResponseWriter, r 
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListBenefitPackages(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ListBenefitPackages(c, params)
 }
 
 // CreateBenefitPackage operation middleware
-func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) CreateBenefitPackage(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -3519,20 +3209,20 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 	// Parameter object where we will unmarshal all parameters from the context
 	var params CreateBenefitPackageParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3545,13 +3235,13 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3564,13 +3254,13 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3583,13 +3273,13 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3602,13 +3292,13 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3621,13 +3311,13 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3640,13 +3330,13 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3654,19 +3344,18 @@ func (siw *ServerInterfaceWrapper) CreateBenefitPackage(w http.ResponseWriter, r
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateBenefitPackage(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.CreateBenefitPackage(c, params)
 }
 
 // ListBenefitPackageAssetGroupCleanups operation middleware
-func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -3674,20 +3363,20 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListBenefitPackageAssetGroupCleanupsParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3700,13 +3389,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3719,13 +3408,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3738,13 +3427,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3757,13 +3446,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3776,13 +3465,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3795,13 +3484,13 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3809,19 +3498,18 @@ func (siw *ServerInterfaceWrapper) ListBenefitPackageAssetGroupCleanups(w http.R
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListBenefitPackageAssetGroupCleanups(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ListBenefitPackageAssetGroupCleanups(c, params)
 }
 
 // RetryBenefitPackageAssetGroupCleanup operation middleware
-func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -3829,29 +3517,29 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 	// ------------- Path parameter "cleanup_id" -------------
 	var cleanupId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "cleanup_id", chi.URLParam(r, "cleanup_id"), &cleanupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "cleanup_id", c.Param("cleanup_id"), &cleanupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cleanup_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cleanup_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params RetryBenefitPackageAssetGroupCleanupParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3864,13 +3552,13 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3883,13 +3571,13 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3902,13 +3590,13 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3921,13 +3609,13 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3940,13 +3628,13 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3959,13 +3647,13 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -3973,19 +3661,18 @@ func (siw *ServerInterfaceWrapper) RetryBenefitPackageAssetGroupCleanup(w http.R
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RetryBenefitPackageAssetGroupCleanup(w, r, cleanupId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.RetryBenefitPackageAssetGroupCleanup(c, cleanupId, params)
 }
 
 // DeleteBenefitPackage operation middleware
-func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -3993,9 +3680,9 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 	// ------------- Path parameter "package_id" -------------
 	var packageId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "package_id", chi.URLParam(r, "package_id"), &packageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "package_id", c.Param("package_id"), &packageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "package_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter package_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4004,31 +3691,26 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 
 	// ------------- Required query parameter "expected_revision" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "expected_revision", r.URL.Query(), &params.ExpectedRevision, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "expected_revision", c.Request.URL.Query(), &params.ExpectedRevision, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "expected_revision"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expected_revision", Err: err})
-		}
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter expected_revision: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4041,13 +3723,13 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4060,13 +3742,13 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4079,13 +3761,13 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4098,13 +3780,13 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4117,13 +3799,13 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4136,13 +3818,13 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4150,19 +3832,18 @@ func (siw *ServerInterfaceWrapper) DeleteBenefitPackage(w http.ResponseWriter, r
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteBenefitPackage(w, r, packageId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.DeleteBenefitPackage(c, packageId, params)
 }
 
 // UpdateBenefitPackage operation middleware
-func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -4170,29 +3851,29 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 	// ------------- Path parameter "package_id" -------------
 	var packageId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "package_id", chi.URLParam(r, "package_id"), &packageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "package_id", c.Param("package_id"), &packageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "package_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter package_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params UpdateBenefitPackageParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4205,13 +3886,13 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4224,13 +3905,13 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4243,13 +3924,13 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4262,13 +3943,13 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4281,13 +3962,13 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4300,13 +3981,13 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4314,19 +3995,18 @@ func (siw *ServerInterfaceWrapper) UpdateBenefitPackage(w http.ResponseWriter, r
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateBenefitPackage(w, r, packageId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.UpdateBenefitPackage(c, packageId, params)
 }
 
 // GetCanvasSettings operation middleware
-func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) GetCanvasSettings(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -4334,20 +4014,20 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetCanvasSettingsParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4360,13 +4040,13 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4379,13 +4059,13 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4398,13 +4078,13 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4417,13 +4097,13 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4436,13 +4116,13 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4455,13 +4135,13 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4469,19 +4149,18 @@ func (siw *ServerInterfaceWrapper) GetCanvasSettings(w http.ResponseWriter, r *h
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetCanvasSettings(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.GetCanvasSettings(c, params)
 }
 
 // UpdateCanvasSettings operation middleware
-func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -4489,20 +4168,20 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 	// Parameter object where we will unmarshal all parameters from the context
 	var params UpdateCanvasSettingsParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4515,13 +4194,13 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4534,13 +4213,13 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4553,13 +4232,13 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4572,13 +4251,13 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4591,13 +4270,13 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4610,13 +4289,13 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4624,47 +4303,44 @@ func (siw *ServerInterfaceWrapper) UpdateCanvasSettings(w http.ResponseWriter, r
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateCanvasSettings(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.UpdateCanvasSettings(c, params)
 }
 
 // Healthz operation middleware
-func (siw *ServerInterfaceWrapper) Healthz(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.Healthz(w, r)
-	}))
+func (siw *ServerInterfaceWrapper) Healthz(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.Healthz(c)
 }
 
 // Livez operation middleware
-func (siw *ServerInterfaceWrapper) Livez(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.Livez(w, r)
-	}))
+func (siw *ServerInterfaceWrapper) Livez(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.Livez(c)
 }
 
 // ListProviders operation middleware
-func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) ListProviders(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -4672,20 +4348,20 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListProvidersParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4698,13 +4374,13 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4717,13 +4393,13 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4736,13 +4412,13 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4755,13 +4431,13 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4774,13 +4450,13 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4793,13 +4469,13 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4807,19 +4483,18 @@ func (siw *ServerInterfaceWrapper) ListProviders(w http.ResponseWriter, r *http.
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListProviders(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ListProviders(c, params)
 }
 
 // CreateProvider operation middleware
-func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) CreateProvider(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -4827,20 +4502,20 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 	// Parameter object where we will unmarshal all parameters from the context
 	var params CreateProviderParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4853,13 +4528,13 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4872,13 +4547,13 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4891,13 +4566,13 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4910,13 +4585,13 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4929,13 +4604,13 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4948,13 +4623,13 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -4962,19 +4637,18 @@ func (siw *ServerInterfaceWrapper) CreateProvider(w http.ResponseWriter, r *http
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateProvider(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.CreateProvider(c, params)
 }
 
 // BulkDeleteProviders operation middleware
-func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) BulkDeleteProviders(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -4982,20 +4656,20 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params BulkDeleteProvidersParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5008,13 +4682,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5027,13 +4701,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5046,13 +4720,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5065,13 +4739,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5084,13 +4758,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5103,13 +4777,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5117,19 +4791,18 @@ func (siw *ServerInterfaceWrapper) BulkDeleteProviders(w http.ResponseWriter, r 
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.BulkDeleteProviders(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.BulkDeleteProviders(c, params)
 }
 
 // DeleteProvider operation middleware
-func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) DeleteProvider(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -5137,29 +4810,29 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 	// ------------- Path parameter "provider_id" -------------
 	var providerId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", chi.URLParam(r, "provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", c.Param("provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params DeleteProviderParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5172,13 +4845,13 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5191,13 +4864,13 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5210,13 +4883,13 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5229,13 +4902,13 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5248,13 +4921,13 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5267,13 +4940,13 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5281,19 +4954,18 @@ func (siw *ServerInterfaceWrapper) DeleteProvider(w http.ResponseWriter, r *http
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteProvider(w, r, providerId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.DeleteProvider(c, providerId, params)
 }
 
 // GetProvider operation middleware
-func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) GetProvider(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -5301,29 +4973,29 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 	// ------------- Path parameter "provider_id" -------------
 	var providerId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", chi.URLParam(r, "provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", c.Param("provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetProviderParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5336,13 +5008,13 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5355,13 +5027,13 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5374,13 +5046,13 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5393,13 +5065,13 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5412,13 +5084,13 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5431,13 +5103,13 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5445,19 +5117,18 @@ func (siw *ServerInterfaceWrapper) GetProvider(w http.ResponseWriter, r *http.Re
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProvider(w, r, providerId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.GetProvider(c, providerId, params)
 }
 
 // UpdateProvider operation middleware
-func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) UpdateProvider(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -5465,29 +5136,29 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 	// ------------- Path parameter "provider_id" -------------
 	var providerId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", chi.URLParam(r, "provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", c.Param("provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params UpdateProviderParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5500,13 +5171,13 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5519,13 +5190,13 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5538,13 +5209,13 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5557,13 +5228,13 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5576,13 +5247,13 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5595,13 +5266,13 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5609,19 +5280,18 @@ func (siw *ServerInterfaceWrapper) UpdateProvider(w http.ResponseWriter, r *http
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateProvider(w, r, providerId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.UpdateProvider(c, providerId, params)
 }
 
 // SetDefaultProvider operation middleware
-func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) SetDefaultProvider(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -5629,29 +5299,29 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 	// ------------- Path parameter "provider_id" -------------
 	var providerId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", chi.URLParam(r, "provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", c.Param("provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params SetDefaultProviderParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5664,13 +5334,13 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5683,13 +5353,13 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5702,13 +5372,13 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5721,13 +5391,13 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5740,13 +5410,13 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5759,13 +5429,13 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5773,19 +5443,18 @@ func (siw *ServerInterfaceWrapper) SetDefaultProvider(w http.ResponseWriter, r *
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.SetDefaultProvider(w, r, providerId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.SetDefaultProvider(c, providerId, params)
 }
 
 // TestProvider operation middleware
-func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) TestProvider(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -5793,29 +5462,29 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 	// ------------- Path parameter "provider_id" -------------
 	var providerId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", chi.URLParam(r, "provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "provider_id", c.Param("provider_id"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params TestProviderParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5828,13 +5497,13 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5847,13 +5516,13 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5866,13 +5535,13 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5885,13 +5554,13 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5904,13 +5573,13 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5923,13 +5592,13 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5937,33 +5606,31 @@ func (siw *ServerInterfaceWrapper) TestProvider(w http.ResponseWriter, r *http.R
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.TestProvider(w, r, providerId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.TestProvider(c, providerId, params)
 }
 
 // Readyz operation middleware
-func (siw *ServerInterfaceWrapper) Readyz(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.Readyz(w, r)
-	}))
+func (siw *ServerInterfaceWrapper) Readyz(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.Readyz(c)
 }
 
 // ListSkills operation middleware
-func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) ListSkills(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -5971,20 +5638,20 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListSkillsParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -5997,13 +5664,13 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6016,13 +5683,13 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6035,13 +5702,13 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6054,13 +5721,13 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6073,13 +5740,13 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6092,13 +5759,13 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6106,19 +5773,18 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListSkills(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ListSkills(c, params)
 }
 
 // CreateSkill operation middleware
-func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) CreateSkill(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -6126,20 +5792,20 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 	// Parameter object where we will unmarshal all parameters from the context
 	var params CreateSkillParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6152,13 +5818,13 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6171,13 +5837,13 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6190,13 +5856,13 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6209,13 +5875,13 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6228,13 +5894,13 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6247,13 +5913,13 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6261,19 +5927,18 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateSkill(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.CreateSkill(c, params)
 }
 
 // BulkDeleteSkills operation middleware
-func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) BulkDeleteSkills(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -6281,20 +5946,20 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 	// Parameter object where we will unmarshal all parameters from the context
 	var params BulkDeleteSkillsParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6307,13 +5972,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6326,13 +5991,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6345,13 +6010,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6364,13 +6029,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6383,13 +6048,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6402,13 +6067,13 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6416,19 +6081,18 @@ func (siw *ServerInterfaceWrapper) BulkDeleteSkills(w http.ResponseWriter, r *ht
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.BulkDeleteSkills(w, r, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.BulkDeleteSkills(c, params)
 }
 
 // DeleteSkill operation middleware
-func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) DeleteSkill(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -6436,29 +6100,29 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params DeleteSkillParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6471,13 +6135,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6490,13 +6154,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6509,13 +6173,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6528,13 +6192,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6547,13 +6211,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6566,13 +6230,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6580,19 +6244,18 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteSkill(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.DeleteSkill(c, skillId, params)
 }
 
 // GetSkill operation middleware
-func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) GetSkill(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -6600,29 +6263,29 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetSkillParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6635,13 +6298,13 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6654,13 +6317,13 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6673,13 +6336,13 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6692,13 +6355,13 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6711,13 +6374,13 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6730,13 +6393,13 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6744,19 +6407,18 @@ func (siw *ServerInterfaceWrapper) GetSkill(w http.ResponseWriter, r *http.Reque
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSkill(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.GetSkill(c, skillId, params)
 }
 
 // UpdateSkill operation middleware
-func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) UpdateSkill(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -6764,29 +6426,29 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params UpdateSkillParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6799,13 +6461,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6818,13 +6480,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6837,13 +6499,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6856,13 +6518,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6875,13 +6537,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6894,13 +6556,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6908,19 +6570,18 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateSkill(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.UpdateSkill(c, skillId, params)
 }
 
 // PublishSkill operation middleware
-func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) PublishSkill(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -6928,29 +6589,29 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params PublishSkillParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6963,13 +6624,13 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -6982,13 +6643,13 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7001,13 +6662,13 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7020,13 +6681,13 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7039,13 +6700,13 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7058,13 +6719,13 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7072,19 +6733,18 @@ func (siw *ServerInterfaceWrapper) PublishSkill(w http.ResponseWriter, r *http.R
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PublishSkill(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.PublishSkill(c, skillId, params)
 }
 
 // PrepareSkillUpload operation middleware
-func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) PrepareSkillUpload(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -7092,29 +6752,29 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params PrepareSkillUploadParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7127,13 +6787,13 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7146,13 +6806,13 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7165,13 +6825,13 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7184,13 +6844,13 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7203,13 +6863,13 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7222,13 +6882,13 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7236,19 +6896,18 @@ func (siw *ServerInterfaceWrapper) PrepareSkillUpload(w http.ResponseWriter, r *
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PrepareSkillUpload(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.PrepareSkillUpload(c, skillId, params)
 }
 
 // ValidateSkill operation middleware
-func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) ValidateSkill(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -7256,29 +6915,29 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ValidateSkillParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7291,13 +6950,13 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7310,13 +6969,13 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7329,13 +6988,13 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7348,13 +7007,13 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7367,13 +7026,13 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7386,13 +7045,13 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7400,19 +7059,18 @@ func (siw *ServerInterfaceWrapper) ValidateSkill(w http.ResponseWriter, r *http.
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ValidateSkill(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.ValidateSkill(c, skillId, params)
 }
 
 // GetSkillWorkspace operation middleware
-func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) GetSkillWorkspace(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -7420,29 +7078,29 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetSkillWorkspaceParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7455,13 +7113,13 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7474,13 +7132,13 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7493,13 +7151,13 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7512,13 +7170,13 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7531,13 +7189,13 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7550,13 +7208,13 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7564,19 +7222,18 @@ func (siw *ServerInterfaceWrapper) GetSkillWorkspace(w http.ResponseWriter, r *h
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSkillWorkspace(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.GetSkillWorkspace(c, skillId, params)
 }
 
 // AttachSkillAsset operation middleware
-func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) AttachSkillAsset(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -7584,29 +7241,29 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params AttachSkillAssetParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7619,13 +7276,13 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7638,13 +7295,13 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7657,13 +7314,13 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7676,13 +7333,13 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7695,13 +7352,13 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7714,13 +7371,13 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7728,19 +7385,18 @@ func (siw *ServerInterfaceWrapper) AttachSkillAsset(w http.ResponseWriter, r *ht
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AttachSkillAsset(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.AttachSkillAsset(c, skillId, params)
 }
 
 // GetSkillFile operation middleware
-func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) GetSkillFile(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -7748,38 +7404,38 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// ------------- Path parameter "node_id" -------------
 	var nodeId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "node_id", chi.URLParam(r, "node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "node_id", c.Param("node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "node_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter node_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetSkillFileParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7792,13 +7448,13 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7811,13 +7467,13 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7830,13 +7486,13 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7849,13 +7505,13 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7868,13 +7524,13 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7887,13 +7543,13 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7901,19 +7557,18 @@ func (siw *ServerInterfaceWrapper) GetSkillFile(w http.ResponseWriter, r *http.R
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSkillFile(w, r, skillId, nodeId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.GetSkillFile(c, skillId, nodeId, params)
 }
 
 // CreateSkillNode operation middleware
-func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) CreateSkillNode(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -7921,29 +7576,29 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params CreateSkillNodeParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7956,13 +7611,13 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7975,13 +7630,13 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -7994,13 +7649,13 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8013,13 +7668,13 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8032,13 +7687,13 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8051,13 +7706,13 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8065,19 +7720,18 @@ func (siw *ServerInterfaceWrapper) CreateSkillNode(w http.ResponseWriter, r *htt
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateSkillNode(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.CreateSkillNode(c, skillId, params)
 }
 
 // DeleteSkillNode operation middleware
-func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) DeleteSkillNode(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -8085,18 +7739,18 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// ------------- Path parameter "node_id" -------------
 	var nodeId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "node_id", chi.URLParam(r, "node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "node_id", c.Param("node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "node_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter node_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -8105,31 +7759,26 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 
 	// ------------- Required query parameter "base_etag" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_etag", r.URL.Query(), &params.BaseEtag, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_etag", c.Request.URL.Query(), &params.BaseEtag, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_etag"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_etag", Err: err})
-		}
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter base_etag: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8142,13 +7791,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8161,13 +7810,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8180,13 +7829,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8199,13 +7848,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8218,13 +7867,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8237,13 +7886,13 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8251,19 +7900,18 @@ func (siw *ServerInterfaceWrapper) DeleteSkillNode(w http.ResponseWriter, r *htt
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteSkillNode(w, r, skillId, nodeId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.DeleteSkillNode(c, skillId, nodeId, params)
 }
 
 // UpdateSkillFileContent operation middleware
-func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -8271,38 +7919,38 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// ------------- Path parameter "node_id" -------------
 	var nodeId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "node_id", chi.URLParam(r, "node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "node_id", c.Param("node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "node_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter node_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params UpdateSkillFileContentParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8315,13 +7963,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8334,13 +7982,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8353,13 +8001,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8372,13 +8020,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8391,13 +8039,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8410,13 +8058,13 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8424,19 +8072,18 @@ func (siw *ServerInterfaceWrapper) UpdateSkillFileContent(w http.ResponseWriter,
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateSkillFileContent(w, r, skillId, nodeId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.UpdateSkillFileContent(c, skillId, nodeId, params)
 }
 
 // RenameSkillNode operation middleware
-func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) RenameSkillNode(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -8444,38 +8091,38 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// ------------- Path parameter "node_id" -------------
 	var nodeId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "node_id", chi.URLParam(r, "node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "node_id", c.Param("node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "node_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter node_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params RenameSkillNodeParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8488,13 +8135,13 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8507,13 +8154,13 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8526,13 +8173,13 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8545,13 +8192,13 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8564,13 +8211,13 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8583,13 +8230,13 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8597,19 +8244,18 @@ func (siw *ServerInterfaceWrapper) RenameSkillNode(w http.ResponseWriter, r *htt
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RenameSkillNode(w, r, skillId, nodeId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.RenameSkillNode(c, skillId, nodeId, params)
 }
 
 // MoveSkillNode operation middleware
-func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) MoveSkillNode(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -8617,38 +8263,38 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// ------------- Path parameter "node_id" -------------
 	var nodeId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "node_id", chi.URLParam(r, "node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "node_id", c.Param("node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "node_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter node_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params MoveSkillNodeParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8661,13 +8307,13 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8680,13 +8326,13 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8699,13 +8345,13 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8718,13 +8364,13 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8737,13 +8383,13 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8756,13 +8402,13 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8770,19 +8416,18 @@ func (siw *ServerInterfaceWrapper) MoveSkillNode(w http.ResponseWriter, r *http.
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.MoveSkillNode(w, r, skillId, nodeId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
 	}
 
-	handler.ServeHTTP(w, r)
+	siw.Handler.MoveSkillNode(c, skillId, nodeId, params)
 }
 
 // ImportSkillArchive operation middleware
-func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *http.Request) {
+func (siw *ServerInterfaceWrapper) ImportSkillArchive(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -8790,29 +8435,29 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 	// ------------- Path parameter "skill_id" -------------
 	var skillId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", chi.URLParam(r, "skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "skill_id", c.Param("skill_id"), &skillId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "skill_id", Err: err})
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter skill_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ImportSkillArchiveParams
 
-	headers := r.Header
+	headers := c.Request.Header
 
 	// ------------- Optional header parameter "X-Auth-Email" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("X-Auth-Email")]; found {
 		var XAuthEmail string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Email", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Email, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Email", valueList[0], &XAuthEmail, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Email", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Email: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8825,13 +8470,13 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 		var XAuthUserID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-User-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-User-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-User-ID", valueList[0], &XAuthUserID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-User-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-User-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8844,13 +8489,13 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 		var XAuthName string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Name", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Name, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Name", valueList[0], &XAuthName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Name", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Name: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8863,13 +8508,13 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 		var XAuthWorkspaceID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-ID", valueList[0], &XAuthWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8882,13 +8527,13 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 		var XAuthTenantID string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Tenant-ID", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Tenant-ID, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Tenant-ID", valueList[0], &XAuthTenantID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Tenant-ID", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Tenant-ID: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8901,13 +8546,13 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 		var XAuthWorkspaceRole string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Workspace-Role", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Workspace-Role, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Workspace-Role", valueList[0], &XAuthWorkspaceRole, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Workspace-Role", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Workspace-Role: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8920,13 +8565,13 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 		var XAuthRoles string
 		n := len(valueList)
 		if n != 1 {
-			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Auth-Roles", Count: n})
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Auth-Roles, got %d", n), http.StatusBadRequest)
 			return
 		}
 
 		err = runtime.BindStyledParameterWithOptions("simple", "X-Auth-Roles", valueList[0], &XAuthRoles, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
 		if err != nil {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Auth-Roles", Err: err})
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Auth-Roles: %w", err), http.StatusBadRequest)
 			return
 		}
 
@@ -8934,276 +8579,91 @@ func (siw *ServerInterfaceWrapper) ImportSkillArchive(w http.ResponseWriter, r *
 
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ImportSkillArchive(w, r, skillId, params)
-	}))
-
 	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-type UnescapedCookieParamError struct {
-	ParamName string
-	Err       error
-}
-
-func (e *UnescapedCookieParamError) Error() string {
-	return fmt.Sprintf("error unescaping cookie parameter '%s'", e.ParamName)
-}
-
-func (e *UnescapedCookieParamError) Unwrap() error {
-	return e.Err
-}
-
-type UnmarshalingParamError struct {
-	ParamName string
-	Err       error
-}
-
-func (e *UnmarshalingParamError) Error() string {
-	return fmt.Sprintf("Error unmarshaling parameter %s as JSON: %s", e.ParamName, e.Err.Error())
-}
-
-func (e *UnmarshalingParamError) Unwrap() error {
-	return e.Err
-}
-
-type RequiredParamError struct {
-	ParamName string
-}
-
-func (e *RequiredParamError) Error() string {
-	return fmt.Sprintf("Query argument %s is required, but not found", e.ParamName)
-}
-
-type RequiredHeaderError struct {
-	ParamName string
-	Err       error
-}
-
-func (e *RequiredHeaderError) Error() string {
-	return fmt.Sprintf("Header parameter %s is required, but not found", e.ParamName)
-}
-
-func (e *RequiredHeaderError) Unwrap() error {
-	return e.Err
-}
-
-type InvalidParamFormatError struct {
-	ParamName string
-	Err       error
-}
-
-func (e *InvalidParamFormatError) Error() string {
-	return fmt.Sprintf("Invalid format for parameter %s: %s", e.ParamName, e.Err.Error())
-}
-
-func (e *InvalidParamFormatError) Unwrap() error {
-	return e.Err
-}
-
-type TooManyValuesForParamError struct {
-	ParamName string
-	Count     int
-}
-
-func (e *TooManyValuesForParamError) Error() string {
-	return fmt.Sprintf("Expected one value for %s, got %d", e.ParamName, e.Count)
-}
-
-// Handler creates http.Handler with routing matching OpenAPI spec.
-func Handler(si ServerInterface) http.Handler {
-	return HandlerWithOptions(si, ChiServerOptions{})
-}
-
-type ChiServerOptions struct {
-	BaseURL          string
-	BaseRouter       chi.Router
-	Middlewares      []MiddlewareFunc
-	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
-}
-
-// HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
-func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
-	return HandlerWithOptions(si, ChiServerOptions{
-		BaseRouter: r,
-	})
-}
-
-func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string) http.Handler {
-	return HandlerWithOptions(si, ChiServerOptions{
-		BaseURL:    baseURL,
-		BaseRouter: r,
-	})
-}
-
-// HandlerWithOptions creates http.Handler with additional options
-func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
-	r := options.BaseRouter
-
-	if r == nil {
-		r = chi.NewRouter()
-	}
-	if options.ErrorHandlerFunc == nil {
-		options.ErrorHandlerFunc = func(w http.ResponseWriter, r *http.Request, err error) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		middleware(c)
+		if c.IsAborted() {
+			return
 		}
 	}
+
+	siw.Handler.ImportSkillArchive(c, skillId, params)
+}
+
+// GinServerOptions provides options for the Gin server.
+type GinServerOptions struct {
+	BaseURL      string
+	Middlewares  []MiddlewareFunc
+	ErrorHandler func(*gin.Context, error, int)
+}
+
+// RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
+func RegisterHandlers(router gin.IRouter, si ServerInterface) {
+	RegisterHandlersWithOptions(router, si, GinServerOptions{})
+}
+
+// RegisterHandlersWithOptions creates http.Handler with additional options
+func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options GinServerOptions) {
+	errorHandler := options.ErrorHandler
+	if errorHandler == nil {
+		errorHandler = func(c *gin.Context, err error, statusCode int) {
+			c.JSON(statusCode, gin.H{"msg": err.Error()})
+		}
+	}
+
 	wrapper := ServerInterfaceWrapper{
 		Handler:            si,
 		HandlerMiddlewares: options.Middlewares,
-		ErrorHandlerFunc:   options.ErrorHandlerFunc,
+		ErrorHandler:       errorHandler,
 	}
 
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/agent-plugin-options", wrapper.ListAgentPluginOptions)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/agent-plugins", wrapper.ListAgentPlugins)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/agent-plugins", wrapper.PublishAgentPlugin)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/agent-plugins/{plugin_id}/installation", wrapper.UninstallAgentPlugin)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/agent-plugins/{plugin_id}/installation", wrapper.SetAgentPluginEnabled)
-	})
-	r.Group(func(r chi.Router) {
-		r.Put(options.BaseURL+"/agent-plugins/{plugin_id}/installation", wrapper.InstallAgentPlugin)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/apps", wrapper.ListApps)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/apps", wrapper.CreateApp)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/apps/{app_id}", wrapper.DeleteApp)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/apps/{app_id}", wrapper.GetApp)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/apps/{app_id}", wrapper.UpdateApp)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/benefit-packages", wrapper.ListBenefitPackages)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/benefit-packages", wrapper.CreateBenefitPackage)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/benefit-packages/asset-group-cleanups", wrapper.ListBenefitPackageAssetGroupCleanups)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/benefit-packages/asset-group-cleanups/{cleanup_id}/retry", wrapper.RetryBenefitPackageAssetGroupCleanup)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/benefit-packages/{package_id}", wrapper.DeleteBenefitPackage)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/benefit-packages/{package_id}", wrapper.UpdateBenefitPackage)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/canvas/settings", wrapper.GetCanvasSettings)
-	})
-	r.Group(func(r chi.Router) {
-		r.Put(options.BaseURL+"/canvas/settings", wrapper.UpdateCanvasSettings)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/healthz", wrapper.Healthz)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/livez", wrapper.Livez)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/providers", wrapper.ListProviders)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/providers", wrapper.CreateProvider)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/providers/bulk-delete", wrapper.BulkDeleteProviders)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/providers/{provider_id}", wrapper.DeleteProvider)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/providers/{provider_id}", wrapper.GetProvider)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/providers/{provider_id}", wrapper.UpdateProvider)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/providers/{provider_id}/set-default", wrapper.SetDefaultProvider)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/providers/{provider_id}/test", wrapper.TestProvider)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/readyz", wrapper.Readyz)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/skills", wrapper.ListSkills)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills", wrapper.CreateSkill)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills/bulk-delete", wrapper.BulkDeleteSkills)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/skills/{skill_id}", wrapper.DeleteSkill)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/skills/{skill_id}", wrapper.GetSkill)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/skills/{skill_id}", wrapper.UpdateSkill)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills/{skill_id}/publish", wrapper.PublishSkill)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills/{skill_id}/uploads:prepare", wrapper.PrepareSkillUpload)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills/{skill_id}/validate", wrapper.ValidateSkill)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/skills/{skill_id}/workspace", wrapper.GetSkillWorkspace)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills/{skill_id}/workspace/assets", wrapper.AttachSkillAsset)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/skills/{skill_id}/workspace/files/{node_id}", wrapper.GetSkillFile)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills/{skill_id}/workspace/nodes", wrapper.CreateSkillNode)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/skills/{skill_id}/workspace/nodes/{node_id}", wrapper.DeleteSkillNode)
-	})
-	r.Group(func(r chi.Router) {
-		r.Put(options.BaseURL+"/skills/{skill_id}/workspace/nodes/{node_id}/content", wrapper.UpdateSkillFileContent)
-	})
-	r.Group(func(r chi.Router) {
-		r.Put(options.BaseURL+"/skills/{skill_id}/workspace/nodes/{node_id}/name", wrapper.RenameSkillNode)
-	})
-	r.Group(func(r chi.Router) {
-		r.Put(options.BaseURL+"/skills/{skill_id}/workspace/nodes/{node_id}/parent", wrapper.MoveSkillNode)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/skills/{skill_id}/workspace:import-archive", wrapper.ImportSkillArchive)
-	})
-
-	return r
+	router.GET(options.BaseURL+"/agent-plugin-options", wrapper.ListAgentPluginOptions)
+	router.GET(options.BaseURL+"/agent-plugins", wrapper.ListAgentPlugins)
+	router.POST(options.BaseURL+"/agent-plugins", wrapper.PublishAgentPlugin)
+	router.DELETE(options.BaseURL+"/agent-plugins/:plugin_id/installation", wrapper.UninstallAgentPlugin)
+	router.PATCH(options.BaseURL+"/agent-plugins/:plugin_id/installation", wrapper.SetAgentPluginEnabled)
+	router.PUT(options.BaseURL+"/agent-plugins/:plugin_id/installation", wrapper.InstallAgentPlugin)
+	router.GET(options.BaseURL+"/apps", wrapper.ListApps)
+	router.POST(options.BaseURL+"/apps", wrapper.CreateApp)
+	router.DELETE(options.BaseURL+"/apps/:app_id", wrapper.DeleteApp)
+	router.GET(options.BaseURL+"/apps/:app_id", wrapper.GetApp)
+	router.PATCH(options.BaseURL+"/apps/:app_id", wrapper.UpdateApp)
+	router.GET(options.BaseURL+"/benefit-packages", wrapper.ListBenefitPackages)
+	router.POST(options.BaseURL+"/benefit-packages", wrapper.CreateBenefitPackage)
+	router.GET(options.BaseURL+"/benefit-packages/asset-group-cleanups", wrapper.ListBenefitPackageAssetGroupCleanups)
+	router.POST(options.BaseURL+"/benefit-packages/asset-group-cleanups/:cleanup_id/retry", wrapper.RetryBenefitPackageAssetGroupCleanup)
+	router.DELETE(options.BaseURL+"/benefit-packages/:package_id", wrapper.DeleteBenefitPackage)
+	router.PATCH(options.BaseURL+"/benefit-packages/:package_id", wrapper.UpdateBenefitPackage)
+	router.GET(options.BaseURL+"/canvas/settings", wrapper.GetCanvasSettings)
+	router.PUT(options.BaseURL+"/canvas/settings", wrapper.UpdateCanvasSettings)
+	router.GET(options.BaseURL+"/healthz", wrapper.Healthz)
+	router.GET(options.BaseURL+"/livez", wrapper.Livez)
+	router.GET(options.BaseURL+"/providers", wrapper.ListProviders)
+	router.POST(options.BaseURL+"/providers", wrapper.CreateProvider)
+	router.POST(options.BaseURL+"/providers/bulk-delete", wrapper.BulkDeleteProviders)
+	router.DELETE(options.BaseURL+"/providers/:provider_id", wrapper.DeleteProvider)
+	router.GET(options.BaseURL+"/providers/:provider_id", wrapper.GetProvider)
+	router.PATCH(options.BaseURL+"/providers/:provider_id", wrapper.UpdateProvider)
+	router.POST(options.BaseURL+"/providers/:provider_id/set-default", wrapper.SetDefaultProvider)
+	router.POST(options.BaseURL+"/providers/:provider_id/test", wrapper.TestProvider)
+	router.GET(options.BaseURL+"/readyz", wrapper.Readyz)
+	router.GET(options.BaseURL+"/skills", wrapper.ListSkills)
+	router.POST(options.BaseURL+"/skills", wrapper.CreateSkill)
+	router.POST(options.BaseURL+"/skills/bulk-delete", wrapper.BulkDeleteSkills)
+	router.DELETE(options.BaseURL+"/skills/:skill_id", wrapper.DeleteSkill)
+	router.GET(options.BaseURL+"/skills/:skill_id", wrapper.GetSkill)
+	router.PATCH(options.BaseURL+"/skills/:skill_id", wrapper.UpdateSkill)
+	router.POST(options.BaseURL+"/skills/:skill_id/publish", wrapper.PublishSkill)
+	router.POST(options.BaseURL+"/skills/:skill_id/uploads\\:prepare", wrapper.PrepareSkillUpload)
+	router.POST(options.BaseURL+"/skills/:skill_id/validate", wrapper.ValidateSkill)
+	router.GET(options.BaseURL+"/skills/:skill_id/workspace", wrapper.GetSkillWorkspace)
+	router.POST(options.BaseURL+"/skills/:skill_id/workspace/assets", wrapper.AttachSkillAsset)
+	router.GET(options.BaseURL+"/skills/:skill_id/workspace/files/:node_id", wrapper.GetSkillFile)
+	router.POST(options.BaseURL+"/skills/:skill_id/workspace/nodes", wrapper.CreateSkillNode)
+	router.DELETE(options.BaseURL+"/skills/:skill_id/workspace/nodes/:node_id", wrapper.DeleteSkillNode)
+	router.PUT(options.BaseURL+"/skills/:skill_id/workspace/nodes/:node_id/content", wrapper.UpdateSkillFileContent)
+	router.PUT(options.BaseURL+"/skills/:skill_id/workspace/nodes/:node_id/name", wrapper.RenameSkillNode)
+	router.PUT(options.BaseURL+"/skills/:skill_id/workspace/nodes/:node_id/parent", wrapper.MoveSkillNode)
+	router.POST(options.BaseURL+"/skills/:skill_id/workspace\\:import-archive", wrapper.ImportSkillArchive)
 }
 
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.

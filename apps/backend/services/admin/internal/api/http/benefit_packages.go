@@ -2,11 +2,11 @@ package httpapi
 
 import (
 	"encoding/json"
-	"net/http"
 
 	adminapi "github.com/example/monorepo/admin/internal/api/generated/adminapi"
 	"github.com/example/monorepo/admin/internal/application"
 	"github.com/example/monorepo/admin/internal/domain"
+	"github.com/gin-gonic/gin"
 )
 
 func benefitDTO(value domain.BenefitPackage) adminapi.BenefitPackage {
@@ -25,7 +25,8 @@ func cleanupDTO(value domain.AssetGroupCleanup) adminapi.AssetGroupCleanup {
 	}
 	return adminapi.AssetGroupCleanup{Id: value.ID, BenefitPackageId: value.BenefitPackageID, AssetGroupId: value.AssetGroupID, Status: value.Status, Attempts: value.Attempts, LastError: value.LastError, CreatedAt: value.CreatedAt.UTC().Format(timeLayout), UpdatedAt: value.UpdatedAt.UTC().Format(timeLayout), CompletedAt: completed}
 }
-func (h *Handler) ListBenefitPackages(w http.ResponseWriter, r *http.Request, p adminapi.ListBenefitPackagesParams) {
+func (h *Handler) ListBenefitPackages(c *gin.Context, p adminapi.ListBenefitPackagesParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -46,7 +47,8 @@ func (h *Handler) ListBenefitPackages(w http.ResponseWriter, r *http.Request, p 
 	}
 	writeJSON(w, 200, out)
 }
-func (h *Handler) CreateBenefitPackage(w http.ResponseWriter, r *http.Request, _ adminapi.CreateBenefitPackageParams) {
+func (h *Handler) CreateBenefitPackage(c *gin.Context, _ adminapi.CreateBenefitPackageParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	var body adminapi.CreateBenefitPackageInput
 	if err == nil {
@@ -86,7 +88,8 @@ func (h *Handler) CreateBenefitPackage(w http.ResponseWriter, r *http.Request, _
 	}
 	writeJSON(w, 200, benefitDTO(value))
 }
-func (h *Handler) UpdateBenefitPackage(w http.ResponseWriter, r *http.Request, id string, _ adminapi.UpdateBenefitPackageParams) {
+func (h *Handler) UpdateBenefitPackage(c *gin.Context, id string, _ adminapi.UpdateBenefitPackageParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	raw := map[string]json.RawMessage{}
 	if err == nil {
@@ -119,7 +122,8 @@ func (h *Handler) UpdateBenefitPackage(w http.ResponseWriter, r *http.Request, i
 	}
 	writeJSON(w, 200, benefitDTO(value))
 }
-func (h *Handler) DeleteBenefitPackage(w http.ResponseWriter, r *http.Request, id string, p adminapi.DeleteBenefitPackageParams) {
+func (h *Handler) DeleteBenefitPackage(c *gin.Context, id string, p adminapi.DeleteBenefitPackageParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err == nil {
 		err = h.Benefits.Delete(r.Context(), a, id, int64(p.ExpectedRevision))
@@ -130,7 +134,8 @@ func (h *Handler) DeleteBenefitPackage(w http.ResponseWriter, r *http.Request, i
 	}
 	w.WriteHeader(204)
 }
-func (h *Handler) ListBenefitPackageAssetGroupCleanups(w http.ResponseWriter, r *http.Request, _ adminapi.ListBenefitPackageAssetGroupCleanupsParams) {
+func (h *Handler) ListBenefitPackageAssetGroupCleanups(c *gin.Context, _ adminapi.ListBenefitPackageAssetGroupCleanupsParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -147,7 +152,8 @@ func (h *Handler) ListBenefitPackageAssetGroupCleanups(w http.ResponseWriter, r 
 	}
 	writeJSON(w, 200, out)
 }
-func (h *Handler) RetryBenefitPackageAssetGroupCleanup(w http.ResponseWriter, r *http.Request, id string, _ adminapi.RetryBenefitPackageAssetGroupCleanupParams) {
+func (h *Handler) RetryBenefitPackageAssetGroupCleanup(c *gin.Context, id string, _ adminapi.RetryBenefitPackageAssetGroupCleanupParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)

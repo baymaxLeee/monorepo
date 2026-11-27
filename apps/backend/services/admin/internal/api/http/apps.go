@@ -7,12 +7,14 @@ import (
 	adminapi "github.com/example/monorepo/admin/internal/api/generated/adminapi"
 	"github.com/example/monorepo/admin/internal/application"
 	"github.com/example/monorepo/admin/internal/domain"
+	"github.com/gin-gonic/gin"
 )
 
 func appDTO(a domain.App) adminapi.App {
 	return adminapi.App{Id: a.ID, Title: a.Title, BasePath: a.BasePath, RemoteName: a.RemoteName, ExposeKey: a.ExposeKey, Entry: a.Entry, RequiresAdmin: a.RequiresAdmin, IsEnabled: a.IsEnabled, SortOrder: a.SortOrder, CreatedAt: a.CreatedAt.UTC().Format(timeLayout), UpdatedAt: a.UpdatedAt.UTC().Format(timeLayout)}
 }
-func (h *Handler) ListApps(w http.ResponseWriter, r *http.Request, _ adminapi.ListAppsParams) {
+func (h *Handler) ListApps(c *gin.Context, _ adminapi.ListAppsParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -29,7 +31,8 @@ func (h *Handler) ListApps(w http.ResponseWriter, r *http.Request, _ adminapi.Li
 	}
 	writeJSON(w, 200, out)
 }
-func (h *Handler) GetApp(w http.ResponseWriter, r *http.Request, id string, _ adminapi.GetAppParams) {
+func (h *Handler) GetApp(c *gin.Context, id string, _ adminapi.GetAppParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -42,7 +45,8 @@ func (h *Handler) GetApp(w http.ResponseWriter, r *http.Request, id string, _ ad
 	}
 	writeJSON(w, 200, appDTO(value))
 }
-func (h *Handler) CreateApp(w http.ResponseWriter, r *http.Request, _ adminapi.CreateAppParams) {
+func (h *Handler) CreateApp(c *gin.Context, _ adminapi.CreateAppParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -76,7 +80,8 @@ func (h *Handler) CreateApp(w http.ResponseWriter, r *http.Request, _ adminapi.C
 	}
 	writeJSON(w, 201, appDTO(value))
 }
-func (h *Handler) UpdateApp(w http.ResponseWriter, r *http.Request, id string, _ adminapi.UpdateAppParams) {
+func (h *Handler) UpdateApp(c *gin.Context, id string, _ adminapi.UpdateAppParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err != nil {
 		writeError(w, err)
@@ -123,7 +128,8 @@ func (h *Handler) UpdateApp(w http.ResponseWriter, r *http.Request, id string, _
 	}
 	writeJSON(w, 200, appDTO(value))
 }
-func (h *Handler) DeleteApp(w http.ResponseWriter, r *http.Request, id string, _ adminapi.DeleteAppParams) {
+func (h *Handler) DeleteApp(c *gin.Context, id string, _ adminapi.DeleteAppParams) {
+	w, r := c.Writer, c.Request
 	a, err := actor(r)
 	if err == nil {
 		err = h.Apps.Delete(r.Context(), a, id)

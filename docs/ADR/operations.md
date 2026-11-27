@@ -50,8 +50,8 @@ Asset bytes 使用单 writer 持久卷与应用数据库一致备份；卷权限
 
 ## 观测
 
-原生日志库输出结构化 JSON；`X-Trace-Id` 用于日志关联，W3C traceparent 用于
-跨服务 trace。各 runtime 已有 OTel 接入，Collector/ClickHouse 是观测基础设施。
+原生日志库输出结构化 JSON；日志关联与跨服务 trace 统一使用 W3C `traceparent`。
+各 runtime 已有 OTel 接入，Collector/ClickHouse 是观测基础设施。
 产品自己的 agent run/step/tool 记录与平台 trace 不互相替代。
 
 根 `just up` 启动包括 observability 的本地基础设施，`just up-core` 只启动核心

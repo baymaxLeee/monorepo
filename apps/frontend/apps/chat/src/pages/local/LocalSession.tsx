@@ -2,10 +2,15 @@ import { Chat } from "@ai-sdk/react";
 import { type ConversationScrollHandle } from "@repo/ai-elements";
 import {
   chatDataPartSchemas,
+  createMCPAppContext,
   ChatPrompt,
   contextCompactionStatusText,
   ConversationSessionView,
+  hasCompletedClientTool,
+  PageToolSession,
   modelRetryStatusText,
+  type ClientToolExecutor,
+  type PreparePageContext,
   type ChatUIDataTypes,
   type ChatUIMessage,
 } from "@repo/ai-elements/conversation";
@@ -14,7 +19,8 @@ import { listProviders, type ModelProvider } from "@repo/api/admin";
 import { getLocalInferenceConfig, type GetLocalInferenceConfig200 } from "@repo/api/chat";
 import type { DesktopBridge, LocalThread } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { selectLocalArtifact, useLocalArtifact } from "../../stores/useLocalArtifact";
 import { localSessionState } from "./local-session-state";
@@ -26,26 +32,49 @@ export function LocalSession({
   bridge,
   initial,
   transport,
+  clientToolExecutor,
+  preparePageContext,
 }: {
   bridge: DesktopBridge;
   initial: LocalThread;
   transport: LocalChatTransport;
+  clientToolExecutor?: ClientToolExecutor;
+  preparePageContext?: PreparePageContext;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [modelRetry, setModelRetry] = useState<ChatUIDataTypes["model-retry"] | null>(null);
   const [contextCompaction, setContextCompaction] = useState<ChatUIDataTypes["context-compaction"] | null>(null);
   const [inferenceConfig, setInferenceConfig] = useState<GetLocalInferenceConfig200 | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
+  const appContext = useMemo(createMCPAppContext, [initial.id]);
   const promptRef = useRef<PromptInputRef>(null);
   const pendingPrompt = useRef<PromptInputValue | null>(null);
-  const [chat] = useState(
+  const pendingClientContinuation = useRef(false);
+  const [page] = useState(() => clientToolExecutor && new PageToolSession(clientToolExecutor));
+  const [chat] = useState<Chat<ChatUIMessage>>(
     () =>
       new Chat<ChatUIMessage>({
         id: initial.id,
         messages: initial.messages as ChatUIMessage[],
-        transport,
+        transport: page?.transport(transport) ?? transport,
+        onToolCall: ({ toolCall }) => {
+          void page
+            ?.respond(toolCall, (result) => {
+              pendingClientContinuation.current = true;
+              return chat.addToolOutput(result);
+            })
+            .catch((cause) => setError(getErrorMessage(cause)));
+        },
         generateId: randomId,
         dataPartSchemas: chatDataPartSchemas,
+        sendAutomaticallyWhen: (options) => {
+          const ready =
+            pendingClientContinuation.current &&
+            hasCompletedClientTool(options.messages) &&
+            lastAssistantMessageIsCompleteWithToolCalls(options);
+          if (ready) pendingClientContinuation.current = false;
+          return ready;
+        },
         onData: (part) => {
           if (part.type === "data-model-retry") {
             setModelRetry(part.data.state === "recovered" ? null : part.data);
@@ -106,6 +135,7 @@ export function LocalSession({
 
   useEffect(() => {
     const applyThread = (thread: LocalThread) => {
+      if (thread.status === "cancelled" || thread.status === "error" || thread.status === "interrupted") page?.stop();
       setState(localSessionState(thread));
       if (thread.status !== "running") {
         setModelRetry(null);
@@ -131,11 +161,12 @@ export function LocalSession({
       }
     });
     return () => {
+      page?.stop();
       off();
       transport.dispose();
       void chat.stop();
     };
-  }, [bridge, chat, initial.id, transport]);
+  }, [bridge, chat, initial.id, transport, page]);
 
   const openWorkspaceFile = useCallback(
     (path: string) => void selectLocalArtifact({ threadId: initial.id, path }),
@@ -164,7 +195,7 @@ export function LocalSession({
         approving.current = false;
       }
     },
-    [bridge, chat, initial.id, transport],
+    [bridge, chat, initial.id, transport, page],
   );
 
   const busy = state.status === "running" || status === "streaming" || status === "submitted";
@@ -220,9 +251,11 @@ export function LocalSession({
       pendingPrompt.current = value;
       promptRef.current?.clear();
       try {
-        await chat.sendMessage({
-          parts: await localPromptMessageParts(value, (file) => bridge.referenceFile(initial.id, file)),
-        });
+        const parts = await localPromptMessageParts(value, (file) => bridge.referenceFile(initial.id, file));
+        const context = appContext.prepare(preparePageContext);
+        if (context) parts.push({ type: "text", text: context.text });
+        await chat.sendMessage({ parts });
+        if (chat.status !== "error") context?.acknowledge();
         pendingPrompt.current = null;
       } catch (cause) {
         const pending = pendingPrompt.current;
@@ -231,11 +264,13 @@ export function LocalSession({
         setError(getErrorMessage(cause));
       }
     },
-    [bridge, busy, chat, initial.id, state.status, state.turnId],
+    [appContext, bridge, busy, chat, initial.id, preparePageContext, state.status, state.turnId],
   );
 
   return (
     <ConversationSessionView
+      promptRef={promptRef}
+      appContext={appContext}
       title={state.title}
       chat={chat}
       resume
@@ -274,13 +309,16 @@ export function LocalSession({
         <ChatPrompt
           ref={promptRef}
           activePlan={activePlan}
-          placeholder={state.status === "waiting" ? "等待工具审批…" : busy ? "补充当前任务…" : "发送消息或创建任务…"}
+          placeholder={state.status === "waiting" ? "等待工具响应…" : busy ? "补充当前任务…" : "发送消息或创建任务…"}
           loading={busy || state.status === "waiting"}
           submitWhileLoading={busy && state.status !== "waiting"}
           maxFiles={busy || state.status === "waiting" ? 0 : 8}
           maxFileSize={10 * 1024 * 1024}
           onError={setError}
-          onStop={() => void bridge.stop(initial.id).catch((cause) => setError(getErrorMessage(cause)))}
+          onStop={() => {
+            page?.stop();
+            void bridge.stop(initial.id).catch((cause) => setError(getErrorMessage(cause)));
+          }}
           onSubmit={(value) => void submit(value)}
           footerStartRender={() => (
             <LocalComposerStartControls

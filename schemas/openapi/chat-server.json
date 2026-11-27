@@ -90,6 +90,18 @@
           "capabilities": {
             "$ref": "#/components/schemas/TurnCapabilities"
           },
+          "client_capabilities": {
+            "additionalProperties": false,
+            "properties": {
+              "ui_agent": {
+                "enum": [
+                  "ui-sdk"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
           "expected_revision": {
             "minimum": 0,
             "type": "integer"

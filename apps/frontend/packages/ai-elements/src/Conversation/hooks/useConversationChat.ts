@@ -22,6 +22,7 @@ import {
   hasPendingClientTool,
   validateConversationMessages,
 } from "../lib/conversation-messages";
+import { PageToolSession, type ClientToolExecutor } from "../lib/page-tools";
 import { createConversationTransport } from "../lib/transport";
 import { useChatStore } from "../store/useChatStore";
 
@@ -33,7 +34,8 @@ function messagesSnapshotKey(messages: ChatUIMessage[]): string {
   return JSON.stringify(messages);
 }
 
-export function useConversationChat(id: string) {
+export function useConversationChat(id: string, executor?: ClientToolExecutor, requestBody?: Record<string, unknown>) {
+  const page = useMemo(() => executor && new PageToolSession(executor), [id, executor]);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [historyReady, setHistoryReady] = useState(false);
@@ -134,7 +136,17 @@ export function useConversationChat(id: string) {
     () =>
       new Chat<ChatUIMessage>({
         id: id ?? "chat",
-        transport,
+        transport: page?.transport(transport) ?? transport,
+        onToolCall: ({ toolCall }) => {
+          void page
+            ?.respond(toolCall, (result) => {
+              pendingClientContinuationRef.current = true;
+              return chat.addToolOutput({ ...result, options: { body: requestBody } });
+            })
+            .catch((error) => {
+              if (connectedChatRef.current === chat) setIssue({ kind: "connection", message: getErrorMessage(error) });
+            });
+        },
         messageMetadataSchema: chatMessageMetadataSchema,
         dataPartSchemas: chatDataPartSchemas,
         sendAutomaticallyWhen: (options) =>
@@ -229,17 +241,18 @@ export function useConversationChat(id: string) {
             });
         },
       }),
-    [id, transport, scheduleConversationTitle, bumpTraceRefresh],
+    [id, transport, page, requestBody, scheduleConversationTitle, bumpTraceRefresh],
   );
 
   useEffect(() => {
     connectedChatRef.current = chat;
     return () => {
+      page?.stop();
       connectedChatRef.current = null;
       void chat.stop();
       if (titleRafRef.current !== null) window.cancelAnimationFrame(titleRafRef.current);
     };
-  }, [chat]);
+  }, [chat, page]);
 
   useEffect(() => {
     if (!id) {
@@ -398,10 +411,15 @@ export function useConversationChat(id: string) {
   }, [canStartHistoryMutation, chat, id, recover, transport]);
 
   const stopRun = useCallback(async () => {
+    page?.stop();
     await chat.stop();
     try {
       const authoritative = await getConversation(id, { skipErrorNotify: true });
-      const runId = authoritative.active_run_id ?? detail?.active_run_id ?? useChatStore.getState().traceRunId;
+      const runId =
+        authoritative.active_run_id ??
+        chat.messages.at(-1)?.metadata?.runId ??
+        detail?.active_run_id ??
+        useChatStore.getState().traceRunId;
       if (runId) {
         const result = await cancelConversationAgentRun(id, runId, { skipErrorNotify: true });
         if (result?.status === "running" || result?.status === "cancel_requested")
@@ -413,7 +431,7 @@ export function useConversationChat(id: string) {
       if (connectedChatRef.current === chat)
         setIssue({ kind: "cancel", message: getErrorMessage(error, "停止未确认，请重试。") });
     }
-  }, [id, detail?.active_run_id, chat, refresh]);
+  }, [id, detail?.active_run_id, chat, refresh, page]);
 
   const selectHistory = useCallback(
     async (leafMessageId: string) => {

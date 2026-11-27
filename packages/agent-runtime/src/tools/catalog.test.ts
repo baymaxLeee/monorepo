@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { agentTools } from "@ui-sdk/core/agent";
+import { asSchema } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { createPortableToolRegistry } from "./catalog.js";
@@ -49,4 +51,25 @@ test("a host declares only its missing client continuation protocol", () => {
     registry.manifests.some((manifest) => manifest.name === "subagents"),
     true,
   );
+});
+
+test("UI agent bridge tools are opt-in for a turn", async () => {
+  const ordinary = createPortableToolRegistry({ model, webSearch });
+  assert.equal(
+    ordinary.manifests.some((manifest) => manifest.name === "snapshot"),
+    false,
+  );
+
+  const enabled = createPortableToolRegistry({ model, webSearch, uiAgent: true });
+  for (const { name, description, inputSchema } of agentTools) {
+    const manifest = enabled.manifests.find((candidate) => candidate.name === name);
+    assert.ok(manifest?.tool);
+    assert.equal(manifest.tool.description, description);
+    assert.deepEqual(await asSchema(manifest.tool.inputSchema).jsonSchema, inputSchema);
+    assert.equal(manifest.tool.strict, false);
+    assert.equal(manifest.policy.trust, "private-untrusted");
+    assert.equal(manifest.policy.effect, name === "snapshot" ? "read" : "update");
+    assert.equal(manifest.policy.execution, "client");
+    assert.equal(manifest?.policy.uiKind, "agent-ui");
+  }
 });

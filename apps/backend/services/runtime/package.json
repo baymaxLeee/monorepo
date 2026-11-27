@@ -29,6 +29,7 @@
   "dependencies": {
     "@ai-sdk/code-mode": "catalog:",
     "@ai-sdk/openai": "catalog:",
+    "@ai-sdk/otel": "catalog:",
     "@ai-sdk/provider": "catalog:",
     "@ai-sdk/provider-utils": "catalog:",
     "@ai-sdk/tool-web-fetch": "catalog:",

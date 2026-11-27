@@ -11,6 +11,7 @@ import { resolveSkills, type SkillSource } from "./skills.js";
 import { createSubagentsManifest, type SubagentObserver } from "./subagents.js";
 import { createToolSearchManifest } from "./tool-search.js";
 import type { AgentToolManifest } from "./types.js";
+import { createUIAgentToolManifests } from "./ui-agent.js";
 import { createWebFetchManifest, createWebSearchManifest, type WebSearchInput, type WebSearchOutput } from "./web.js";
 
 export interface PortableToolModel<CONTEXT extends Record<string, unknown>> {
@@ -27,6 +28,7 @@ export interface PortableToolBindings<CONTEXT extends Record<string, unknown>> {
   webSearch(input: WebSearchInput, options: { abortSignal?: AbortSignal }): Promise<WebSearchOutput>;
   skillSource?: SkillSource | null;
   clientInteraction?: boolean;
+  uiAgent?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
   webSearch,
   skillSource,
   clientInteraction = true,
+  uiAgent = false,
 }: PortableToolBindings<CONTEXT>) {
   const webSearchManifest = createWebSearchManifest(webSearch);
   const webFetchManifest = createWebFetchManifest();
@@ -56,6 +59,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
       createToolSearchManifest(),
       ...createPlanningToolManifests(),
       ...(clientInteraction ? createInteractionToolManifests() : []),
+      ...(uiAgent ? createUIAgentToolManifests() : []),
       deferAgentToolLoading(
         createSubagentsManifest({
           modelName: model.name,

@@ -22,7 +22,7 @@ infrastructure 负责数据库与内部 HTTP adapter。Chat 变薄只减少业�
 Workflow。Chat 的执行类路由校验 product conversation scope 后，以 `X-Caller-Service: chat`
 调用 Runtime `/v1/sessions`，把模型、Media、plugin、Skill 与 Memory 解析为冻结的 tenant-neutral
 Turn capability，并透明转发响应流和取消信号。proxy adapter 不向 Runtime 转发任何 `X-Auth-*`；
-它只透传 `Content-Type`、`traceparent`、`tracestate` 与 `X-Trace-Id`，并始终覆盖调用方传入的
+它只透传 `Content-Type`、`traceparent` 与 `tracestate`，并始终覆盖调用方传入的
 `X-Caller-Service`、`X-Internal-Token`，避免浏览器输入伪造 workload identity。
 
 ## 数据与 API
