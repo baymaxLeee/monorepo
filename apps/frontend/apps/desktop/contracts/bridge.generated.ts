@@ -107,6 +107,8 @@ export interface DesktopBridge {
   ): Promise<LocalThread>;
   referenceFile(id: string, file: File): Promise<string>;
   getThread(id: string): Promise<LocalThread>;
+  callAppTool(id:string, requestId:string, toolCallId:string, name:string, args:Record<string,unknown>):Promise<unknown>;
+  cancelAppCall(id:string, requestId:string):Promise<void>;
   openStream(id: string): Promise<LocalStream>;
   send(
     id: string,

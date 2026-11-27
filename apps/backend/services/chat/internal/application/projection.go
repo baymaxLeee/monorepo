@@ -24,6 +24,9 @@ func ProjectRuntimeValue(product Conversation, value any) any {
 		for key, child := range typed {
 			projectedKey := strings.ReplaceAll(strings.ReplaceAll(key, "sessionId", "conversationId"), "session_id", "conversation_id")
 			switch {
+			case key == "mcpAppResource":
+				// The iframe must receive the exact resource captured by the MCP host.
+				projected[projectedKey] = child
 			case key == "id" && child == "session" && hasNumericTokens:
 				projected[projectedKey] = "conversation"
 			case child == product.RuntimeThreadID:

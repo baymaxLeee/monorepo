@@ -271,6 +271,50 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/mcp-apps/call": {
+      "post": {
+        "operationId": "callSessionAppTool",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCPAppCallInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP CallToolResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Card or tool is unavailable"
+          },
+          "409": {
+            "description": "Installed tool or resource changed"
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/history/select": {
       "post": {
         "operationId": "selectSessionHistory",
@@ -1095,6 +1139,34 @@
   },
   "components": {
     "schemas": {
+      "MCPAppCallInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tool_call_id",
+          "name",
+          "arguments",
+          "plugins"
+        ],
+        "properties": {
+          "tool_call_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "arguments": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "plugins": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
       "LocalInference__schema0": {
         "anyOf": [
           {

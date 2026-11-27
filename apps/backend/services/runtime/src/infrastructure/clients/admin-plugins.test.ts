@@ -36,7 +36,7 @@ function snapshot(url = "http://knowledge:8010/mcp"): ResolvedTurnPluginSnapshot
         pluginId: "knowledge@platform",
         serverName: "knowledge",
         headers: {
-          "X-Caller-Service": "runtime",
+          "X-MCP-Resource-Grant": "opaque-recipient-grant",
         },
       },
     ],
@@ -56,7 +56,7 @@ test("platform credential is injected only after the fixed endpoint and system t
   const bound = bindTurnPluginGrants(resolved, { runId: "run", attemptEpoch: 2 });
   assert.equal(bound.connectionGrants[0]?.headers["X-Runtime-Turn-ID"], "run");
   assert.equal(bound.connectionGrants[0]?.headers["X-Runtime-Attempt-Epoch"], "2");
-  assert.equal(bound.connectionGrants[0]?.headers["X-Runtime-Scope-Credential"], undefined);
+  assert.match(bound.connectionGrants[0]?.headers["X-Runtime-Scope-Credential"] ?? "", /^v2\./);
   assert.throws(
     () => attachPlatformMcpCredential(snapshot("https://attacker.example/mcp"), settings),
     /configured platform MCP endpoint/,

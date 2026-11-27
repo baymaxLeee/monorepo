@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/example/monorepo/admin/internal/domain"
+	"github.com/example/monorepo/inner-api-go/resourcegrant"
 	"github.com/google/uuid"
 )
 
@@ -52,11 +53,12 @@ type PublishAgentPluginInput struct {
 }
 
 type AgentPluginService struct {
-	Repository AgentPluginRepository
-	Keys       SecretCipher
-	Errors     ErrorClassifier
-	Now        func() time.Time
-	NewID      func() string
+	Repository        AgentPluginRepository
+	Keys              SecretCipher
+	ResourceGrantKeys map[string]string
+	Errors            ErrorClassifier
+	Now               func() time.Time
+	NewID             func() string
 }
 
 func NewAgentPluginService(repository AgentPluginRepository, keys SecretCipher, errors ErrorClassifier) AgentPluginService {
@@ -417,14 +419,29 @@ func (s AgentPluginService) Resolve(ctx context.Context, actor Actor, activation
 				if err != nil {
 					return err
 				}
-				if manifest.Source == domain.AgentPluginSourceSystem && manifest.Trust == domain.AgentPluginTrustSystem {
-					headers["X-Auth-User-ID"] = actor.UserID
-					headers["X-Auth-Tenant-ID"] = actor.TenantID
-					headers["X-Auth-Workspace-ID"] = actor.WorkspaceID
-					headers["X-Auth-Workspace-Role"] = actor.WorkspaceRole
-					headers["X-Caller-Service"] = "runtime"
+				grant := domain.AgentPluginConnectionGrant{PluginID: manifest.ID, ServerName: server.Name, Headers: headers}
+				if manifest.Source == domain.AgentPluginSourceSystem && manifest.Trust == domain.AgentPluginTrustSystem &&
+					(server.Name == "knowledge" || server.Name == "canvas") && manifest.ID == server.Name+"@platform" {
+					claims := map[string]string{"user": actor.UserID, "tenant": actor.TenantID, "workspace": actor.WorkspaceID, "role": actor.WorkspaceRole}
+					for name, value := range headers {
+						switch strings.ToLower(name) {
+						case "x-project-id":
+							claims["project"] = value
+							delete(headers, name)
+						case "x-canvas-id":
+							claims["canvas"] = value
+							delete(headers, name)
+						}
+					}
+					now := s.now()
+					headers[resourcegrant.Header], err = resourcegrant.Seal(server.Name, s.ResourceGrantKeys[server.Name], claims, now)
+					if err != nil {
+						return err
+					}
+					expiry := now.Add(resourcegrant.Lifetime)
+					grant.ExpiresAt = &expiry
 				}
-				grants = append(grants, domain.AgentPluginConnectionGrant{PluginID: manifest.ID, ServerName: server.Name, Headers: headers})
+				grants = append(grants, grant)
 			}
 			resolved = append(resolved, domain.ResolvedAgentPlugin{Manifest: manifest, Activation: activation})
 		}
@@ -564,7 +581,7 @@ func validateHeaderMappings(server domain.AgentPluginMCPServer, bindings map[str
 func reservedGrantHeader(canonical string) bool {
 	return strings.HasPrefix(canonical, "x-auth-") || canonical == "x-caller-service" || canonical == "x-internal-token" ||
 		canonical == "x-runtime-turn-id" || canonical == "x-runtime-attempt-epoch" ||
-		canonical == "x-runtime-scope-credential"
+		canonical == "x-runtime-scope-credential" || canonical == "x-mcp-resource-grant" || canonical == "x-mcp-app-call-id"
 }
 
 func validateToolPolicy(manifest domain.AgentPluginManifest, policy domain.AgentPluginToolPolicy) error {

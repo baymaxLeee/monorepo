@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"github.com/example/monorepo/inner-api-go/resourcegrant"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -120,7 +121,7 @@ func connect(t *testing.T, endpoint string) *officialmcp.ClientSession {
 func TestCanvasMCPInitializeListAndCall(t *testing.T) {
 	access := &fakeAccess{}
 	graph := &fakeGraph{}
-	httpServer := httptest.NewServer(NewHandler(graph, access, trustedHeaders["X-Internal-Token"]))
+	httpServer := httptest.NewServer(NewHandler(graph, access, trustedHeaders["X-Internal-Token"], "canvas-key"))
 	t.Cleanup(httpServer.Close)
 	session := connect(t, httpServer.URL)
 
@@ -196,7 +197,7 @@ func TestCanvasMCPInitializeListAndCall(t *testing.T) {
 }
 
 func TestCanvasMCPRejectsUntrustedRequestsBeforeDispatch(t *testing.T) {
-	httpServer := httptest.NewServer(NewHandler(&fakeGraph{}, &fakeAccess{}, trustedHeaders["X-Internal-Token"]))
+	httpServer := httptest.NewServer(NewHandler(&fakeGraph{}, &fakeAccess{}, trustedHeaders["X-Internal-Token"], "canvas-key"))
 	t.Cleanup(httpServer.Close)
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, httpServer.URL, http.NoBody)
 	if err != nil {
@@ -218,7 +219,7 @@ func TestCanvasMCPRejectsUntrustedRequestsBeforeDispatch(t *testing.T) {
 }
 
 func TestCanvasMCPRejectsForgedRuntimeIdentityWithoutWorkloadCredential(t *testing.T) {
-	httpServer := httptest.NewServer(NewHandler(&fakeGraph{}, &fakeAccess{}, trustedHeaders["X-Internal-Token"]))
+	httpServer := httptest.NewServer(NewHandler(&fakeGraph{}, &fakeAccess{}, trustedHeaders["X-Internal-Token"], "canvas-key"))
 	t.Cleanup(httpServer.Close)
 	for _, token := range []string{"", "forged-token"} {
 		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, httpServer.URL, http.NoBody)
@@ -263,7 +264,7 @@ func TestCanvasMCPRejectsForgedRuntimeIdentityWithoutWorkloadCredential(t *testi
 
 func TestCanvasMCPPropagatesRequestCancellation(t *testing.T) {
 	graph := &fakeGraph{started: make(chan struct{}), canceled: make(chan struct{})}
-	httpServer := httptest.NewServer(NewHandler(graph, &fakeAccess{}, trustedHeaders["X-Internal-Token"]))
+	httpServer := httptest.NewServer(NewHandler(graph, &fakeAccess{}, trustedHeaders["X-Internal-Token"], "canvas-key"))
 	t.Cleanup(httpServer.Close)
 	session := connect(t, httpServer.URL)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -290,5 +291,30 @@ func TestCanvasMCPPropagatesRequestCancellation(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("client call did not finish after cancellation")
+	}
+}
+
+func TestSealedCanvasGrantBindsRealTurnAndCurrentResource(t *testing.T) {
+	claims := map[string]string{"user": "user", "tenant": "tenant", "workspace": "workspace", "role": "member", "project": "project", "canvas": "canvas"}
+	token, err := resourcegrant.Seal("canvas", "canvas-key", claims, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	headers := http.Header{}
+	headers.Set("X-Caller-Service", "runtime")
+	headers.Set("X-Internal-Token", "runtime-key")
+	headers.Set("X-Runtime-Turn-ID", "run")
+	headers.Set("X-Runtime-Attempt-Epoch", "1")
+	headers.Set(resourcegrant.Header, token)
+	mac := hmac.New(sha256.New, []byte("runtime-key"))
+	mac.Write([]byte(strings.Join([]string{"v2", "canvas", "turn", "run", "1", token}, "\n")))
+	headers.Set("X-Runtime-Scope-Credential", "v2."+base64.RawURLEncoding.EncodeToString(mac.Sum(nil)))
+	got, ok := identityFromHeaders(headers, "runtime-key", "canvas-key")
+	if !ok || got.canvasID != "canvas" || got.projectID != "project" || got.workspaceID != "workspace" {
+		t.Fatal("grant did not reconstruct the authorized Canvas resource")
+	}
+	headers.Set("X-Runtime-Attempt-Epoch", "2")
+	if _, ok := identityFromHeaders(headers, "runtime-key", "canvas-key"); ok {
+		t.Fatal("stale fence accepted")
 	}
 }

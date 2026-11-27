@@ -201,6 +201,7 @@ func testAgentPluginService(t *testing.T) (AgentPluginService, *pluginTestReposi
 	t.Helper()
 	repository := newPluginTestRepository()
 	service := NewAgentPluginService(repository, pluginTestCipher{}, pluginTestErrors{})
+	service.ResourceGrantKeys = map[string]string{"canvas": "canvas-secret", "knowledge": "knowledge-secret"}
 	service.Now = func() time.Time { return time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC) }
 	service.NewID = func() string { return "snapshot-1" }
 	manifest := testAgentPluginManifest(t, "canvas@platform", "canvas")
@@ -239,12 +240,12 @@ func TestAgentPluginInstallResolveAndSecretGrantLifecycle(t *testing.T) {
 	if snapshot.SchemaVersion != 1 || snapshot.SnapshotID != "snapshot-1" || snapshot.WorkspaceRevision != 2 || !digestPattern.MatchString(snapshot.SnapshotDigest) {
 		t.Fatalf("snapshot identity = %#v", snapshot)
 	}
-	if len(snapshot.ConnectionGrants) != 1 || !reflect.DeepEqual(snapshot.ConnectionGrants[0].Headers, map[string]string{
-		"Authorization": "Bearer secret", "X-Canvas-ID": "canvas", "X-Project-ID": "project",
-		"X-Auth-User-ID": "user", "X-Auth-Tenant-ID": "tenant", "X-Auth-Workspace-ID": "workspace",
-		"X-Auth-Workspace-Role": "workspace_admin", "X-Caller-Service": "runtime",
-	}) {
-		t.Fatalf("connection grants = %#v", snapshot.ConnectionGrants)
+	if len(snapshot.ConnectionGrants) != 1 {
+		t.Fatal("missing connection grant")
+	}
+	headers := snapshot.ConnectionGrants[0].Headers
+	if headers["X-MCP-Resource-Grant"] == "" || headers["X-Auth-User-ID"] != "" || headers["X-Project-ID"] != "" {
+		t.Fatal("expected opaque resource grant without product identity")
 	}
 	if got := repository.installations[installationKey("tenant", "workspace", manifest.ID)].EncryptedSecrets["access_token"]; got != "enc:Bearer secret" {
 		t.Fatalf("persisted secret = %q", got)

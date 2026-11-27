@@ -56,6 +56,7 @@ func Run(ctx context.Context) error {
 	providers := application.ProviderService{Repository: providerRepository, Keys: keys, Errors: errorClassifier, Probe: providerprobe.New()}
 	apps := application.AppService{Repository: persistence.AppRepository{Pool: pool}, Errors: errorClassifier}
 	agentPlugins := application.NewAgentPluginService(persistence.AgentPluginRepository{Pool: pool}, keys, errorClassifier)
+	agentPlugins.ResourceGrantKeys = config.InternalServiceTokens
 	canvas := application.CanvasSettingsService{Store: persistence.CanvasSettingsRepository{Pool: pool}, Providers: providerRepository}
 	storageConnection, err := innerruntime.DialContext(ctx, config.StorageRPCTarget, innerruntime.ClientOptions{Caller: "admin", Token: config.InternalAPIToken, DefaultTimeout: config.ShutdownTimeout})
 	if err != nil {

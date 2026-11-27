@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -200,6 +201,9 @@ func (service *Service) Fork(ctx context.Context, scope AuthContext, headers htt
 }
 
 func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext, headers http.Header, method, conversationID, suffix, rawQuery string, body io.Reader) (*http.Response, error) {
+	if suffix != "" && (path.Clean(suffix) != suffix || !strings.HasPrefix(suffix, "/") || strings.ContainsAny(suffix, "\\%?#")) {
+		return nil, BadRequest("invalid conversation route")
+	}
 	product, err := service.requireReadyConversation(ctx, scope, conversationID)
 	if err != nil {
 		return nil, err
@@ -238,6 +242,39 @@ func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext
 			return nil, err
 		}
 		requestBody = bytes.NewReader(encoded)
+	} else if suffix == "/mcp-apps/call" && method == http.MethodPost {
+		var input struct {
+			PluginID  string                     `json:"plugin_id"`
+			CallID    string                     `json:"tool_call_id"`
+			Name      string                     `json:"name"`
+			Arguments map[string]json.RawMessage `json:"arguments"`
+		}
+		decoder := json.NewDecoder(body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil || input.CallID == "" || input.Name == "" || input.Arguments == nil {
+			return nil, BadRequest("invalid MCP App tool call")
+		}
+		if service.capabilities == nil {
+			return nil, errors.New("plugin capability resolver is not configured")
+		}
+		var selected []ConversationPluginSelection
+		for _, selection := range product.PluginSelections {
+			if selection.PluginID == input.PluginID {
+				selected = append(selected, selection)
+			}
+		}
+		if len(selected) != 1 {
+			return nil, &Error{Status: http.StatusForbidden, Code: "forbidden", Message: "plugin is not active in this conversation"}
+		}
+		plugins, err := service.capabilities.ResolvePlugins(ctx, scope, selected)
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := json.Marshal(map[string]any{"tool_call_id": input.CallID, "name": input.Name, "arguments": input.Arguments, "plugins": plugins})
+		if err != nil {
+			return nil, err
+		}
+		requestBody = bytes.NewReader(encoded)
 	} else if suffix == "/model" && method == http.MethodPatch {
 		if service.capabilities == nil {
 			return nil, errors.New("Runtime provider capability resolver is not configured")
@@ -266,6 +303,9 @@ func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext
 	})
 	if err != nil {
 		return nil, err
+	}
+	if suffix == "/mcp-apps/call" {
+		return response, nil
 	}
 	projected, err := ProjectRuntimeResponse(*product, response)
 	if err != nil {

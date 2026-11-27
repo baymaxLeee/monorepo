@@ -9,21 +9,52 @@
   details + details { margin-top: .5rem }
   p { white-space: pre-wrap; overflow-wrap: anywhere }
 </style>
+<form hidden>
+  <label>检索知识库 <input type="search" required maxlength="2000"></label>
+  <button type="submit">重新检索</button>
+</form>
+<p role="status"></p>
 <main aria-live="polite"><p>正在读取检索结果…</p></main>
 <script>
   const send = message => parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
   const main = document.querySelector('main');
   let nextId = 2;
+  const form = document.querySelector('form');
+  const query = form.querySelector('input');
+  const submit = form.querySelector('button');
+  const status = document.querySelector('[role=status]');
+  let activeRequest = null;
+  form.onsubmit = event => {
+    event.preventDefault();
+    if (activeRequest !== null || !query.value.trim()) return;
+    activeRequest = nextId++;
+    submit.disabled = true;
+    status.textContent = '正在请求检索…';
+    send({ id: activeRequest, method: 'tools/call', params: { name: 'knowledge_search', arguments: { query: query.value.trim() } } });
+  };
   addEventListener('message', event => {
     if (event.source !== parent || event.data?.jsonrpc !== '2.0') return;
     const message = event.data;
     if (message.id === 1 && message.result) {
+      form.hidden = !message.result.hostCapabilities?.serverTools;
       send({ method: 'ui/notifications/initialized' });
       return;
     }
     if (message.method === 'ui/resource-teardown') { send({ id: message.id, result: {} }); return; }
-    if (message.method !== 'ui/notifications/tool-result') return;
-    const result = message.params?.structuredContent;
+    let result;
+    if (activeRequest !== null && message.id === activeRequest) {
+      activeRequest = null;
+      submit.disabled = false;
+      if (message.error || message.result?.isError || !message.result?.structuredContent) {
+        status.textContent = message.error?.message || '检索失败，请重试。';
+        return;
+      }
+      result = message.result.structuredContent;
+      status.textContent = '检索完成。';
+    } else if (message.method === 'ui/notifications/tool-result') {
+      result = message.params?.structuredContent;
+    } else return;
+    if (result?.query) query.value = result.query;
     main.replaceChildren();
     const hits = Array.isArray(result?.results) ? result.results : [];
     if (!hits.length) main.textContent = result?.note || '没有找到相关片段。';

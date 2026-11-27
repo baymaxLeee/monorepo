@@ -478,7 +478,7 @@ func buildModules(
 	)
 	if role == roleServer {
 		serverMux := http.NewServeMux()
-		serverMux.Handle("/mcp", mcpapi.NewHandler(nodeHandler, access, cfg.RuntimeCallerToken))
+		serverMux.Handle("/mcp", mcpapi.NewHandler(nodeHandler, access, cfg.RuntimeCallerToken, cfg.InternalAPIToken))
 		serverMux.Handle("/", handler)
 		handler = serverMux
 	}

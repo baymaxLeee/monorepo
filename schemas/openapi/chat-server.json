@@ -2082,6 +2082,34 @@
           }
         ]
       },
+      "MCPAppCallInput": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "plugin_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "tool_call_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_call_id",
+          "plugin_id",
+          "name",
+          "arguments"
+        ],
+        "type": "object"
+      },
       "MemoryCandidate": {
         "properties": {
           "category": {
@@ -3549,6 +3577,50 @@
           },
           "409": {
             "description": "stale revision or active run"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/mcp-apps/call": {
+      "post": {
+        "operationId": "callConversationAppTool",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCPAppCallInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "MCP CallToolResult"
+          },
+          "403": {
+            "description": "Card or tool is unavailable"
+          },
+          "409": {
+            "description": "Installed tool or resource changed"
           }
         }
       }

@@ -4,6 +4,7 @@ import test from "node:test";
 import { mcpAppClientCapabilities, type createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import type { JSONSchema7 } from "@ai-sdk/provider";
 
+import { findAppCallback } from "./app-call.js";
 import { loadMcpServer } from "./mcp.js";
 import type { AgentPluginContext, AgentPluginManifest, PluginRuntimeEvent } from "./types.js";
 
@@ -234,12 +235,14 @@ test("MCP Apps cache verified views within a connection and keep app-only tools 
   let calls = 0;
   let reads = 0;
   let failRead = true;
+  let appVisible = true;
+  let html = "<main>Knowledge</main>";
   const base = fakeClient({ closes: () => {}, calls: () => {} });
   const client: MCPClient = {
     ...base,
     listTools: async () => ({
       tools: [
-        { name: "search", inputSchema, _meta: { ui: { resourceUri: uri } } },
+        { name: "search", inputSchema, _meta: { ui: { resourceUri: uri,visibility: appVisible ? ["model","app"] : ["model"] } } },
         { name: "expand", inputSchema, _meta: { ui: { visibility: ["app"] } } },
       ],
     }),
@@ -251,7 +254,7 @@ test("MCP Apps cache verified views within a connection and keep app-only tools 
       assert.equal(request.uri, uri);
       reads++;
       if (failRead) throw new Error("view unavailable");
-      return { contents: [{ uri, mimeType: "text/html;profile=mcp-app", text: "<main>Knowledge</main>" }] };
+      return { contents: [{ uri, mimeType: "text/html;profile=mcp-app", text: html }] };
     },
   };
   const loaded = loadMcpServer(
@@ -277,7 +280,14 @@ test("MCP Apps cache verified views within a connection and keep app-only tools 
     failRead = false;
     const [result, cached] = await Promise.all(["second", "third"].map((query) => tool.execute({ query }, {})));
     assert.equal(result.ok, true);
+    const part = {type:"dynamic-tool",toolName:"mcp__knowledge__search",toolMetadata:{agent:{source:"mcp",pluginId:manifest.id}},state:"output-available",toolCallId:"call",output:result};
+    const receipt = findAppCallback([part],"call","search");
+    assert.throws(()=>findAppCallback([part,part],"call","search"));
+    assert.throws(()=>findAppCallback([part],"call","expand"));
+    assert.throws(()=>findAppCallback([{...part, state:"input-available"}],"call","search"));
+    assert.throws(()=>findAppCallback([{...part,toolName:"other"}],"call","search"));
     assert.deepEqual(result.data._meta.mcpAppResource, {
+      callback:receipt,
       uri,
       mimeType: "text/html;profile=mcp-app",
       html: "<main>Knowledge</main>",
@@ -290,6 +300,26 @@ test("MCP Apps cache verified views within a connection and keep app-only tools 
     });
     assert.equal(reads, 2);
     assert.equal(calls, 3);
+    await loaded.dispose?.();
+    let closed = 0;
+    const fresh = () => loadMcpServer(resolved(),{}, {}, {createClient: async()=>({...client,close:async()=>{closed++;}})});
+    const again = fresh();
+    try {
+      assert.ok(await again.callAppTool(receipt,{query:"next"}));
+      await assert.rejects(again.callAppTool(receipt,{query:5}));
+      await assert.rejects(again.callAppTool({...receipt,digest:"old"},{query:"x"}));
+      await assert.rejects(again.callAppTool({...receipt,bindings:{canvas_id:"other"}},{query:"x"}));
+    } finally { await again.dispose?.(); }
+    html = "<main>Changed</main>";
+    const changed = fresh();
+    try { await assert.rejects(changed.callAppTool(receipt,{query:"x"}),/resource changed/); }
+    finally { await changed.dispose?.(); }
+    appVisible = false;
+    const hidden = fresh();
+    try { await assert.rejects(hidden.callAppTool(receipt,{query:"x"}),/unavailable/); }
+    finally { await hidden.dispose?.(); }
+    assert.equal(closed,3);
+    assert.equal(calls,4);
   } finally {
     await loaded.dispose?.();
   }

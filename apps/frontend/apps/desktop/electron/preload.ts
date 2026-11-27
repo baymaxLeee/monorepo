@@ -40,6 +40,8 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
       });
     },
     getThread: (id) => call("get", id),
+    callAppTool: (id,requestId,toolCallId,name,args) => call("callAppTool",{id,requestId,toolCallId,name,args}),
+    cancelAppCall: (id,requestId) => call("cancelAppCall",{id,requestId}),
     openStream: (id) => call("openStream", id),
     send: (id, parts, messageId, clientCapabilities) => call("send", { id, parts, messageId, clientCapabilities }),
     continueClientTool: (id, expectedTurnId, message) => call("continueClientTool", { id, expectedTurnId, message }),

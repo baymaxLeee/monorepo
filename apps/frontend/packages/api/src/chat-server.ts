@@ -936,6 +936,18 @@ export interface LocalInferenceStreamRequest {
   request: LocalInferenceStreamRequestRequest;
 }
 
+export type MCPAppCallInputArguments = { [key: string]: unknown };
+
+export interface MCPAppCallInput {
+  arguments: MCPAppCallInputArguments;
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  plugin_id: string;
+  /** @minLength 1 */
+  tool_call_id: string;
+}
+
 export interface MemoryCandidate {
   category: MemoryCategory;
   content: string;
@@ -1091,6 +1103,8 @@ export type ForkConversation201 = {
   source_conversation_id: string;
   source_message_id: string;
 };
+
+export type CallConversationAppTool200 = { [key: string]: unknown };
 
 export type StartConversationStream409Code =
   (typeof StartConversationStream409Code)[keyof typeof StartConversationStream409Code];
@@ -1680,6 +1694,22 @@ export const selectConversationHistory = (
   );
 };
 
+export const callConversationAppTool = (
+  conversationId: string,
+  mCPAppCallInput: MCPAppCallInput,
+  options?: SecondParameter<typeof apiMutator<CallConversationAppTool200>>,
+) => {
+  return apiMutator<CallConversationAppTool200>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/mcp-apps/call`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: mCPAppCallInput,
+    },
+    options,
+  );
+};
+
 export const updateConversationModel = (
   conversationId: string,
   updateConversationModelInput: UpdateConversationModelInput,
@@ -1833,6 +1863,7 @@ export type AuthorizeConversationFileDeliveryResult = NonNullable<
 >;
 export type ForkConversationResult = NonNullable<Awaited<ReturnType<typeof forkConversation>>>;
 export type SelectConversationHistoryResult = NonNullable<Awaited<ReturnType<typeof selectConversationHistory>>>;
+export type CallConversationAppToolResult = NonNullable<Awaited<ReturnType<typeof callConversationAppTool>>>;
 export type UpdateConversationModelResult = NonNullable<Awaited<ReturnType<typeof updateConversationModel>>>;
 export type ResumeConversationStreamResult = NonNullable<Awaited<ReturnType<typeof resumeConversationStream>>>;
 export type StartConversationStreamResult = NonNullable<Awaited<ReturnType<typeof startConversationStream>>>;

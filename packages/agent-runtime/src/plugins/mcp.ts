@@ -3,6 +3,9 @@ import {
   createMCPClient,
   mcpAppClientCapabilities,
   readMCPAppResource,
+  fingerprintMCPAppResource,
+  detectMCPAppResourceDrift,
+  type CallToolResult,
   splitMCPAppTools,
   type MCPAppResource,
   type ListToolsResult,
@@ -11,6 +14,8 @@ import {
 import type { JSONSchema7, JSONValue } from "@ai-sdk/provider";
 import { jsonSchema, type ToolResultOutput } from "@ai-sdk/provider-utils";
 import { dynamicTool, type ToolSet } from "ai";
+
+import { z } from "zod";
 
 import { defineAgentTool } from "../tools/manifest.js";
 import { normalizeToolIssue, toolFailed } from "../tools/outcome.js";
@@ -164,6 +169,13 @@ export async function discoverInstalledMcpServer(
   }
 }
 
+// Only the execution host writes this receipt into a completed tool result.
+export const mcpAppCallbackSchema = z.object({
+  pluginId: z.string(), digest: z.string(), server: z.string(), tool: z.string(),
+  bindings: z.record(z.string(), z.string()), uri: z.string().startsWith("ui://"), fingerprint: z.string(),
+});
+type AppCallback = z.infer<typeof mcpAppCallbackSchema>;
+
 /**
  * Builds tools from the immutable release manifest and establishes the MCP connection lazily on
  * first use. The live server may supply results, but it cannot redefine policy, descriptions or
@@ -174,8 +186,11 @@ export function loadMcpServer(
   context: AgentPluginContext,
   options: PluginRuntimeOptions = {},
   dependencies: McpPluginDependencies = { createClient: createMCPClient },
-): LoadedPluginContribution {
+): LoadedPluginContribution & {
+  callAppTool(receipt: AppCallback, args: Record<string, unknown>): Promise<CallToolResult>;
+} {
   const { plugin, server, grant } = resolved;
+  const appTools = new Set<string>();
   const appUris = new Map<string, string>();
   let clientPromise: Promise<MCPClient> | undefined;
   const lifetime = new AbortController();
@@ -218,7 +233,8 @@ export function loadMcpServer(
         signal.throwIfAborted();
         const client = await connectHttpMcp(server.url, grant.headers, signal, dependencies.createClient, options);
         try {
-          const { modelVisible } = splitMCPAppTools({ tools: await listAllTools(client, signal) });
+          const { modelVisible, appVisible } = splitMCPAppTools({ tools: await listAllTools(client, signal) });
+          for (const tool of appVisible.tools) appTools.add(tool.name);
           const inventory = modelVisible.tools;
           if (inventory.length !== server.tools.length) {
             throw new Error(`MCP server ${server.name} inventory differs from the installed release`);
@@ -313,13 +329,16 @@ export function loadMcpServer(
         const { _meta, ...payload } = result;
         // Code Mode passes the raw result to model-authored code, bypassing toModelOutput.
         if (contribution.policy.callableByCodeMode) return payload;
-        const { mcpAppResource: _untrustedView, ...serverMeta } = _meta ?? {};
+        const { mcpAppResource: _untrustedView, mcpAppCallback: _untrustedCallback, ...serverMeta } = _meta ?? {};
         const publicResult = { ...payload, ...(Object.keys(serverMeta).length ? { _meta: serverMeta } : {}) };
         const uri = appUris.get(contribution.name);
         if (!uri) return publicResult;
         try {
           const resource = await loadResource(client, uri, callSignal);
-          return { ...payload, _meta: { ...serverMeta, mcpAppResource: resource } };
+          const callback = contribution.policy.effect === "read" && contribution.policy.execution === "inline" && appTools.has(contribution.name)
+            ? {pluginId: plugin.id, digest: plugin.digest, server: server.name, tool: contribution.name, bindings: {...resolved.activation.bindings}, uri, fingerprint: await fingerprintMCPAppResource(resource)}
+            : undefined;
+          return { ...payload, _meta: { ...serverMeta, mcpAppResource: callback ? {...resource, callback} : resource } };
         } catch {
           callSignal.throwIfAborted();
           return publicResult;
@@ -342,6 +361,26 @@ export function loadMcpServer(
   return {
     manifests,
     skills: [],
+    async callAppTool(receipt, args) {
+      const tool = server.tools.find(candidate => candidate.name === receipt.tool);
+      if (receipt.pluginId !== plugin.id || receipt.digest !== plugin.digest || receipt.server !== server.name ||
+          stableJSON(receipt.bindings) !== stableJSON(resolved.activation.bindings ?? {}) ||
+          !tool || tool.policy.effect !== "read" || tool.policy.execution !== "inline") {
+        throw new Error("MCP App release or tool binding changed");
+      }
+      const checkGrant = () => {
+        if (grant.expiresAt && !(Date.parse(grant.expiresAt) > Date.now())) throw new Error("MCP App grant expired");
+        signal.throwIfAborted();
+      };
+      checkGrant();
+      const client = await connect();
+      if (!appTools.has(tool.name) || appUris.get(tool.name) !== receipt.uri) throw new Error("MCP App tool is unavailable");
+      const resource = await loadResource(client, receipt.uri, signal);
+      if (detectMCPAppResourceDrift(await fingerprintMCPAppResource(resource), receipt.fingerprint)) throw new Error("MCP App resource changed");
+      z.fromJSONSchema(normalizedInputSchema(tool.inputSchema) as Parameters<typeof z.fromJSONSchema>[0]).parse(args);
+      checkGrant();
+      return client.callTool({name: tool.name, arguments: args, options: { signal }});
+    },
     dispose: () => {
       if (closing) return closing;
       lifetime.abort();

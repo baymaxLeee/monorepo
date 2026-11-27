@@ -5,12 +5,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from application.contracts.retrieval import RetrieveResult
 from application.retrieval import retrieve
 from bootstrap.config import get_settings
+from cryptography.fernet import Fernet, InvalidToken
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
@@ -54,6 +56,44 @@ def _valid_scope_credential(headers: Headers) -> bool:
     return hmac.compare_digest(provided, expected)
 
 
+def _identity(headers: Headers) -> tuple[str, str, str, str] | None:
+    if headers.get("x-caller-service") != "runtime" or not hmac.compare_digest(
+        headers.get("x-internal-token", ""), settings.runtime_caller_token
+    ):
+        return None
+    if token := headers.get("x-mcp-resource-grant"):
+        turn = headers.get("x-runtime-turn-id", "")
+        epoch = headers.get("x-runtime-attempt-epoch", "")
+        app = headers.get("x-mcp-app-call-id", "")
+        if app and not turn and not epoch:
+            kind, identifier = "app", app
+        elif turn and not app and epoch.isascii() and epoch.isdecimal() and not epoch.startswith("0"):
+            kind, identifier = "turn", turn
+        else:
+            return None
+        values = ["v2", "knowledge", kind, identifier, epoch, token]
+        proof = hmac.digest(settings.runtime_caller_token.encode(), "\n".join(values).encode(), "sha256")
+        if not hmac.compare_digest(
+            headers.get("x-runtime-scope-credential", ""), "v2." + base64.urlsafe_b64encode(proof).decode().rstrip("=")
+        ):
+            return None
+        key = hmac.digest(settings.internal_api_token.encode(), b"platform/mcp/resource-grant/v1/knowledge", "sha256")
+        try:
+            claims = json.loads(Fernet(base64.urlsafe_b64encode(key)).decrypt(token, ttl=1800))
+        except InvalidToken, ValueError:
+            return None
+        if not isinstance(claims, dict):
+            return None
+        user, tenant, workspace, role = (claims.get(name) for name in ("user", "tenant", "workspace", "role"))
+    else:
+        if not _valid_scope_credential(headers):
+            return None
+        user, tenant, workspace, role = ((headers.get(name) or "").strip() for name in _REQUIRED_IDENTITY_HEADERS)
+    if all(isinstance(v, str) and v for v in (user, tenant, workspace, role)):
+        return user, tenant, workspace, role
+    return None
+
+
 class KnowledgeSearchHit(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -84,16 +124,12 @@ class TrustedMCPMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
             headers = Headers(scope=scope)
-            supplied_token = headers.get("x-internal-token") or ""
-            if (
-                headers.get("x-caller-service") != "runtime"
-                or not hmac.compare_digest(supplied_token, settings.runtime_caller_token)
-                or not _valid_scope_credential(headers)
-                or any(not (headers.get(name) or "").strip() for name in _REQUIRED_IDENTITY_HEADERS)
-            ):
+            identity = _identity(headers)
+            if not identity:
                 response = JSONResponse({"code": "forbidden", "message": "trusted Runtime identity required"}, 403)
                 await response(scope, receive, send)
                 return
+            scope.setdefault("state", {})["mcp_identity"] = identity
         await self._app(scope, receive, send)
 
 
@@ -101,21 +137,10 @@ def _request_identity(ctx: Context[Any, Any, Any]) -> tuple[str, str, str, str]:
     request = ctx.request_context.request
     if not isinstance(request, Request):
         raise ToolError("Knowledge MCP request identity is unavailable")
-    headers = request.headers
-    supplied_token = headers.get("x-internal-token") or ""
-    if (
-        headers.get("x-caller-service") != "runtime"
-        or not hmac.compare_digest(supplied_token, settings.runtime_caller_token)
-        or not _valid_scope_credential(headers)
-    ):
+    identity = getattr(request.state, "mcp_identity", None)
+    if not identity:
         raise ToolError("Knowledge MCP caller is not authorized")
-    user_id = (headers.get("x-auth-user-id") or "").strip()
-    tenant_id = (headers.get("x-auth-tenant-id") or "").strip()
-    workspace_id = (headers.get("x-auth-workspace-id") or "").strip()
-    workspace_role = (headers.get("x-auth-workspace-role") or "").strip()
-    if not all((user_id, tenant_id, workspace_id, workspace_role)):
-        raise ToolError("Knowledge MCP identity scope is incomplete")
-    return user_id, tenant_id, workspace_id, workspace_role
+    return identity
 
 
 async def _search(
@@ -182,7 +207,7 @@ def search_results_view() -> str:
 
 mcp.tool(
     name="knowledge_search",
-    meta={"ui": {"resourceUri": _SEARCH_APP_URI}},
+    meta={"ui": {"resourceUri": _SEARCH_APP_URI, "visibility": ["model", "app"]}},
     description=(
         "Search the workspace's private knowledge base for uploaded documents, incident write-ups, "
         "runbooks, internal policies and workspace-specific facts."

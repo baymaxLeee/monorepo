@@ -172,8 +172,9 @@ export {
 } from "./execution/command-sessions.js";
 export { bashArgs, commandForPolicy, type BashArgs, type BashCommandArgs } from "./execution/shell-tools.js";
 
+export { findAppCallback,callMcpAppTool } from "./plugins/app-call.js";
 export { PluginManager } from "./plugins/manager.js";
-export { discoverInstalledMcpServer, loadMcpServer, type ResolvedMcpServer } from "./plugins/mcp.js";
+export { discoverInstalledMcpServer, loadMcpServer, mcpAppCallbackSchema, type ResolvedMcpServer } from "./plugins/mcp.js";
 export {
   normalizePersistedTurnPluginSnapshot,
   resolveTurnPluginSnapshot,

@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import {
-  RuntimeTurn,
+  RuntimeTurn, findAppCallback, callMcpAppTool,
   type TurnScope,
   resolveContextWindow,
   appendWorkspaceChangeEvent,
@@ -190,6 +190,7 @@ export class DesktopSessionManager {
   private readonly sessions = new Map<string, { policy: string; services: SessionServices }>();
   private active = new Map<string, ActiveRun>();
   private closed = false;
+  private readonly appCalls = new Map<string,{id:string,controller:AbortController}>();
   private segments = new Map<string, { id: string; messages: UIMessage[]; chunks: UIMessageChunk[]; done: boolean }>();
   private current = new Map<string, LocalThread>();
   private observedWorkspaceEpochs = new Map<string, number>();
@@ -688,6 +689,7 @@ export class DesktopSessionManager {
         this.save(thread);
       } catch {
         this.closed = true;
+    for (const call of this.appCalls.values()) call.controller.abort();
         this.options.emit({ type: "runtime-error", message: "本地会话记录保存失败；执行已停止，请检查磁盘后重启应用" });
       }
       const segment = this.segments.get(thread.id);
@@ -723,7 +725,27 @@ export class DesktopSessionManager {
       this.save(thread);
     }
   }
+  cancelAppCall(id:string, requestId:string) {
+    const active = this.appCalls.get(requestId);
+    if (active?.id === id) active.controller.abort();
+  }
+  async callAppTool(id:string,requestId:string,toolCallId:string,name:string,args:Record<string,unknown>) {
+    if (this.closed || this.appCalls.has(requestId)) throw new Error("工具请求不可用");
+    const thread = this.journal.get(id);
+    const receipt = findAppCallback(thread.messages.filter(message => message.role === "assistant").flatMap(message=>message.parts),toolCallId,name);
+    const selection = thread.pluginActivations.filter(p=>p.pluginId === receipt.pluginId);
+    if (!selection.length) throw new Error("此会话未启用该插件");
+    const controller = new AbortController();
+    this.appCalls.set(requestId,{id,controller});
+    try {
+      const {snapshot} = await resolveDesktopPlugins(this.options.directory,null,selection,(selected,signal)=>this.options.resolvePlugins(selected,signal),controller.signal);
+      if (snapshot.plugins.some(p=>p.manifest.source === "system" || p.manifest.trust === "system")) throw new Error("系统插件需要云端执行");
+      return await callMcpAppTool(snapshot,receipt,args,controller.signal);
+    } catch { throw new Error("工具调用未完成，请重新执行原工具"); }
+    finally { this.appCalls.delete(requestId); }
+  }
   async remove(id: string) {
+    for (const call of this.appCalls.values()) if (call.id === id) call.controller.abort();
     const { workspace } = this.get(id);
     await this.stop(id);
     this.segments.delete(id);
@@ -734,6 +756,7 @@ export class DesktopSessionManager {
   }
   async close() {
     this.closed = true;
+    for (const call of this.appCalls.values()) call.controller.abort();
     await Promise.all([...this.active.keys()].map((id) => this.stop(id)));
     await Promise.all([...this.sessions.values()].map((session) => session.services.close()));
     this.sessions.clear();

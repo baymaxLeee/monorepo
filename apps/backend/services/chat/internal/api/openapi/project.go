@@ -37,6 +37,10 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 
 	components := object(contract["components"])
 	schemas := object(components["schemas"])
+	appCall := object(schemas["MCPAppCallInput"])
+	delete(object(appCall["properties"]), "plugins")
+	object(appCall["properties"])["plugin_id"] = map[string]any{"type": "string", "minLength": 1}
+	appCall["required"] = []any{"tool_call_id", "plugin_id", "name", "arguments"}
 	// These are internal Chat -> Runtime orchestration fields. The browser-facing
 	// contract cannot override conversation-owned plugin selection or host policy.
 	agentRunProperties := object(object(schemas["AgentRunRequest"])["properties"])

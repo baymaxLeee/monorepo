@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { inferenceConfigSchema } from "../contracts/inference.generated";
 import { parseLocalUserMessageParts } from "./local-user-message";
+import {appToolCall, cancelAppCall} from "./local-app-call";
 import { importAttachmentRequest, workspaceFileRequest } from "./runtime/attachments";
 import { DesktopSessionManager } from "./runtime/session-manager";
 
@@ -150,6 +151,15 @@ async function dispatch(method: string, payload: unknown) {
     case "importAttachment": {
       const { id, filename, bytes } = importAttachmentRequest.parse(payload);
       return runtime.importAttachment(id, filename, bytes);
+    }
+    case "callAppTool": {
+      const p=appToolCall.parse(payload);
+      return runtime.callAppTool(p.id,p.requestId,p.toolCallId,p.name,p.args);
+    }
+    case "cancelAppCall": {
+      const p=cancelAppCall.parse(payload);
+      runtime.cancelAppCall(p.id,p.requestId);
+      return null;
     }
     case "openStream":
       return runtime.openStream(idSchema.parse(payload));

@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime";
 
 import { CapabilityBindingError, RequestError } from "../../application/errors.js";
@@ -45,7 +46,7 @@ export function attachPlatformMcpCredential(
     }
     const servers = resolved.manifest.mcpServers.filter((server) => server.name === resource.serverName);
     const expectedUrl = new URL("/mcp", settings[resource.serviceUrl]).toString();
-    if (servers.length !== 1 || new URL(servers[0].url).toString() !== expectedUrl) {
+    if (resolved.manifest.mcpServers.length !== 1 || servers.length !== 1 || new URL(servers[0].url).toString() !== expectedUrl) {
       throw new CapabilityBindingError(`${resolved.manifest.id} does not target its configured platform MCP endpoint`);
     }
     platformGrantKeys.add(`${resolved.manifest.id}\u0000${resource.serverName}`);
@@ -54,7 +55,7 @@ export function attachPlatformMcpCredential(
     ...snapshot,
     connectionGrants: snapshot.connectionGrants.map((grant) => {
       assertTenantNeutralHeaders(grant.headers);
-      if (Object.keys(grant.headers).some((header) => header.toLowerCase() === "x-internal-token")) {
+      if (Object.keys(grant.headers).some((header) => ["x-internal-token","x-runtime-turn-id","x-runtime-attempt-epoch","x-mcp-app-call-id","x-runtime-scope-credential"].includes(header.toLowerCase()))) {
         throw new CapabilityBindingError("upper host returned a reserved workload credential header");
       }
       const key = `${grant.pluginId}\u0000${grant.serverName}`;
@@ -64,11 +65,27 @@ export function attachPlatformMcpCredential(
             headers: {
               ...grant.headers,
               "X-Internal-Token": settings.internalApiToken,
+              "X-Caller-Service": "runtime",
             },
           }
         : { ...grant, headers: { ...grant.headers } };
     }),
   };
+}
+
+// The resource owner can verify both the encrypted scope and the exact kind of execution.
+function executionHeaders(grant: ResolvedTurnPluginSnapshot["connectionGrants"][number], kind: "turn" | "app", id: string, epoch: string) {
+  const headers = {...grant.headers, ...(kind === "turn" ? {"X-Runtime-Turn-ID": id, "X-Runtime-Attempt-Epoch": epoch} : {"X-MCP-App-Call-ID": id})};
+  const token = grant.headers["X-Internal-Token"];
+  if (!token) return headers;
+  const scope = grant.headers["X-MCP-Resource-Grant"];
+  if (!scope) throw new CapabilityBindingError("missing platform resource grant");
+  const proof = createHmac("sha256", token).update(["v2",grant.serverName,kind,id,epoch,scope].join("\n")).digest("base64url");
+  return {...headers, "X-Runtime-Scope-Credential": "v2." + proof};
+}
+
+export function bindAppReadGrants(snapshot: ResolvedTurnPluginSnapshot, requestId: string): ResolvedTurnPluginSnapshot {
+  return {...snapshot, connectionGrants: snapshot.connectionGrants.map(grant => ({...grant,headers: executionHeaders(grant,"app",requestId,"")}))};
 }
 
 /** Fences every live grant to the exact Runtime attempt without adding product identity. */
@@ -89,11 +106,7 @@ export function bindTurnPluginGrants(
       assertTenantNeutralHeaders(grant.headers);
       return {
         ...grant,
-        headers: {
-          ...grant.headers,
-          "X-Runtime-Turn-ID": token.runId,
-          "X-Runtime-Attempt-Epoch": String(token.attemptEpoch),
-        },
+        headers: executionHeaders(grant, "turn", token.runId, String(token.attemptEpoch)),
       };
     }),
   };

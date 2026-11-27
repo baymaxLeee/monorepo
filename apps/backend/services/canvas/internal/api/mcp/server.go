@@ -17,6 +17,7 @@ import (
 	maturehttp "github.com/example/monorepo/canvas/internal/api/handler"
 	applicationprojectaccess "github.com/example/monorepo/canvas/internal/application/projectaccess"
 	"github.com/example/monorepo/canvas/internal/application/requestcontext"
+	"github.com/example/monorepo/inner-api-go/resourcegrant"
 	officialmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -39,7 +40,7 @@ type identityKey struct{}
 
 // NewHandler exposes one stateless MCP execution endpoint. Admin only governs the
 // immutable resource and connection grant; Canvas remains the capability owner.
-func NewHandler(graph graphReader, access applicationprojectaccess.Checker, runtimeCallerToken string) http.Handler {
+func NewHandler(graph graphReader, access applicationprojectaccess.Checker, runtimeCallerToken, resourceKey string) http.Handler {
 	transport := officialmcp.NewStreamableHTTPHandler(func(request *http.Request) *officialmcp.Server {
 		resolved, ok := request.Context().Value(identityKey{}).(identity)
 		if !ok {
@@ -51,7 +52,7 @@ func NewHandler(graph graphReader, access applicationprojectaccess.Checker, runt
 		JSONResponse:                 true,
 		PropagateRequestCancellation: true,
 	})
-	return trustedRuntimeOnly(transport, runtimeCallerToken)
+	return trustedRuntimeOnly(transport, runtimeCallerToken, resourceKey)
 }
 
 func newServer(resolved identity, graph graphReader, access applicationprojectaccess.Checker) *officialmcp.Server {
@@ -102,9 +103,9 @@ func newServer(resolved identity, graph graphReader, access applicationprojectac
 	return server
 }
 
-func trustedRuntimeOnly(next http.Handler, runtimeCallerToken string) http.Handler {
+func trustedRuntimeOnly(next http.Handler, runtimeCallerToken, resourceKey string) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		resolved, ok := identityFromHeaders(request.Header, runtimeCallerToken)
+		resolved, ok := identityFromHeaders(request.Header, runtimeCallerToken, resourceKey)
 		if !ok {
 			writeJSON(response, http.StatusForbidden, map[string]string{
 				"code": "forbidden", "message": "trusted Runtime Canvas scope required",
@@ -116,7 +117,7 @@ func trustedRuntimeOnly(next http.Handler, runtimeCallerToken string) http.Handl
 	})
 }
 
-func identityFromHeaders(headers http.Header, runtimeCallerToken string) (identity, bool) {
+func identityFromHeaders(headers http.Header, runtimeCallerToken, resourceKey string) (identity, bool) {
 	providedToken := headers.Get("X-Internal-Token")
 	if headers.Get("X-Caller-Service") != "runtime" || runtimeCallerToken == "" ||
 		subtle.ConstantTimeCompare([]byte(providedToken), []byte(runtimeCallerToken)) != 1 {
@@ -129,6 +130,14 @@ func identityFromHeaders(headers http.Header, runtimeCallerToken string) (identi
 		headers.Get("X-Auth-Workspace-Role"),
 		headers.Get("X-Project-ID"),
 		headers.Get("X-Canvas-ID"),
+	}
+	token := headers.Get(resourcegrant.Header)
+	if token != "" {
+		var claims map[string]string
+		if resourcegrant.Open("canvas", resourceKey, token, &claims) != nil {
+			return identity{}, false
+		}
+		values = []string{claims["user"], claims["tenant"], claims["workspace"], claims["role"], claims["project"], claims["canvas"]}
 	}
 	for index, value := range values {
 		values[index] = strings.TrimSpace(value)
@@ -144,7 +153,12 @@ func identityFromHeaders(headers http.Header, runtimeCallerToken string) (identi
 		return identity{}, false
 	}
 	scopeValues := append([]string{turnID, attemptEpoch}, values...)
-	if !validScopeCredential(headers.Get("X-Runtime-Scope-Credential"), runtimeCallerToken, "canvas", scopeValues) {
+	version := "v1"
+	if token != "" {
+		version = "v2"
+		scopeValues = []string{"turn", turnID, attemptEpoch, token}
+	}
+	if !validScopeCredential(headers.Get("X-Runtime-Scope-Credential"), runtimeCallerToken, version, "canvas", scopeValues) {
 		return identity{}, false
 	}
 	return identity{
@@ -153,12 +167,12 @@ func identityFromHeaders(headers http.Header, runtimeCallerToken string) (identi
 	}, true
 }
 
-func validScopeCredential(credential, secret, audience string, scopeValues []string) bool {
+func validScopeCredential(credential, secret, version, audience string, scopeValues []string) bool {
 	parts := strings.Split(credential, ".")
-	if len(parts) != 2 || parts[0] != "v1" {
+	if len(parts) != 2 || parts[0] != version {
 		return false
 	}
-	payload := append([]string{"v1", audience}, scopeValues...)
+	payload := append([]string{version, audience}, scopeValues...)
 	provided, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return false

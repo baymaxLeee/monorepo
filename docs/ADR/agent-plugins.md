@@ -22,7 +22,7 @@ Catalog 是全局可治理资源；installation 是 tenant/workspace 授权状�
 
 tenant/workspace 只存在于 Admin 与宿主 resolver 的授权输入和返回校验中，不进入 shared agent runtime。宿主确认返回 scope 与当前认证上下文一致后，投影为 tenant-neutral 的冻结 snapshot；shared plugin manager 只验证 snapshot identity、manifest、activation、grant 与 live MCP inventory。恢复时重新经过同一宿主 resolver，并以规范化后的插件内容投影拒绝配置漂移。宿主生成的 snapshot digest 是不透明审计标识，不作为核心层的业务作用域或恢复策略。
 
-共享 MCP 客户端协商官方 Apps 扩展，按 SDK 的可见性规则校验模型工具清单。工具执行成功后，同一授权连接读取所声明的 `ui://` 资源并校验 URI 和 MIME。仅宿主生成的资源随这次工具结果存入 journal 的 `_meta.mcpAppResource`，以便重开历史时展示相同版本。读取资源失败时保留工具执行结果。渲染器仅提供本次资源读取、用户确认的草稿追问和下一条消息的上下文。Turn 结束后连接 grant 失效，历史视图没有远程调用权。Code Mode 可调用的工具返回模型可见数据，普通工具的模型投影与历史压缩均移除宿主 `_meta`。参见 [AI SDK MCP Apps](https://ai-sdk.dev/docs/ai-sdk-core/mcp-apps)。
+共享 MCP 客户端协商官方 Apps 扩展，按 SDK 的可见性规则校验模型工具清单。工具执行成功后，同一授权连接读取所声明的 `ui://` 资源并校验 URI 和 MIME。仅宿主生成的资源随这次工具结果存入 journal 的 `_meta.mcpAppResource`，以便重开历史时展示相同版本。读取资源失败时保留工具执行结果。渲染器支持本次资源读取、用户确认的草稿追问和下一条消息的上下文。对于显式声明 `app` 可见且 release 标为同步只读的原工具，宿主在已捕获的资源内保存 release digest、工具名、激活绑定和 SDK 资源指纹。云端 Chat 和 Desktop 本地会话在用户确认卡片内的调用参数后，从当前会话的已提交助手消息查找该调用，按当前身份重新解析安装，通过短连接重新核对工具可见性、schema、绑定及 HTML/CSP/permissions 指纹，然后将原生 `CallToolResult` 直接返回 iframe。历史数据缺少宿主绑定时继续支持展示。Code Mode 可调用的工具返回模型可见数据，普通工具的模型投影与历史压缩均移除宿主 `_meta`。参见 [AI SDK MCP Apps](https://ai-sdk.dev/docs/ai-sdk-core/mcp-apps)。
 
 Release digest 覆盖 endpoint、贡献与策略。配置和 secret 属于 installation，不进入 release digest；resolved snapshot digest 刻意排除 connection grants。持久化 projection 使用逐字段白名单，因此未来给 resolve 结果增加敏感字段也不会默认落库。
 
@@ -46,8 +46,8 @@ Admin 随发行包提供 `knowledge@platform` 与 `canvas@platform` 两个系统
 
 每个 Turn 在模型调用前执行以下顺序：
 
-1. 宿主按来源解析 activation。本机来源由 utility process 读取，平台来源交给受信 resolver。云端 Runtime 直接调用 Admin；Desktop utility process 经 Electron main、Chat BFF 和 Runtime 的 IAM-scoped native endpoint 到同一个 Admin resolve。resolve 本身不附加 Runtime workload identity；云 Runtime 随后只为验证过 endpoint/source/trust 的平台插件在进程内追加凭据。Desktop 位于服务信任域之外，当前拒绝所有 `system` 插件，绝不接收共享服务 token。
-2. Admin 在 actor 的 tenant/workspace/role 下检查 installation、enabled release 和 bindings，按 release 声明把 binding/config/secret 映射为 headers；保留的内部身份 headers不能被插件覆盖。Runtime 只对固定 endpoint 的 `system` release 注入 workload token，并以该 token 签名完整身份、资源 binding、Turn ID 与 attempt epoch。Canvas/Knowledge 在 dispatch 前验证 token、audience、scope 与 epoch；任一 header 替换都会 fail closed，connection grant 不能跨 lease owner 复用。
+1. 云端 Chat BFF 校验当前产品会话的访问权并向 Admin 解析所选插件。Desktop utility 读取个人本地插件，通过 Electron main 和 Chat BFF 解析所选平台插件。系统 release 的执行凭据仅交给云 Runtime。
+2. Admin 按 actor 的租户、工作区和角色检查 installation、enabled release 与资源绑定。对于 Knowledge 和 Canvas，Admin 以目标服务的 workload 密钥派生独立 Fernet key，将身份和资源绑定封存在有效期 30 分钟的 `X-MCP-Resource-Grant` 中。Runtime 校验固定 endpoint 和系统信任，仅在内存中追加 workload token 及执行签名。资源服务校验签名、解封授权并执行本域授权。普通执行绑定真实 Turn ID 和 epoch，Knowledge 卡片读取绑定独立请求 ID；历史记录只保留无凭据的调用来源。资源服务兼容已有在途的 v1 Turn 签名。卡片调用单独记录请求 ID、会话、插件、工具及结果状态。
 3. 宿主先持久化去除 grants 的 immutable snapshot，再让 shared `PluginManager` 校验 release、tool policy 与每个 server 恰好一个 grant；workspace 归属已由宿主在投影前校验。
 4. MCP tool 以 `mcp__<server>__<tool>` 进入同一个 AI SDK `ToolLoopAgent`。定义默认 `deferLoading: true`，首个 model step 只看见原生 `tool_search`，命中后下一 step 才暴露完整 schema。
 5. 首次实际调用时用官方 `@ai-sdk/mcp` Streamable HTTP client 懒连接；远端 inventory、名称和 schema 必须与 immutable release 一致，否则 fail closed。连接与 inventory 握手上限为 10 秒，`maxRetries: 0`；工具执行不使用共享硬超时，只服从 Turn cancellation 和 lease ownership，具体工具若有业务 deadline 必须由其 contract 显式声明。

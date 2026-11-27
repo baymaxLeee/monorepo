@@ -760,6 +760,7 @@ source = { virtual = "services/knowledge" }
 dependencies = [
     { name = "asyncpg" },
     { name = "cachetools" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "inner-api" },
@@ -783,6 +784,7 @@ dependencies = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30" },
     { name = "cachetools", specifier = ">=5.5" },
+    { name = "cryptography", specifier = ">=48" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "inner-api", editable = "libs/inner-api-py" },

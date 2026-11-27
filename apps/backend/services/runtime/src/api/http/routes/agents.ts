@@ -14,6 +14,7 @@ import {
 } from "../../../application/agent/index.js";
 import type { TurnCapabilities } from "../../../application/agent/runtime/types.js";
 import type { ToolCatalog } from "../../../application/agent/tools/catalog.js";
+import { callSessionAppTool } from "../../../application/mcp-app-call.js";
 import { RequestError } from "../../../application/errors.js";
 import { getSessionRow, updateSessionModel } from "../../../application/sessions.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
@@ -68,6 +69,13 @@ export function createAgentsRoutes(dependencies: { toolCatalog: ToolCatalog }) {
       context.addIssue({ code: "custom", message: error instanceof Error ? error.message : "invalid plugin snapshot" });
       return z.NEVER;
     }
+  });
+  agentsRoutes.post("/:sessionId/mcp-apps/call", zValidator("json", z.object({
+    tool_call_id: z.string().min(1), name: z.string().min(1), arguments: z.record(z.string(), z.unknown()), plugins: pluginSnapshotSchema,
+  }).strict()), async c => {
+    const input = c.req.valid("json");
+    c.header("Cache-Control","no-store");
+    return c.json(await callSessionAppTool(c.req.param("sessionId"), input.tool_call_id, input.name, input.arguments, input.plugins, c.req.raw.signal));
   });
   const capabilitiesSchema = z
     .object({
