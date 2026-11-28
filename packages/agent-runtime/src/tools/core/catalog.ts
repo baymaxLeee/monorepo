@@ -1,18 +1,22 @@
-import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { FlexibleSchema } from "ai";
 
-import type { StoredModelContinuation } from "../turn/model-capabilities.js";
-import { createInteractionToolManifests } from "./ask-user.js";
-import { createCodeModeManifest } from "./code-mode.js";
-import { deferAgentToolLoading, manifestsToTools } from "./manifest.js";
-import { createPlanningToolManifests } from "./plan.js";
-import { resolveSkills, type SkillSource } from "./skills.js";
-import { createSubagentsManifest, type SubagentObserver } from "./subagents.js";
-import { createToolSearchManifest } from "./tool-search.js";
+import type { StoredModelContinuation } from "../../turn/model-capabilities.js";
+import { createSubagentsManifest, type SubagentObserver } from "../delegation/subagents.js";
+import { createPlanningToolManifests } from "../interaction/plan.js";
+import { createUIAgentToolManifests } from "../interaction/ui-agent.js";
+import { createCodeModeManifest } from "../research/code-mode.js";
+import {
+  createWebFetchManifest,
+  createWebSearchManifest,
+  type WebSearchInput,
+  type WebSearchOutput,
+} from "../research/web.js";
+import { resolveSkills, type SkillSource } from "../skills/loader.js";
+import { manifestsToTools, withToolExposure } from "./manifest.js";
+import { AgentToolRegistry } from "./registry.js";
+import type { ToolRoutingMode } from "./registry.js";
 import type { AgentToolManifest } from "./types.js";
-import { createUIAgentToolManifests } from "./ui-agent.js";
-import { createWebFetchManifest, createWebSearchManifest, type WebSearchInput, type WebSearchOutput } from "./web.js";
 
 export interface PortableToolModel<CONTEXT extends Record<string, unknown>> {
   name: string;
@@ -27,7 +31,6 @@ export interface PortableToolBindings<CONTEXT extends Record<string, unknown>> {
   model: PortableToolModel<CONTEXT>;
   webSearch(input: WebSearchInput, options: { abortSignal?: AbortSignal }): Promise<WebSearchOutput>;
   skillSource?: SkillSource | null;
-  clientInteraction?: boolean;
   uiAgent?: boolean;
 }
 
@@ -39,7 +42,6 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
   model,
   webSearch,
   skillSource,
-  clientInteraction = true,
   uiAgent = false,
 }: PortableToolBindings<CONTEXT>) {
   const webSearchManifest = createWebSearchManifest(webSearch);
@@ -56,9 +58,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
       webSearchManifest,
       webFetchManifest,
       createCodeModeManifest(),
-      createToolSearchManifest(),
       ...createPlanningToolManifests(),
-      ...(clientInteraction ? createInteractionToolManifests() : []),
       ...(uiAgent ? createUIAgentToolManifests() : []),
       createSubagentsManifest({
         modelName: model.name,
@@ -79,40 +79,18 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
 }
 
 /** Freeze one host's declarations into the settings consumed by the SDK loop. */
-export function compileTurnTools(builtins: AgentToolManifest[], plugins: AgentToolManifest[]) {
-  const manifests = [...builtins];
+export function buildAgentToolRouter(
+  builtins: AgentToolManifest[],
+  plugins: AgentToolManifest[],
+  options: { mode?: ToolRoutingMode; loadedTools?: readonly string[] } = {},
+) {
+  const registry = new AgentToolRegistry();
+  registry.registerAll(builtins);
   for (const plugin of plugins) {
     if (plugin.policy.source !== "mcp") {
       throw new Error(`agent plugin ${plugin.policy.pluginId ?? "unknown"} contributed a non-MCP tool`);
     }
-    manifests.push(deferAgentToolLoading(plugin));
+    registry.register(withToolExposure(plugin, "deferred"));
   }
-  const deferredNames = manifests
-    .filter(({ tool }) => tool?.deferLoading)
-    .map(({ name }) => name)
-    .sort();
-  const searchIndex = manifests.findIndex(({ name }) => name === "tool_search");
-  if (searchIndex >= 0) {
-    if (deferredNames.length > 0) {
-      manifests[searchIndex] = createToolSearchManifest(deferredNames);
-    } else {
-      manifests.splice(searchIndex, 1);
-    }
-  }
-  const tools = manifestsToTools(manifests);
-  const toolCallers: Record<string, (string | typeof DIRECT_TOOL_CALL)[]> = {};
-  for (const { name, tool, policy } of manifests) {
-    if (!tool || !policy.callableByCodeMode) continue;
-    if (policy.effect !== "read" || policy.execution !== "inline" || policy.trust !== "open-world") {
-      throw new Error(`Code Mode tool ${name} must be an inline, open-world read`);
-    }
-    toolCallers[name] = ["code_mode", DIRECT_TOOL_CALL];
-  }
-  return {
-    manifests,
-    tools,
-    activeTools: Object.keys(tools),
-    toolSources: new Map(manifests.map(({ name, policy }) => [name, policy.source])),
-    toolCallers,
-  };
+  return registry.finalize(options);
 }

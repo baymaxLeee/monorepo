@@ -70,6 +70,6 @@ duplicate POST
 - [frontend conversation hook](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.ts)：active-run resume、active-detached 轻量探针、idle journal hydration 与终态同步；
 - [message view](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.tsx)：durable failed/cancelled 呈现；
 - [transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts)：官方 `DefaultChatTransport` 默认完整 replay；
-- [subagents](../../packages/agent-runtime/src/tools/subagents.ts)：有界 preliminary progress。
+- [subagents](../../packages/agent-runtime/src/tools/delegation/subagents.ts)：有界 preliminary progress。
 
 变更这些边界时运行 `just test backend/runtime`、`just test frontend/@repo/ai-elements`、Runtime build 与全仓 lint。Runtime 测试必须覆盖任意切点下 snapshot+tail 与原始 AI SDK stream 的最终消息等价、慢 subscriber 隔离、delta/tool/metadata projection、completed-step、终态提交、重复请求与 orphan recovery；前端测试必须覆盖完整 replay、active-detached probe、idle journal hydration、duplicate POST 409、失败终态和切换会话后的清理。

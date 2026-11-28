@@ -1,8 +1,8 @@
 import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "../manifest.js";
-import { toolCompleted } from "../outcome.js";
+import { defineAgentTool } from "../core/manifest.js";
+import { toolCompleted } from "../core/outcome.js";
 import { MAX_TEXT_FILE_BYTES } from "./read-file.js";
 
 export const writeFileInputSchema = z

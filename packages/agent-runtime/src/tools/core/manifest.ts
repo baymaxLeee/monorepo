@@ -7,7 +7,7 @@ import {
 import type { ToolSet } from "ai";
 import { z } from "zod";
 
-import { retryTransientNetwork } from "../turn/model-retry.js";
+import { retryTransientNetwork } from "../../turn/model-retry.js";
 import {
   isToolEmission,
   normalizeToolIssue,
@@ -20,7 +20,7 @@ import {
   type ToolOutcome,
 } from "./outcome.js";
 import { ToolExecutionScheduler } from "./scheduler.js";
-import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy, ToolAvailability } from "./types.js";
+import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy, ToolAvailability, ToolExposure } from "./types.js";
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return Boolean(value && (typeof value === "object" || typeof value === "function") && Symbol.asyncIterator in value);
@@ -191,7 +191,7 @@ export function defineAgentTool(
   definition: ToolSet[string],
   policy: Omit<AgentToolPolicy, "source"> & { source?: AgentToolPolicy["source"] },
   planning: AgentToolPlanning,
-  availability: ToolAvailability = "available",
+  options: { availability?: ToolAvailability; exposure?: ToolExposure } = {},
 ): AgentToolManifest {
   const resolvedPolicy = { source: "builtin" as const, ...policy };
   const agentMetadata = {
@@ -224,9 +224,10 @@ export function defineAgentTool(
   return {
     name,
     tool: wrappedWithMetadata,
+    exposure: options.exposure ?? "direct",
     policy: resolvedPolicy,
     planning,
-    availability,
+    availability: options.availability ?? "available",
   };
 }
 
@@ -237,6 +238,7 @@ export function defineUnavailableCapability(
 ): AgentToolManifest {
   return {
     name,
+    exposure: "hidden",
     policy: { source: "builtin", ...policy },
     planning,
     availability: "requires-configuration",
@@ -244,15 +246,8 @@ export function defineUnavailableCapability(
 }
 
 /** Keeps an optional tool executable and searchable without sending its full schema on every initial model step. */
-export function deferAgentToolLoading(manifest: AgentToolManifest): AgentToolManifest {
-  if (!manifest.tool) return manifest;
-  return {
-    ...manifest,
-    tool: transformToolPreservingCaller(manifest.tool, (definition) => ({
-      ...definition,
-      deferLoading: true,
-    })),
-  };
+export function withToolExposure(manifest: AgentToolManifest, exposure: ToolExposure): AgentToolManifest {
+  return { ...manifest, exposure };
 }
 
 export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {

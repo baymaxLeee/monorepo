@@ -534,10 +534,67 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(requests).toHaveLength(1);
     const initialTools = requests[0].options.tools?.map((candidate) => candidate.name) ?? [];
     expect(initialTools).toEqual(expect.arrayContaining(["bash", "read_file", "apply_patch", "write_file"]));
-    expect(initialTools).not.toContain("tool_search");
+    expect(initialTools).toContain("tool_search");
+    expect(initialTools).toContain("ask_user");
     expect(initialTools).toContain("subagents");
     expect(initialTools).toContain("code_mode");
     expect(JSON.stringify(requests[0].options.prompt)).not.toContain("工作区内容已变化");
+  });
+
+  it("exposes ask_user on every turn and resumes from a validated answer", async () => {
+    const requests: InferenceRequest[] = [];
+    const f = await fixture(async (request) => {
+      requests.push(request);
+      return requests.length === 1
+        ? reply([
+            {
+              type: "tool-call",
+              toolCallId: "ask-framework",
+              toolName: "ask_user",
+              input: JSON.stringify({
+                questions: [
+                  {
+                    id: "framework",
+                    header: "技术栈",
+                    question: "选择技术栈",
+                    options: [
+                      { label: "React", description: "使用 React。" },
+                      { label: "Vue", description: "使用 Vue。" },
+                    ],
+                  },
+                ],
+              }),
+            },
+          ])
+        : reply(text());
+    });
+
+    f.runtime.send(f.thread.id, user("创建应用"), randomUUID());
+    const waiting = await done(f.runtime, f.thread.id);
+    expect(waiting.status).toBe("waiting");
+    expect(requests[0]?.options.tools?.map((candidate) => candidate.name)).toContain("ask_user");
+    const turnId = waiting.turnId;
+    const persisted = waiting.messages.at(-1);
+    if (!turnId || persisted?.role !== "assistant") throw new Error("missing pending interaction turn");
+    const response = structuredClone(persisted);
+    const pending = response.parts.find(
+      (part) => isToolUIPart(part) && part.toolCallId === "ask-framework" && part.state === "input-available",
+    );
+    if (!pending || !isToolUIPart(pending)) throw new Error("missing pending question");
+    Object.assign(pending, {
+      state: "output-available",
+      output: {
+        ok: true,
+        status: "completed",
+        data: { answers: { framework: { answers: ["React"] } } },
+      },
+    });
+
+    f.runtime.continueClientTool(f.thread.id, turnId, response);
+    const completed = await done(f.runtime, f.thread.id);
+    expect(completed.status).toBe("idle");
+    expect(completed.turnId).toBe(turnId);
+    expect(JSON.stringify(requests[1]?.options.prompt)).toContain("React");
   });
 
   it("exposes Agent UI tools only for an opted-in turn and resumes that same turn from a validated page result", async () => {
@@ -1002,56 +1059,20 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(await readFile(workspacePath, "utf8")).toBe("original");
   });
 
-  it("publishes a local workspace file as the shared inline artifact part", async () => {
-    let calls = 0;
+  it("does not expose cloud artifact publication in the local workspace", async () => {
     const requests: InferenceRequest[] = [];
     const f = await fixture(async (request) => {
       requests.push(request);
-      calls += 1;
-      if (calls === 1) {
-        return reply([
-          {
-            type: "tool-call",
-            toolCallId: "write",
-            toolName: "bash",
-            input: JSON.stringify({ command: "touch draft.txt && printf 'export default 1' > demo.js" }),
-          },
-        ]);
-      }
-      if (calls === 2)
-        return reply([
-          {
-            type: "tool-call",
-            toolCallId: "deliver",
-            toolName: "upload_artifacts",
-            input: JSON.stringify({ paths: ["demo.js"] }),
-          },
-        ]);
       return reply(text());
     });
     f.runtime.send(f.thread.id, user("create"), randomUUID());
     const completed = await done(f.runtime, f.thread.id);
     expect(completed.status).toBe("idle");
-    expect(calls).toBe(3);
-    expect(requests[0]?.options.tools?.map((candidate) => candidate.name)).toContain("upload_artifacts");
-    expect(
-      completed.messages.flatMap((message) => message.parts).filter((part) => part.type === "data-file"),
-    ).toHaveLength(1);
-    expect(
-      completed.messages.flatMap((message) => message.parts).find((part) => part.type === "data-file"),
-    ).toMatchObject({
-      type: "data-file",
-      data: {
-        file_id: expect.stringMatching(/^[a-f0-9]{32}$/),
-        filename: "demo.js",
-        title: "demo.js",
-        media_type: "text/javascript",
-        kind: "artifact",
-        etag: expect.stringMatching(/^"[a-f0-9]{32}"$/),
-        updated: false,
-        workspace_path: "demo.js",
-      },
-    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.options.tools?.map((candidate) => candidate.name)).not.toContain("upload_artifacts");
+    expect(completed.messages.flatMap((message) => message.parts).some((part) => part.type === "data-file")).toBe(
+      false,
+    );
   });
 
   it("admits a running supplement into the next SDK step and persists the official part", async () => {

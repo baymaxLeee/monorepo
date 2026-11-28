@@ -10,6 +10,7 @@ import {
   type ContextCompactionEvent,
   type ModelRetryEvent,
   type SessionContextSnapshot,
+  restoreToolLoadout,
 } from "@repo/agent-runtime";
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage, validateUIMessages } from "ai";
 
@@ -526,6 +527,7 @@ async function executeClaimedAgentRunResponse(execution: ClaimedAgentRunExecutio
             if (!file) throw new RequestError(`skill ${skillId} file ${path} is not available in this Turn`);
             return file;
           },
+          loadedToolNames: restoreToolLoadout(modelUiMessages),
         },
         toolCatalog,
         scope,

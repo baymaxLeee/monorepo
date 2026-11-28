@@ -1,7 +1,7 @@
 import { tool, type ToolExecutionOptions, type UIMessageChunk } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "./manifest.js";
+import { defineAgentTool } from "../core/manifest.js";
 import {
   normalizeToolIssue,
   shouldRethrowToolError,
@@ -9,7 +9,7 @@ import {
   toolOutcomeData,
   toolPartial,
   type ToolEmission,
-} from "./outcome.js";
+} from "../core/outcome.js";
 
 export interface PublishedWorkspaceFile {
   file_id: string;

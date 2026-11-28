@@ -18,6 +18,26 @@ type repositoryStub struct {
 	memories     []application.UserMemory
 }
 
+type heartbeatRecorder struct {
+	header http.Header
+	writes chan string
+}
+
+func newHeartbeatRecorder() *heartbeatRecorder {
+	return &heartbeatRecorder{header: make(http.Header), writes: make(chan string, 1)}
+}
+
+func (recorder *heartbeatRecorder) Header() http.Header { return recorder.header }
+func (recorder *heartbeatRecorder) WriteHeader(int)     {}
+func (recorder *heartbeatRecorder) Flush()              {}
+func (recorder *heartbeatRecorder) Write(value []byte) (int, error) {
+	select {
+	case recorder.writes <- string(value):
+	default:
+	}
+	return len(value), nil
+}
+
 func (repositoryStub) Ping(context.Context) error { return nil }
 func (repositoryStub) Close()                     {}
 func (repositoryStub) Reserve(context.Context, application.AuthContext, application.ConversationIntent) (application.Conversation, error) {
@@ -184,6 +204,42 @@ func TestConversationProxyPreservesSSEBytesAndMapsRuntimePath(t *testing.T) {
 	}
 	if runtime.request.Path != "/v1/sessions/runtime-thread/stream" {
 		t.Fatalf("runtime path = %q", runtime.request.Path)
+	}
+}
+
+func TestStreamingProxyWritesProtocolHeartbeatWhileUpstreamIsSilent(t *testing.T) {
+	for _, tc := range []struct {
+		mediaType string
+		want      string
+	}{
+		{"text/event-stream", ": ping\n\n"},
+		{"application/x-ndjson", "{\"type\":\"ping\"}\n"},
+	} {
+		t.Run(tc.mediaType, func(t *testing.T) {
+			response := newHeartbeatRecorder()
+			body, bodyWriter := io.Pipe()
+			done := make(chan struct{})
+			go func() {
+				copyStreaming(response, body, tc.mediaType, time.Millisecond)
+				close(done)
+			}()
+			select {
+			case got := <-response.writes:
+				if got != tc.want {
+					t.Fatalf("stream heartbeat = %q, want %q", got, tc.want)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("stream heartbeat was not written")
+			}
+			if err := bodyWriter.Close(); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("stream copier did not stop after upstream close")
+			}
+		})
 	}
 }
 

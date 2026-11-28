@@ -8,7 +8,7 @@ export const MIN_TARGET_DURATION_S = 4;
 export const MAX_TARGET_DURATION_S = 120;
 
 export const ARK_DURATION_MIN = 4;
-export const ARK_DURATION_MAX = 15;
+export const ARK_DURATION_MAX = 30;
 
 export function clampArkDuration(value: number | undefined): number {
   const n = Number.isFinite(value) ? Math.round(value as number) : SEGMENT_SECONDS_TARGET;

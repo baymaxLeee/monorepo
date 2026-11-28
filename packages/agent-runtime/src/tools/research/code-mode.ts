@@ -1,7 +1,7 @@
 import { DIRECT_TOOL_CALL, experimental_codeModeTool as codeModeTool } from "@ai-sdk/code-mode";
 import type { ToolSet } from "ai";
 
-import { defineAgentTool, transformToolPreservingCaller } from "./manifest.js";
+import { defineAgentTool, transformToolPreservingCaller } from "../core/manifest.js";
 
 export const CODE_MODE_TIMEOUT_MS = 90_000;
 export { DIRECT_TOOL_CALL };

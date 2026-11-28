@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "./manifest.js";
+import { defineAgentTool } from "../core/manifest.js";
 
 export const updatePlanArgs = z.strictObject({
   explanation: z.string().nullish(),

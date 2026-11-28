@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import type { GenericToolApprovalFunction, ToolSet, UIMessage } from "ai";
 
-import { toolPolicyFromMetadata } from "../tools/manifest.js";
+import { toolPolicyFromMetadata } from "../tools/core/manifest.js";
 import { type ExecApprovalRequirement, ExecPolicy } from "./exec-policy.js";
 import {
   fileToolAccesses,

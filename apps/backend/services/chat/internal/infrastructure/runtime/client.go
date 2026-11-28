@@ -23,6 +23,8 @@ func New(baseURL, internalToken string) *Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"), internalToken: internalToken,
+		// Do not apply the edge's 60-second default to an inner response body.
+		// The caller context owns cancellation and any operation-specific deadline.
 		httpClient: &http.Client{Transport: transport},
 	}
 }

@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -21,9 +24,9 @@ func Index(c *gin.Context) {
 	})
 }
 
-func NewServiceProxy(upstream, service, externalPrefix string) http.Handler {
+func NewServiceProxy(upstream, service, externalPrefix string, defaultTimeout time.Duration) http.Handler {
 	return &internalPathGuard{
-		inner:          newReverseProxy(upstream, service, externalPrefix),
+		inner:          newReverseProxy(upstream, service, externalPrefix, defaultTimeout),
 		externalPrefix: externalPrefix,
 	}
 }
@@ -50,15 +53,13 @@ func isInternalPath(path string) bool {
 	return path == "/internal" || strings.HasPrefix(path, "/internal/")
 }
 
-func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
+func newReverseProxy(upstream, service, externalPrefix string, defaultTimeout time.Duration) http.Handler {
 	target, err := url.Parse(strings.TrimRight(upstream, "/"))
 	if err != nil {
 		panic("invalid " + service + " upstream url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.MaxIdleConnsPerHost = 32
-	transport.ResponseHeaderTimeout = 30 * time.Second
+	transport := newUpstreamTransport(defaultTimeout)
 	proxy.Transport = otelhttp.NewTransport(transport)
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
@@ -80,33 +81,53 @@ func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 			"err", err,
 			"path", r.URL.Path,
 		)
-		writeProblem(w, http.StatusBadGateway, "bad_gateway", "the upstream service is unavailable")
+		status, title, detail := http.StatusBadGateway, "bad_gateway", "the upstream service is unavailable"
+		var networkError net.Error
+		if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkError) && networkError.Timeout()) {
+			status, title, detail = http.StatusGatewayTimeout, "gateway_timeout", "the upstream service timed out"
+		}
+		writeProblem(w, status, title, detail)
 	}
 	proxy.FlushInterval = -1
-	return &deadlineAwareProxy{inner: proxy, service: service, externalPrefix: externalPrefix}
+	return &deadlineAwareProxy{
+		inner: proxy, service: service, externalPrefix: externalPrefix, defaultTimeout: defaultTimeout,
+	}
+}
+
+func newUpstreamTransport(defaultTimeout time.Duration) *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = 32
+	transport.ResponseHeaderTimeout = defaultTimeout
+	return transport
 }
 
 type deadlineAwareProxy struct {
 	inner          http.Handler
 	service        string
 	externalPrefix string
+	defaultTimeout time.Duration
 }
 
 func (p *deadlineAwareProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := stripServicePrefix(r.URL.Path, p.externalPrefix)
 	rc := http.NewResponseController(w)
-	if (p.service == "chat-server" &&
+	streaming := (p.service == "chat-server" &&
 		(strings.HasSuffix(path, "/stream") ||
-			(r.Method == http.MethodPost && path == "/local-inference/stream"))) ||
-		(p.service == "canvas-server" && r.Method == http.MethodGet && strings.HasSuffix(path, "/events")) {
+			r.Method == http.MethodPost && path == "/local-inference/stream")) ||
+		(p.service == "canvas-server" && r.Method == http.MethodGet && strings.HasSuffix(path, "/events"))
+	largeTransfer := p.service == "storage-server" &&
+		(r.Method == http.MethodPut || r.Method == http.MethodPost || r.Method == http.MethodGet || r.Method == http.MethodHead)
+	if streaming {
 		_ = rc.SetWriteDeadline(time.Time{})
 	}
-	if p.service == "knowledge-server" && r.Method == http.MethodPost && path == "/ingest" {
-		_ = rc.SetReadDeadline(time.Time{})
-	}
-	if p.service == "storage-server" && (r.Method == http.MethodPut || r.Method == http.MethodPost || r.Method == http.MethodGet || r.Method == http.MethodHead) {
+	if largeTransfer {
 		_ = rc.SetReadDeadline(time.Time{})
 		_ = rc.SetWriteDeadline(time.Time{})
+	}
+	if !streaming && !largeTransfer {
+		ctx, cancel := context.WithTimeout(r.Context(), p.defaultTimeout)
+		defer cancel()
+		r = r.WithContext(ctx)
 	}
 	p.inner.ServeHTTP(w, r)
 }

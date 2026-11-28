@@ -16,6 +16,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "512m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
     # If cert-manager is installed, uncomment to auto-issue via Let's Encrypt:
     # cert-manager.io/cluster-issuer: "letsencrypt-prod"

@@ -4,35 +4,34 @@ import test from "node:test";
 import { tool } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "../../tools/manifest.js";
+import { defineAgentTool } from "../../tools/core/manifest.js";
 import { assembleInstructions } from "./assembler.js";
 import { CORE_POLICY } from "./core-policy.js";
-import { USER_UPDATES } from "./user-updates.js";
+import { buildInstructionPlan } from "./plan.js";
 
 test("run-level instructions contain invariants instead of product workflows", () => {
   const instructions = assembleInstructions({ memories: [] });
 
-  assert.ok(CORE_POLICY.length < 1_200);
-  assert.match(instructions, /continue until the request is handled or genuinely blocked/i);
-  assert.match(instructions, /smallest sufficient next action/i);
+  assert.ok(CORE_POLICY.length > 5_000);
+  assert.match(instructions, /until their intended goal is completely handled/i);
+  assert.match(instructions, /take end-to-end ownership/i);
   assert.doesNotMatch(
     instructions,
     /ECharts|generate_images|create_video_production|update_plan|step_protocol|bash|ask_user|read_file|apply_patch/i,
   );
 });
 
-test("multi-step turns receive Codex-style user update instructions", () => {
+test("multi-step turns receive user update instructions", () => {
   const instructions = assembleInstructions({ memories: [] });
 
-  assert.ok(USER_UPDATES.length < 2_000);
-  assert.match(instructions, /<user_updates>/);
-  assert.match(instructions, /before the first tool call/i);
-  assert.match(instructions, /one to three substantive execution steps/i);
-  assert.match(instructions, /six execution steps or ten tool calls/i);
-  assert.match(instructions, /what you learned or completed/i);
-  assert.match(instructions, /before the next tool call in the same response/i);
-  assert.match(instructions, /updates are not final answers/i);
-  assert.doesNotMatch(USER_UPDATES, /web_search|code_mode|subagents|bash|apply_patch/i);
+  assert.match(instructions, /## Intermediate commentary/);
+  assert.match(instructions, /requires calling tools, start with a message/i);
+  assert.match(instructions, /consistent, frequent communication/i);
+  assert.match(instructions, /sleep for as long as is required/i);
+  assert.match(instructions, /assumptions, findings, decisions/i);
+  assert.match(instructions, /Do NOT send user-facing questions in intermediate commentary/i);
+  assert.match(instructions, /final answer must always be fully self-contained/i);
+  assert.doesNotMatch(CORE_POLICY, /web_search|code_mode|subagents|apply_patch/i);
 });
 
 test("tool-specific prerequisites and constraints ship with the tool declaration", () => {
@@ -55,4 +54,28 @@ test("tool-specific prerequisites and constraints ship with the tool declaration
   assert.match(description, /Prerequisite: Validate the file first/);
   assert.match(description, /Constraint: Publish only requested deliverables/);
   assert.doesNotMatch(assembleInstructions({ memories: [] }), /Validate the file first/);
+});
+
+test("instruction plans keep stable policy before replaceable world-state sections", () => {
+  const first = buildInstructionPlan({
+    modelInstructions: "Model baseline",
+    input: { memories: [], now: new Date("2026-11-28T00:00:00Z") },
+    contributions: { skills: [{ name: "research", description: "Search sources" }] },
+  });
+  const second = buildInstructionPlan({
+    modelInstructions: "Model baseline",
+    input: { memories: [], now: new Date("2026-11-29T00:00:00Z") },
+    contributions: { skills: [{ name: "research", description: "Search sources" }] },
+  });
+  assert.deepEqual(
+    first.sections.slice(0, 2).map(({ id }) => id),
+    ["model", "core-policy"],
+  );
+  assert.deepEqual(second.diff(first), {
+    added: [],
+    replaced: [second.sections.find(({ id }) => id === "temporal-environment")!],
+    removed: [],
+  });
+  assert.equal(first.digest(), first.digest());
+  assert.notEqual(first.digest(), second.digest());
 });

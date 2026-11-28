@@ -6,7 +6,7 @@ import { simulateReadableStream, tool, type ModelMessage } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
-import type { StoredModelContinuation } from "../turn/model-capabilities.js";
+import type { StoredModelContinuation } from "../../turn/model-capabilities.js";
 import { createSubagent } from "./subagent-loop.js";
 
 const storedContinuation: StoredModelContinuation = {

@@ -1,8 +1,8 @@
 import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "../tools/manifest.js";
-import { toolBlocked, toolFailed, toolPartial } from "../tools/outcome.js";
+import { defineAgentTool } from "../tools/core/manifest.js";
+import { toolBlocked, toolFailed, toolPartial } from "../tools/core/outcome.js";
 import type { CommandSessions, ExecCommandOutput, ProcessIO } from "./command-sessions.js";
 import type { OrchestratedCommandResult } from "./orchestrator.js";
 import type { AdditionalPermissionProfile } from "./permissions.js";

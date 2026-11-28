@@ -396,6 +396,11 @@
               "maxLength": 4000
             }
           },
+          "size": {
+            "type": "string",
+            "pattern": "^\\d+x\\d+$",
+            "default": "2048x2048"
+          },
           "references": {
             "type": "array",
             "maxItems": 5,
@@ -442,7 +447,7 @@
           "durationSeconds": {
             "type": "integer",
             "minimum": 4,
-            "maximum": 15
+            "maximum": 30
           },
           "filename": {
             "type": "string",

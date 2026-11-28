@@ -10,6 +10,10 @@ export const imageGenerationInputSchema = z.object({
     message: "image provider capability is required",
   }),
   prompts: z.array(z.string().min(1).max(4_000)).min(1).max(6),
+  size: z
+    .string()
+    .regex(/^\d+x\d+$/)
+    .default("2048x2048"),
   references: z
     .array(
       z.object({
@@ -129,7 +133,9 @@ async function generateOneImageStep(
       prompt: referenceImages.length > 0 ? { text: input.prompt, images: referenceImages } : input.prompt,
       n: 1,
       abortSignal: cancellation.signal,
-      providerOptions: { [configured.providerOptionsKey]: providerOptions(provider.extraBody) },
+      providerOptions: {
+        [configured.providerOptionsKey]: { ...providerOptions(provider.extraBody), size: input.size },
+      },
     });
     const file = generated.images[0] ?? generated.image;
     const contentType = mediaType(file.mediaType, file.uint8Array);

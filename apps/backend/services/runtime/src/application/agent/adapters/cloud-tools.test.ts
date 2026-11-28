@@ -39,12 +39,9 @@ test("cloud adapters expose only cloud workspace capabilities", async () => {
     ["bash", "read_file", "apply_patch", "write_file", "refresh_session_sources", "upload_artifacts"],
   );
   for (const name of ["bash", "read_file", "apply_patch", "write_file", "upload_artifacts"]) {
-    assert.notEqual(runtime.manifests.find((manifest) => manifest.name === name)?.tool?.deferLoading, true);
+    assert.equal(runtime.manifests.find((manifest) => manifest.name === name)?.exposure, "direct");
   }
-  assert.equal(
-    runtime.manifests.find((manifest) => manifest.name === "refresh_session_sources")?.tool?.deferLoading,
-    true,
-  );
+  assert.equal(runtime.manifests.find((manifest) => manifest.name === "refresh_session_sources")?.exposure, "deferred");
 });
 
 test("session source refresh remains a Runtime-only incremental import adapter", async () => {

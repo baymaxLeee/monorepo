@@ -7,9 +7,9 @@ import {
   type ResolvedPluginSet,
   type ResolvedTurnPluginSnapshot,
   type SkillSource,
-  deferAgentToolLoading,
+  withToolExposure,
   createPortableToolRegistry,
-  compileTurnTools,
+  buildAgentToolRouter,
   type AgentToolManifest,
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
@@ -59,9 +59,8 @@ function catalogDigest(manifests: AgentToolManifest[]): string {
   return createHash("sha256").update(JSON.stringify(projection)).digest("hex");
 }
 
-function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
-  if (providers.media.providers.length === 0) return [];
-  return createMediaToolManifests().map(deferAgentToolLoading);
+function domainManifests(): AgentToolManifest[] {
+  return createMediaToolManifests().map((manifest) => withToolExposure(manifest, "deferred"));
 }
 
 /** Runtime-owned assembly of core tools plus an already authorized Turn plugin snapshot. */
@@ -88,6 +87,7 @@ export class ToolCatalog {
     },
     continuation?: UIMessage,
     clientCapabilities: { uiAgent?: boolean } = {},
+    routing: { loadedTools?: readonly string[] } = {},
   ) {
     await using acquired = new AsyncDisposableStack();
     const cloudAdapters = await createCloudToolAdapters(executionPolicy, continuation);
@@ -119,9 +119,10 @@ export class ToolCatalog {
       activatedSkill = { name: activeSkillName, body };
     }
 
-    const catalog = compileTurnTools(
-      [...portableTools.manifests, ...domainManifests(providers), ...cloudAdapters.manifests],
+    const catalog = buildAgentToolRouter(
+      [...portableTools.manifests, ...domainManifests(), ...cloudAdapters.manifests],
       pluginSet.manifests,
+      routing,
     );
     const resources = acquired.move();
     return {

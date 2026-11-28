@@ -1,8 +1,8 @@
 import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "../manifest.js";
-import { toolCompleted } from "../outcome.js";
+import { defineAgentTool } from "../core/manifest.js";
+import { toolCompleted } from "../core/outcome.js";
 
 export const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 export const DEFAULT_READ_MAX_LINES = 2_000;

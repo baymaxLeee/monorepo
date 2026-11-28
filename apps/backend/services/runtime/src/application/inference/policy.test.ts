@@ -71,6 +71,12 @@ function fixture(
   };
   return { provider, calls, cancelled: () => cancelled };
 }
+async function responseParts(response: Response) {
+  return (await response.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
+}
 test("relay compares estimated input tokens with the context window instead of JSON bytes", async () => {
   const f = fixture([finish], 3_000);
   const payload = request();
@@ -89,7 +95,13 @@ test("relay emits native provider parts and strips provider persistence/diagnost
   ]);
   const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
   const output = await response.text();
-  assert.equal(JSON.parse(output).type, "finish");
+  assert.deepEqual(
+    output
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line).type),
+    ["stream-start", "finish"],
+  );
   assert.ok(!output.includes("secret"));
   assert.equal(f.calls[0]?.providerOptions, undefined);
   assert.equal(f.calls[0]?.includeRawChunks, false);
@@ -101,6 +113,101 @@ test("relay explicitly keeps the HTTP response in chunked streaming mode", async
 
   assert.equal(response.headers.get("transfer-encoding"), "chunked");
   await response.body?.cancel();
+});
+test("relay opens the NDJSON response before the provider returns headers", async () => {
+  let releaseProvider!: () => void;
+  const providerGate = new Promise<void>((resolve) => {
+    releaseProvider = resolve;
+  });
+  const f = fixture();
+  f.provider.model.doStream = async () => {
+    await providerGate;
+    return {
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue(finish);
+          controller.close();
+        },
+      }),
+    };
+  };
+
+  const responsePromise = inferenceResponse(f.provider, request(), new AbortController().signal);
+  const openedBeforeProvider = await Promise.race([
+    responsePromise.then(() => true),
+    new Promise<false>((resolve) => {
+      setImmediate(() => resolve(false));
+    }),
+  ]);
+  releaseProvider();
+  const response = await responsePromise;
+  const reader = response.body?.getReader();
+
+  try {
+    assert.equal(openedBeforeProvider, true);
+    const first = await reader?.read();
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(first?.value)), {
+      type: "stream-start",
+      warnings: [],
+    });
+  } finally {
+    await reader?.cancel().catch(() => undefined);
+  }
+});
+test("relay emits an official heartbeat while provider progress is silent", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = fixture();
+  f.provider.model.doStream = async () => ({
+    stream: new ReadableStream({
+      pull() {
+        return new Promise<void>(() => {
+          // Intentionally silent until the consumer cancels the stream.
+        });
+      },
+    }),
+  });
+
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
+  const reader = response.body!.getReader();
+  const first = await reader.read();
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(first.value)), { type: "stream-start", warnings: [] });
+
+  const heartbeat = reader.read();
+  await Promise.resolve();
+  t.mock.timers.tick(15_000);
+  const next = await heartbeat;
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(next.value)), { type: "ping" });
+  await reader.cancel();
+});
+test("consumer cancellation aborts startup and releases a late provider stream", async () => {
+  let releaseProvider!: () => void;
+  const providerGate = new Promise<void>((resolve) => {
+    releaseProvider = resolve;
+  });
+  let providerSignal: AbortSignal | undefined;
+  let providerCancelled = false;
+  const f = fixture();
+  f.provider.model.doStream = async (options) => {
+    providerSignal = options.abortSignal;
+    await providerGate;
+    return {
+      stream: new ReadableStream({
+        cancel() {
+          providerCancelled = true;
+        },
+      }),
+    };
+  };
+
+  const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
+  await response.body?.cancel();
+  assert.equal(providerSignal?.aborted, true);
+
+  releaseProvider();
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+  assert.equal(providerCancelled, true);
 });
 test("relay has no total-duration deadline for an active provider stream", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
@@ -126,7 +233,13 @@ test("relay has no total-duration deadline for an active provider stream", async
 
   output?.enqueue(finish);
   output?.close();
-  assert.equal(JSON.parse(await body).type, "finish");
+  const parts = (await body)
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
+  assert.equal(parts[0]?.type, "stream-start");
+  assert.ok(parts.some((part) => part.type === "ping"));
+  assert.equal(parts.at(-1)?.type, "finish");
 });
 test("unauthorized model, injected provider options, remote URLs and hosted tools never reach provider", async () => {
   for (const payload of [
@@ -154,30 +267,36 @@ test("unauthorized model, injected provider options, remote URLs and hosted tool
 test("a connection failure before semantic output is retryable and keeps the reservation", async () => {
   const f = fixture([]);
   const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
-  assert.deepEqual(JSON.parse(await response.text()), {
-    type: "error",
-    error: {
-      code: "model_connection_failed",
-      message: "模型响应流提前中断",
-      retryable: true,
-      reason: "incomplete_stream",
+  assert.deepEqual(await responseParts(response), [
+    { type: "stream-start", warnings: [] },
+    {
+      type: "error",
+      error: {
+        code: "model_connection_failed",
+        message: "模型响应流提前中断",
+        retryable: true,
+        reason: "incomplete_stream",
+      },
     },
-  });
+  ]);
   assert.equal(f.calls.length, 1);
 });
 
 test("a provider connection failure before the stream starts uses the same retryable protocol", async () => {
   const f = fixture([], 10_000, undefined, new TypeError("fetch failed"));
   const response = await inferenceResponse(f.provider, request(), new AbortController().signal);
-  assert.deepEqual(JSON.parse(await response.text()), {
-    type: "error",
-    error: {
-      code: "model_connection_failed",
-      message: "模型服务暂时不可用",
-      retryable: true,
-      reason: "provider_unavailable",
+  assert.deepEqual(await responseParts(response), [
+    { type: "stream-start", warnings: [] },
+    {
+      type: "error",
+      error: {
+        code: "model_connection_failed",
+        message: "模型服务暂时不可用",
+        retryable: true,
+        reason: "provider_unavailable",
+      },
     },
-  });
+  ]);
   assert.equal(f.calls.length, 1);
 });
 

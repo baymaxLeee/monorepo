@@ -14,11 +14,10 @@ import {
 import type { JSONSchema7, JSONValue } from "@ai-sdk/provider";
 import { jsonSchema, type ToolResultOutput } from "@ai-sdk/provider-utils";
 import { dynamicTool, type ToolSet } from "ai";
-
 import { z } from "zod";
 
-import { defineAgentTool } from "../tools/manifest.js";
-import { normalizeToolIssue, toolFailed } from "../tools/outcome.js";
+import { defineAgentTool } from "../tools/core/manifest.js";
+import { normalizeToolIssue, toolFailed } from "../tools/core/outcome.js";
 import type {
   AgentPluginContext,
   AgentPluginManifest,
@@ -171,8 +170,13 @@ export async function discoverInstalledMcpServer(
 
 // Only the execution host writes this receipt into a completed tool result.
 export const mcpAppCallbackSchema = z.object({
-  pluginId: z.string(), digest: z.string(), server: z.string(), tool: z.string(),
-  bindings: z.record(z.string(), z.string()), uri: z.string().startsWith("ui://"), fingerprint: z.string(),
+  pluginId: z.string(),
+  digest: z.string(),
+  server: z.string(),
+  tool: z.string(),
+  bindings: z.record(z.string(), z.string()),
+  uri: z.string().startsWith("ui://"),
+  fingerprint: z.string(),
 });
 type AppCallback = z.infer<typeof mcpAppCallbackSchema>;
 
@@ -335,10 +339,24 @@ export function loadMcpServer(
         if (!uri) return publicResult;
         try {
           const resource = await loadResource(client, uri, callSignal);
-          const callback = contribution.policy.effect === "read" && contribution.policy.execution === "inline" && appTools.has(contribution.name)
-            ? {pluginId: plugin.id, digest: plugin.digest, server: server.name, tool: contribution.name, bindings: {...resolved.activation.bindings}, uri, fingerprint: await fingerprintMCPAppResource(resource)}
-            : undefined;
-          return { ...payload, _meta: { ...serverMeta, mcpAppResource: callback ? {...resource, callback} : resource } };
+          const callback =
+            contribution.policy.effect === "read" &&
+            contribution.policy.execution === "inline" &&
+            appTools.has(contribution.name)
+              ? {
+                  pluginId: plugin.id,
+                  digest: plugin.digest,
+                  server: server.name,
+                  tool: contribution.name,
+                  bindings: { ...resolved.activation.bindings },
+                  uri,
+                  fingerprint: await fingerprintMCPAppResource(resource),
+                }
+              : undefined;
+          return {
+            ...payload,
+            _meta: { ...serverMeta, mcpAppResource: callback ? { ...resource, callback } : resource },
+          };
         } catch {
           callSignal.throwIfAborted();
           return publicResult;
@@ -362,10 +380,16 @@ export function loadMcpServer(
     manifests,
     skills: [],
     async callAppTool(receipt, args) {
-      const tool = server.tools.find(candidate => candidate.name === receipt.tool);
-      if (receipt.pluginId !== plugin.id || receipt.digest !== plugin.digest || receipt.server !== server.name ||
-          stableJSON(receipt.bindings) !== stableJSON(resolved.activation.bindings ?? {}) ||
-          !tool || tool.policy.effect !== "read" || tool.policy.execution !== "inline") {
+      const tool = server.tools.find((candidate) => candidate.name === receipt.tool);
+      if (
+        receipt.pluginId !== plugin.id ||
+        receipt.digest !== plugin.digest ||
+        receipt.server !== server.name ||
+        stableJSON(receipt.bindings) !== stableJSON(resolved.activation.bindings ?? {}) ||
+        !tool ||
+        tool.policy.effect !== "read" ||
+        tool.policy.execution !== "inline"
+      ) {
         throw new Error("MCP App release or tool binding changed");
       }
       const checkGrant = () => {
@@ -374,12 +398,14 @@ export function loadMcpServer(
       };
       checkGrant();
       const client = await connect();
-      if (!appTools.has(tool.name) || appUris.get(tool.name) !== receipt.uri) throw new Error("MCP App tool is unavailable");
+      if (!appTools.has(tool.name) || appUris.get(tool.name) !== receipt.uri)
+        throw new Error("MCP App tool is unavailable");
       const resource = await loadResource(client, receipt.uri, signal);
-      if (detectMCPAppResourceDrift(await fingerprintMCPAppResource(resource), receipt.fingerprint)) throw new Error("MCP App resource changed");
+      if (detectMCPAppResourceDrift(await fingerprintMCPAppResource(resource), receipt.fingerprint))
+        throw new Error("MCP App resource changed");
       z.fromJSONSchema(normalizedInputSchema(tool.inputSchema) as Parameters<typeof z.fromJSONSchema>[0]).parse(args);
       checkGrant();
-      return client.callTool({name: tool.name, arguments: args, options: { signal }});
+      return client.callTool({ name: tool.name, arguments: args, options: { signal } });
     },
     dispose: () => {
       if (closing) return closing;

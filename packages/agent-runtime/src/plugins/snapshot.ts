@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { JSONSchema7 } from "@ai-sdk/provider";
 
-import type { AgentToolPlanning, AgentToolPolicy, ToolSourceProjection } from "../tools/types.js";
+import type { AgentToolPlanning, AgentToolPolicy, ToolSourceProjection } from "../tools/core/types.js";
 import type {
   AgentPluginManifest,
   McpToolContribution,

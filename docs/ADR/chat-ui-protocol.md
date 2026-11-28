@@ -53,7 +53,7 @@ SDK API 与协议机制属于官方能力。下文的权限校验、文件发布
 | 权威历史与分支 | PostgreSQL 保存 UIMessage journal、父子分支、selected leaf 与单调 history revision；编辑、重新生成、工具续跑和历史选择是不同操作。 |
 | schema 与续跑权限 | [共享 metadata/data schema](../../schemas/streaming/chat-ui.ts) 经 `just sync` 生成双端校验器，与 SDK `validateUIMessages` 校验结构；[continuation](../../apps/backend/services/runtime/src/application/agent/runs/continuation.ts) 只允许等待中的客户端结果或审批决定，调用身份不可变。 |
 | 来源与引用 | 搜索 ToolOutcome 保留给模型并投影原生 source part；正文消费原生 citations。文档来源只通过 workspace ACL resolver 和 journal 关系生成可打开链接。 |
-| 文件与产物 | 原生 `file`/`reasoning-file` 发布为受权会话资源；云端 `upload_artifacts` 批量结果逐文件投影为持久 `data-file`，本地从真实文件变更生成同构 part，正文统一显示 file tag。任意远程 URL 不由 Chat 代取。 |
+| 文件与产物 | 原生 `file`/`reasoning-file` 发布为受权会话资源；云端 `upload_artifacts` 批量结果逐文件投影为持久 `data-file`，Desktop 文件直接保留在用户选择的本地 workspace。任意远程 URL 不由 Chat 代取。 |
 | 工具生命周期 | static/dynamic、preliminary、provider-executed、审批和 client tool 使用 SDK 原生状态；业务 ToolOutcome 只承载业务成功/失败数据。内联 `subagents` 的 1–3 条紧凑有界 nested progress 作为 preliminary payload，完整 message 只进入 final tool payload，不增加平行 data part。 |
 | 并发与持久化 | `(conversation_id, request_id)` 和完整请求指纹绑定逻辑操作；claim 锁定 revision。工具终态、assistant 消息、run、selected leaf 和 lease 由同一个幂等 finalizer 事务提交。 |
 | 恢复与取消 | active hub 在 subscriber 断开后继续驱动 Run；前端先 replay materialized active snapshot 并接 live tail。hub 缺失且 Turn 正在执行或取消 时轻量探测 GET，idle 后一次性从 PostgreSQL journal 补读终态。传输或缓存故障不取消 run，显式 Stop 才传播用户取消并由同一 finalizer 收口。 |
@@ -250,7 +250,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 | 模型直接输出图片/文件 | assistant `file` part | 文件发布后展示预览/下载卡，保留 MIME、filename 和原生 metadata |
 | 云端 `upload_artifacts` 发布产物 | 一个批量 `tool-*` 终态 output + 每文件一个 `data-file` | 工具结果保留调用、审批、失败与执行记录；成功文件在正文显示紧凑 file tag |
 
-`upload_artifacts → tool-upload_artifacts.output.files[] → data-file → ChatFileTag` 是文件发布的生成式 UI。工具 part 按通用规则始终可观测，展示调用、审批、进度、成功或错误，但不再渲染专用预览卡；`data-file` 另行表达可访问的正文文件终态。这里的 `data-file` 是持久、有类型的 AI SDK data part，不是模型生成的 HTML/XML 标记，也不冒充原生附件 `file` part。本地不制造上传 tool part，而是在 `finish` 前从已验证的真实文件变更生成同一终态 `data-file`。
+`upload_artifacts → tool-upload_artifacts.output.files[] → data-file → ChatFileTag` 是 Cloud 文件发布的生成式 UI。工具 part 按通用规则始终可观测，展示调用、审批、进度、成功或错误，但不再渲染专用预览卡；`data-file` 另行表达可访问的正文文件终态。这里的 `data-file` 是持久、有类型的 AI SDK data part，不是模型生成的 HTML/XML 标记，也不冒充原生附件 `file` part。Desktop 不制造上传 tool part 或 `data-file`，文件由本地 workspace 直接承载。
 
 ### 9.2 文件发布与访问
 
@@ -352,7 +352,7 @@ Runtime 不保存 active run 的累计原生 SSE。`GET /conversations/{id}/stre
 | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts) | 权威历史、composition、单一 finalizer、请求/run 对应关系 |
 | [continuation](../../apps/backend/services/runtime/src/application/agent/runs/continuation.ts) | 不可变调用身份、输出/审批 schema、响应去重和状态转换 |
 | [model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared context projection](../../packages/agent-runtime/src/context/history.ts) | journal 与模型表示分离、数据引用、多模态输入 |
-| [tool manifest](../../packages/agent-runtime/src/tools/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
+| [tool manifest](../../packages/agent-runtime/src/tools/core/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
 | [active stream](../../apps/backend/services/runtime/src/application/agent/streams/live.ts) | active message materialized replay、snapshot/subscription 原子交接、subscriber fan-out |
 | [frontend transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) | 精简但完整的操作语义、认证、官方完整 replay reconnect |
 | [useConversationChat](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.ts) | 实例生命周期、完整 hydration、active resume、journal fallback、错误恢复、过期响应拒绝 |
@@ -371,7 +371,7 @@ Runtime 不保存 active run 的累计原生 SSE。`GET /conversations/{id}/stre
 | 合成流 | 模型正文、额外 source、file、持久 data 和 metadata 全部在最终 journal 中；瞬时通知不进入 parts | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、[run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts)、[message schemas](../../apps/backend/services/runtime/src/application/agent/chat-ui-schema.ts) |
 | 历史一致性 | 流完成、刷新与恢复所得 parts/metadata 语义一致；custom/provider metadata 不被泛化删除 | [useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx)、[run history tests](../../apps/backend/services/runtime/src/application/agent/runs/run-history.test.ts) |
 | 动态工具 | static/dynamic 的输入流、providerExecuted、所有审批与输出状态；文字编码工具输入由 SDK 正确处理 | [continuation tests](../../apps/backend/services/runtime/src/application/agent/runs/continuation.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx) |
-| preliminary | 多次中间快照可更新；中间结果不显示完成、不触发续跑；最终结果后才结束 | [subagent tests](../../packages/agent-runtime/src/tools/subagents.test.ts)、[session fork tests](../../apps/backend/services/runtime/src/application/session-fork.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx) |
+| preliminary | 多次中间快照可更新；中间结果不显示完成、不触发续跑；最终结果后才结束 | [subagent tests](../../packages/agent-runtime/src/tools/delegation/subagents.test.ts)、[session fork tests](../../apps/backend/services/runtime/src/application/session-fork.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx) |
 | 客户端续跑 | 人工回答与浏览器结果成功/失败；篡改名称、input、metadata、approval id、重复 ID、伪造 server output 全部拒绝 | [continuation tests](../../apps/backend/services/runtime/src/application/agent/runs/continuation.test.ts)、[useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 审批 | 允许、拒绝、重复点击、并发提交、自动审批检查；拒绝不会执行工具 | [AI Elements transport test](../../apps/frontend/packages/ai-elements/src/AiChat/transport.test.tsx)、[continuation tests](../../apps/backend/services/runtime/src/application/agent/runs/continuation.test.ts)、[Chat page tests](../../apps/frontend/packages/ai-elements/src/Conversation/pages/chat/Chat.test.tsx) |
 | citations | 无独立 source chunk 的 citation、晚到 citation、同源多位置、原生/URL fallback 不重复、全局编号、文档来源、emoji 索引与 Markdown 结构不破坏 | [citation tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatFeaturePatterns.test.tsx)、[source relationship tests](../../apps/backend/services/runtime/src/application/message-branches.test.ts) |

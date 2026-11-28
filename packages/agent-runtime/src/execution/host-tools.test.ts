@@ -4,7 +4,7 @@ import test from "node:test";
 import type { Tool, ToolExecutionOptions } from "ai";
 
 import type { ExecutionEnvironment } from "../context/environment.js";
-import { isToolOutcome } from "../tools/outcome.js";
+import { isToolOutcome } from "../tools/core/outcome.js";
 import { ExecPolicy } from "./exec-policy.js";
 import { createExecutionHostManifests } from "./host-tools.js";
 import { ToolOrchestrator } from "./orchestrator.js";
@@ -53,27 +53,16 @@ function executable(manifests: ReturnType<typeof createExecutionHostManifests>, 
   return (input: unknown, options: ToolExecutionOptions<unknown>) => definition.execute!(input, options);
 }
 
-const published = {
-  file_id: "a".repeat(32),
-  filename: "result.txt",
-  title: "result.txt",
-  media_type: "text/plain",
-  kind: "artifact",
-  etag: `"${"b".repeat(32)}"`,
-  updated: false,
-};
-
-test("execution hosts share one shell and deliverable manifest set", () => {
+test("execution hosts expose only sandbox-backed shell and file manifests", () => {
   const manifests = createExecutionHostManifests({
     environment,
     orchestrator: orchestrator(),
     run: async () => ({ type: "exit", exitCode: 0, stdout: "", stderr: "" }),
     files: files(),
-    deliver: async () => published,
   });
   assert.deepEqual(
     manifests.map((manifest) => manifest.name),
-    ["bash", "read_file", "apply_patch", "write_file", "upload_artifacts"],
+    ["bash", "read_file", "apply_patch", "write_file"],
   );
   assert.equal(manifests.find((manifest) => manifest.name === "read_file")?.planning.parallelizable, true);
   assert.equal(manifests.find((manifest) => manifest.name === "apply_patch")?.planning.parallelizable, undefined);
@@ -95,12 +84,11 @@ test("source refresh is an optional host capability", () => {
     orchestrator: orchestrator(),
     run: async () => ({ type: "exit", exitCode: 0, stdout: "", stderr: "" }),
     files: files(),
-    deliver: async () => published,
     refreshSources: async () => ({ sources: [] }),
   });
   assert.deepEqual(
     manifests.map((manifest) => manifest.name),
-    ["bash", "read_file", "apply_patch", "write_file", "refresh_session_sources", "upload_artifacts"],
+    ["bash", "read_file", "apply_patch", "write_file", "refresh_session_sources"],
   );
 });
 
@@ -118,7 +106,6 @@ test("bash starts and resumes one retained terminal without a second model tool"
       return { type: "exit", exitCode: 0, stdout: "", stderr: "" };
     },
     files: files(),
-    deliver: async () => published,
   });
   const bash = executable(manifests, "bash");
   const command = { command: "cat", tty: true, yield_time_ms: 250 };
@@ -149,7 +136,6 @@ test("host callbacks cannot contradict the advertised environment", () => {
         orchestrator: orchestrator(),
         run: async () => ({ type: "exit", exitCode: 0, stdout: "", stderr: "" }),
         files: files(),
-        deliver: async () => published,
         refreshSources: async () => ({ sources: [] }),
       }),
     /must match the advertised external source capability/,
@@ -177,7 +163,6 @@ test("apply_patch reports exact committed changes when a later file mutation fai
       },
       deleteFile: async () => undefined,
     },
-    deliver: async () => published,
   });
   const input = "*** Begin Patch\n*** Add File: first.txt\n+first\n*** Add File: second.txt\n+second\n*** End Patch";
   assert.equal(runtime.reviewFileTool("partial-patch", "apply_patch", input).type, "skip");
@@ -216,7 +201,6 @@ test("apply_patch preserves committed changes when cancellation fences the retur
       },
       deleteFile: async () => undefined,
     },
-    deliver: async () => published,
   });
   const input = "*** Begin Patch\n*** Add File: committed.txt\n+saved\n*** End Patch";
   assert.equal(runtime.reviewFileTool("cancelled-patch", "apply_patch", input).type, "skip");

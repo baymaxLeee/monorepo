@@ -5,7 +5,6 @@ import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
 import { logger } from "../../../../infrastructure/observability/logger.js";
-import type { MediaProviderCapability } from "../../../../infrastructure/provider/capability.js";
 import { getSessionAttachment, publishSessionFile } from "../../../session-files.js";
 import { workspaceFilename } from "../../../workspace-paths.js";
 import { runDurableTask } from "../../tasks/durable-task.js";
@@ -40,6 +39,46 @@ const generatedFileOutputSchema = z.object({
   workspace_path: z.string(),
 });
 
+const DEFAULT_SEEDREAM_MODEL = "doubao-seedream-5-0-260128";
+const DEFAULT_SEEDANCE_MODEL = "doubao-seedance-2-5-260628";
+const imageResolutionSchema = z.enum(["1K", "1.5K", "2K"]);
+const aspectRatioSchema = z.enum(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"]);
+const videoResolutionSchema = z.enum(["480p", "720p", "1080p", "4k"]);
+const videoRatioSchema = z.enum(["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]);
+
+const imageSizes: Record<z.infer<typeof imageResolutionSchema>, Record<z.infer<typeof aspectRatioSchema>, string>> = {
+  "1K": {
+    "1:1": "1024x1024",
+    "4:3": "1152x864",
+    "3:4": "864x1152",
+    "16:9": "1424x800",
+    "9:16": "800x1424",
+    "3:2": "1248x832",
+    "2:3": "832x1248",
+    "21:9": "1568x672",
+  },
+  "1.5K": {
+    "1:1": "1536x1536",
+    "4:3": "1792x1344",
+    "3:4": "1344x1792",
+    "16:9": "2048x1152",
+    "9:16": "1152x2048",
+    "3:2": "1872x1248",
+    "2:3": "1248x1872",
+    "21:9": "2352x1008",
+  },
+  "2K": {
+    "1:1": "2048x2048",
+    "4:3": "2368x1776",
+    "3:4": "1776x2368",
+    "16:9": "2816x1584",
+    "9:16": "1584x2816",
+    "3:2": "2496x1664",
+    "2:3": "1664x2496",
+    "21:9": "3136x1344",
+  },
+};
+
 const imageOutputSchema = z.object({
   kind: z.literal("image"),
   images: z.array(generatedFileOutputSchema).min(1),
@@ -68,33 +107,23 @@ const referenceFileIdsSchema = z
   .describe("Runtime Session image file ids to use as generation or editing references.");
 
 const generateImagesInputSchema = z.object({
-  provider_id: z.string().min(1).max(32).optional().describe("Optional image provider id from list_media_models."),
   prompts: z
     .array(z.string().min(1).max(4_000))
     .min(1)
     .max(6)
     .describe("One complete visual prompt per requested image."),
+  resolution: imageResolutionSchema.describe("Confirmed output resolution tier."),
+  aspect_ratio: aspectRatioSchema.describe("Confirmed output aspect ratio."),
   reference_file_ids: referenceFileIdsSchema,
 });
 
 const generateVideoInputSchema = z.object({
-  provider_id: z.string().min(1).max(32).optional().describe("Optional video provider id from list_media_models."),
   prompt: z.string().min(1).max(4_000).describe("Complete visual, motion, camera, lighting, and audio direction."),
   reference_file_ids: referenceFileIdsSchema,
-  duration_seconds: z.number().int().min(4).max(15).optional(),
+  duration_seconds: z.number().int().min(4).max(30).describe("Confirmed clip duration in seconds."),
+  resolution: videoResolutionSchema.describe("Confirmed video resolution."),
+  ratio: videoRatioSchema.describe("Confirmed video aspect ratio, or adaptive for reference-guided generation."),
   filename: z.string().min(1).max(160).optional(),
-});
-
-const mediaModelCatalogOutputSchema = z.object({
-  kind: z.enum(["image", "video"]),
-  models: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      model: z.string(),
-      is_default: z.boolean(),
-    }),
-  ),
 });
 
 function mediaFilename(prompt: string, extension: string): string {
@@ -108,17 +137,16 @@ function mediaFilename(prompt: string, extension: string): string {
   return `${slug}.${extension}`;
 }
 
-function mediaProvider(context: MediaToolContext, providerId: string | undefined, kind: "image" | "video") {
+function mediaProvider(context: MediaToolContext, kind: "image" | "video") {
   const candidates = context.media.providers.filter((candidate) => candidate.providerKind === kind);
-  const provider = providerId
-    ? candidates.find((candidate) => candidate.id === providerId)
-    : (candidates.find((candidate) => candidate.isDefault) ?? (candidates.length === 1 ? candidates[0] : undefined));
+  const provider =
+    kind === "video"
+      ? candidates.find((candidate) => candidate.model.toLowerCase() === DEFAULT_SEEDANCE_MODEL)
+      : (candidates.find((candidate) => candidate.model.toLowerCase() === DEFAULT_SEEDREAM_MODEL) ??
+        candidates.find((candidate) => candidate.model.toLowerCase().includes("seedream")));
   if (!provider) {
-    throw new Error(
-      providerId
-        ? `provider ${providerId} is not an available ${kind} model capability`
-        : `no default ${kind} model is available; call list_media_models and ask the user to choose one`,
-    );
+    const expected = kind === "video" ? DEFAULT_SEEDANCE_MODEL : DEFAULT_SEEDREAM_MODEL;
+    throw new Error(`the ${kind} capability requires configured model ${expected}`);
   }
   return provider;
 }
@@ -180,7 +208,7 @@ async function* generateImages(
   { context, toolCallId, abortSignal }: ToolExecutionOptions<MediaToolContext>,
 ): AsyncGenerator<ToolEmission<z.infer<typeof imageOutputSchema>>> {
   try {
-    const provider = mediaProvider(context, input.provider_id, "image");
+    const provider = mediaProvider(context, "image");
     const ownerRef = durableOwnerRef(context.sessionId, toolCallId);
     const references = await resolveImageReferences(input.reference_file_ids, context);
     const task = await runDurableTask(
@@ -191,6 +219,7 @@ async function* generateImages(
           provider,
           prompts: input.prompts,
           references,
+          size: imageSizes[input.resolution][input.aspect_ratio],
           idempotencyKey: ownerRef,
           sessionId: context.sessionId,
         },
@@ -214,7 +243,7 @@ async function* generateVideo(
   { context, toolCallId, abortSignal }: ToolExecutionOptions<MediaToolContext>,
 ): AsyncGenerator<ToolEmission<z.infer<typeof videoOutputSchema>>> {
   try {
-    const provider = mediaProvider(context, input.provider_id, "video");
+    const provider = mediaProvider(context, "video");
     const ownerRef = durableOwnerRef(context.sessionId, toolCallId);
     const references = await resolveImageReferences(input.reference_file_ids, context);
     const filename = workspaceFilename(input.filename ?? mediaFilename(input.prompt, "mp4")) ?? "generated-video.mp4";
@@ -224,7 +253,10 @@ async function* generateVideo(
         ownerRef,
         payload: {
           sessionId: context.sessionId,
-          provider,
+          provider: {
+            ...provider,
+            extraBody: { ...provider.extraBody, ratio: input.ratio, resolution: input.resolution },
+          },
           prompt: input.prompt,
           references: references.map(({ assetId, revisionId }) => ({ assetId, revisionId })),
           durationSeconds: input.duration_seconds,
@@ -255,43 +287,12 @@ async function* generateVideo(
   }
 }
 
-function availableMediaModels(catalog: MediaProviderCapability[], kind: "image" | "video") {
-  return catalog
-    .filter((provider) => provider.providerKind === kind)
-    .map((provider) => ({
-      id: provider.id,
-      name: provider.name,
-      model: provider.model,
-      is_default: provider.isDefault,
-    }));
-}
-
 export function createMediaToolManifests() {
-  const catalogManifest = defineAgentTool(
-    "list_media_models",
-    tool({
-      description:
-        "List image or video models in the frozen Turn capability. Use this only when the user asks for a particular model or no default exists; otherwise let the generation tool use the frozen default.",
-      inputSchema: z.object({ kind: z.enum(["image", "video"]) }),
-      outputSchema: mediaModelCatalogOutputSchema,
-      contextSchema: mediaToolContextSchema,
-      execute: async (input, { context }) => ({
-        kind: input.kind,
-        models: availableMediaModels(context.media.providers, input.kind),
-      }),
-    }),
-    { capability: "media", effect: "none", trust: "closed", execution: "inline" },
-    {
-      summary: "List the frozen image or video model choices when an explicit choice is needed.",
-      parallelizable: false,
-    },
-  );
-
   const imageManifest = defineAgentTool(
     "generate_images",
     tool<z.infer<typeof generateImagesInputSchema>, ToolEmission<z.infer<typeof imageOutputSchema>>, MediaToolContext>({
       description:
-        "Generate or edit images from complete prompts and optional Runtime Session image file references. This call can take several minutes and returns only after durable generation and Session file publication finish. The generated images are already displayed to the user; do not add Markdown image links.",
+        "Generate or edit images with the configured Seedream capability from complete prompts and optional Runtime Session image file references. This call can take several minutes and returns only after durable generation and Session file publication finish. The generated images are already displayed to the user; do not add Markdown image links.",
       inputSchema: generateImagesInputSchema,
       outputSchema: emittedDataSchema(imageOutputSchema),
       contextSchema: mediaToolContextSchema,
@@ -305,13 +306,12 @@ export function createMediaToolManifests() {
       uiKind: "image-gallery",
     },
     {
-      summary: "Generate or edit images and wait for their durable Session files.",
+      summary:
+        "Generate or edit images and wait for their durable Session files. Search aliases: 图片生成, 图像生成, 图片编辑.",
       prerequisites: [
-        "Resolve missing material choices with ask_user first. Then call this as the final work-producing tool; do not run it in parallel with other tools.",
+        "Immediately before every call, use ask_user once to confirm resolution, aspect ratio, and image count. Then call this as the final work-producing tool; do not run it in parallel with other tools.",
       ],
-      constraints: [
-        "Do not reconfirm details the user already supplied. Wait for the terminal tool result before answering.",
-      ],
+      constraints: ["Wait for the terminal tool result before answering."],
       parallelizable: false,
     },
   );
@@ -320,7 +320,7 @@ export function createMediaToolManifests() {
     "generate_video",
     tool<z.infer<typeof generateVideoInputSchema>, ToolEmission<z.infer<typeof videoOutputSchema>>, MediaToolContext>({
       description:
-        "Generate one video clip from a complete prompt and optional Runtime Session image file references. This call can take many minutes and returns only after the durable provider task completes and the video is published as a Session file. The video is already displayed to the user; do not add a duplicate Markdown link.",
+        "Generate one video clip with Seedance 2.5 from a complete prompt and optional Runtime Session image file references. This call can take many minutes and returns only after the durable provider task completes and the video is published as a Session file. The video is already displayed to the user; do not add a duplicate Markdown link.",
       inputSchema: generateVideoInputSchema,
       outputSchema: emittedDataSchema(videoOutputSchema),
       contextSchema: mediaToolContextSchema,
@@ -334,16 +334,16 @@ export function createMediaToolManifests() {
       uiKind: "video",
     },
     {
-      summary: "Generate a video clip and wait for its durable Session file.",
+      summary: "Generate a video clip and wait for its durable Session file. Search aliases: 视频生成, 生成视频.",
       prerequisites: [
-        "Resolve missing material choices such as duration or model with ask_user first. Then call this as the final work-producing tool; do not run it in parallel with other tools.",
+        "Immediately before every call, use ask_user once to confirm resolution, aspect ratio, and duration. Then call this as the final work-producing tool; do not run it in parallel with other tools.",
       ],
       constraints: [
-        "Do not create a storyboard approval workflow or reconfirm details the user already supplied. Wait for the terminal tool result before answering.",
+        "Do not create a storyboard approval workflow. Wait for the terminal tool result before answering.",
       ],
       parallelizable: false,
     },
   );
 
-  return [catalogManifest, imageManifest, videoManifest];
+  return [imageManifest, videoManifest];
 }

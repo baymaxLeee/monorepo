@@ -1,6 +1,6 @@
 import type { JSONSchema7 } from "@ai-sdk/provider";
 
-import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy } from "../tools/types.js";
+import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy } from "../tools/core/types.js";
 
 export type PluginSourceKind = "system" | "external-mcp" | "local";
 export type PluginTrustLevel = "system" | "verified" | "unverified";

@@ -3,8 +3,8 @@ import test from "node:test";
 
 import type { Tool } from "ai";
 
+import { isToolOutcome } from "../core/outcome.js";
 import { createUploadArtifactsTool, fileDataChunks } from "./artifacts.js";
-import { isToolOutcome } from "./outcome.js";
 
 const published = {
   file_id: "a".repeat(32),

@@ -51,8 +51,10 @@ gRPC server、端口、Proto 与生成包已经直接删除；不提供兼容窗
   识别内部 credential 故障；应用层可合法返回相同的 `Unauthenticated` 或
   `PermissionDenied`，不得仅凭 code 将业务 401/403 改写成 502；
 - tenant、workspace、user 等资源身份是显式 Proto 字段，owner 继续做 scope 校验；
-- trace metadata、deadline 与取消由共享 runtime 传播；所有 unary 和 stream 调用
-  必须有总体 deadline，长流允许 operation-specific 上限；
+- trace metadata、调用方 deadline 与取消由共享 runtime 传播；inner transport 不继承
+  Gateway 的公共 60 秒默认值，也不在共享 client 上设置覆盖整个响应体的 blanket timeout。
+  unary 由调用方给出总体 deadline；长流使用建连/首包、idle progress 和业务生命周期等
+  operation-specific 上限，并允许健康流超过 60 秒；
 - mutation 默认不由 transport 自动重试。只有契约和幂等键明确保证幂等时才可在
   总体 deadline 内做有限重试；durable relay 仍由业务 state machine 重试；
 - 应用错误映射为规范 gRPC code；需要机器可读细节时使用标准 status details，日志

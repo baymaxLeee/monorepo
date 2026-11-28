@@ -2,7 +2,7 @@ import { agentTools } from "@ui-sdk/core/agent";
 import { jsonSchema, tool } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "./manifest.js";
+import { defineAgentTool } from "../core/manifest.js";
 
 const agentComponentSchema = z
   .object({

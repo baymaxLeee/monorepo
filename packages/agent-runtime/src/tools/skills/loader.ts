@@ -1,10 +1,10 @@
 import { getToolName, isToolUIPart, tool, type UIMessage } from "ai";
 import { z } from "zod";
 
-import type { SkillListing } from "../context/instructions/index.js";
-import { defineAgentTool } from "./manifest.js";
-import { ToolBlockedError, toolOutcomeData } from "./outcome.js";
-import type { AgentToolManifest } from "./types.js";
+import type { SkillListing } from "../../context/instructions/index.js";
+import { defineAgentTool } from "../core/manifest.js";
+import { ToolBlockedError, toolOutcomeData } from "../core/outcome.js";
+import type { AgentToolManifest } from "../core/types.js";
 
 export type SkillFileResource =
   | { storageKind: "inline"; mimeType: string | null; content: string }

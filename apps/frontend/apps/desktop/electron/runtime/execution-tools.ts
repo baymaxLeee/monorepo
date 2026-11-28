@@ -1,28 +1,14 @@
-import { createHash } from "node:crypto";
-import { basename, isAbsolute, relative, resolve } from "node:path";
-
 import {
   type ToolOrchestrator,
   type SandboxViolation,
   createExecutionHostManifests,
   canonicalizeShellCommand,
-  workspaceMediaType,
-  type PublishedWorkspaceFile,
   type ExecutionEnvironment,
   type compilePermissionProfile,
 } from "@repo/agent-runtime";
-import type { UIMessage } from "ai";
 
 import type { LocalThread } from "../../contracts/bridge.generated";
 import type { LocalWorkspaces } from "./workspace";
-function localWorkspacePath(root: string, value: string): string {
-  const absolute = isAbsolute(value) ? resolve(value) : resolve(root, value);
-  const path = relative(root, absolute);
-  if (!path || path === ".." || path.startsWith("../") || isAbsolute(path)) {
-    throw new Error("发布文件必须位于授权工作目录内");
-  }
-  return path;
-}
 
 function networkViolationHint(command: string): SandboxViolation | undefined {
   const canonical = canonicalizeShellCommand(command);
@@ -44,20 +30,6 @@ function networkViolationHint(command: string): SandboxViolation | undefined {
   return undefined;
 }
 
-function publishedArtifacts(messages: UIMessage[]): Map<string, PublishedWorkspaceFile> {
-  const artifacts = new Map<string, PublishedWorkspaceFile>();
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (part.type !== "data-file" || !part.data || typeof part.data !== "object") continue;
-      const value = part.data as unknown as PublishedWorkspaceFile;
-      if (typeof value.file_id === "string" && typeof value.workspace_path === "string") {
-        artifacts.set(value.file_id, value);
-      }
-    }
-  }
-  return artifacts;
-}
-
 export function localExecutionTools(
   thread: LocalThread,
   workspaces: LocalWorkspaces,
@@ -65,7 +37,6 @@ export function localExecutionTools(
   orchestrator: ToolOrchestrator,
   attachmentRoot: string,
 ) {
-  const artifacts = publishedArtifacts(thread.messages);
   const environment = {
     location: "local",
     workspace: {
@@ -170,37 +141,6 @@ export function localExecutionTools(
           current.flushChanges();
         });
       },
-    },
-    deliver: async (candidate, options) => {
-      const path = localWorkspacePath(thread.workspace, candidate);
-      const inspection = await workspaces.access(thread.workspace, (current) =>
-        current.sandbox.file(activePermission.profile, { operation: "inspect", path }, options.abortSignal),
-      );
-      if (
-        !inspection ||
-        typeof inspection !== "object" ||
-        !("size" in inspection) ||
-        !Number.isSafeInteger(inspection.size) ||
-        !("etag" in inspection) ||
-        typeof inspection.etag !== "string" ||
-        !/^"[a-f0-9]{32}"$/.test(inspection.etag)
-      ) {
-        throw new Error("无法检查待交付文件");
-      }
-      const fileId = createHash("sha256").update(`${thread.id}\0${path}`).digest("hex").slice(0, 32);
-      const previous = artifacts.get(fileId);
-      const data: PublishedWorkspaceFile = {
-        file_id: fileId,
-        filename: previous?.filename ?? basename(path),
-        title: previous?.title ?? basename(path),
-        media_type: previous?.media_type ?? workspaceMediaType(path),
-        kind: previous?.kind ?? (path.toLowerCase().endsWith("-plan.md") ? "plan" : "artifact"),
-        etag: inspection.etag,
-        updated: Boolean(previous),
-        workspace_path: path,
-      };
-      artifacts.set(fileId, data);
-      return data;
     },
     run: async (input, attempt, options, io) => {
       options.abortSignal?.throwIfAborted();

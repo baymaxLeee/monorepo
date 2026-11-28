@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/example/monorepo/chat/internal/application"
@@ -17,6 +18,8 @@ import (
 )
 
 type authContextKey struct{}
+
+const streamHeartbeatInterval = 15 * time.Second
 
 type Router struct {
 	service   *application.Service
@@ -450,25 +453,79 @@ func writeUpstream(writer http.ResponseWriter, response *http.Response) {
 	}
 	mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if mediaType == "text/event-stream" || mediaType == "application/x-ndjson" {
-		copyStreaming(writer, response.Body)
+		copyStreaming(writer, response.Body, mediaType, streamHeartbeatInterval)
 		return
 	}
 	_, _ = io.Copy(writer, response.Body)
 }
 
-func copyStreaming(writer http.ResponseWriter, body io.Reader) {
-	buffer := make([]byte, 32*1024)
+type streamRead struct {
+	data     []byte
+	err      error
+	consumed chan struct{}
+}
+
+func copyStreaming(writer http.ResponseWriter, body io.Reader, mediaType string, heartbeatInterval time.Duration) {
+	reads := make(chan streamRead)
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		buffer := make([]byte, 32*1024)
+		for {
+			read, readErr := body.Read(buffer)
+			result := streamRead{data: buffer[:read], err: readErr, consumed: make(chan struct{})}
+			select {
+			case reads <- result:
+			case <-done:
+				return
+			}
+			if read > 0 {
+				select {
+				case <-result.consumed:
+				case <-done:
+					return
+				}
+			}
+			if readErr != nil {
+				return
+			}
+		}
+	}()
+
+	heartbeat := []byte(": ping\n\n")
+	if mediaType == "application/x-ndjson" {
+		heartbeat = []byte("{\"type\":\"ping\"}\n")
+	}
+	timer := time.NewTimer(heartbeatInterval)
+	defer timer.Stop()
 	controller := http.NewResponseController(writer)
 	for {
-		read, readErr := body.Read(buffer)
-		if read > 0 {
-			if _, err := writer.Write(buffer[:read]); err != nil {
+		select {
+		case result := <-reads:
+			if len(result.data) > 0 {
+				if _, err := writer.Write(result.data); err != nil {
+					close(result.consumed)
+					return
+				}
+				close(result.consumed)
+				_ = controller.Flush()
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(heartbeatInterval)
+			}
+			if result.err != nil {
+				return
+			}
+		case <-timer.C:
+			if _, err := writer.Write(heartbeat); err != nil {
 				return
 			}
 			_ = controller.Flush()
-		}
-		if readErr != nil {
-			return
+			timer.Reset(heartbeatInterval)
 		}
 	}
 }

@@ -6,8 +6,10 @@ import { asSchema, generateText, isStepCount, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
-import { compileTurnTools, createPortableToolRegistry } from "./catalog.js";
-import { defineAgentTool, deferAgentToolLoading } from "./manifest.js";
+import { DIRECT_TOOL_CALL } from "../research/code-mode.js";
+import { buildAgentToolRouter, createPortableToolRegistry } from "./catalog.js";
+import { defineAgentTool, withToolExposure } from "./manifest.js";
+import { AgentToolRegistry } from "./registry.js";
 
 const model = {
   name: "test-model",
@@ -16,17 +18,16 @@ const model = {
 };
 const webSearch = async (input: { query: string }) => ({ query: input.query, untrusted: true as const, results: [] });
 
-test("portable registry exposes the shared host tool set", () => {
-  const registry = createPortableToolRegistry({ model, webSearch });
-  assert.deepEqual(registry.manifests.map((manifest) => manifest.name).sort(), [
-    "ask_user",
+test("portable manifests do not duplicate shared runtime core tools", () => {
+  const portable = createPortableToolRegistry({ model, webSearch });
+  assert.deepEqual(portable.manifests.map((manifest) => manifest.name).sort(), [
     "code_mode",
     "subagents",
-    "tool_search",
     "update_plan",
     "web_fetch",
     "web_search",
   ]);
+  const registry = buildAgentToolRouter(portable.manifests, []);
   for (const name of ["code_mode", "subagents", "web_search", "web_fetch", "tool_search", "update_plan", "ask_user"]) {
     assert.notEqual(
       registry.manifests.find((manifest) => manifest.name === name)?.tool?.deferLoading,
@@ -36,36 +37,32 @@ test("portable registry exposes the shared host tool set", () => {
   }
 });
 
-test("a host declares only its missing client continuation protocol", () => {
-  const registry = createPortableToolRegistry({ model, webSearch, clientInteraction: false });
-  assert.equal(
-    registry.manifests.some((manifest) => manifest.name === "ask_user"),
-    false,
+test("interaction and tool discovery are public runtime tools", () => {
+  const core = new AgentToolRegistry().finalize();
+  assert.deepEqual(
+    core.manifests.map(({ name }) => name),
+    ["ask_user", "tool_search"],
   );
-  assert.equal(
-    registry.manifests.some((manifest) => manifest.name === "subagents"),
-    true,
-  );
-});
 
-test("tool search is present only when this turn has deferred tools", () => {
   const registry = createPortableToolRegistry({ model, webSearch });
-  const withoutDeferred = compileTurnTools(registry.manifests, []);
+  const withoutDeferred = buildAgentToolRouter(registry.manifests, []);
   assert.equal(
     withoutDeferred.manifests.some(({ name }) => name === "tool_search"),
-    false,
+    true,
   );
-  assert.equal("tool_search" in withoutDeferred.tools, false);
+  assert.equal("tool_search" in withoutDeferred.tools, true);
+  assert.equal("ask_user" in withoutDeferred.tools, true);
 
-  const deferred = deferAgentToolLoading(
+  const deferred = withToolExposure(
     defineAgentTool(
       "optional_media",
       tool({ description: "Create optional media.", inputSchema: z.object({}) }),
       { capability: "media", effect: "add", execution: "inline", trust: "closed" },
       { summary: "Create optional media." },
     ),
+    "deferred",
   );
-  const withDeferred = compileTurnTools([...registry.manifests, deferred], []);
+  const withDeferred = buildAgentToolRouter([...registry.manifests, deferred], []);
   assert.equal(
     withDeferred.manifests.some(({ name }) => name === "tool_search"),
     true,
@@ -73,6 +70,69 @@ test("tool search is present only when this turn has deferred tools", () => {
   const description = withDeferred.tools.tool_search?.description;
   if (typeof description !== "string") assert.fail("tool_search must have a static description");
   assert.match(description, /optional_media/);
+});
+
+test("router finalization keeps direct, deferred, model-only, code-mode-only and hidden surfaces distinct", () => {
+  const create = (name: string, exposure: Parameters<typeof withToolExposure>[1], callableByCodeMode = false) =>
+    withToolExposure(
+      defineAgentTool(
+        name,
+        tool({ description: name, inputSchema: z.object({}) }),
+        {
+          capability: "search",
+          effect: "read",
+          execution: "inline",
+          trust: "open-world",
+          ...(callableByCodeMode ? { callableByCodeMode: true } : {}),
+        },
+        { summary: name },
+      ),
+      exposure,
+    );
+  const registry = new AgentToolRegistry();
+  registry.registerAll([
+    create("direct", "direct", true),
+    create("deferred", "deferred", true),
+    create("direct_model", "direct-model-only"),
+    create("deferred_model", "deferred-model-only"),
+    create("code_only", "code-mode-only", true),
+    create("hidden", "hidden"),
+  ]);
+  const router = registry.finalize();
+
+  assert.equal(router.tools.deferred?.deferLoading, true);
+  assert.equal(router.tools.deferred_model?.deferLoading, true);
+  assert.equal(router.tools.direct?.deferLoading, undefined);
+  assert.deepEqual(router.toolCallers.direct, ["code_mode", DIRECT_TOOL_CALL]);
+  assert.deepEqual(router.toolCallers.deferred, ["code_mode", DIRECT_TOOL_CALL]);
+  assert.deepEqual(router.toolCallers.code_only, ["code_mode"]);
+  assert.equal(router.toolCallers.direct_model, undefined);
+  assert.equal(router.toolCallers.deferred_model, undefined);
+  assert.ok(router.activeTools.includes("code_only"));
+  assert.ok(!router.activeTools.includes("hidden"));
+  assert.ok(router.activeTools.includes("tool_search"));
+});
+
+test("restored discoveries load once and append their schemas after the hot surface", () => {
+  const hot = defineAgentTool(
+    "hot",
+    tool({ description: "hot", inputSchema: z.object({}) }),
+    { capability: "search", effect: "read", execution: "inline", trust: "open-world" },
+    { summary: "hot" },
+  );
+  const optional = withToolExposure(
+    defineAgentTool(
+      "optional",
+      tool({ description: "optional", inputSchema: z.object({}) }),
+      { capability: "search", effect: "read", execution: "inline", trust: "open-world" },
+      { summary: "optional" },
+    ),
+    "deferred",
+  );
+  const router = buildAgentToolRouter([hot, optional], [], { loadedTools: ["optional"] });
+  assert.equal(router.tools.optional?.deferLoading, undefined);
+  assert.equal("tool_search" in router.tools, true);
+  assert.deepEqual(router.toolOrder, ["ask_user", "hot", "tool_search", "optional"]);
 });
 
 test("UI agent bridge tools are opt-in for a turn", async () => {
@@ -98,7 +158,7 @@ test("UI agent bridge tools are opt-in for a turn", async () => {
 
 test("the first model request advertises research strategies and searchable tools without their schemas", async () => {
   const registry = createPortableToolRegistry({ model, webSearch });
-  const image = deferAgentToolLoading(
+  const image = withToolExposure(
     defineAgentTool(
       "generate_images",
       tool({
@@ -108,10 +168,11 @@ test("the first model request advertises research strategies and searchable tool
       { capability: "media", effect: "add", execution: "inline", trust: "closed" },
       { summary: "Generate images." },
     ),
+    "deferred",
   );
   const plugin = { ...image, name: "mcp__knowledge__search", policy: { ...image.policy, source: "mcp" as const } };
   const unavailable = { ...image, name: "unavailable_video", tool: undefined };
-  const compiled = compileTurnTools([...registry.manifests, image, unavailable], [plugin]);
+  const compiled = buildAgentToolRouter([...registry.manifests, image, unavailable], [plugin]);
   const probe = new MockLanguageModelV4({
     doGenerate: async () => {
       const first = probe.doGenerateCalls.length === 1;
@@ -149,7 +210,7 @@ test("the first model request advertises research strategies and searchable tool
   const search = first.find((t) => t.name === "tool_search");
   assert.ok(search?.type === "function");
   assert.match(search.description ?? "", /generate_images/);
-  assert.match(search.description ?? "", /mcp__knowledge__search/);
+  assert.match(search.description ?? "", /mcp__knowledge/);
   assert.doesNotMatch(search.description ?? "", /unavailable_video/);
   assert.ok(probe.doGenerateCalls[1].tools?.some((t) => t.name === "generate_images"));
 });

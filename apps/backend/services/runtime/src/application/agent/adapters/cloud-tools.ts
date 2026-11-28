@@ -2,6 +2,7 @@ import {
   ToolOrchestrator,
   type SandboxViolation,
   createExecutionHostManifests,
+  createUploadArtifactsTool,
   canonicalizeShellCommand,
   type ExecutionEnvironment,
   clonePermissionProfile,
@@ -132,14 +133,19 @@ export async function createCloudToolAdapters(
           }),
       },
       refreshSources: (options) => requireRunSandbox(options.experimental_sandbox).refresh(options.abortSignal),
-      deliver: (input, options) =>
+    },
+    { contextSchema: artifactToolContextSchema },
+  );
+  manifests.push(
+    createUploadArtifactsTool(
+      (input, options) =>
         requireRunSandbox(options.experimental_sandbox).save(
           input,
           { toolCallId: options.toolCallId, artifactIndex: options.artifactIndex },
           options.abortSignal,
         ),
-    },
-    { contextSchema: artifactToolContextSchema },
+      { contextSchema: artifactToolContextSchema },
+    ),
   );
   return {
     environment,

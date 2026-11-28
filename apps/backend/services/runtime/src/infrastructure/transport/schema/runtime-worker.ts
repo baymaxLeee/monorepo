@@ -320,6 +320,8 @@ export interface components {
       sessionId?: string;
       provider: components["schemas"]["ProviderCapability"];
       prompts: string[];
+      /** @default 2048x2048 */
+      size: string;
       references: components["schemas"]["ImageReference"][];
       idempotencyKey: string;
     };

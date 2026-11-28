@@ -10,9 +10,15 @@ import {
 } from "ai";
 import { z } from "zod";
 
-import type { StoredModelContinuation } from "../turn/model-capabilities.js";
-import { defineAgentTool } from "./manifest.js";
-import { normalizeToolIssue, shouldRethrowToolError, toolCompleted, toolIssueSchema, toolRunning } from "./outcome.js";
+import type { StoredModelContinuation } from "../../turn/model-capabilities.js";
+import { defineAgentTool } from "../core/manifest.js";
+import {
+  normalizeToolIssue,
+  shouldRethrowToolError,
+  toolCompleted,
+  toolIssueSchema,
+  toolRunning,
+} from "../core/outcome.js";
 import { createSubagent } from "./subagent-loop.js";
 
 const MAX_SUBAGENTS = 3;

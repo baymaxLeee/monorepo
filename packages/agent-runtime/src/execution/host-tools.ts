@@ -2,15 +2,13 @@ import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
 import type { ExecutionEnvironment } from "../context/environment.js";
-import type { ArtifactPublicationOptions, PublishedWorkspaceFile } from "../tools/artifacts.js";
-import { createUploadArtifactsTool } from "../tools/artifacts.js";
+import { defineAgentTool, withToolExposure } from "../tools/core/manifest.js";
+import type { AgentToolManifest } from "../tools/core/types.js";
 import { createApplyPatchTool, type AppliedFileChange } from "../tools/files/apply-patch.js";
 import { applyPatchToText } from "../tools/files/patch/file-update.js";
 import { parseApplyPatch } from "../tools/files/patch/parser.js";
 import { createReadFileTool, type TextFileSnapshot } from "../tools/files/read-file.js";
 import { createWriteFileTool, type FileWriteResult } from "../tools/files/write-file.js";
-import { deferAgentToolLoading, defineAgentTool } from "../tools/manifest.js";
-import type { AgentToolManifest } from "../tools/types.js";
 import type { ProcessIO } from "./command-sessions.js";
 import type { FileToolAuthority } from "./file-access.js";
 import type { SandboxAttempt, SandboxAttemptResult, ToolOrchestrator } from "./orchestrator.js";
@@ -44,7 +42,6 @@ export interface ExecutionHost<CONTEXT extends Record<string, unknown> = Record<
     io: ProcessIO,
   ): Promise<SandboxAttemptResult>;
   files: ExecutionHostFileSystem<CONTEXT>;
-  deliver(path: string, options: ArtifactPublicationOptions<CONTEXT>): Promise<PublishedWorkspaceFile>;
   refreshSources?(options: ToolExecutionOptions<CONTEXT>): Promise<unknown>;
 }
 
@@ -179,13 +176,10 @@ export function createExecutionHostManifests<CONTEXT extends Record<string, unkn
         );
       }),
     ),
-    createUploadArtifactsTool(host.deliver, options),
   ];
   if (host.refreshSources) {
-    manifests.splice(
-      manifests.length - 1,
-      0,
-      deferAgentToolLoading(
+    manifests.push(
+      withToolExposure(
         defineAgentTool(
           "refresh_session_sources",
           tool({
@@ -203,6 +197,7 @@ export function createExecutionHostManifests<CONTEXT extends Record<string, unkn
           },
           { summary: "Refresh external session sources without changing workspace files." },
         ),
+        "deferred",
       ),
     );
   }

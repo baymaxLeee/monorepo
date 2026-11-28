@@ -11,7 +11,8 @@ test("provider durations stay within supported bounds, including malformed input
     [-1, 4],
     [4.4, 4],
     [14.8, 15],
-    [100, 15],
+    [30.4, 30],
+    [100, 30],
   ] as const) {
     assert.equal(clampArkDuration(input), expected, `duration ${input}`);
   }

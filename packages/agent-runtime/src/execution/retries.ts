@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai";
 import { z } from "zod";
 
-import { isToolOutcome } from "../tools/outcome.js";
+import { isToolOutcome } from "../tools/core/outcome.js";
 import type { BashExecutionInput as BashInput } from "./orchestrator.js";
 import { bashArgs, commandForPolicy } from "./shell-tools.js";
 

@@ -3,8 +3,7 @@ import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import {
   type TurnScope,
   appendWorkspaceChangeEvent,
-  attachExecutionEnvironment,
-  assembleInstructions,
+  buildInstructionPlan,
   type RuntimeTurnSettings,
   transformToolPreservingCaller,
   isToolOutcome,
@@ -146,6 +145,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     { approvalPolicy: input.approvalPolicy, permissionProfile: input.permissionProfile },
     input.continuation,
     { uiAgent: input.client?.uiAgent === "ui-sdk" },
+    { loadedTools: input.loadedToolNames },
   );
   scope.defer(resolvedTools.dispose);
   const { tools } = resolvedTools;
@@ -184,20 +184,18 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     sessionId: input.sessionId,
     media: input.media,
   };
-  const instructions = attachExecutionEnvironment(
-    assembleInstructions(
-      { ...input.instructionInput, activatedSkill: resolvedTools.activatedSkill },
-      resolvedTools.contributions,
-    ),
-    resolvedTools.environment,
-  );
+  const instructions = buildInstructionPlan({
+    input: { ...input.instructionInput, activatedSkill: resolvedTools.activatedSkill },
+    contributions: resolvedTools.contributions,
+    environment: resolvedTools.environment,
+  }).render();
   const providerBinding = createInferenceModel(provider, input.reasoningEffort);
   const providerModel = providerBinding.model;
   const modelRetry = createModelStreamRetryPolicy({
     signal: input.signal,
     emit: (event) => input.onModelRetry?.(event),
   });
-  const { toolSources } = resolvedTools;
+  const { toolOrder, toolSources } = resolvedTools;
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
     transformParams: async ({ params }) => {
@@ -246,6 +244,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     // The catalog is dynamic, so its string-keyed ToolSet cannot retain the caller-name literal type.
     experimental_toolCallers: resolvedTools.toolCallers as never,
     activeTools: resolvedTools.activeTools,
+    toolOrder,
     toolApproval: resolvedTools.toolApproval,
     repairToolCall: async ({ toolCall, error }) => {
       await observe(

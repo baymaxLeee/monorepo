@@ -2,8 +2,8 @@ import { openai } from "@ai-sdk/openai";
 import type { ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "../manifest.js";
-import { normalizeToolIssue, toolCompleted, toolFailed, toolPartial } from "../outcome.js";
+import { defineAgentTool } from "../core/manifest.js";
+import { normalizeToolIssue, toolCompleted, toolFailed, toolPartial } from "../core/outcome.js";
 import { parseApplyPatch } from "./patch/parser.js";
 
 const applyPatchGrammar = String.raw`start: begin_patch hunk+ end_patch

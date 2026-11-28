@@ -13,6 +13,13 @@ export interface SeedanceCaps {
 
 export function seedanceCaps(model: string): SeedanceCaps {
   const m = (model ?? "").toLowerCase();
+  if (/seedance[-_ ]?2[-_. ]?5([-_.]|$)/.test(m)) {
+    return {
+      maxClipSeconds: 30,
+      durationField: "duration",
+      multiImageReference: true,
+    };
+  }
   if (/seedance[-_ ]?2([-_.]|$)/.test(m)) {
     return {
       maxClipSeconds: 15,

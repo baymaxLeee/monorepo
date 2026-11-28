@@ -132,7 +132,7 @@ const kindPresets: Record<ModelProviderProviderKind, Pick<ProviderValues, "base_
   },
   video: {
     base_url: ARK_BASE_URL,
-    model: "doubao-seedance-2-0-260128",
+    model: "doubao-seedance-2-5-260628",
     extra_body:
       '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "resolution": "720p",\n  "watermark": false,\n  "framespersecond": 24\n}',
   },
@@ -658,7 +658,7 @@ function ProviderFormDialog({
                         providerKind === "image"
                           ? "doubao-seedream-5-0-260128"
                           : providerKind === "video"
-                            ? "doubao-seedance-2-0-260128"
+                            ? "doubao-seedance-2-5-260628"
                             : "deepseek-v4-pro-260425 / glm-5-2-260617 / doubao-seed-2-1-pro-260628"
                       }
                     />

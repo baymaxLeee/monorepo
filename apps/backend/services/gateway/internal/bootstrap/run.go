@@ -46,7 +46,7 @@ func Run(ctx context.Context) error {
 	router := buildRouter(cfg, st)
 	server := &http.Server{
 		Addr: ":" + cfg.Port, Handler: router, ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout: cfg.ReadTimeout, WriteTimeout: cfg.WriteTimeout, IdleTimeout: cfg.IdleTimeout,
+		ReadTimeout: cfg.DefaultTimeout, WriteTimeout: cfg.DefaultTimeout, IdleTimeout: cfg.IdleTimeout,
 	}
 	serverErrors := make(chan error, 1)
 	go func() {
@@ -98,7 +98,7 @@ func buildRouter(cfg config.Config, st *store.Store) http.Handler {
 		{"/api/knowledge-server", cfg.KnowledgeServiceURL, "knowledge-server"},
 		{"/api/telemetry-server", cfg.TelemetryServiceURL, "telemetry-server"},
 	} {
-		proxy := handlers.NewServiceProxy(upstream.target, upstream.name, upstream.path)
+		proxy := handlers.NewServiceProxy(upstream.target, upstream.name, upstream.path, cfg.DefaultTimeout)
 		serveProxy := func(c *gin.Context) { proxy.ServeHTTP(c.Writer, c.Request) }
 		router.Any(upstream.path, serveProxy)
 		router.Any(upstream.path+"/*path", serveProxy)

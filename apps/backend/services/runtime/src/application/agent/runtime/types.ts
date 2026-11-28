@@ -74,4 +74,5 @@ export interface CloudTurnInput {
   /** Pulls a skill's full body by id, for the shared `load_skill` tool. */
   loadSkillBody?: (skillId: string) => Promise<string>;
   loadSkillFile?: (skillId: string, path: string) => Promise<SkillFileResource>;
+  loadedToolNames?: readonly string[];
 }

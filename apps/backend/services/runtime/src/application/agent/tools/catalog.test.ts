@@ -56,13 +56,29 @@ void test("tool catalog exposes the current inline research and sandbox workflow
     const subagents = resolved.manifests.find((manifest) => manifest.name === "subagents");
     assert.equal(subagents?.policy.uiKind, "subagent");
     assert.equal(subagents?.policy.execution, "inline");
-    for (const name of ["bash", "refresh_session_sources", "upload_artifacts", "subagents"]) {
+    for (const name of [
+      "ask_user",
+      "tool_search",
+      "bash",
+      "refresh_session_sources",
+      "upload_artifacts",
+      "subagents",
+      "generate_images",
+      "generate_video",
+    ]) {
       assert.ok(resolved.activeTools.includes(name), `${name} should be active`);
     }
     assert.deepEqual(Object.keys(resolved.toolCallers).sort(), ["web_fetch", "web_search"]);
     assert.equal(resolved.tools.refresh_session_sources?.deferLoading, true);
+    assert.equal(resolved.tools.generate_images?.deferLoading, true);
+    assert.equal(resolved.tools.generate_video?.deferLoading, true);
     assert.notEqual(resolved.tools.code_mode?.deferLoading, true);
     assert.notEqual(resolved.tools.subagents?.deferLoading, true);
+    const searchDescription = resolved.tools.tool_search?.description;
+    assert.equal(typeof searchDescription, "string");
+    if (typeof searchDescription !== "string") throw new Error("tool_search must have a static description");
+    assert.match(searchDescription, /generate_images/);
+    assert.match(searchDescription, /generate_video/);
     const codeModeCaller = getToolCaller(resolved.tools.code_mode);
     assert.equal(codeModeCaller?.type, "local");
     if (codeModeCaller?.type !== "local") throw new Error("code_mode must use a local tool caller");

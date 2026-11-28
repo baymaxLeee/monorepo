@@ -19,6 +19,7 @@ const input = {
     isDefault: true,
   },
   prompts: ["first", "second"],
+  size: "2048x2048",
   references: [],
   idempotencyKey: "tool-call",
 };

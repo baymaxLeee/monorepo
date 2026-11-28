@@ -38,15 +38,20 @@ validators. The native endpoints are IAM-scoped Chat `/local-inference/config`,
 `/local-inference/plugins/resolve` and `/local-inference/stream`. Plugin resolve
 accepts only activation IDs/bindings and returns a trusted Turn snapshot to the
 utility process through Electron main; it never crosses preload. The stream is
-NDJSON of official AI SDK provider parts; it is **not** a UIMessage stream. Local
-ToolLoopAgent converts this provider stream into the native UIMessage stream.
+NDJSON of official AI SDK provider parts; it is **not** a UIMessage stream. The
+relay establishes the response with one synthetic `stream-start` before waiting
+for provider headers, suppresses any duplicate provider start, and emits `ping`
+about every 15 seconds while provider progress is silent. Local ToolLoopAgent
+converts this provider stream into the native UIMessage stream.
 Provider and MCP credentials remain outside the renderer.
 
 Input allows native text/reasoning, inline files, function tool definitions,
 function tool results and bounded generation options. It rejects arbitrary
 provider options, remote file URLs, hosted tools and remote response references.
 Output strips provider metadata, raw chunks and unrestricted diagnostic errors. Cancellation
-aborts the upstream request. The relay maps only bounded transient reasons (`dns`, `timeout`,
+aborts the upstream request, including provider startup and late streams. Public gateway calls use
+a 60-second default; this stream has no total-duration timeout and retains the provider's
+operation-specific 120-second response-header limit. The relay maps only bounded transient reasons (`dns`, `timeout`,
 `connection_reset`, `incomplete_stream`, `provider_unavailable`) to a retryable error. The local
 ToolLoopAgent may restart that current model sample at most three times with bounded exponential
 backoff; each attempt has a fresh request ID and accounting reservation. Partial output from the

@@ -64,36 +64,38 @@ export {
 export * from "./context/instructions/index.js";
 
 export {
-  compileTurnTools,
+  buildAgentToolRouter,
   createPortableToolRegistry,
   type PortableToolBindings,
   type PortableToolModel,
-} from "./tools/catalog.js";
+} from "./tools/core/catalog.js";
 export {
-  deferAgentToolLoading,
   defineAgentTool,
   defineUnavailableCapability,
   manifestsToTools,
   toolPolicyFromMetadata,
   transformToolPreservingCaller,
-} from "./tools/manifest.js";
-export type * from "./tools/types.js";
-export * from "./tools/outcome.js";
+  withToolExposure,
+} from "./tools/core/manifest.js";
+export { AgentToolRegistry, AgentToolRouter, type ToolRoutingMode } from "./tools/core/registry.js";
+export { restoreToolLoadout } from "./tools/core/loadout.js";
+export type * from "./tools/core/types.js";
+export * from "./tools/core/outcome.js";
 export {
   createUploadArtifactsTool,
   fileDataChunks,
   workspaceMediaType,
   type PublishedWorkspaceFile,
   type UploadedArtifacts,
-} from "./tools/artifacts.js";
+} from "./tools/publication/artifacts.js";
 export {
   continuedSkillName,
   resolveSkills,
   type SkillFileResource,
   type SkillSource,
   type SkillSourceEntry,
-} from "./tools/skills.js";
-export { type SubagentObserver, type SubagentUsage } from "./tools/subagents.js";
+} from "./tools/skills/loader.js";
+export { type SubagentObserver, type SubagentUsage } from "./tools/delegation/subagents.js";
 export {
   createWebFetchManifest,
   createWebSearchManifest,
@@ -102,8 +104,8 @@ export {
   webSearchOutputSchema,
   type WebSearchInput,
   type WebSearchOutput,
-} from "./tools/web.js";
-export { askUserInputSchema, askUserResponseSchema } from "./tools/ask-user.js";
+} from "./tools/research/web.js";
+export { askUserInputSchema, askUserResponseSchema } from "./tools/interaction/ask-user.js";
 export {
   createUIAgentToolManifests,
   uiAgentActInputSchema,
@@ -113,7 +115,7 @@ export {
   uiAgentQueryOutputSchema,
   uiAgentSnapshotInputSchema,
   uiAgentSnapshotOutputSchema,
-} from "./tools/ui-agent.js";
+} from "./tools/interaction/ui-agent.js";
 
 export {
   applyAdditionalPermissions,
@@ -172,9 +174,14 @@ export {
 } from "./execution/command-sessions.js";
 export { bashArgs, commandForPolicy, type BashArgs, type BashCommandArgs } from "./execution/shell-tools.js";
 
-export { findAppCallback,callMcpAppTool } from "./plugins/app-call.js";
+export { findAppCallback, callMcpAppTool } from "./plugins/app-call.js";
 export { PluginManager } from "./plugins/manager.js";
-export { discoverInstalledMcpServer, loadMcpServer, mcpAppCallbackSchema, type ResolvedMcpServer } from "./plugins/mcp.js";
+export {
+  discoverInstalledMcpServer,
+  loadMcpServer,
+  mcpAppCallbackSchema,
+  type ResolvedMcpServer,
+} from "./plugins/mcp.js";
 export {
   normalizePersistedTurnPluginSnapshot,
   resolveTurnPluginSnapshot,

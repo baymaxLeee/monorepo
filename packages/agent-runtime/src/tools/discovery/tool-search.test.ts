@@ -5,7 +5,7 @@ import { generateText, isStepCount, tool, type ToolSet } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
-import { manifestsToTools } from "./manifest.js";
+import { manifestsToTools } from "../core/manifest.js";
 import { createToolSearchManifest } from "./tool-search.js";
 
 test("native tool search discovers deferred tools without activating excluded tools", async () => {

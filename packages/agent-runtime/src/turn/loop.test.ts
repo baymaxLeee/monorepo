@@ -21,8 +21,8 @@ import { createBashTool } from "../execution/shell-tools.js";
 function execTool(launch: (args: BashCommandArgs) => Promise<OrchestratedCommandResult>) {
   return createBashTool(new CommandSessions(), launch);
 }
-import { manifestsToTools } from "../tools/manifest.js";
-import { isToolOutcome } from "../tools/outcome.js";
+import { manifestsToTools } from "../tools/core/manifest.js";
+import { isToolOutcome } from "../tools/core/outcome.js";
 import { createRuntimeInputQueue } from "./input-queue.js";
 import { createAgentLoop } from "./loop.js";
 

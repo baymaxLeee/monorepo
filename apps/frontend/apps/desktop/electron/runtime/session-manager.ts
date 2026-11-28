@@ -5,12 +5,13 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import {
-  RuntimeTurn, findAppCallback, callMcpAppTool,
+  RuntimeTurn,
+  findAppCallback,
+  callMcpAppTool,
   type TurnScope,
   resolveContextWindow,
   appendWorkspaceChangeEvent,
-  attachExecutionEnvironment,
-  renderAvailableSkills,
+  buildInstructionPlan,
   projectRuntimeContext,
   estimateSessionContext,
   finalizeSessionContext,
@@ -25,21 +26,23 @@ import {
   hasPendingToolApprovals,
   type RuntimeTurnSettings,
   SessionServices,
-  fileDataChunks,
   continuedSkillName,
   type WebSearchInput,
   type WebSearchOutput,
   ToolOrchestrator,
   createPortableToolRegistry,
-  compileTurnTools,
+  buildAgentToolRouter,
   ExecPolicy,
   compilePermissionProfile,
   EMPTY_RUNTIME_TOKEN_USAGE,
   runtimeTokenUsage,
+  restoreToolLoadout,
   MODEL_STREAM_RETRIES,
   createModelStreamRetryPolicy,
   retryableModelStreamMiddleware,
   toolOutcomeSchema,
+  askUserInputSchema,
+  askUserResponseSchema,
   uiAgentClientToolSchemas,
 } from "@repo/agent-runtime";
 import {
@@ -103,24 +106,20 @@ function failureMessage(error: unknown, fallback: string) {
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
-function isPendingUIAgentTool(part: AnyUIMessage["parts"][number]) {
+function isPendingClientTool(part: AnyUIMessage["parts"][number]) {
   if (!isToolUIPart(part) || part.state !== "input-available" || part.providerExecuted) return false;
   const agent = part.toolMetadata?.agent;
-  return (
-    !!agent &&
-    typeof agent === "object" &&
-    !Array.isArray(agent) &&
-    "execution" in agent &&
-    agent.execution === "client" &&
-    "uiKind" in agent &&
-    agent.uiKind === "agent-ui" &&
-    Object.hasOwn(uiAgentClientToolSchemas, getToolName(part))
-  );
+  if (!agent || typeof agent !== "object" || Array.isArray(agent)) return false;
+  const agentMetadata = agent as Readonly<Record<string, unknown>>;
+  if (agentMetadata.execution !== "client") return false;
+  const toolName = getToolName(part);
+  if (agentMetadata.uiKind === "ask-user") return toolName === "ask_user";
+  return agentMetadata.uiKind === "agent-ui" && Object.hasOwn(uiAgentClientToolSchemas, toolName);
 }
 
-function hasPendingUIAgentTools(messages: UIMessage[]) {
+function hasPendingClientTools(messages: UIMessage[]) {
   const latest = messages.at(-1) as AnyUIMessage | undefined;
-  return latest?.role === "assistant" && latest.parts.some(isPendingUIAgentTool);
+  return latest?.role === "assistant" && latest.parts.some(isPendingClientTool);
 }
 
 function immutableToolIdentity(part: ReturnType<typeof asToolPart>) {
@@ -136,7 +135,7 @@ function asToolPart(part: AnyUIMessage["parts"][number]) {
   return part;
 }
 
-function mergeUIAgentContinuation(persisted: AnyUIMessage, client: AnyUIMessage): AnyUIMessage {
+function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMessage, uiAgentEnabled: boolean): AnyUIMessage {
   if (persisted.role !== "assistant" || client.role !== "assistant" || persisted.id !== client.id) {
     throw new Error("客户端工具结果未对应当前助手消息");
   }
@@ -154,7 +153,7 @@ function mergeUIAgentContinuation(persisted: AnyUIMessage, client: AnyUIMessage)
       throw new Error("客户端工具结果不能重排工具调用");
     }
     if (isDeepStrictEqual(original, response)) return original;
-    if (!isPendingUIAgentTool(original)) throw new Error(`工具 ${original.toolCallId} 不等待页面结果`);
+    if (!isPendingClientTool(original)) throw new Error(`工具 ${original.toolCallId} 不等待客户端结果`);
     if (!isDeepStrictEqual(immutableToolIdentity(response), immutableToolIdentity(original))) {
       throw new Error(`工具 ${original.toolCallId} 身份不匹配`);
     }
@@ -168,18 +167,34 @@ function mergeUIAgentContinuation(persisted: AnyUIMessage, client: AnyUIMessage)
     }
     if (response.state === "output-available") {
       if (("preliminary" in response && response.preliminary) || response.errorText !== undefined) {
-        throw new Error("页面工具完成结果无效");
+        throw new Error("客户端工具完成结果无效");
       }
-      const toolName = getToolName(original) as keyof typeof uiAgentClientToolSchemas;
-      const schema = uiAgentClientToolSchemas[toolName];
-      if (!schema.input.safeParse(original.input).success) throw new Error(`${toolName} 页面工具输入无效`);
-      const parsed = toolOutcomeSchema(schema.output as ZodType<unknown>).safeParse(response.output);
-      if (!parsed.success || parsed.data.status !== "completed") throw new Error(`${toolName} 页面工具结果无效`);
+      const toolName = getToolName(original);
+      if (toolName === "ask_user") {
+        const input = askUserInputSchema.safeParse(original.input);
+        if (!input.success) throw new Error("ask_user 输入无效");
+        const parsed = toolOutcomeSchema(askUserResponseSchema).safeParse(response.output);
+        if (!parsed.success || parsed.data.status !== "completed") throw new Error("ask_user 回答无效");
+        const ids = new Set(input.data.questions.map(({ id }) => id));
+        const answers = parsed.data.data.answers;
+        if (Object.keys(answers).length !== ids.size || Object.keys(answers).some((id) => !ids.has(id))) {
+          throw new Error("ask_user 回答必须覆盖全部问题");
+        }
+        if (Object.values(answers).some((answer) => answer.answers.length !== 1)) {
+          throw new Error("ask_user 每个问题只能提交一个答案");
+        }
+      } else {
+        if (!uiAgentEnabled) throw new Error("当前轮次未启用页面工具");
+        const schema = uiAgentClientToolSchemas[toolName as keyof typeof uiAgentClientToolSchemas];
+        if (!schema?.input.safeParse(original.input).success) throw new Error(`${toolName} 页面工具输入无效`);
+        const parsed = toolOutcomeSchema(schema.output as ZodType<unknown>).safeParse(response.output);
+        if (!parsed.success || parsed.data.status !== "completed") throw new Error(`${toolName} 页面工具结果无效`);
+      }
     }
     completed++;
     return response;
   });
-  if (completed === 0) throw new Error("客户端续接没有新的页面工具结果");
+  if (completed === 0) throw new Error("客户端续接没有新的工具结果");
   return { ...persisted, parts };
 }
 
@@ -190,7 +205,7 @@ export class DesktopSessionManager {
   private readonly sessions = new Map<string, { policy: string; services: SessionServices }>();
   private active = new Map<string, ActiveRun>();
   private closed = false;
-  private readonly appCalls = new Map<string,{id:string,controller:AbortController}>();
+  private readonly appCalls = new Map<string, { id: string; controller: AbortController }>();
   private segments = new Map<string, { id: string; messages: UIMessage[]; chunks: UIMessageChunk[]; done: boolean }>();
   private current = new Map<string, LocalThread>();
   private observedWorkspaceEpochs = new Map<string, number>();
@@ -323,12 +338,15 @@ export class DesktopSessionManager {
     if (thread.status !== "waiting" || thread.turnId !== expectedTurnId) {
       throw new Error("页面工具所对应的轮次已经变化");
     }
-    if (thread.clientCapabilities?.uiAgent !== "ui-sdk") throw new Error("当前轮次未启用页面工具");
     const latest = thread.messages.at(-1);
     if (!latest) throw new Error("当前轮次没有可续接的助手消息");
-    thread.messages[thread.messages.length - 1] = mergeUIAgentContinuation(latest, message);
+    thread.messages[thread.messages.length - 1] = mergeClientContinuation(
+      latest,
+      message,
+      thread.clientCapabilities?.uiAgent === "ui-sdk",
+    );
     this.save(thread);
-    if (!hasPendingUIAgentTools(thread.messages) && !hasPendingToolApprovals(thread.messages)) this.start(thread);
+    if (!hasPendingClientTools(thread.messages) && !hasPendingToolApprovals(thread.messages)) this.start(thread);
   }
   submitRunInput(id: string, expectedTurnId: string, text: string, messageId: string, mode: LocalPendingInput["mode"]) {
     if (this.closed) throw new Error("本地运行时正在关闭");
@@ -379,7 +397,7 @@ export class DesktopSessionManager {
     if (thread.status !== "waiting") throw new Error("审批已过期");
     thread.messages = applyToolApprovalResponse(thread.messages, { approvalId, approved });
     this.save(thread);
-    if (!hasPendingToolApprovals(thread.messages) && !hasPendingUIAgentTools(thread.messages)) this.start(thread);
+    if (!hasPendingToolApprovals(thread.messages) && !hasPendingClientTools(thread.messages)) this.start(thread);
   }
   async setExecutionPolicy(
     id: string,
@@ -495,9 +513,6 @@ export class DesktopSessionManager {
         maxOutputTokens: config.maxOutputTokens,
       },
       webSearch: (input, options) => this.options.webSearch(input, options.abortSignal),
-      // Desktop admits only the registered Agent UI client results below;
-      // generic interaction tools still lack a local continuation contract.
-      clientInteraction: false,
       uiAgent: thread.clientCapabilities?.uiAgent === "ui-sdk",
       skillSource: { skills: [...bodies.values()], activeSkillName: continuedSkillName(thread.messages.at(-1)) },
     });
@@ -531,9 +546,10 @@ export class DesktopSessionManager {
       orchestrator,
       attachmentRoot,
     );
-    const { tools, activeTools, toolCallers, toolSources } = compileTurnTools(
+    const { tools, activeTools, toolCallers, toolOrder, toolSources } = buildAgentToolRouter(
       [...portableTools.manifests, ...executionManifests],
       pluginSet.manifests,
+      { loadedTools: restoreToolLoadout(thread.messages) },
     );
     let contextEstimate: ContextEstimate | undefined;
     const contextCaptureMiddleware: LanguageModelV4Middleware = {
@@ -571,14 +587,17 @@ export class DesktopSessionManager {
         tools,
         toolApproval: orchestrator.toolApproval,
         activeTools,
+        toolOrder,
         experimental_toolCallers: toolCallers as never,
         maxOutputTokens: config.maxOutputTokens,
         maxRetries: 0,
         streamRetries: MODEL_STREAM_RETRIES,
-        instructions: attachExecutionEnvironment(
-          [config.instructions, renderAvailableSkills(portableTools.skills)].filter(Boolean).join("\n\n"),
+        instructions: buildInstructionPlan({
+          modelInstructions: config.instructions,
+          input: { memories: [] },
+          contributions: { skills: portableTools.skills },
           environment,
-        ),
+        }).render(),
         onStepEnd: (event) => {
           const usage = runtimeTokenUsage(event.usage);
           const snapshot = finalizeSessionContext(contextEstimate, usage);
@@ -622,12 +641,10 @@ export class DesktopSessionManager {
       const observed = stream.pipeThrough(
         new TransformStream<UIMessageChunk, UIMessageChunk>({
           transform: (incoming, controller) => {
-            for (const chunk of [incoming, ...fileDataChunks(incoming)]) {
-              bytes += Buffer.byteLength(JSON.stringify(chunk));
-              if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
-              this.emitStreamChunk(thread.id, chunk);
-              controller.enqueue(chunk);
-            }
+            bytes += Buffer.byteLength(JSON.stringify(incoming));
+            if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
+            this.emitStreamChunk(thread.id, incoming);
+            controller.enqueue(incoming);
           },
         }),
       );
@@ -669,7 +686,7 @@ export class DesktopSessionManager {
       if (persistenceError) throw persistenceError;
       turn.signal.throwIfAborted();
       thread.status =
-        hasPendingToolApprovals(thread.messages) || hasPendingUIAgentTools(thread.messages) ? "waiting" : "idle";
+        hasPendingToolApprovals(thread.messages) || hasPendingClientTools(thread.messages) ? "waiting" : "idle";
     } catch (error) {
       thread.status = turn.cancelled && !persistenceError ? "cancelled" : "error";
       thread.error =
@@ -689,7 +706,7 @@ export class DesktopSessionManager {
         this.save(thread);
       } catch {
         this.closed = true;
-    for (const call of this.appCalls.values()) call.controller.abort();
+        for (const call of this.appCalls.values()) call.controller.abort();
         this.options.emit({ type: "runtime-error", message: "本地会话记录保存失败；执行已停止，请检查磁盘后重启应用" });
       }
       const segment = this.segments.get(thread.id);
@@ -725,24 +742,38 @@ export class DesktopSessionManager {
       this.save(thread);
     }
   }
-  cancelAppCall(id:string, requestId:string) {
+  cancelAppCall(id: string, requestId: string) {
     const active = this.appCalls.get(requestId);
     if (active?.id === id) active.controller.abort();
   }
-  async callAppTool(id:string,requestId:string,toolCallId:string,name:string,args:Record<string,unknown>) {
+  async callAppTool(id: string, requestId: string, toolCallId: string, name: string, args: Record<string, unknown>) {
     if (this.closed || this.appCalls.has(requestId)) throw new Error("工具请求不可用");
     const thread = this.journal.get(id);
-    const receipt = findAppCallback(thread.messages.filter(message => message.role === "assistant").flatMap(message=>message.parts),toolCallId,name);
-    const selection = thread.pluginActivations.filter(p=>p.pluginId === receipt.pluginId);
+    const receipt = findAppCallback(
+      thread.messages.filter((message) => message.role === "assistant").flatMap((message) => message.parts),
+      toolCallId,
+      name,
+    );
+    const selection = thread.pluginActivations.filter((p) => p.pluginId === receipt.pluginId);
     if (!selection.length) throw new Error("此会话未启用该插件");
     const controller = new AbortController();
-    this.appCalls.set(requestId,{id,controller});
+    this.appCalls.set(requestId, { id, controller });
     try {
-      const {snapshot} = await resolveDesktopPlugins(this.options.directory,null,selection,(selected,signal)=>this.options.resolvePlugins(selected,signal),controller.signal);
-      if (snapshot.plugins.some(p=>p.manifest.source === "system" || p.manifest.trust === "system")) throw new Error("系统插件需要云端执行");
-      return await callMcpAppTool(snapshot,receipt,args,controller.signal);
-    } catch { throw new Error("工具调用未完成，请重新执行原工具"); }
-    finally { this.appCalls.delete(requestId); }
+      const { snapshot } = await resolveDesktopPlugins(
+        this.options.directory,
+        null,
+        selection,
+        (selected, signal) => this.options.resolvePlugins(selected, signal),
+        controller.signal,
+      );
+      if (snapshot.plugins.some((p) => p.manifest.source === "system" || p.manifest.trust === "system"))
+        throw new Error("系统插件需要云端执行");
+      return await callMcpAppTool(snapshot, receipt, args, controller.signal);
+    } catch {
+      throw new Error("工具调用未完成，请重新执行原工具");
+    } finally {
+      this.appCalls.delete(requestId);
+    }
   }
   async remove(id: string) {
     for (const call of this.appCalls.values()) if (call.id === id) call.controller.abort();

@@ -1,6 +1,6 @@
 import type { LanguageModelV4FunctionTool, LanguageModelV4Prompt, LanguageModelV4ProviderTool } from "@ai-sdk/provider";
 
-import type { ToolSource } from "../tools/types.js";
+import type { ToolSource } from "../tools/core/types.js";
 import { INSTRUCTION_SECTION_TAGS } from "./instructions/section-tags.js";
 
 export interface RuntimeTokenUsage {

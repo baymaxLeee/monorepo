@@ -2,11 +2,13 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/example/monorepo/chat/internal/application"
 )
@@ -76,5 +78,50 @@ func TestClientForwardsRequestMetadataAndUsesOnlyChatIdentity(t *testing.T) {
 	}
 	if capturedBody != `{"ok":true}` {
 		t.Fatalf("body = %q", capturedBody)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func TestClientHasNoBlanketResponseTimeout(t *testing.T) {
+	client := New("http://runtime", "token")
+
+	if client.httpClient.Timeout != 0 {
+		t.Fatalf("client timeout = %s, want no blanket timeout", client.httpClient.Timeout)
+	}
+}
+
+func TestClientPropagatesCallerCancellation(t *testing.T) {
+	client := New("http://runtime", "token")
+	started := make(chan struct{})
+	client.httpClient.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		close(started)
+		<-request.Context().Done()
+		return nil, request.Context().Err()
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := client.Do(ctx, application.RuntimeRequest{Method: http.MethodGet, Path: "/stream"})
+		result <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("inner request did not start")
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("request error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("inner request did not stop after caller cancellation")
 	}
 }

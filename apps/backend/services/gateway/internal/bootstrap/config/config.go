@@ -35,8 +35,7 @@ type Config struct {
 	PublicPathPrefixes       []string
 	PublicExactPaths         []string
 	MaxRequestBodyBytes      int64
-	ReadTimeout              time.Duration
-	WriteTimeout             time.Duration
+	DefaultTimeout           time.Duration
 	IdleTimeout              time.Duration
 	RateLimitEnabled         bool
 	RateLimitRequests        int
@@ -67,8 +66,7 @@ func Load() (Config, error) {
 		PublicPathPrefixes       []string      `env:"PUBLIC_PATH_PREFIXES" envSeparator:"," envDefault:"/,/healthz,/livez,/readyz,/api/storage-server/media,/api/iam-server/account-availability,/api/iam-server/login,/api/iam-server/register,/api/iam-server/refresh,/api/iam-server/logout"`
 		PublicExactPaths         []string      `env:"PUBLIC_EXACT_PATHS" envSeparator:"," envDefault:"GET /api/iam-server/workspaces"`
 		MaxRequestBodyBytes      int64         `env:"MAX_REQUEST_BODY_BYTES" envDefault:"536870912"`
-		ReadTimeout              time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"15s"`
-		WriteTimeout             time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"30s"`
+		DefaultTimeout           time.Duration `env:"HTTP_DEFAULT_TIMEOUT" envDefault:"60s"`
 		IdleTimeout              time.Duration `env:"HTTP_IDLE_TIMEOUT" envDefault:"120s"`
 		RateLimitEnabled         bool          `env:"RATE_LIMIT_ENABLED" envDefault:"true"`
 		RateLimitRequests        int           `env:"RATE_LIMIT_REQUESTS" envDefault:"600"`
@@ -86,8 +84,8 @@ func Load() (Config, error) {
 		RedisURL:          fmt.Sprintf("redis://%s:%s/%s", raw.RedisHost, raw.RedisPort, raw.RedisDB),
 		AccessTokenSecret: raw.AccessTokenSecret, OptionalAuthPathPrefixes: clean(raw.OptionalAuthPathPrefixes),
 		PublicPathPrefixes: clean(raw.PublicPathPrefixes), PublicExactPaths: clean(raw.PublicExactPaths),
-		MaxRequestBodyBytes: raw.MaxRequestBodyBytes, ReadTimeout: raw.ReadTimeout,
-		WriteTimeout: raw.WriteTimeout, IdleTimeout: raw.IdleTimeout,
+		MaxRequestBodyBytes: raw.MaxRequestBodyBytes, DefaultTimeout: raw.DefaultTimeout,
+		IdleTimeout:      raw.IdleTimeout,
 		RateLimitEnabled: raw.RateLimitEnabled, RateLimitRequests: raw.RateLimitRequests,
 		RateLimitWindow: raw.RateLimitWindow,
 	}
@@ -103,7 +101,7 @@ func (c Config) validate() error {
 	default:
 		return fmt.Errorf("unsupported ENVIRONMENT %q", c.Environment)
 	}
-	if c.MaxRequestBodyBytes <= 0 || c.RateLimitRequests <= 0 || c.ReadTimeout <= 0 || c.WriteTimeout <= 0 || c.IdleTimeout <= 0 || c.RateLimitWindow <= 0 {
+	if c.MaxRequestBodyBytes <= 0 || c.RateLimitRequests <= 0 || c.DefaultTimeout <= 0 || c.IdleTimeout <= 0 || c.RateLimitWindow <= 0 {
 		return fmt.Errorf("gateway limits and durations must be positive")
 	}
 	var missing []string

@@ -2,8 +2,8 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { addToolInputExamplesMiddleware, isStepCount, ToolLoopAgent, wrapLanguageModel, type ToolSet } from "ai";
 
-import type { StoredModelContinuation } from "../turn/model-capabilities.js";
-import { MODEL_STREAM_RETRIES, retryableModelStreamMiddleware } from "../turn/model-retry.js";
+import type { StoredModelContinuation } from "../../turn/model-capabilities.js";
+import { MODEL_STREAM_RETRIES, retryableModelStreamMiddleware } from "../../turn/model-retry.js";
 
 const FINAL_REPORT_INSTRUCTION =
   "This is the final model step. Do not call tools. Return the complete self-contained report requested by the parent agent, including material findings, evidence URLs, uncertainty, and unresolved questions.";
