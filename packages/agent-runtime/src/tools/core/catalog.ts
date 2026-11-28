@@ -2,7 +2,7 @@ import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { FlexibleSchema } from "ai";
 
 import type { ModelContextLimits } from "../../context/budget.js";
-import { createSubagentSessionRunner, DEFAULT_SUBAGENT_INSTRUCTIONS } from "../delegation/subagent-session.js";
+import { createSubagentTurnRunner, DEFAULT_SUBAGENT_INSTRUCTIONS } from "../delegation/subagent-turn.js";
 import { createSubagentsManifest, type SubagentObserver } from "../delegation/subagents.js";
 import { createPlanningToolManifests } from "../interaction/plan.js";
 import { createUIAgentToolManifests } from "../interaction/ui-agent.js";
@@ -52,7 +52,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
   if (!researchTools.web_search || !researchTools.web_fetch) {
     throw new Error("portable research tools are unavailable");
   }
-  const subagentRunner = createSubagentSessionRunner({
+  const subagentRunner = createSubagentTurnRunner({
     modelName: model.name,
     model: model.model,
     instructions: DEFAULT_SUBAGENT_INSTRUCTIONS,

@@ -21,21 +21,21 @@ export const DEFAULT_SUBAGENT_INSTRUCTIONS = [
 
 type AssistantUIMessage = UIMessage & { role: "assistant" };
 
-export interface SubagentSessionResult {
+export interface SubagentTurnResult {
   message: AssistantUIMessage;
   steps: number;
   toolCalls: number;
   usage: unknown;
 }
 
-export interface SubagentSessionRunner {
+export interface SubagentTurnRunner {
   readonly modelName: string;
   run(input: {
     id: string;
     prompt: string;
     abortSignal?: AbortSignal;
     onSnapshot(message: AssistantUIMessage): void;
-  }): Promise<SubagentSessionResult>;
+  }): Promise<SubagentTurnResult>;
 }
 
 function assertAutomaticTools(tools: ToolSet): void {
@@ -50,7 +50,7 @@ function assertAutomaticTools(tools: ToolSet): void {
   }
 }
 
-export function createSubagentSessionRunner<const TOOLS extends ToolSet>({
+export function createSubagentTurnRunner<const TOOLS extends ToolSet>({
   modelName,
   model,
   instructions,
@@ -68,7 +68,7 @@ export function createSubagentSessionRunner<const TOOLS extends ToolSet>({
   contextLimits: ModelContextLimits;
   maxOutputTokens?: number;
   maxSteps?: number;
-}): SubagentSessionRunner {
+}): SubagentTurnRunner {
   assertAutomaticTools(tools);
   if (!Number.isInteger(maxSteps) || maxSteps < 2) {
     throw new Error("subagent maxSteps must be an integer of at least 2");

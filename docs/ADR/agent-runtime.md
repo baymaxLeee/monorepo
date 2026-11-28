@@ -17,7 +17,7 @@ packages/agent-runtime/
 ├── src/tools/discovery/  # tool_search 与多语言 ranking
 ├── src/tools/interaction/ # ask_user、planning 与 client UI tools
 ├── src/tools/research/   # web 与 code mode
-├── src/tools/delegation/ # 独立 child session 与 delegation 工具
+├── src/tools/delegation/ # 独立 child Turn 与 delegation 工具
 ├── src/tools/files/      # 文件读取、写入与 patch
 ├── src/tools/publication/ # 产物发布
 ├── src/tools/skills/     # skill discovery 与按需加载
@@ -107,11 +107,11 @@ runner 必须取得上层宿主为该 recovery attempt 续期的 `TurnCapabiliti
 
 ### 网络故障恢复
 
-Cloud 与 Desktop 共用当前采样恢复语义。主会话和独立 child session 的每个 model step、自动上下文压缩、标题与 memory extraction 调用遇到明确的瞬时网络错误、HTTP 408/409/429 或 5xx 时，只重启当前 model call，最多重试 3 次，退避为 200/400/800 ms 并带少量 jitter；服务端 `Retry-After` 优先决定等待时间，但不增加重试次数。模型流、Code Mode、`web_search`、`web_fetch` 和交互式 Bash 在 Desktop、Gateway、Chat relay、Runtime、provider fetch 和 AI SDK loop 各层都不设置请求总时长、首 chunk、chunk idle 或 response-header deadline；其生命周期只由调用者 AbortSignal、显式 Stop、宿主退出、协议终态或真实网络失败结束。relay 的 heartbeat 只维持中间网络设备和提供可观察进度，不参与超时判定。流式调用由 AI SDK 在当前 step 内恢复；只读网络工具复用同一分类与退避策略，普通业务 HTTP 和显式 one-shot helper 仍可设置自己的 deadline。已经完成的 model step、工具调用、数据库写入和其他副作用不会重放；Bash/curl 也不会自动重放。当前失败采样即使已经输出部分文本，也由 SDK 封闭该 attempt 后重新采样。取消会立即打断退避。HTTP 400/401/403、输入或协议错误、provider-hosted tool execution 等终态失败不进入重试。
+Cloud 与 Desktop 共用当前采样恢复语义。主 Turn 和独立 child Turn 的每个 model step、自动上下文压缩、标题与 memory extraction 调用遇到明确的瞬时网络错误、HTTP 408/409/429 或 5xx 时，只重启当前 model call，最多重试 3 次，退避为 200/400/800 ms 并带少量 jitter；服务端 `Retry-After` 优先决定等待时间，但不增加重试次数。模型流、Code Mode、`web_search`、`web_fetch` 和交互式 Bash 在 Desktop、Gateway、Chat relay、Runtime、provider fetch 和 AI SDK loop 各层都不设置请求总时长、首 chunk、chunk idle 或 response-header deadline；其生命周期只由调用者 AbortSignal、显式 Stop、宿主退出、协议终态或真实网络失败结束。relay 的 heartbeat 只维持中间网络设备和提供可观察进度，不参与超时判定。流式调用由 AI SDK 在当前 step 内恢复；只读网络工具复用同一分类与退避策略，普通业务 HTTP 和显式 one-shot helper 仍可设置自己的 deadline。已经完成的 model step、工具调用、数据库写入和其他副作用不会重放；Bash/curl 也不会自动重放。当前失败采样即使已经输出部分文本，也由 SDK 封闭该 attempt 后重新采样。取消会立即打断退避。HTTP 400/401/403、输入或协议错误、provider-hosted tool execution 等终态失败不进入重试。
 
-主会话与自动压缩的重试通过 transient `data-model-retry` 发布 `retrying/recovered/failed` 和脱敏原因枚举 `dns | timeout | connection_reset | incomplete_stream | provider_unavailable`，两个宿主的会话界面显示同一套重连进度；事件不写入 journal 或模型上下文，也不暴露 hostname、URL、request id 或 provider 原文。Desktop 的 HTTP relay 显式保持 chunked response，并把上游未完成流规范化为 retryable model error，避免代理层把它降级为不可分类的 `ERR_INCOMPLETE_CHUNKED_ENCODING`。这套策略适用于首个采样及工具后的后续采样，不重启整个 Turn。child session 保持同一个 subagent progress item，后台标题与 memory extraction 不制造主会话状态。
+主 Turn 与自动压缩的重试通过 transient `data-model-retry` 发布 `retrying/recovered/failed` 和脱敏原因枚举 `dns | timeout | connection_reset | incomplete_stream | provider_unavailable`，两个宿主的会话界面显示同一套重连进度；事件不写入 journal 或模型上下文，也不暴露 hostname、URL、request id 或 provider 原文。Desktop 的 HTTP relay 显式保持 chunked response，并把上游未完成流规范化为 retryable model error，避免代理层把它降级为不可分类的 `ERR_INCOMPLETE_CHUNKED_ENCODING`。这套策略适用于首个采样及工具后的后续采样，不重启整个 Turn。child Turn 保持同一个 subagent progress item，后台标题与 memory extraction 不制造主会话状态。
 
-所有 manifest 声明为非流式 `effect: read` 的 Tool 都采用相同的 3 次瞬时网络失败重试边界，包括内置读取、公共 Web 工具和 MCP 只读工具。`web_fetch` 还把结构化的 408/409/429 和 5xx 结果纳入重试；403 等权限错误立即返回。`subagents` 是 streaming read tool，因此禁止从 manifest 外层重放整个工具；其 child session 只恢复中断的 model call，已完成的 child Web tool 不会再次执行。`write/add/update/destructive/unknown` Tool 可能包含 POST、上传、扣费或其他副作用，只有各自拥有幂等键或恢复协议时才可在工具内部重试。任意 Bash/`curl` 命令同样不透明重放；失败作为工具结果交回模型，由模型结合命令语义决定下一步。
+所有 manifest 声明为非流式 `effect: read` 的 Tool 都采用相同的 3 次瞬时网络失败重试边界，包括内置读取、公共 Web 工具和 MCP 只读工具。`web_fetch` 还把结构化的 408/409/429 和 5xx 结果纳入重试；403 等权限错误立即返回。`subagents` 是 streaming read tool，因此禁止从 manifest 外层重放整个工具；其 child Turn 只恢复中断的 model call，已完成的 child Web tool 不会再次执行。`write/add/update/destructive/unknown` Tool 可能包含 POST、上传、扣费或其他副作用，只有各自拥有幂等键或恢复协议时才可在工具内部重试。任意 Bash/`curl` 命令同样不透明重放；失败作为工具结果交回模型，由模型结合命令语义决定下一步。
 
 ## 运行中输入与取消
 
@@ -157,7 +157,7 @@ Desktop relay 不使用 stored provider lineage，但使用同一个 journal pro
 
 首步需要区分“知道有这项能力”和“可以直接调用”。批量读取同构公开资料、去重和汇总交给 Code Mode；需要分开取证、各自判断再综合时可用 subagents。普通查询保留直接检索。`tool_search` 是共享运行时的公共核心工具，每个 Turn 都直接可见；宿主只提供待检索 manifest，不能按环境开关搜索能力。它公布可搜索的内建能力名称和 MCP namespace，检索索引覆盖名称、描述、planning summary、namespace、schema property 与 description；排序使用 Unicode 分词、名称/namespace 加权和 BM25。匹配后 AI SDK 在下一步提供完整 schema。[OpenAI Tool Search](https://developers.openai.com/api/docs/guides/tools-tool-search)是延迟加载和 append-only cache 语义的事实基线。
 
-每个 subagent 是独立的 disposable `RuntimeTurn`：只接收冻结后的委派任务，不继承父 Thread transcript、provider response lineage、input queue 或 context checkpoint；模型步骤、网络重试、上下文预算、轮内压缩、取消和资源回收全部复用 shared `createAgentLoop` 装配。`ToolLoopAgent` 只能在该 shared factory 中实例化，delegation tool 不拥有第二套 loop。child 的工具调用和完整消息仅存在于 child context，父 Turn 的 tool result 只接收有界进度、终态元数据和最多 8000 个估算 token 的最终报告，因此 child 的 Web 抓取正文不会再次进入父模型上下文。当前 subagent 是前台只读临时会话，不承诺 background/resume；若以后引入持久 child session，必须由宿主 journal 建立独立 Session/Turn owner 并通过同一 `RuntimeTurn` 恢复，不能把 child transcript 塞回父 Thread 或在 delegation 模块内新建 loop。
+每个 subagent 是父 Turn 创建的独立 child `RuntimeTurn`：只接收冻结后的委派任务，不继承父 Turn transcript、provider response lineage、input queue 或 context checkpoint；模型步骤、网络重试、上下文预算、轮内压缩、取消和资源回收全部复用 shared `createAgentLoop` 装配。`ToolLoopAgent` 只能在该 shared factory 中实例化，delegation tool 不拥有第二套 loop。child 的工具调用和完整消息仅存在于 child context，父 Turn 的 tool result 只接收有界进度、终态元数据和最多 8000 个估算 token 的最终报告，因此 child 的 Web 抓取正文不会再次进入父模型上下文。它不是新的 Session/Thread，也不拥有独立持久化聚合根；若以后需要 background/resume，应持久化 child Turn 及其父子关系，而不是把 child transcript 塞回父 Turn 或在 delegation 模块内新建 loop。
 
 Artifact publication 与 workspace persistence 是两条不同责任链。`upload_artifacts({ paths })` 是 Cloud adapter 独有能力：它把 Cloud workspace 路径的当前字节提交为 Session file/immutable Storage revision，再用 `toolCallId + artifactIndex` 记录内部 occurrence。occurrence 必须引用同一 attempt 已提交的 `workspace_effect`，精确固定 asset/revision/hash/path，但这些字段不进入 `PublishedWorkspaceFile` 或 `data-file`；公开引用仍以稳定 `file_id` 和可选 `workspace_path` 为准，`data-file.id = file_id`。Desktop workspace 已经是用户可直接访问的持久目录，不做二次上传、file-id 映射或 `data-file` 投影。普通 workspace create/update/delete 即使从未 publication 也必须持久化；下次 Turn 只恢复 workspace 文件，不恢复 Cloud occurrence 或把旧 publication 重新发到 stream。
 

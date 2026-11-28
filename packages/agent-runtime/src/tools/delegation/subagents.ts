@@ -10,7 +10,7 @@ import {
   toolIssueSchema,
   toolRunning,
 } from "../core/outcome.js";
-import type { SubagentSessionRunner } from "./subagent-session.js";
+import type { SubagentTurnRunner } from "./subagent-turn.js";
 
 const MAX_SUBAGENTS = 3;
 const MAX_PROGRESS_UPDATES_PER_SUBAGENT = 64;
@@ -208,7 +208,7 @@ async function runSubagent<CONTEXT extends Record<string, unknown>>({
   observer,
   publish,
 }: {
-  runner: SubagentSessionRunner;
+  runner: SubagentTurnRunner;
   task: SubagentTask;
   index: number;
   options: ToolExecutionOptions<CONTEXT>;
@@ -323,7 +323,7 @@ export function createSubagentsManifest<CONTEXT extends Record<string, unknown> 
   contextSchema,
   observer,
 }: {
-  runner: SubagentSessionRunner;
+  runner: SubagentTurnRunner;
   contextSchema?: FlexibleSchema<CONTEXT>;
   observer?: SubagentObserver<CONTEXT>;
 }) {

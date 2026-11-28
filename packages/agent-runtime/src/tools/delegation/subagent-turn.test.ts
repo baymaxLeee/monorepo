@@ -5,7 +5,7 @@ import { simulateReadableStream, tool, type ToolSet } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
-import { createSubagentSessionRunner } from "./subagent-session.js";
+import { createSubagentTurnRunner } from "./subagent-turn.js";
 
 const limits = { contextWindow: 32_000, maxOutputTokens: 4_096 };
 const model = new MockLanguageModelV4();
@@ -32,7 +32,7 @@ function textStream(text: string) {
 }
 
 function createRunner(input: { model: MockLanguageModelV4; tools?: ToolSet; maxSteps?: number }) {
-  return createSubagentSessionRunner({
+  return createSubagentTurnRunner({
     modelName: "research-model",
     model: input.model,
     instructions: "Research and return a concise report.",
@@ -44,7 +44,7 @@ function createRunner(input: { model: MockLanguageModelV4; tools?: ToolSet; maxS
   });
 }
 
-test("subagent sessions reject client and approval tools", () => {
+test("subagent turns reject client and approval tools", () => {
   assert.throws(
     () =>
       createRunner({
@@ -70,11 +70,11 @@ test("subagent sessions reject client and approval tools", () => {
   );
 });
 
-test("subagent sessions require a bounded run with a final report step", () => {
+test("subagent turns require a bounded run with a final report step", () => {
   assert.throws(() => createRunner({ model, maxSteps: 1 }), /at least 2/);
 });
 
-test("subagent sessions retry only the interrupted sample without repeating completed tools", async () => {
+test("subagent turns retry only the interrupted sample without repeating completed tools", async () => {
   let modelCalls = 0;
   let toolExecutions = 0;
   const retryingModel = new MockLanguageModelV4({
@@ -146,7 +146,7 @@ test("subagent sessions retry only the interrupted sample without repeating comp
   assert.equal(toolExecutions, 1);
 });
 
-test("subagent sessions compact large tool results inside the child before the next sample", async () => {
+test("subagent turns compact large tool results inside the child before the next sample", async () => {
   const privateEvidence = `PRIVATE_TOOL_TRACE_${"x".repeat(40_000)}`;
   let toolExecutions = 0;
   let ordinarySamples = 0;
@@ -188,7 +188,7 @@ test("subagent sessions compact large tool results inside the child before the n
       return textStream("Bounded final report");
     },
   });
-  const runner = createSubagentSessionRunner({
+  const runner = createSubagentTurnRunner({
     modelName: "research-model",
     model: compactingModel,
     instructions: "Research and report.",

@@ -6,7 +6,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
 import { isToolOutcome, type ToolOutcome } from "../core/outcome.js";
-import { createSubagentSessionRunner, DEFAULT_SUBAGENT_INSTRUCTIONS } from "./subagent-session.js";
+import { createSubagentTurnRunner, DEFAULT_SUBAGENT_INSTRUCTIONS } from "./subagent-turn.js";
 import { createSubagentsManifest } from "./subagents.js";
 
 const tools = {
@@ -24,7 +24,7 @@ const tools = {
 
 function createManifest(model: MockLanguageModelV4) {
   return createSubagentsManifest({
-    runner: createSubagentSessionRunner({
+    runner: createSubagentTurnRunner({
       modelName: "research-model",
       model,
       instructions: DEFAULT_SUBAGENT_INSTRUCTIONS,
