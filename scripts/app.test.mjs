@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -20,6 +20,17 @@ async function withCommands(commands, run) {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+async function waitUntil(predicate, message) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => {
+      setTimeout(resolve, 25);
+    });
+  }
+  assert.fail(message);
 }
 
 test("VPS mode passes the selected root URL to Electron without starting local dev", async () => {
@@ -46,4 +57,37 @@ test("a failed local dev stack prevents Electron from launching", async () => {
     assert.match(result.stderr, /just dev exited with status 17/);
     assert.throws(() => readFileSync(path.join(directory, "electron-started")));
   });
+});
+
+test("Ctrl-C asks an app-owned Overmind server to quit", async () => {
+  await withCommands(
+    {
+      just: `
+touch "$APP_TEST_DIR/.overmind.sock"
+exec ${JSON.stringify(process.execPath)} -e '
+  const server = require("node:http").createServer((_, response) => response.end("ok"));
+  server.listen(3000, "127.0.0.1");
+  process.on("SIGTERM", () => process.exit(0));
+'
+`,
+      overmind: 'printf "%s\\n" "$@" > "$APP_TEST_DIR/overmind-args"',
+      pnpm: 'touch "$APP_TEST_DIR/electron-started"; trap "exit 0" TERM INT; while :; do sleep 1; done',
+    },
+    async (directory, env) => {
+      const child = spawn(process.execPath, [app], { cwd: directory, env, stdio: "ignore" });
+      await waitUntil(() => existsSync(path.join(directory, "electron-started")), "Electron did not start");
+      child.kill("SIGINT");
+      const result = await new Promise((resolve) => {
+        child.once("exit", (code, signal) => resolve({ code, signal }));
+      });
+
+      assert.equal(result.signal, null);
+      assert.equal(result.code, 130);
+      assert.deepEqual(readFileSync(path.join(directory, "overmind-args"), "utf8").trim().split("\n"), [
+        "quit",
+        "-s",
+        path.join(realpathSync(directory), ".overmind.sock"),
+      ]);
+    },
+  );
 });

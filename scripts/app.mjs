@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 const LOCAL_URL = "http://localhost:3000/";
 const VPS_URL = "http://124.222.245.5:8080/";
@@ -32,23 +34,62 @@ let stack;
 let stackDone;
 let desktop;
 let stopping = false;
+let stopPromise;
+const overmindSocket = resolve(".overmind.sock");
+const overmindSocketPreexisted = existsSync(overmindSocket);
 
-function stop() {
-  if (stopping) return;
-  stopping = true;
-  desktop?.kill("SIGTERM");
-  // `just dev` may exec overmind, mprocs, or the shell fallback. All descendants
-  // belong to this process group so closing Electron also closes that dev stack.
-  if (stack?.pid) {
-    try {
-      process.kill(-stack.pid, "SIGTERM");
-    } catch (error) {
-      if (error.code !== "ESRCH") throw error;
-    }
+function signalStack(signal) {
+  if (!stack?.pid) return;
+  try {
+    process.kill(-stack.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
   }
 }
 
-for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, stop);
+function delay(milliseconds) {
+  return new Promise((resolveDelay) => {
+    setTimeout(resolveDelay, milliseconds);
+  });
+}
+
+async function waitFor(promise, milliseconds) {
+  const timeout = Symbol("timeout");
+  return (await Promise.race([promise, delay(milliseconds).then(() => timeout)])) !== timeout;
+}
+
+async function stopOwnedOvermind() {
+  if (overmindSocketPreexisted || !existsSync(overmindSocket)) return;
+  const quit = spawn("overmind", ["quit", "-s", overmindSocket], { stdio: "ignore" });
+  const quitDone = completion(quit);
+  if (!(await waitFor(quitDone, 5_000))) {
+    quit.kill("SIGKILL");
+    await quitDone;
+  }
+}
+
+async function stopAll() {
+  stopping = true;
+  desktop?.kill("SIGTERM");
+  // Overmind owns a detached tmux server, so signalling only the `just dev`
+  // process group leaves every pane alive. Ask an Overmind instance created by
+  // this app to quit before falling back to process-group termination. mprocs and
+  // the shell fallback remain owned by the original detached process group.
+  await stopOwnedOvermind();
+  signalStack("SIGTERM");
+  if (stackDone && !(await waitFor(stackDone, 5_000))) signalStack("SIGKILL");
+}
+
+function stop() {
+  stopPromise ??= stopAll();
+  return stopPromise;
+}
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    void stop();
+  });
+}
 
 function completion(child) {
   return new Promise((resolve) => {
@@ -109,5 +150,5 @@ try {
   if (!stopping) console.error(`✗ ${error.message}`);
   process.exitCode = stopping ? 130 : 1;
 } finally {
-  stop();
+  await stop();
 }
