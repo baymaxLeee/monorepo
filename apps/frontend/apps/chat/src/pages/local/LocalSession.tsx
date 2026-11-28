@@ -46,14 +46,23 @@ export function LocalSession({
   const [contextCompaction, setContextCompaction] = useState<ChatUIDataTypes["context-compaction"] | null>(null);
   const [inferenceConfig, setInferenceConfig] = useState<GetLocalInferenceConfig200 | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
-  const appContext = useMemo(() => createMCPAppContext(async (callId,_pluginId,name,args,signal) => {
-    signal.throwIfAborted();
-    const requestId = crypto.randomUUID();
-    const cancel = () => { void bridge.cancelAppCall(initial.id,requestId).catch(()=>undefined); };
-    signal.addEventListener("abort",cancel,{once:true});
-    try { return await bridge.callAppTool(initial.id,requestId,callId,name,args); }
-    finally { signal.removeEventListener("abort",cancel); }
-  }), [bridge,initial.id]);
+  const appContext = useMemo(
+    () =>
+      createMCPAppContext(async (callId, _pluginId, name, args, signal) => {
+        signal.throwIfAborted();
+        const requestId = randomId();
+        const cancel = () => {
+          void bridge.cancelAppCall(initial.id, requestId).catch(() => undefined);
+        };
+        signal.addEventListener("abort", cancel, { once: true });
+        try {
+          return await bridge.callAppTool(initial.id, requestId, callId, name, args);
+        } finally {
+          signal.removeEventListener("abort", cancel);
+        }
+      }),
+    [bridge, initial.id],
+  );
   const promptRef = useRef<PromptInputRef>(null);
   const pendingPrompt = useRef<PromptInputValue | null>(null);
   const pendingClientContinuation = useRef(false);
