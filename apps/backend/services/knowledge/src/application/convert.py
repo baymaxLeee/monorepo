@@ -149,7 +149,7 @@ class ConvertService:
                 filename=filename, mime_type=mime_type, size=len(content), note=vision_note
             )
 
-        max_chars = settings.attachment_markdown_max_chars
+        max_chars = settings.converted_markdown_max_chars
         if len(markdown) > max_chars:
             markdown = markdown[:max_chars].rstrip() + "\n\n...[truncated]"
         return markdown

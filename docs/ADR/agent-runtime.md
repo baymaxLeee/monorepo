@@ -78,7 +78,7 @@ Backend 和 Desktop 只能准备 model、tools、environment、sandbox、persist
 
 | 通用概念       | 本项目语义                                                                   |
 | -------------- | ---------------------------------------------------------------------------- |
-| Thread/Session | 宿主持久化的执行会话及其 canonical journal                                  |
+| Thread/Session | 宿主持久化的执行会话及其 canonical journal                                   |
 | Turn           | 一次用户任务；可包含多个 model step 和 tool call                             |
 | Item/rollout   | journal 中可恢复的原生 UIMessage/工具状态与 runtime fact                     |
 | TurnContext    | turn 开始时冻结的 model、tools、instructions、environment 和 host capability |
@@ -107,7 +107,7 @@ runner 必须取得上层宿主为该 recovery attempt 续期的 `TurnCapabiliti
 
 ### 网络故障恢复
 
-Cloud 与 Desktop 共用当前采样恢复语义。主循环和 isolated child loop 的每个 model step、自动上下文压缩、标题与 memory extraction 调用遇到明确的瞬时网络错误、HTTP 408/409/429、5xx、各调用自身 deadline 或主模型流 120 秒 idle timeout 时，只重启当前 model call，最多重试 3 次，退避为 200/400/800 ms 并带少量 jitter。长流没有请求到响应的总时长 deadline：连接建立仍受 provider request timeout 约束，建立后只以连续 120 秒无新 chunk 判定 idle，执行总生命周期仅由显式取消或终态事件结束，禁止把 300 秒替换为另一个固定总时长。流式调用由 AI SDK 在当前 step 内恢复；非流式辅助调用关闭 SDK 的宽泛默认 retry，改用同一分类器并共享一次调用的总 deadline。已经完成的 model step、工具调用、数据库写入和其他副作用不会重放；当前失败采样即使已经输出部分文本，也由 SDK 封闭该 attempt 后重新采样。取消会立即打断退避。HTTP 400/401/403、输入或协议错误、provider-hosted tool execution 等终态失败不进入重试。
+Cloud 与 Desktop 共用当前采样恢复语义。主循环和 isolated child loop 的每个 model step、自动上下文压缩、标题与 memory extraction 调用遇到明确的瞬时网络错误、HTTP 408/409/429 或 5xx 时，只重启当前 model call，最多重试 3 次，退避为 200/400/800 ms 并带少量 jitter；服务端 `Retry-After` 优先决定等待时间，但不增加重试次数。模型流、Code Mode、`web_search`、`web_fetch` 和交互式 Bash 在 Desktop、Gateway、Chat relay、Runtime、provider fetch 和 AI SDK loop 各层都不设置请求总时长、首 chunk、chunk idle 或 response-header deadline；其生命周期只由调用者 AbortSignal、显式 Stop、宿主退出、协议终态或真实网络失败结束。relay 的 heartbeat 只维持中间网络设备和提供可观察进度，不参与超时判定。流式调用由 AI SDK 在当前 step 内恢复；只读网络工具复用同一分类与退避策略，普通业务 HTTP 和显式 one-shot helper 仍可设置自己的 deadline。已经完成的 model step、工具调用、数据库写入和其他副作用不会重放；Bash/curl 也不会自动重放。当前失败采样即使已经输出部分文本，也由 SDK 封闭该 attempt 后重新采样。取消会立即打断退避。HTTP 400/401/403、输入或协议错误、provider-hosted tool execution 等终态失败不进入重试。
 
 主会话与自动压缩的重试通过 transient `data-model-retry` 发布 `retrying/recovered/failed` 和脱敏原因枚举 `dns | timeout | connection_reset | incomplete_stream | provider_unavailable`，两个宿主的会话界面显示同一套重连进度；事件不写入 journal 或模型上下文，也不暴露 hostname、URL、request id 或 provider 原文。Desktop 的 HTTP relay 显式保持 chunked response，并把上游未完成流规范化为 retryable model error，避免代理层把它降级为不可分类的 `ERR_INCOMPLETE_CHUNKED_ENCODING`。这套策略适用于首个采样及工具后的后续采样，不重启整个 Turn。child loop 保持同一个 subagent progress item，后台标题与 memory extraction 不制造主会话状态。
 
@@ -173,7 +173,10 @@ SDK 可以并发发出 tool call，但实际执行必须经过每个 catalog 实
 - 排队顺序公平，独占项形成 barrier，后到的并行调用不能越过；
 - 排队期间的 AbortSignal 会在执行前移除 waiter，已取得 admission 的操作在 `finally` 释放；
 - async iterable 工具必须声明 `policy.streaming`，scheduler 持有 admission 直到 terminal yield；
+- local tool caller 是编排壳，不重复取得 scheduler admission；它绑定的叶子工具仍逐个经过同一 scheduler，避免外层等待排在自身 admission 后的内层调用；
 - duplicate tool name 启动即失败，不允许宿主静默替换 shared capability。
+
+Code Mode 没有 wall-clock deadline，Turn AbortSignal 负责取消；QuickJS CPU、内存、bridge 数量和输入输出大小仍受独立资源限制。Code Mode 编排壳不持有 catalog admission，沙箱中实际调用的 `web_search`、`web_fetch` 等叶子工具持有 admission。
 
 ToolLoop 中间件不通过删除 provider tool call 来制造串行；并发、权限和副作用边界在 executor admission 执行。Portable registry 只含已证明跨 Backend/Desktop 共用的基础能力。Runtime 自有的 Media 作为 host manifest；它把图片/视频 provider 的长任务包装成幂等 durable operation，但 `generate_images` / `generate_video` 始终阻塞当前 tool call 直到终态 Session file 已发布，不暴露 production/workbench 投影。Knowledge、Canvas 和外部 MCP 都通过同一套 catalog/release/installation/activation/Turn snapshot/connection lifecycle 注入，Runtime 不再持有固定服务 tool client 或第二套插件 adapter。产品 memory 由上层宿主投影。完整 ownership、去密持久化、lazy discovery、MCP fail-closed 与当前仅 `knowledge_search`/`get_canvas_context` 的能力面见 [Agent plugins](agent-plugins.md)。
 

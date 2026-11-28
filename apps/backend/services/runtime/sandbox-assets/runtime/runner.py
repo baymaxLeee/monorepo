@@ -600,7 +600,8 @@ class Process:
         self.readers = [threading.Thread(target=self.collect, args=pair, daemon=True) for pair in readers]
         for thread in self.readers:
             thread.start()
-        timeout = min(max_timeout, request.get("timeout_ms", 120000)) / 1000
+        requested_timeout = request.get("timeout_ms")
+        timeout = min(max_timeout, requested_timeout) / 1000 if requested_timeout is not None else None
         self.waiter = threading.Thread(target=self.wait, args=(timeout,), daemon=True)
         self.waiter.start()
 

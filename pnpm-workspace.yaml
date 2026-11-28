@@ -153,3 +153,6 @@ overrides:
   react-router-dom: "catalog:"
   zod: "catalog:"
   zustand: "catalog:"
+
+patchedDependencies:
+  "@ai-sdk/tool-web-fetch@1.0.33": patches/@ai-sdk__tool-web-fetch@1.0.33.patch

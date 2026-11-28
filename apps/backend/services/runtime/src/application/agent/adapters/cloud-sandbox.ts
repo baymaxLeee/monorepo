@@ -349,7 +349,11 @@ export class RunSandbox implements Experimental_SandboxSession {
         tty: options.io?.tty ?? false,
         retain_output: Boolean(options.io),
         yield_time_ms: options.io ? 0 : 10_000,
-        timeout_ms: options.timeoutMs ?? 120_000,
+        ...(options.timeoutMs !== undefined
+          ? { timeout_ms: options.timeoutMs }
+          : options.io
+            ? {}
+            : { timeout_ms: 120_000 }),
         scope: this.scope,
         request_id: randomBytes(16).toString("hex"),
         sandbox: transportSandboxAttempt(attempt),

@@ -155,7 +155,7 @@ export class LocalSandbox {
     args: string[],
     input?: string,
     signal?: AbortSignal,
-    timeoutMs = 120_000,
+    timeoutMs?: number,
     violationHint?: SandboxViolation,
     io?: ProcessIO,
     cwd?: string,
@@ -247,13 +247,16 @@ export class LocalSandbox {
               child.stdin.write(chars, (error) => (error ? fail(error) : accept()));
             }),
         );
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        child.stdin.destroy();
-      }, timeoutMs);
+      const timeout =
+        timeoutMs === undefined
+          ? undefined
+          : setTimeout(() => {
+              timedOut = true;
+              child.stdin.destroy();
+            }, timeoutMs);
       operationSignal.addEventListener("abort", cancel, { once: true });
       const cleanup = () => {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         operationSignal.removeEventListener("abort", cancel);
         this.active.delete(cancel);
       };
@@ -297,7 +300,7 @@ export class LocalSandbox {
           const output = { stdout: stdout + decoders.stdout.end(), stderr: stderr + decoders.stderr.end() };
           if (io) io.output(output.stdout + output.stderr);
           const errorText = io ? diagnostic : output.stderr;
-          if (timedOut) resolve({ type: "timeout", timeoutMs, ...output });
+          if (timedOut) resolve({ type: "timeout", timeoutMs: timeoutMs!, ...output });
           else if (code === 70)
             resolve({ type: "sandbox-unavailable", message: errorText || "Seatbelt unavailable", ...output });
           else if (

@@ -13,6 +13,7 @@ import {
   isRetryableNetworkError,
   retryableModelStreamMiddleware,
   retryTransientNetwork,
+  waitForTransientRetry,
 } from "./model-retry.js";
 
 const finish: LanguageModelV4StreamPart = {
@@ -216,7 +217,7 @@ test("the shared SDK loop never retries a terminal provider 400", async () => {
   assert.deepEqual(events, []);
 });
 
-test("a provider stream idle timeout retries the current model step", async () => {
+test("a provider stream can remain idle until data arrives or the caller cancels", async () => {
   let calls = 0;
   let cancellations = 0;
   const events: unknown[] = [];
@@ -231,22 +232,19 @@ test("a provider stream idle timeout retries the current model step", async () =
     },
     doStream: async () => {
       calls++;
-      if (calls === 1)
-        return {
-          stream: new ReadableStream<LanguageModelV4StreamPart>({
-            cancel() {
-              cancellations++;
-            },
-          }),
-        };
       return {
         stream: new ReadableStream<LanguageModelV4StreamPart>({
           start(controller) {
-            controller.enqueue({ type: "text-start", id: "answer" });
-            controller.enqueue({ type: "text-delta", id: "answer", delta: "recovered" });
-            controller.enqueue({ type: "text-end", id: "answer" });
-            controller.enqueue(finish);
-            controller.close();
+            setTimeout(() => {
+              controller.enqueue({ type: "text-start", id: "answer" });
+              controller.enqueue({ type: "text-delta", id: "answer", delta: "slow response" });
+              controller.enqueue({ type: "text-end", id: "answer" });
+              controller.enqueue(finish);
+              controller.close();
+            }, 30);
+          },
+          cancel() {
+            cancellations++;
           },
         }),
       };
@@ -257,19 +255,16 @@ test("a provider stream idle timeout retries the current model step", async () =
     tools: {},
     maxRetries: 0,
     streamRetries: MODEL_STREAM_RETRIES,
-    middleware: [createRetryableModelStreamMiddleware(5)],
+    middleware: [createRetryableModelStreamMiddleware()],
     onStepStart: policy.reset,
     onChunk: policy.onChunk,
     onError: policy.onError,
   });
   const result = await agent.stream({ messages: [{ role: "user", content: "hello" }] });
   await result.consumeStream();
-  assert.equal(calls, 2);
-  assert.equal(cancellations, 1);
-  assert.deepEqual(events, [
-    { state: "retrying", attempt: 1, maxAttempts: 3, reason: "timeout" },
-    { state: "recovered", attempt: 1, maxAttempts: 3, reason: "timeout" },
-  ]);
+  assert.equal(calls, 1);
+  assert.equal(cancellations, 0);
+  assert.deepEqual(events, []);
 });
 
 test("provider keepalives preserve a slow model request without retrying", async () => {
@@ -315,7 +310,7 @@ test("provider keepalives preserve a slow model request without retrying", async
     tools: {},
     maxRetries: 0,
     streamRetries: MODEL_STREAM_RETRIES,
-    middleware: [createRetryableModelStreamMiddleware(50)],
+    middleware: [createRetryableModelStreamMiddleware()],
   });
   const result = await agent.stream({ messages: [{ role: "user", content: "hello" }] });
   await result.consumeStream();
@@ -335,4 +330,10 @@ test("read-only network retry runs at most three retries", async () => {
   );
   assert.equal(value, "ok");
   assert.equal(calls, 4);
+});
+
+test("transient retries honor provider Retry-After advice", async () => {
+  await waitForTransientRetry(1, AbortSignal.timeout(50), {
+    responseHeaders: { "retry-after": "0" },
+  });
 });

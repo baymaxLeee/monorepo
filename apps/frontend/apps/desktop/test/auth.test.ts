@@ -64,6 +64,19 @@ it("returns a rejected model response after refreshing an expired bearer", async
   expect(fetch).toHaveBeenCalledTimes(3);
   expect(fetch.mock.calls[2]?.[1]).toMatchObject({ headers: { Authorization: "Bearer new" } });
 });
+it("lets the caller own local inference stream cancellation", async () => {
+  const auth = new DesktopAuth("https://platform.test", async () => {});
+  fetch.mockResolvedValueOnce(Response.json(user)).mockResolvedValueOnce(new Response());
+  await auth.bind("token", expires);
+  const abort = new AbortController();
+
+  await auth.fetch("/api/chat-server/local-inference/stream", {
+    method: "POST",
+    signal: abort.signal,
+  });
+
+  expect(fetch.mock.calls[1]?.[1]?.signal).toBe(abort.signal);
+});
 it("pins a root Platform origin and explicitly opts in to remote HTTP", () => {
   expect(platformUrl("http://localhost:3000").origin).toBe("http://localhost:3000");
   expect(platformUrl("https://platform.test").origin).toBe("https://platform.test");

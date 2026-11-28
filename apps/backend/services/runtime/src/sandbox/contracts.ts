@@ -83,7 +83,7 @@ export const startSchema = z
     pipe_stdin: z.boolean().optional(),
     retain_output: z.boolean().optional(),
     yield_time_ms: z.number().int().min(0).max(10000).default(1000),
-    timeout_ms: z.number().int().positive().default(120000),
+    timeout_ms: z.number().int().positive().optional(),
   })
   .strict();
 export const continueSchema = z

@@ -35,7 +35,7 @@ export interface BashExecutionInput {
   login?: boolean;
   tty?: boolean;
   workdir?: string;
-  timeout_ms: number;
+  timeout_ms?: number;
   sandbox_permissions: SandboxPermissions;
   additional_permissions?: AdditionalPermissionProfile;
   retry_of?: string;

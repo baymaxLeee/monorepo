@@ -151,7 +151,7 @@ export function localExecutionTools(
           [input.login ? "-lc" : "-c", input.command],
           undefined,
           io.signal,
-          input.timeout_ms,
+          undefined,
           networkViolationHint(input.command),
           io,
           input.workdir,

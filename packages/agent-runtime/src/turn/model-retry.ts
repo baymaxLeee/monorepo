@@ -2,7 +2,6 @@ import type { LanguageModelV4Middleware, LanguageModelV4StreamPart } from "@ai-s
 import { APICallError, StreamProviderError } from "ai";
 
 export const MODEL_STREAM_RETRIES = 3;
-export const MODEL_STREAM_IDLE_TIMEOUT_MS = 120_000;
 
 export type ModelNetworkFailureReason =
   | "dns"
@@ -34,6 +33,8 @@ interface RetryableShape {
   message?: unknown;
   name?: unknown;
   reason?: unknown;
+  responseHeaders?: unknown;
+  retryAfterMs?: unknown;
 }
 
 const NETWORK_FAILURE_REASONS = new Set<ModelNetworkFailureReason>([
@@ -100,7 +101,7 @@ export function classifyModelNetworkFailure(
   if (TIMEOUT_ERROR_CODES.has(code)) return "timeout";
   if (RESET_ERROR_CODES.has(code)) return "connection_reset";
   if (UNAVAILABLE_ERROR_CODES.has(code)) return "provider_unavailable";
-  if (candidate.name === "TimeoutError" || candidate.name === "ModelStreamIdleTimeoutError") return "timeout";
+  if (candidate.name === "TimeoutError") return "timeout";
   if (candidate.cause !== undefined) {
     const reason = classifyModelNetworkFailure(candidate.cause, seen);
     if (reason) return reason;
@@ -145,26 +146,12 @@ function retryPart(error: unknown): ReadableStream<LanguageModelV4StreamPart> {
   });
 }
 
-class ModelStreamIdleTimeoutError extends Error {
-  readonly retryable = true;
-  constructor(timeoutMs: number) {
-    super(`Model stream idle timeout of ${timeoutMs}ms exceeded`);
-    this.name = "ModelStreamIdleTimeoutError";
-  }
-}
-
-function classifyProviderStream(stream: ReadableStream<LanguageModelV4StreamPart>, idleTimeoutMs: number) {
+function classifyProviderStream(stream: ReadableStream<LanguageModelV4StreamPart>) {
   const reader = stream.getReader();
   return new ReadableStream<LanguageModelV4StreamPart>({
     async pull(controller) {
-      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const next = await Promise.race([
-          reader.read(),
-          new Promise<never>((_resolve, reject) => {
-            timeout = setTimeout(() => reject(new ModelStreamIdleTimeoutError(idleTimeoutMs)), idleTimeoutMs);
-          }),
-        ]);
+        const next = await reader.read();
         if (next.done) {
           controller.close();
           return;
@@ -183,8 +170,6 @@ function classifyProviderStream(stream: ReadableStream<LanguageModelV4StreamPart
           return;
         }
         controller.error(error);
-      } finally {
-        if (timeout) clearTimeout(timeout);
       }
     },
     cancel(reason) {
@@ -195,15 +180,13 @@ function classifyProviderStream(stream: ReadableStream<LanguageModelV4StreamPart
 
 /** Converts only transient provider failures into AI SDK retry parts. Terminal
  * provider and protocol failures error the stream and cannot be replayed. */
-export function createRetryableModelStreamMiddleware(
-  idleTimeoutMs = MODEL_STREAM_IDLE_TIMEOUT_MS,
-): LanguageModelV4Middleware {
+export function createRetryableModelStreamMiddleware(): LanguageModelV4Middleware {
   return {
     specificationVersion: "v4",
     async wrapStream({ doStream }) {
       try {
         const result = await doStream();
-        return { ...result, stream: classifyProviderStream(result.stream, idleTimeoutMs) };
+        return { ...result, stream: classifyProviderStream(result.stream) };
       } catch (error) {
         if (!isRetryableNetworkError(error)) throw error;
         return { stream: retryPart(error) };
@@ -214,10 +197,35 @@ export function createRetryableModelStreamMiddleware(
 
 export const retryableModelStreamMiddleware = createRetryableModelStreamMiddleware();
 
-export function waitForTransientRetry(attempt: number, signal?: AbortSignal): Promise<void> {
+function retryAfterMs(error: unknown, seen = new Set<unknown>()): number | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) return undefined;
+  seen.add(error);
+  const candidate = error as RetryableShape;
+  if (
+    typeof candidate.retryAfterMs === "number" &&
+    Number.isFinite(candidate.retryAfterMs) &&
+    candidate.retryAfterMs >= 0
+  ) {
+    return candidate.retryAfterMs;
+  }
+  if (candidate.responseHeaders && typeof candidate.responseHeaders === "object") {
+    const entry = Object.entries(candidate.responseHeaders as Record<string, unknown>).find(
+      ([name]) => name.toLowerCase() === "retry-after",
+    )?.[1];
+    if (typeof entry === "string") {
+      const seconds = Number(entry);
+      if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+      const deadline = Date.parse(entry);
+      if (Number.isFinite(deadline)) return Math.max(0, deadline - Date.now());
+    }
+  }
+  return retryAfterMs(candidate.cause, seen);
+}
+
+export function waitForTransientRetry(attempt: number, signal?: AbortSignal, error?: unknown): Promise<void> {
   signal?.throwIfAborted();
   const base = 200 * 2 ** (attempt - 1);
-  const delay = Math.round(base * (0.9 + Math.random() * 0.2));
+  const delay = retryAfterMs(error) ?? Math.round(base * (0.9 + Math.random() * 0.2));
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       signal?.removeEventListener("abort", abort);
@@ -234,7 +242,7 @@ export function waitForTransientRetry(attempt: number, signal?: AbortSignal): Pr
 export function createModelStreamRetryPolicy(options: {
   signal?: AbortSignal;
   emit(event: ModelRetryEvent): void;
-  wait?: (attempt: number, signal?: AbortSignal) => Promise<void>;
+  wait?: (attempt: number, signal?: AbortSignal, error?: unknown) => Promise<void>;
 }): ModelStreamRetryPolicy {
   let attempt = 0;
   let active = false;
@@ -271,7 +279,7 @@ export function createModelStreamRetryPolicy(options: {
       attempt++;
       active = true;
       emit("retrying");
-      await (options.wait ?? waitForTransientRetry)(attempt, options.signal);
+      await (options.wait ?? waitForTransientRetry)(attempt, options.signal, error);
     },
   };
 }
@@ -281,7 +289,7 @@ export async function retryTransientNetwork<T>(
   options: {
     signal?: AbortSignal;
     shouldRetry?: (error: unknown) => boolean;
-    wait?: (attempt: number, signal?: AbortSignal) => Promise<void>;
+    wait?: (attempt: number, signal?: AbortSignal, error?: unknown) => Promise<void>;
     maxRetries?: number;
   } = {},
 ): Promise<T> {
@@ -292,7 +300,7 @@ export async function retryTransientNetwork<T>(
       return await operation();
     } catch (error) {
       if (attempt >= maxRetries || !(options.shouldRetry ?? isRetryableNetworkError)(error)) throw error;
-      await (options.wait ?? waitForTransientRetry)(attempt + 1, options.signal);
+      await (options.wait ?? waitForTransientRetry)(attempt + 1, options.signal, error);
     }
   }
 }

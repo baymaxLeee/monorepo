@@ -33,7 +33,13 @@ async def insert_chunks(session: AsyncSession, rows: list[DocumentChunkRow]) -> 
 
 
 async def dense_search(
-    session: AsyncSession, *, workspace_id: str, tenant_id: str, query_vector: list[float], limit: int
+    session: AsyncSession,
+    *,
+    workspace_id: str,
+    tenant_id: str,
+    embed_model: str,
+    query_vector: list[float],
+    limit: int,
 ) -> Sequence[Row[Any]]:
     """Dense ANN search over an workspace's chunk embeddings (cosine distance, best first).
 
@@ -45,12 +51,20 @@ async def dense_search(
     """
     dim = get_settings().embedding_dim
     vec_literal = "[" + ",".join(repr(float(value)) for value in query_vector) + "]"
-    await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(limit * 2, 40)}"))
+    await session.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
+    await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(limit * 4, 100)}"))
     stmt = text(
-        f"\n        SELECT id, document_id, chunk_index, content,\n               embedding::halfvec({dim}) <=> (:q)::halfvec({dim}) AS distance\n        FROM document_chunks\n        WHERE tenant_id = :tenant AND workspace_id = :workspace AND embedding IS NOT NULL\n        ORDER BY embedding::halfvec({dim}) <=> (:q)::halfvec({dim})\n        LIMIT :lim\n        "
+        f"\n        SELECT id, document_id, chunk_index, content, contextualized_content,\n               embedding::halfvec({dim}) <=> (:q)::halfvec({dim}) AS distance\n        FROM document_chunks\n        WHERE tenant_id = :tenant AND workspace_id = :workspace\n          AND embed_model = :embed_model AND embedding IS NOT NULL\n        ORDER BY embedding::halfvec({dim}) <=> (:q)::halfvec({dim})\n        LIMIT :lim\n        "
     )
     result = await session.execute(
-        stmt, {"q": vec_literal, "tenant": tenant_id, "workspace": workspace_id, "lim": limit}
+        stmt,
+        {
+            "q": vec_literal,
+            "tenant": tenant_id,
+            "workspace": workspace_id,
+            "embed_model": embed_model,
+            "lim": limit,
+        },
     )
     return result.all()
 
@@ -63,14 +77,14 @@ async def sparse_search(
     Replaces the old `to_tsvector('simple', ...)` path: the `simple` FTS config
     does not segment Chinese, so sparse recall was dead for CJK queries.
     `word_similarity(query, content)` scores the query against its best-matching
-    span in each chunk over character trigrams, GIN-accelerated by
-    `ix_document_chunks_content_trgm`. The word-similarity threshold is lowered so
-    this stays a high-recall candidate branch; RRF fusion + rerank restore precision.
+    span in each raw or contextualized chunk over character trigrams. The
+    word-similarity threshold is lowered so this stays a high-recall candidate
+    branch; RRF fusion + rerank restore precision.
     Scope is the team workspace so members share one knowledge base.
     """
     await session.execute(text("SET LOCAL pg_trgm.word_similarity_threshold = 0.2"))
     stmt = text(
-        "\n        SELECT id, document_id, chunk_index, content,\n               word_similarity(:q, content) AS score\n        FROM document_chunks\n        WHERE tenant_id = :tenant AND workspace_id = :workspace AND (:q) <% content\n        ORDER BY score DESC\n        LIMIT :lim\n        "
+        "\n        SELECT id, document_id, chunk_index, content, contextualized_content,\n               GREATEST(\n                   word_similarity(:q, content),\n                   COALESCE(word_similarity(:q, contextualized_content), 0)\n               ) AS score\n        FROM document_chunks\n        WHERE tenant_id = :tenant AND workspace_id = :workspace\n          AND ((:q) <% content OR (:q) <% contextualized_content)\n        ORDER BY score DESC\n        LIMIT :lim\n        "
     )
     result = await session.execute(stmt, {"q": query, "tenant": tenant_id, "workspace": workspace_id, "lim": limit})
     return result.all()

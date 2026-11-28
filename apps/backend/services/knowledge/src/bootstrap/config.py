@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     media_max_object_bytes: int = 512 * 1024 * 1024
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
-    attachment_markdown_max_chars: int = 12_000
+    converted_markdown_max_chars: int = Field(default=2_000_000, ge=100_000, le=10_000_000)
     attachment_vision_max_tokens: int = 1024
     ingest_max_parallel: int = Field(default=3, ge=1, le=32)
     ingest_max_files: int = Field(default=20, ge=1, le=100)

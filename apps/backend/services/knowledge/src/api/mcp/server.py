@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import json
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from application.contracts.retrieval import RetrieveResult
 from application.retrieval import retrieve
@@ -90,7 +90,7 @@ def _identity(headers: Headers) -> tuple[str, str, str, str] | None:
             return None
         user, tenant, workspace, role = ((headers.get(name) or "").strip() for name in _REQUIRED_IDENTITY_HEADERS)
     if all(isinstance(v, str) and v for v in (user, tenant, workspace, role)):
-        return user, tenant, workspace, role
+        return cast(tuple[str, str, str, str], (user, tenant, workspace, role))
     return None
 
 
@@ -155,10 +155,13 @@ async def _search(
     ] = None,
 ) -> KnowledgeSearchOutput:
     _user_id, tenant_id, workspace_id, _workspace_role = _request_identity(ctx)
+    normalized_query = query.strip()
+    if not normalized_query:
+        raise ToolError("Knowledge search query must contain non-whitespace text")
     value = await _retrieve_knowledge(
         workspace_id=workspace_id,
         tenant_id=tenant_id,
-        query=query,
+        query=normalized_query,
         top_k=top_k,
     )
     return _output(value)

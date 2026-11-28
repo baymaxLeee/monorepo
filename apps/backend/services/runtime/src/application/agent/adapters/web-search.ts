@@ -38,11 +38,12 @@ interface TavilySearchResult {
   score?: number;
 }
 
-function searchHttpError(provider: string, status: number, body: string): Error {
-  return Object.assign(new Error(`${provider} HTTP ${status}: ${body.slice(0, 500)}`), {
+function searchHttpError(provider: string, response: Response, body: string): Error {
+  return Object.assign(new Error(`${provider} HTTP ${response.status}: ${body.slice(0, 500)}`), {
     code: `${provider.toUpperCase()}_REQUEST_FAILED`,
-    statusCode: status,
-    details: { provider, status_code: status, body: body.slice(0, 500) },
+    statusCode: response.status,
+    responseHeaders: Object.fromEntries(response.headers),
+    details: { provider, status_code: response.status, body: body.slice(0, 500) },
   });
 }
 
@@ -55,10 +56,6 @@ function errorSummary(error: unknown): string {
   } catch {
     return `non-Error ${typeof error}`;
   }
-}
-
-function timeoutSignal(abortSignal?: AbortSignal): AbortSignal {
-  return abortSignal ? AbortSignal.any([abortSignal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000);
 }
 
 function startDateForRange(range: WebSearchInput["time_range"]): string | undefined {
@@ -111,10 +108,10 @@ async function searchExa(
       ...(input.end_date ? { endPublishedDate: endOfDayIso(input.end_date) } : {}),
       contents,
     }),
-    signal: timeoutSignal(abortSignal),
+    signal: abortSignal,
   });
   if (!response.ok) {
-    throw searchHttpError("exa", response.status, await response.text());
+    throw searchHttpError("exa", response, await response.text());
   }
   const data = (await response.json()) as { results?: ExaSearchResult[] };
   return {
@@ -153,10 +150,10 @@ async function searchTavily(
       ...(input.start_date ? { start_date: input.start_date } : {}),
       ...(input.end_date ? { end_date: input.end_date } : {}),
     }),
-    signal: timeoutSignal(abortSignal),
+    signal: abortSignal,
   });
   if (!response.ok) {
-    throw searchHttpError("tavily", response.status, await response.text());
+    throw searchHttpError("tavily", response, await response.text());
   }
   const data = (await response.json()) as { results?: TavilySearchResult[] };
   return {

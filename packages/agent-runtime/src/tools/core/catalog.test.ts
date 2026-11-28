@@ -214,3 +214,44 @@ test("the first model request advertises research strategies and searchable tool
   assert.doesNotMatch(search.description ?? "", /unavailable_video/);
   assert.ok(probe.doGenerateCalls[1].tools?.some((t) => t.name === "generate_images"));
 });
+
+test("Code Mode can call scheduled catalog tools without deadlocking on its own admission", async () => {
+  const registry = createPortableToolRegistry({ model, webSearch });
+  const compiled = buildAgentToolRouter(registry.manifests, []);
+  const probe = new MockLanguageModelV4({
+    doGenerate: async () => {
+      const first = probe.doGenerateCalls.length === 1;
+      return {
+        content: first
+          ? [
+              {
+                type: "tool-call",
+                toolCallId: "code",
+                toolName: "code_mode",
+                input: JSON.stringify({
+                  js: 'return await tools.web_search({ query: "runtime scheduler" })',
+                }),
+              },
+            ]
+          : [{ type: "text", text: "done" }],
+        finishReason: { unified: first ? "tool-calls" : "stop", raw: undefined },
+        usage: {
+          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: 0 },
+        },
+        warnings: [],
+      };
+    },
+  });
+
+  const result = await generateText({
+    model: probe,
+    tools: compiled.tools,
+    experimental_toolCallers: compiled.toolCallers as never,
+    prompt: "Search from Code Mode",
+    stopWhen: isStepCount(2),
+    abortSignal: AbortSignal.timeout(500),
+  });
+
+  assert.equal(result.text, "done");
+});

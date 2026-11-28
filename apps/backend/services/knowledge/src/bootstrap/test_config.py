@@ -10,6 +10,13 @@ from bootstrap.config import Settings
 
 
 class TestSettings:
+    def test_converted_markdown_limit_is_large_document_sized(self):
+        with patch.dict(os.environ, {}, clear=True), patch.dict(Settings.model_config, {"env_file": None}):
+            settings = Settings()
+            assert settings.converted_markdown_max_chars == 2_000_000
+            with pytest.raises(ValidationError):
+                Settings(converted_markdown_max_chars=12_000)
+
     def test_deployed_environment_requires_a_strong_runtime_workload_credential(self):
         with patch.dict(os.environ, {}, clear=True), patch.dict(Settings.model_config, {"env_file": None}):
             settings = Settings(

@@ -1,19 +1,13 @@
 import { ChatPrompt, type ApprovalPolicyValue, type PermissionProfileValue } from "@repo/ai-elements/conversation";
 import type { PromptInputValue } from "@repo/ai-elements/prompt-input";
-import {
-  listAgentPluginOptions,
-  listProviders,
-  type AgentPluginSelectionOption,
-  type ModelProvider,
-} from "@repo/api/admin";
+import { listProviders, type ModelProvider } from "@repo/api/admin";
 import { createConversation, type ReasoningEffort } from "@repo/api/chat";
-import { getDesktopBridge, type InstalledLocalPlugin } from "@repo/runtime/desktop";
+import { getDesktopBridge } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { localPromptMessageParts } from "../local/local-user-message";
-import { ConversationPluginPicker, pluginUnavailableReason } from "./ConversationPluginPicker";
 import { DesktopNewConversationPrompt } from "./DesktopNewConversationPrompt";
 import { NewConversationEndControls, NewConversationStartControls } from "./NewConversationControls";
 import { localProjectLabel, NewConversationHero } from "./NewConversationHero";
@@ -31,18 +25,6 @@ export function ConversationListPage() {
   const cloudDraft = useRef<{ settings: string; requestId: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
-  const [pluginOptions, setPluginOptions] = useState<AgentPluginSelectionOption[] | null>(null);
-  const [installed, setInstalled] = useState<InstalledLocalPlugin[]>([]);
-  const [selectedLocal, setSelectedLocal] = useState<string[]>([]);
-  const [pluginOverrides, setPluginOverrides] = useState<Record<string, boolean>>({});
-  const selectedPluginIds = (pluginOptions ?? [])
-    .filter(
-      (option) =>
-        !pluginUnavailableReason(option, location === "local") &&
-        (pluginOverrides[option.pluginId] ?? option.selectedByDefault),
-    )
-    .map((option) => option.pluginId)
-    .sort();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
   const [localAvailable, setLocalAvailable] = useState<boolean | null>(() => (bridge ? null : false));
@@ -88,54 +70,12 @@ export function ConversationListPage() {
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void listAgentPluginOptions({ signal: controller.signal, skipErrorNotify: true })
-      .then((items) => {
-        if (!controller.signal.aborted) setPluginOptions(items);
-      })
-      .catch((cause) => {
-        if (!controller.signal.aborted) {
-          setPluginOptions([]);
-          setError(getErrorMessage(cause, "无法加载会话插件"));
-        }
-      });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!bridge || location !== "local" || !localAvailable) return;
-    let current = true;
-    void bridge
-      .listLocalPlugins()
-      .then((items) => {
-        if (current) setInstalled(items);
-      })
-      .catch((cause) => {
-        if (current) setError(getErrorMessage(cause, "无法加载本地插件"));
-      });
-    return () => {
-      current = false;
-    };
-  }, [bridge, location, localAvailable]);
-
-  async function importPlugin() {
-    if (!bridge) return;
-    try {
-      const plugin = await bridge.importLocalPlugin();
-      if (plugin) setInstalled(await bridge.listLocalPlugins());
-    } catch (cause) {
-      setError(getErrorMessage(cause, "无法导入本地插件"));
-    }
-  }
-
   async function submit(value: PromptInputValue) {
     if (pending.current || (!value.text.trim() && value.tokens.length === 0)) return;
     pending.current = true;
     setBusy(true);
     setError(null);
     try {
-      if (!pluginOptions) throw new Error("正在加载会话插件");
       if (!selectedModelId) throw new Error("请选择推理模型");
       if (location === "local") {
         if (!bridge) throw new Error("本地会话需要桌面应用");
@@ -147,10 +87,7 @@ export function ConversationListPage() {
           reasoningEffort,
           approvalPolicy,
           permissionProfile,
-          [
-            ...selectedPluginIds.map((pluginId) => ({ pluginId })),
-            ...selectedLocal.map((pluginId) => ({ pluginId, origin: "local" as const })),
-          ],
+          [],
         );
         try {
           const parts = await localPromptMessageParts(value, (file) => bridge.referenceFile(thread.id, file));
@@ -162,13 +99,7 @@ export function ConversationListPage() {
         void navigate(`/platform/chat/local/${thread.id}`);
         return;
       }
-      const settings = JSON.stringify([
-        selectedModelId,
-        reasoningEffort,
-        approvalPolicy,
-        permissionProfile,
-        selectedPluginIds,
-      ]);
+      const settings = JSON.stringify([selectedModelId, reasoningEffort, approvalPolicy, permissionProfile]);
       if (cloudDraft.current?.settings !== settings) cloudDraft.current = { settings, requestId: randomId() };
       const conversation = await createConversation({
         request_id: cloudDraft.current.requestId,
@@ -176,7 +107,7 @@ export function ConversationListPage() {
         reasoning_effort: reasoningEffort,
         approval_policy: approvalPolicy,
         permission_profile: permissionProfile,
-        plugin_selections: selectedPluginIds.map((plugin_id) => ({ plugin_id })),
+        plugin_selections: [],
       });
       const parts = await prepareCloudConversationRequest({
         conversationId: conversation.id,
@@ -196,32 +127,15 @@ export function ConversationListPage() {
 
   const footerControls = {
     footerStartRender: () => (
-      <>
-        <NewConversationStartControls
-          approvalPolicy={approvalPolicy}
-          permissionProfile={permissionProfile}
-          onChange={(value) => {
-            setApprovalPolicy(value.approvalPolicy);
-            setPermissionProfile(value.permissionProfile);
-          }}
-          disabled={busy}
-        />
-        <ConversationPluginPicker
-          installed={installed}
-          selectedLocal={selectedLocal}
-          onToggleLocal={(id, checked) =>
-            setSelectedLocal((previous) =>
-              checked ? [...new Set([...previous, id])] : previous.filter((candidate) => candidate !== id),
-            )
-          }
-          onImport={() => void importPlugin()}
-          options={pluginOptions ?? []}
-          local={location === "local"}
-          selected={selectedPluginIds}
-          disabled={busy}
-          onToggle={(id, checked) => setPluginOverrides((previous) => ({ ...previous, [id]: checked }))}
-        />
-      </>
+      <NewConversationStartControls
+        approvalPolicy={approvalPolicy}
+        permissionProfile={permissionProfile}
+        onChange={(value) => {
+          setApprovalPolicy(value.approvalPolicy);
+          setPermissionProfile(value.permissionProfile);
+        }}
+        disabled={busy}
+      />
     ),
     footerEndRender: () => (
       <NewConversationEndControls

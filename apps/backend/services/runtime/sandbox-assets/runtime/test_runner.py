@@ -256,6 +256,12 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(result["termination"]["type"], "timeout")
         self.assertEqual(result["stdout"], "before")
 
+    def test_omitted_timeout_waits_for_process_completion(self):
+        self.runtime.max_timeout = 10
+        result = self.start("sleep 0.05; printf done")
+        self.assertEqual(result["termination"], {"type": "exit", "exit_code": 0})
+        self.assertEqual(result["stdout"], "done")
+
     def test_output_is_bounded_at_collection(self):
         result = self.start("python3 -c 'import sys; sys.stdout.write(\"x\" * 10000)'", retain_output=True)
         self.assertLessEqual(len(result["stdout"].encode()), 128)

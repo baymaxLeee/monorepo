@@ -3,8 +3,9 @@ import type { ToolSet } from "ai";
 
 import { defineAgentTool, transformToolPreservingCaller } from "../core/manifest.js";
 
-export const CODE_MODE_TIMEOUT_MS = 90_000;
 export { DIRECT_TOOL_CALL };
+
+const CODE_MODE_WALL_CLOCK_LIMIT_MS = 2_147_483_647;
 
 const CODE_MODE_GUIDANCE = [
   "Use Code Mode for two or more independent public searches or fetches, or when intermediate results need programmatic deduplication, filtering, joining, or reduction before reaching the model.",
@@ -94,7 +95,7 @@ export function codeModeFailure(error: unknown): unknown {
 export function createAgentCodeModeTool(): ToolSet[string] {
   const base = codeModeTool({
     toolDiscovery: "description",
-    executionPolicy: { timeoutMs: CODE_MODE_TIMEOUT_MS },
+    executionPolicy: { timeoutMs: CODE_MODE_WALL_CLOCK_LIMIT_MS },
   });
   return transformToolPreservingCaller(base, (definition) => {
     const candidate = definition as ToolSet[string] & {

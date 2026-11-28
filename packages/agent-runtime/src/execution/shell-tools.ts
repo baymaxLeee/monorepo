@@ -105,7 +105,6 @@ export function commandForPolicy(input: BashArgs) {
   return {
     ...command,
     sandbox_permissions: command.sandbox_permissions ?? "use_default",
-    timeout_ms: 1_800_000,
   };
 }
 

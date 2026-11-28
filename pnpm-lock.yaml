@@ -419,6 +419,9 @@ overrides:
 
 pnpmfileChecksum: sha256-pvrypyzDHy8uCLQoeLGFt/W1yyBe7QR0CEIRW0w/ffs=
 
+patchedDependencies:
+  '@ai-sdk/tool-web-fetch@1.0.33': 4fb5d575af99d838f64ecdbc3ffe497f737e8e2d590eaadbe3644557c58fa50b
+
 importers:
 
   .:
@@ -485,7 +488,7 @@ importers:
         version: 5.0.85(zod@4.6.5)
       '@ai-sdk/tool-web-fetch':
         specifier: 'catalog:'
-        version: 1.0.33(ai@7.0.183(zod@4.6.5))
+        version: 1.0.33(patch_hash=4fb5d575af99d838f64ecdbc3ffe497f737e8e2d590eaadbe3644557c58fa50b)(ai@7.0.183(zod@4.6.5))
       '@backend/inner-api':
         specifier: workspace:*
         version: link:../../libs/inner-api-ts
@@ -1504,7 +1507,7 @@ importers:
         version: 5.0.85(zod@4.6.5)
       '@ai-sdk/tool-web-fetch':
         specifier: 'catalog:'
-        version: 1.0.33(ai@7.0.183(zod@4.6.5))
+        version: 1.0.33(patch_hash=4fb5d575af99d838f64ecdbc3ffe497f737e8e2d590eaadbe3644557c58fa50b)(ai@7.0.183(zod@4.6.5))
       '@ui-sdk/core':
         specifier: 'catalog:'
         version: 0.1.0-beta.18
@@ -9815,7 +9818,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@ai-sdk/tool-web-fetch@1.0.33(ai@7.0.183(zod@4.6.5))':
+  '@ai-sdk/tool-web-fetch@1.0.33(patch_hash=4fb5d575af99d838f64ecdbc3ffe497f737e8e2d590eaadbe3644557c58fa50b)(ai@7.0.183(zod@4.6.5))':
     dependencies:
       '@ai-sdk/provider-utils': 5.0.85(zod@4.6.5)
       ai: 7.0.183(zod@4.6.5)

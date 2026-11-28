@@ -62,6 +62,14 @@ func TestUpstreamTransportUsesGatewayDefaultTimeout(t *testing.T) {
 	}
 }
 
+func TestStreamingUpstreamTransportHasNoResponseHeaderTimeout(t *testing.T) {
+	transport := newStreamingUpstreamTransport()
+
+	if transport.ResponseHeaderTimeout != 0 {
+		t.Fatalf("stream response header timeout = %s, want none", transport.ResponseHeaderTimeout)
+	}
+}
+
 func TestGatewayDefaultTimeoutExcludesLongLivedTransfers(t *testing.T) {
 	const defaultTimeout = 60 * time.Second
 	for _, tc := range []struct {

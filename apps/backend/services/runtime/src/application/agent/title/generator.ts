@@ -50,8 +50,6 @@ export async function generateConversationTitlePart(input: {
   }
   try {
     const model = createProviderModel(input.provider);
-    const timeoutSignal = AbortSignal.timeout(20_000);
-    const signal = input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal;
     const result = await retryTransientNetwork(
       () =>
         generateText({
@@ -60,10 +58,9 @@ export async function generateConversationTitlePart(input: {
           prompt: source,
           maxOutputTokens: Math.min(1_024, input.provider.maxOutputTokens),
           maxRetries: 0,
-          abortSignal: signal,
-          timeout: { stepMs: 20_000 },
+          abortSignal: input.signal,
         }),
-      { signal },
+      { signal: input.signal },
     );
     const title = sanitizeConversationTitle(result.text ?? "");
     return title.length ? conversationTitlePart(title) : null;

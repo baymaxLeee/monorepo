@@ -260,7 +260,9 @@ export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {
     }
     names.add(manifest.name);
     if (manifest.tool) {
+      const isLocalToolCaller = getToolCaller(manifest.tool)?.type === "local";
       tools[manifest.name] = transformToolPreservingCaller(manifest.tool, (definition) => {
+        if (isLocalToolCaller) return definition;
         if (!("execute" in definition) || typeof definition.execute !== "function") return definition;
         const executable = definition as ToolSet[string] & {
           execute(input: unknown, options: { abortSignal?: AbortSignal }): unknown;

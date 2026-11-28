@@ -37,6 +37,11 @@ durable Claim intent 将引用激活或释放；不得把物理 locator 重新�
 Knowledge 不再运行 gRPC server，也不保留旧 Document/StagedMedia/Conversation/Retrieval
 RPC adapter。Runtime 只通过受保护的 `/mcp` 执行检索；文档生命周期仍由公开 owner API 管理。
 
+文件进入 Knowledge 后继续以不可变 Storage revision 为原件，由 MarkItDown 将 PDF、Office、
+HTML、纯文本等支持格式转换为 Markdown；图片使用有视觉输入能力的 provider 生成 Markdown
+描述。转换后的 Markdown 受独立的大文档安全上限保护，但不能用面向单次 prompt 的小窗口截断
+整份可索引文档。
+
 字节上传和内容读取使用 Storage API，不经过 Knowledge 的 public media route。
 
 ## Agent MCP surface
@@ -83,6 +88,12 @@ advisory lock 串行化同一 document。失败直接写入文档状态并反映
 Runtime worker 或独立 document worker。没有 embedding provider 时仍写入 `embedding=NULL`
 的 lexical chunks，保证 pg_trgm sparse-only 检索可用。升级前遗留的 pending/failed
 source 会在下一次读取或显式 reindex 时用同一路径同步收敛。
+
+分块按中英文混合文本估算 token，避免中文沿用 `4 chars/token` 形成超大 chunk。Contextual
+Retrieval 的上下文同时进入 dense、pg_trgm lexical 和 rerank 候选，但对 Agent 返回的仍是原始
+chunk；dense 查询只使用当前 embedding model 的向量空间，并对带 workspace 过滤的 HNSW 使用
+iterative scan。复杂问题的分解、并行或后续补查由现有单 Agent ToolLoop 多次调用
+`knowledge_search` 完成，Knowledge 内部不再嵌套第二个 Agent 或答案生成器。
 
 业务表与 RAG 向量统一存储在 PostgreSQL + pgvector。single-VPS 的统一 `db-init`
 容器使用 Knowledge 专属 role 执行服务自有迁移，再启动 API 容器，应用启动时不隐式

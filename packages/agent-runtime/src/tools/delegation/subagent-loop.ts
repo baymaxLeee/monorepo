@@ -60,7 +60,6 @@ export function createSubagent<const TOOLS extends ToolSet>({
     maxRetries: 0,
     streamRetries: MODEL_STREAM_RETRIES,
     onError: () => {},
-    timeout: { chunkMs: 120_000 },
     tools,
     activeTools,
     toolOrder: [...activeTools].sort(),

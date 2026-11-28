@@ -7,7 +7,6 @@ export { remoteCheckpointSchema } from "./context/remote-compaction.js";
 export { classifyTurnRecovery, type TurnRecoveryBoundary, type TurnRecoveryDecision } from "./turn/recovery.js";
 export {
   MODEL_STREAM_RETRIES,
-  MODEL_STREAM_IDLE_TIMEOUT_MS,
   createRetryableModelStreamMiddleware,
   createModelStreamRetryPolicy,
   classifyModelNetworkFailure,

@@ -138,10 +138,10 @@ export class RuntimeHost {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(message.payload),
-                    signal: AbortSignal.any([
-                      abort.signal,
-                      AbortSignal.timeout(method === "plugins" ? 15_000 : 30_000),
-                    ]),
+                    signal:
+                      method === "web-search"
+                        ? abort.signal
+                        : AbortSignal.any([abort.signal, AbortSignal.timeout(15_000)]),
                   },
                 )
               : Promise.reject(new Error("未知本地运行时请求"));

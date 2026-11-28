@@ -309,7 +309,7 @@ test("warm workspace attach reuses matching bytes and removes paths absent from 
 
 test("command timeout remains the primary result until finalization snapshots the workspace", async () => {
   const f = fixture();
-  let requestedTimeout = 0;
+  let requestedTimeout: number | undefined;
   f.client.start = async (_id, input) => {
     requestedTimeout = input.timeout_ms;
     return {
@@ -341,6 +341,39 @@ test("command timeout remains the primary result until finalization snapshots th
   await run.dispose();
   assert.equal(f.calls.includes("destroy"), false);
   assert.deepEqual(f.executionStates.slice(-2), ["finalizing", "released"]);
+});
+
+test("interactive commands omit a process deadline", async () => {
+  const f = fixture();
+  let requestedTimeout: number | undefined;
+  f.client.start = async (_id, input) => {
+    requestedTimeout = input.timeout_ms;
+    return {
+      session_id: "completed",
+      stdout: "",
+      stderr: "",
+      termination: { type: "exit", exit_code: 0 },
+      stdout_offset: 0,
+      stderr_offset: 0,
+      truncated: false,
+    };
+  };
+  const run = new RunSandbox(context, f.deps);
+  const signal = new AbortController().signal;
+
+  await run.runAttempt(attempt(), {
+    command: "curl https://example.com",
+    io: {
+      signal,
+      tty: false,
+      output() {},
+      retainOutput() {},
+      stdin() {},
+    },
+  });
+
+  assert.equal(requestedTimeout, undefined);
+  await run.dispose();
 });
 
 test("user saves are reported once at the next controlled model step", async () => {

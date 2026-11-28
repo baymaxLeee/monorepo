@@ -763,8 +763,7 @@ export interface components {
       retain_output?: boolean;
       /** @default 1000 */
       yield_time_ms: number;
-      /** @default 120000 */
-      timeout_ms: number;
+      timeout_ms?: number;
     };
     SandboxContinue: {
       scope: {

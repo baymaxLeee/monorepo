@@ -1,0 +1,137 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index aac605aa3920f612975cdfd2a5547c5058404ae1..43d7e074be881faa47521afd2a14b89ab1b37875 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -66,8 +66,8 @@ type WebFetchOutput = z.infer<typeof outputSchema>;
+  * @param maxLength - Maximum characters returned per call. Longer content can
+  * be read with the `offset` input. Defaults to 50,000.
+  * @param maxBytes - Maximum response size in bytes. Defaults to 10 MiB.
+- * @param timeout - Timeout in milliseconds for fetching each URL, including
+- * redirects. Defaults to 30,000.
++ * @param timeout - Optional timeout in milliseconds for fetching each URL,
++ * including redirects. Disabled by default.
+  * @param fetch - Custom fetch implementation, e.g. guarded-fetch on
+  * Node.js for connection-time DNS validation. Defaults to global fetch.
+  * @param defuddleOptions - Options for the defuddle content extractor used for
+diff --git a/dist/index.js b/dist/index.js
+index 3973228892a7810ca08aea05ccf2a7aadb3c9a5e..74708b19404c09c958bc735712b156d9a961166b 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -546,14 +546,14 @@ function validatePositiveInteger({ parameter, value, max = Number.MAX_SAFE_INTEG
+ * @param maxLength - Maximum characters returned per call. Longer content can
+ * be read with the `offset` input. Defaults to 50,000.
+ * @param maxBytes - Maximum response size in bytes. Defaults to 10 MiB.
+-* @param timeout - Timeout in milliseconds for fetching each URL, including
+-* redirects. Defaults to 30,000.
++* @param timeout - Optional timeout in milliseconds for fetching each URL,
++* including redirects. Disabled by default.
+ * @param fetch - Custom fetch implementation, e.g. guarded-fetch on
+ * Node.js for connection-time DNS validation. Defaults to global fetch.
+ * @param defuddleOptions - Options for the defuddle content extractor used for
+ * HTML pages, e.g. `contentSelector` to choose the main content element.
+ */
+-function createWebFetchTool({ allowedDomains, blockedDomains, requireUrlInUserMessage = false, maxLength = 5e4, maxBytes = 10485760, timeout = 3e4, fetch, defuddleOptions } = {}) {
++function createWebFetchTool({ allowedDomains, blockedDomains, requireUrlInUserMessage = false, maxLength = 5e4, maxBytes = 10485760, timeout, fetch, defuddleOptions } = {}) {
+ 	if (allowedDomains !== void 0 && blockedDomains !== void 0) throw new InvalidArgumentError({
+ 		parameter: "allowedDomains",
+ 		value: allowedDomains,
+@@ -567,7 +567,7 @@ function createWebFetchTool({ allowedDomains, blockedDomains, requireUrlInUserMe
+ 		parameter: "maxBytes",
+ 		value: maxBytes
+ 	});
+-	validatePositiveInteger({
++	if (timeout !== void 0) validatePositiveInteger({
+ 		parameter: "timeout",
+ 		value: timeout,
+ 		max: 2147483647
+@@ -624,8 +624,8 @@ function createWebFetchTool({ allowedDomains, blockedDomains, requireUrlInUserMe
+ 					maxLength
+ 				});
+ 			}
+-			const timeoutSignal = AbortSignal.timeout(timeout);
+-			const signal = abortSignal === void 0 ? timeoutSignal : AbortSignal.any([abortSignal, timeoutSignal]);
++			const timeoutSignal = timeout === void 0 ? void 0 : AbortSignal.timeout(timeout);
++			const signal = timeoutSignal === void 0 ? abortSignal ?? new AbortController().signal : abortSignal === void 0 ? timeoutSignal : AbortSignal.any([abortSignal, timeoutSignal]);
+ 			let result;
+ 			try {
+ 				result = await fetchWebResource({
+@@ -637,7 +637,7 @@ function createWebFetchTool({ allowedDomains, blockedDomains, requireUrlInUserMe
+ 					isDomainAllowed
+ 				});
+ 			} catch (fetchError) {
+-				if (abortSignal?.aborted !== true && timeoutSignal.aborted) return error("timeout", `The request timed out after ${timeout} ms.`);
++				if (abortSignal?.aborted !== true && timeoutSignal?.aborted) return error("timeout", `The request timed out after ${timeout} ms.`);
+ 				throw fetchError;
+ 			}
+ 			if (result.type === "error") return error(result.errorCode, result.message, result.statusCode);
+diff --git a/src/web-fetch-tool.ts b/src/web-fetch-tool.ts
+index 05d9a7f1e0d66f7149b0cd87cd62069b73cdc758..53092c70d8057c780e80685acb35ebb680bf5bb4 100644
+--- a/src/web-fetch-tool.ts
++++ b/src/web-fetch-tool.ts
+@@ -263,8 +263,8 @@ function validatePositiveInteger({
+  * @param maxLength - Maximum characters returned per call. Longer content can
+  * be read with the `offset` input. Defaults to 50,000.
+  * @param maxBytes - Maximum response size in bytes. Defaults to 10 MiB.
+- * @param timeout - Timeout in milliseconds for fetching each URL, including
+- * redirects. Defaults to 30,000.
++ * @param timeout - Optional timeout in milliseconds for fetching each URL,
++ * including redirects. Disabled by default.
+  * @param fetch - Custom fetch implementation, e.g. guarded-fetch on
+  * Node.js for connection-time DNS validation. Defaults to global fetch.
+  * @param defuddleOptions - Options for the defuddle content extractor used for
+@@ -276,7 +276,7 @@ export function createWebFetchTool({
+   requireUrlInUserMessage = false,
+   maxLength = 50_000,
+   maxBytes = 10 * 1024 * 1024,
+-  timeout = 30_000,
++  timeout,
+   fetch,
+   defuddleOptions,
+ }: {
+@@ -301,12 +301,13 @@ export function createWebFetchTool({
+ 
+   validatePositiveInteger({ parameter: 'maxLength', value: maxLength });
+   validatePositiveInteger({ parameter: 'maxBytes', value: maxBytes });
+-  validatePositiveInteger({
+-    parameter: 'timeout',
+-    value: timeout,
+-    // AbortSignal.timeout overflows above 2^31 - 1 ms and fires immediately.
+-    max: 2_147_483_647,
+-  });
++  if (timeout !== undefined) {
++    validatePositiveInteger({
++      parameter: 'timeout',
++      value: timeout,
++      max: 2_147_483_647,
++    });
++  }
+ 
+   const normalizedAllowedDomains =
+     allowedDomains === undefined
+@@ -397,11 +398,13 @@ export function createWebFetchTool({
+         }
+       }
+ 
+-      const timeoutSignal = AbortSignal.timeout(timeout);
++      const timeoutSignal = timeout === undefined ? undefined : AbortSignal.timeout(timeout);
+       const signal =
+-        abortSignal === undefined
+-          ? timeoutSignal
+-          : AbortSignal.any([abortSignal, timeoutSignal]);
++        timeoutSignal === undefined
++          ? (abortSignal ?? new AbortController().signal)
++          : abortSignal === undefined
++            ? timeoutSignal
++            : AbortSignal.any([abortSignal, timeoutSignal]);
+ 
+       let result: Awaited<ReturnType<typeof fetchWebResource>>;
+       try {
+@@ -414,7 +417,7 @@ export function createWebFetchTool({
+           isDomainAllowed,
+         });
+       } catch (fetchError) {
+-        if (abortSignal?.aborted !== true && timeoutSignal.aborted) {
++        if (abortSignal?.aborted !== true && timeoutSignal?.aborted) {
+           return error('timeout', `The request timed out after ${timeout} ms.`);
+         }
+         throw fetchError;

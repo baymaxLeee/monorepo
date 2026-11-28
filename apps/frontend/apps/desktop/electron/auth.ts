@@ -112,11 +112,15 @@ export class DesktopAuth {
     if (this.expires < Date.now() + 30_000) await this.refresh();
     if (this.scope !== scope || !this.token) throw new Error("登录身份已改变");
     init?.signal?.throwIfAborted();
+    const signal =
+      path === "/api/chat-server/local-inference/stream"
+        ? init?.signal
+        : AbortSignal.any([AbortSignal.timeout(5 * 60_000), ...(init?.signal ? [init.signal] : [])]);
     const response = await net.fetch(`${this.origin}${path}`, {
       ...init,
       redirect: "error",
       cache: "no-store",
-      signal: AbortSignal.any([AbortSignal.timeout(5 * 60_000), ...(init?.signal ? [init.signal] : [])]),
+      ...(signal ? { signal } : {}),
       headers: { ...Object.fromEntries(new Headers(init?.headers)), Authorization: `Bearer ${this.token}` },
     });
     return response;

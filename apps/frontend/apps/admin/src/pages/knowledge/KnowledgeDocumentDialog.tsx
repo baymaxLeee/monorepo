@@ -79,7 +79,7 @@ export function KnowledgeDocumentDialog({ documentId, onOpenChange, onSaved }: K
 
   return (
     <Dialog open={Boolean(documentId)} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[85vh] max-w-4xl flex-col">
+      <DialogContent className="flex h-[85vh] max-w-[80%] flex-col">
         <DialogHeader>
           <DialogTitle>阅览 / 编辑文档</DialogTitle>
           <DialogDescription>正文以 Markdown 呈现与编辑；保存后知识库会自动重建检索索引（时效性）。</DialogDescription>

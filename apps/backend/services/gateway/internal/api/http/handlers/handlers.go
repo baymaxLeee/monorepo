@@ -59,8 +59,11 @@ func newReverseProxy(upstream, service, externalPrefix string, defaultTimeout ti
 		panic("invalid " + service + " upstream url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	transport := newUpstreamTransport(defaultTimeout)
-	proxy.Transport = otelhttp.NewTransport(transport)
+	proxy.Transport = otelhttp.NewTransport(&routeAwareTransport{
+		service:   service,
+		ordinary:  newUpstreamTransport(defaultTimeout),
+		streaming: newStreamingUpstreamTransport(),
+	})
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		incomingPath := req.URL.Path
@@ -101,6 +104,33 @@ func newUpstreamTransport(defaultTimeout time.Duration) *http.Transport {
 	return transport
 }
 
+func newStreamingUpstreamTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = 32
+	transport.ResponseHeaderTimeout = 0
+	return transport
+}
+
+type routeAwareTransport struct {
+	service   string
+	ordinary  http.RoundTripper
+	streaming http.RoundTripper
+}
+
+func (t *routeAwareTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if isStreamingRequest(t.service, request.Method, request.URL.Path) {
+		return t.streaming.RoundTrip(request)
+	}
+	return t.ordinary.RoundTrip(request)
+}
+
+func isStreamingRequest(service, method, path string) bool {
+	return (service == "chat-server" &&
+		(strings.HasSuffix(path, "/stream") ||
+			method == http.MethodPost && path == "/local-inference/stream")) ||
+		(service == "canvas-server" && method == http.MethodGet && strings.HasSuffix(path, "/events"))
+}
+
 type deadlineAwareProxy struct {
 	inner          http.Handler
 	service        string
@@ -111,10 +141,7 @@ type deadlineAwareProxy struct {
 func (p *deadlineAwareProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := stripServicePrefix(r.URL.Path, p.externalPrefix)
 	rc := http.NewResponseController(w)
-	streaming := (p.service == "chat-server" &&
-		(strings.HasSuffix(path, "/stream") ||
-			r.Method == http.MethodPost && path == "/local-inference/stream")) ||
-		(p.service == "canvas-server" && r.Method == http.MethodGet && strings.HasSuffix(path, "/events"))
+	streaming := isStreamingRequest(p.service, r.Method, path)
 	largeTransfer := p.service == "storage-server" &&
 		(r.Method == http.MethodPut || r.Method == http.MethodPost || r.Method == http.MethodGet || r.Method == http.MethodHead)
 	if streaming {

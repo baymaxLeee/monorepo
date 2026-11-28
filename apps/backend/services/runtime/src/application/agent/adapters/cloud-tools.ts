@@ -104,7 +104,6 @@ export async function createCloudToolAdapters(
           login: input.login,
           io,
           workingDirectory: input.workdir ?? "/workspace/work",
-          timeoutMs: input.timeout_ms,
           abortSignal: options.abortSignal,
           violationHint: networkViolationHint(input.command),
         });

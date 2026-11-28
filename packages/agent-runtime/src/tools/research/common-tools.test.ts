@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
+import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/tool-web-fetch";
 import type { Tool, ToolExecutionOptions } from "ai";
 
 import { isToolOutcome } from "../core/outcome.js";
@@ -20,6 +21,27 @@ function staticDescription(definition: { description?: unknown } | undefined): s
 }
 
 const options = { toolCallId: "common-tools-test", messages: [], context: undefined };
+
+test("Web Fetch uses only the caller cancellation signal", async () => {
+  const controller = new AbortController();
+  let observedSignal: AbortSignal | null | undefined;
+  const definition = createWebFetchTool({
+    fetch: async (_input, init) => {
+      observedSignal = init?.signal;
+      return new Response("ok", { headers: { "Content-Type": "text/plain" } });
+    },
+  });
+
+  await executable(definition as Tool<unknown, unknown>)(
+    { url: "https://example.com/" },
+    {
+      ...options,
+      abortSignal: controller.signal,
+    },
+  );
+
+  assert.equal(observedSignal, controller.signal);
+});
 
 test("Web Fetch blocks private addresses and reports a recoverable failure", async () => {
   const fetch = executable(createWebFetchManifest().tool as Tool<unknown, unknown> | undefined);

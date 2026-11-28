@@ -39,6 +39,11 @@ test("Bash approval fields are rejected by the input schema before admission", (
   );
 });
 
+test("Bash commands do not acquire a runtime deadline", () => {
+  const command = commandForPolicy(bashArgs.parse({ command: "curl https://example.com" }));
+  assert.equal("timeout_ms" in command, false);
+});
+
 test("bounded output retains a UTF-8 tail, its original size and the exit status", async () => {
   const sessions = new CommandSessions();
   const result = await sessions.start({ tty: false, reviewInput: false, yieldMs: 250, tokens: 3 }, async (io) => {

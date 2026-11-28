@@ -112,7 +112,7 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
   });
   app.post("/sessions/:id/commands", async (c) => {
     const { scope, ...input } = startSchema.parse(await c.req.json());
-    if (input.timeout_ms > config.commandTimeoutMs)
+    if (input.timeout_ms !== undefined && input.timeout_ms > config.commandTimeoutMs)
       return c.json({ message: "command timeout exceeds configured maximum" }, 400);
     return c.json(await engine.process(c.req.param("id"), scope, { ...input, op: "start" }));
   });

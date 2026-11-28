@@ -55,23 +55,8 @@ const PROVIDER_BODY_RESERVED_KEYS = new Set([
   "parallel_tool_calls",
 ]);
 
-const PROVIDER_REQUEST_TIMEOUT_MS = 120_000;
-
 async function secureProviderRequest(input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> {
-  const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
-  const timeout = new AbortController();
-  const timer = setTimeout(
-    () => timeout.abort(new DOMException("Provider request timeout", "TimeoutError")),
-    PROVIDER_REQUEST_TIMEOUT_MS,
-  );
-  try {
-    return await secureProviderFetch(input, {
-      ...init,
-      signal: callerSignal ? AbortSignal.any([callerSignal, timeout.signal]) : timeout.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
+  return await secureProviderFetch(input, init);
 }
 
 function normalizeOpenAIBaseUrl(raw: string): string {

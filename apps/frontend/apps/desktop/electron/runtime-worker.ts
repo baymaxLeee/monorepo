@@ -6,8 +6,8 @@ import type { UIMessage } from "ai";
 import { z } from "zod";
 
 import { inferenceConfigSchema } from "../contracts/inference.generated";
+import { appToolCall, cancelAppCall } from "./local-app-call";
 import { parseLocalUserMessageParts } from "./local-user-message";
-import {appToolCall, cancelAppCall} from "./local-app-call";
 import { importAttachmentRequest, workspaceFileRequest } from "./runtime/attachments";
 import { DesktopSessionManager } from "./runtime/session-manager";
 
@@ -30,8 +30,8 @@ const ownerWatch = setInterval(() => {
 }, 1000);
 ownerWatch.unref();
 
-function request(method: string, payload: unknown, signal: AbortSignal) {
-  signal.throwIfAborted();
+function request(method: string, payload: unknown, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   const id = randomUUID();
   const cancel = () => {
     pending.get(id)?.reject(new Error("请求已取消"));
@@ -40,10 +40,10 @@ function request(method: string, payload: unknown, signal: AbortSignal) {
   };
   const result = new Promise<unknown>((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    signal.addEventListener("abort", cancel, { once: true });
+    signal?.addEventListener("abort", cancel, { once: true });
     port.postMessage({ type: "request", id, method, payload });
   });
-  return result.finally(() => signal.removeEventListener("abort", cancel));
+  return result.finally(() => signal?.removeEventListener("abort", cancel));
 }
 const idSchema = z.string().uuid();
 const fileSchema = z.object({ id: idSchema, path: z.string().max(4096) });
@@ -67,8 +67,7 @@ async function dispatch(method: string, payload: unknown) {
         inferenceConfigSchema.parse(await request("config", { providerId, reasoningEffort }, signal)),
       resolvePlugins: async (activations, signal) =>
         (await request("plugins", { activations }, signal)) as ResolvedTurnPluginSnapshot,
-      webSearch: async (input, signal) =>
-        webSearchOutputSchema.parse(await request("web-search", input, signal ?? AbortSignal.timeout(30_000))),
+      webSearch: async (input, signal) => webSearchOutputSchema.parse(await request("web-search", input, signal)),
       call: async (body, signal) => {
         signal?.throwIfAborted();
         const id = body.requestId;
@@ -153,12 +152,12 @@ async function dispatch(method: string, payload: unknown) {
       return runtime.importAttachment(id, filename, bytes);
     }
     case "callAppTool": {
-      const p=appToolCall.parse(payload);
-      return runtime.callAppTool(p.id,p.requestId,p.toolCallId,p.name,p.args);
+      const p = appToolCall.parse(payload);
+      return runtime.callAppTool(p.id, p.requestId, p.toolCallId, p.name, p.args);
     }
     case "cancelAppCall": {
-      const p=cancelAppCall.parse(payload);
-      runtime.cancelAppCall(p.id,p.requestId);
+      const p = cancelAppCall.parse(payload);
+      runtime.cancelAppCall(p.id, p.requestId);
       return null;
     }
     case "openStream":
