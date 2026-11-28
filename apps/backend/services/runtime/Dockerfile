@@ -9,6 +9,7 @@ WORKDIR /app
 RUN corepack enable
 COPY package.json ./package.json
 COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
+COPY patches ./patches
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/backend/libs/inner-api-ts/package.json ./apps/backend/libs/inner-api-ts/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
@@ -31,6 +32,7 @@ COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=kubectl /bin/kubectl /usr/local/bin/kubectl
 COPY package.json ./package.json
 COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
+COPY patches ./patches
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/backend/libs/inner-api-ts/package.json ./apps/backend/libs/inner-api-ts/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json

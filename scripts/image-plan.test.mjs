@@ -28,6 +28,15 @@ test("Python images use the same pinned uv version as local and hosted checks", 
   }
 });
 
+test("Node image dependency layers include workspace patch files before install", () => {
+  for (const path of ["apps/backend/services/runtime/Dockerfile", "infra/single-vps/Dockerfile.web"]) {
+    const dockerfile = readFileSync(resolve(root, path), "utf8");
+    const install = dockerfile.search(/^RUN .*pnpm install/m);
+    assert.notEqual(install, -1, path);
+    assert.match(dockerfile.slice(0, install), /^COPY patches \.\/patches$/m, path);
+  }
+});
+
 test("plans from the last successful release and forwards exact metadata through deployment", () => {
   const build = readFileSync(resolve(root, ".github/workflows/build-images.yml"), "utf8");
   const mirror = readFileSync(resolve(root, ".github/workflows/mirror-images.yml"), "utf8");
