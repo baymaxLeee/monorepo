@@ -8,11 +8,11 @@ import { z } from "zod";
 import { DesktopAuth } from "./auth";
 import { APP_ORIGIN, APP_SCHEME, APP_URL, registerEmbeddedPlatform } from "./embedded-platform";
 import { RuntimeHost } from "./host-runtime";
+import { appToolCall, cancelAppCall } from "./local-app-call";
 import { parseLocalUserMessageParts } from "./local-user-message";
 import { selectPlatform } from "./platform-selector";
 import { type PackagedPlatform, platformLaunch, platformUrl } from "./platform-url";
 import { resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
-import {appToolCall, cancelAppCall} from "./local-app-call";
 import { importAttachmentRequest, workspaceFileRequest } from "./runtime/attachments";
 import { listLocalPlugins, importLocalPlugin } from "./runtime/local-plugins";
 import { WorkspaceGrants } from "./workspace-grants";
@@ -218,8 +218,10 @@ async function start() {
         }
         return scopedCall("create", p);
       }
-      case "callAppTool": return scopedCall(method,appToolCall.parse(payload));
-      case "cancelAppCall": return scopedCall(method,cancelAppCall.parse(payload));
+      case "callAppTool":
+        return scopedCall(method, appToolCall.parse(payload));
+      case "cancelAppCall":
+        return scopedCall(method, cancelAppCall.parse(payload));
       case "workspaceFilePath":
         return scopedCall(method, workspaceFileRequest.parse(payload));
       case "importAttachment":

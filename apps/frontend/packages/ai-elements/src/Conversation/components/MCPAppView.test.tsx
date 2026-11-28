@@ -90,21 +90,41 @@ test("only the latest approved app context accompanies a new message and failed 
 });
 
 test("card callbacks require a supported host and review; dismiss and unmount release pending requests", async () => {
-  const callback = vi.fn().mockResolvedValue({content:[]});
-  const view = readMCPAppView({...part, output:{ok:true,status:"completed",data:{content:[],_meta:{mcpAppResource:{...resource,callback:{tool:"search",pluginId:"docs@platform"}}}}}})!;
-  const { unmount } = render(<MCPAppContext.Provider value={createMCPAppContext(callback)}><MCPAppView view={view}/></MCPAppContext.Provider>);
+  const callback = vi.fn().mockResolvedValue({ content: [] });
+  const view = readMCPAppView({
+    ...part,
+    output: {
+      ok: true,
+      status: "completed",
+      data: {
+        content: [],
+        _meta: { mcpAppResource: { ...resource, callback: { tool: "search", pluginId: "docs@platform" } } },
+      },
+    },
+  })!;
+  const { unmount } = render(
+    <MCPAppContext.Provider value={createMCPAppContext(callback)}>
+      <MCPAppView view={view} />
+    </MCPAppContext.Provider>,
+  );
   expect(handlers.allowedTools).toEqual(["search"]);
-  const request = () => handlers.callTool!({name:"search",arguments:{query:"docs"}});
-  let call:unknown;
-  act(()=>{call=request();});
+  const request = () => handlers.callTool!({ name: "search", arguments: { query: "docs" } });
+  let call: unknown;
+  act(() => {
+    call = request();
+  });
   expect(callback).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button",{name:"忽略"}));
+  fireEvent.click(screen.getByRole("button", { name: "忽略" }));
   await expect(call).rejects.toThrow();
-  act(()=>{call=request();});
-  fireEvent.click(screen.getByRole("button",{name:"允许调用"}));
-  expect(await call).toEqual({content:[]});
-  expect(callback).toHaveBeenCalledWith("call","docs@platform","search",{query:"docs"},expect.any(AbortSignal));
-  act(()=>{call=request();});
+  act(() => {
+    call = request();
+  });
+  fireEvent.click(screen.getByRole("button", { name: "允许调用" }));
+  expect(await call).toEqual({ content: [] });
+  expect(callback).toHaveBeenCalledWith("call", "docs@platform", "search", { query: "docs" }, expect.any(AbortSignal));
+  act(() => {
+    call = request();
+  });
   unmount();
   await expect(call).rejects.toThrow();
   expect(callback).toHaveBeenCalledTimes(1);

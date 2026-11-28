@@ -134,9 +134,14 @@ const openapi = {
     },
     "/sessions/{session_id}/mcp-apps/call": {
       post: {
-        operationId: "callSessionAppTool", parameters: [pathParam],
-        requestBody: { required: true, content: {"application/json": {schema: ref("MCPAppCallInput")}} },
-        responses: {"200": jsonResponse("MCP CallToolResult", {type:"object",additionalProperties:true}), "403": {description:"Card or tool is unavailable"}, "409": {description:"Installed tool or resource changed"}},
+        operationId: "callSessionAppTool",
+        parameters: [pathParam],
+        requestBody: { required: true, content: { "application/json": { schema: ref("MCPAppCallInput") } } },
+        responses: {
+          "200": jsonResponse("MCP CallToolResult", { type: "object", additionalProperties: true }),
+          "403": { description: "Card or tool is unavailable" },
+          "409": { description: "Installed tool or resource changed" },
+        },
       },
     },
     "/sessions/{session_id}/history/select": {
@@ -410,9 +415,17 @@ const openapi = {
   },
   components: {
     schemas: {
-      MCPAppCallInput: {type:"object",additionalProperties:false,required:["tool_call_id","name","arguments","plugins"],properties:{
-        tool_call_id:{type:"string",minLength:1}, name:{type:"string",minLength:1}, arguments:{type:"object",additionalProperties:true}, plugins:{type:"object",additionalProperties:true}
-      }},
+      MCPAppCallInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["tool_call_id", "name", "arguments", "plugins"],
+        properties: {
+          tool_call_id: { type: "string", minLength: 1 },
+          name: { type: "string", minLength: 1 },
+          arguments: { type: "object", additionalProperties: true },
+          plugins: { type: "object", additionalProperties: true },
+        },
+      },
 
       ...inferenceDefinitions,
       RuntimeProviderCapability: {

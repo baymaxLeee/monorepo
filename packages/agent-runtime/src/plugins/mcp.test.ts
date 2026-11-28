@@ -242,7 +242,11 @@ test("MCP Apps cache verified views within a connection and keep app-only tools 
     ...base,
     listTools: async () => ({
       tools: [
-        { name: "search", inputSchema, _meta: { ui: { resourceUri: uri,visibility: appVisible ? ["model","app"] : ["model"] } } },
+        {
+          name: "search",
+          inputSchema,
+          _meta: { ui: { resourceUri: uri, visibility: appVisible ? ["model", "app"] : ["model"] } },
+        },
         { name: "expand", inputSchema, _meta: { ui: { visibility: ["app"] } } },
       ],
     }),
@@ -280,14 +284,21 @@ test("MCP Apps cache verified views within a connection and keep app-only tools 
     failRead = false;
     const [result, cached] = await Promise.all(["second", "third"].map((query) => tool.execute({ query }, {})));
     assert.equal(result.ok, true);
-    const part = {type:"dynamic-tool",toolName:"mcp__knowledge__search",toolMetadata:{agent:{source:"mcp",pluginId:manifest.id}},state:"output-available",toolCallId:"call",output:result};
-    const receipt = findAppCallback([part],"call","search");
-    assert.throws(()=>findAppCallback([part,part],"call","search"));
-    assert.throws(()=>findAppCallback([part],"call","expand"));
-    assert.throws(()=>findAppCallback([{...part, state:"input-available"}],"call","search"));
-    assert.throws(()=>findAppCallback([{...part,toolName:"other"}],"call","search"));
+    const part = {
+      type: "dynamic-tool",
+      toolName: "mcp__knowledge__search",
+      toolMetadata: { agent: { source: "mcp", pluginId: manifest.id } },
+      state: "output-available",
+      toolCallId: "call",
+      output: result,
+    };
+    const receipt = findAppCallback([part], "call", "search");
+    assert.throws(() => findAppCallback([part, part], "call", "search"));
+    assert.throws(() => findAppCallback([part], "call", "expand"));
+    assert.throws(() => findAppCallback([{ ...part, state: "input-available" }], "call", "search"));
+    assert.throws(() => findAppCallback([{ ...part, toolName: "other" }], "call", "search"));
     assert.deepEqual(result.data._meta.mcpAppResource, {
-      callback:receipt,
+      callback: receipt,
       uri,
       mimeType: "text/html;profile=mcp-app",
       html: "<main>Knowledge</main>",
@@ -302,24 +313,45 @@ test("MCP Apps cache verified views within a connection and keep app-only tools 
     assert.equal(calls, 3);
     await loaded.dispose?.();
     let closed = 0;
-    const fresh = () => loadMcpServer(resolved(),{}, {}, {createClient: async()=>({...client,close:async()=>{closed++;}})});
+    const fresh = () =>
+      loadMcpServer(
+        resolved(),
+        {},
+        {},
+        {
+          createClient: async () => ({
+            ...client,
+            close: async () => {
+              closed++;
+            },
+          }),
+        },
+      );
     const again = fresh();
     try {
-      assert.ok(await again.callAppTool(receipt,{query:"next"}));
-      await assert.rejects(again.callAppTool(receipt,{query:5}));
-      await assert.rejects(again.callAppTool({...receipt,digest:"old"},{query:"x"}));
-      await assert.rejects(again.callAppTool({...receipt,bindings:{canvas_id:"other"}},{query:"x"}));
-    } finally { await again.dispose?.(); }
+      assert.ok(await again.callAppTool(receipt, { query: "next" }));
+      await assert.rejects(again.callAppTool(receipt, { query: 5 }));
+      await assert.rejects(again.callAppTool({ ...receipt, digest: "old" }, { query: "x" }));
+      await assert.rejects(again.callAppTool({ ...receipt, bindings: { canvas_id: "other" } }, { query: "x" }));
+    } finally {
+      await again.dispose?.();
+    }
     html = "<main>Changed</main>";
     const changed = fresh();
-    try { await assert.rejects(changed.callAppTool(receipt,{query:"x"}),/resource changed/); }
-    finally { await changed.dispose?.(); }
+    try {
+      await assert.rejects(changed.callAppTool(receipt, { query: "x" }), /resource changed/);
+    } finally {
+      await changed.dispose?.();
+    }
     appVisible = false;
     const hidden = fresh();
-    try { await assert.rejects(hidden.callAppTool(receipt,{query:"x"}),/unavailable/); }
-    finally { await hidden.dispose?.(); }
-    assert.equal(closed,3);
-    assert.equal(calls,4);
+    try {
+      await assert.rejects(hidden.callAppTool(receipt, { query: "x" }), /unavailable/);
+    } finally {
+      await hidden.dispose?.();
+    }
+    assert.equal(closed, 3);
+    assert.equal(calls, 4);
   } finally {
     await loaded.dispose?.();
   }

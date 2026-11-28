@@ -58,9 +58,13 @@ export function ChatSession({
 }) {
   const forkConversation = useForkConversation(id);
   const [activatedSkillName, setActivatedSkillName] = useState<string | null>(null);
-  const appContext = useMemo(() => createMCPAppContext((callId, pluginId, name, args, signal) =>
-    callConversationAppTool(id, {tool_call_id: callId, plugin_id:pluginId, name, arguments: args}, {signal})
-  ), [id]);
+  const appContext = useMemo(
+    () =>
+      createMCPAppContext((callId, pluginId, name, args, signal) =>
+        callConversationAppTool(id, { tool_call_id: callId, plugin_id: pluginId, name, arguments: args }, { signal }),
+      ),
+    [id],
+  );
   const promptRef = useRef<PromptInputRef>(null);
   const conversationScrollRef = useRef<ConversationScrollHandle | null>(null);
   const skillCommandsCacheRef = useRef<PromptSlashCommand[] | null>(null);

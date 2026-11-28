@@ -13,7 +13,7 @@ const viewResult = z.object({
     content: z.array(z.unknown()),
     _meta: z.looseObject({
       mcpAppResource: z.object({
-        callback: z.object({pluginId:z.string().min(1),tool:z.string().min(1)}).optional(),
+        callback: z.object({ pluginId: z.string().min(1), tool: z.string().min(1) }).optional(),
         uri: z.string().startsWith("ui://"),
         mimeType: z.literal("text/html;profile=mcp-app"),
         html: z.string(),
@@ -58,10 +58,11 @@ export function readMCPAppView(part: MCPAppRendererProps["part"]) {
   if (!result.success) return null;
   const { _meta, ...resultFields } = result.data.data;
   const { mcpAppResource, ...appMeta } = _meta;
-  const {callback, ...resource} = mcpAppResource;
+  const { callback, ...resource } = mcpAppResource;
   const app = { resourceUri: resource.uri, mimeType: resource.mimeType };
   return {
-    resource, callback,
+    resource,
+    callback,
     resultFields,
     part: { ...part, toolMetadata: { ...part.toolMetadata, app }, output: { ...resultFields, _meta: appMeta } },
   };
@@ -74,10 +75,13 @@ export function MCPAppView({ view }: { view: NonNullable<ReturnType<typeof readM
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const pending = useRef<Suggestion | null>(null);
   const inFlight = useRef<AbortController | null>(null);
-  useEffect(() => () => {
-    pending.current?.finish(true);
-    inFlight.current?.abort();
-  }, [view.part.toolCallId, appContext]);
+  useEffect(
+    () => () => {
+      pending.current?.finish(true);
+      inFlight.current?.abort();
+    },
+    [view.part.toolCallId, appContext],
+  );
   const { resource } = view;
   const handlers = useMemo<MCPAppBridgeHandlers>(() => {
     function review(kind: Suggestion["kind"], text: string) {
@@ -97,21 +101,34 @@ export function MCPAppView({ view }: { view: NonNullable<ReturnType<typeof readM
       });
     }
     return {
-      ...(view.callback && appContext?.callTool ? {
-        allowedTools: [view.callback.tool],
-        async callTool({name, arguments: args = {}}: Parameters<NonNullable<MCPAppBridgeHandlers["callTool"]>>[0]) {
-          if (name !== view.callback?.tool || !appContext.callTool || inFlight.current) throw new Error("工具不可用或正在执行");
-          const controller = new AbortController();
-          inFlight.current = controller;
-          try {
-            if (await review("tool", name + "\n" + JSON.stringify(args, null, 2))) throw new Error("用户未确认调用");
-            controller.signal.throwIfAborted();
-            return await appContext.callTool(view.part.toolCallId, view.callback.pluginId, name, args, controller.signal);
-          } finally {
-            if (inFlight.current === controller) inFlight.current = null;
+      ...(view.callback && appContext?.callTool
+        ? {
+            allowedTools: [view.callback.tool],
+            async callTool({
+              name,
+              arguments: args = {},
+            }: Parameters<NonNullable<MCPAppBridgeHandlers["callTool"]>>[0]) {
+              if (name !== view.callback?.tool || !appContext.callTool || inFlight.current)
+                throw new Error("工具不可用或正在执行");
+              const controller = new AbortController();
+              inFlight.current = controller;
+              try {
+                if (await review("tool", name + "\n" + JSON.stringify(args, null, 2)))
+                  throw new Error("用户未确认调用");
+                controller.signal.throwIfAborted();
+                return await appContext.callTool(
+                  view.part.toolCallId,
+                  view.callback.pluginId,
+                  name,
+                  args,
+                  controller.signal,
+                );
+              } finally {
+                if (inFlight.current === controller) inFlight.current = null;
+              }
+            },
           }
-        }
-      }: {}),
+        : {}),
       listResources: () => ({ resources: [{ uri: resource.uri, mimeType: resource.mimeType, name: resource.uri }] }),
       readResource: ({ uri }) => {
         if (uri !== resource.uri) throw new Error("资源不属于此工具调用");
@@ -168,7 +185,13 @@ export function MCPAppView({ view }: { view: NonNullable<ReturnType<typeof readM
       />
       {suggestion && (
         <div data-agent-hidden className="space-y-2 rounded-md border p-3 text-sm">
-          <p>{suggestion.kind === "message" ? "此应用建议在对话中追问" : suggestion.kind === "tool" ? "允许此应用调用只读工具？" : "将以下工具数据附入本会话的下一条消息？"}</p>
+          <p>
+            {suggestion.kind === "message"
+              ? "此应用建议在对话中追问"
+              : suggestion.kind === "tool"
+                ? "允许此应用调用只读工具？"
+                : "将以下工具数据附入本会话的下一条消息？"}
+          </p>
           <p className="whitespace-pre-wrap">{suggestion.text}</p>
           <div className="flex gap-2">
             <Button size="sm" onClick={() => acceptSuggestion(suggestion)}>
