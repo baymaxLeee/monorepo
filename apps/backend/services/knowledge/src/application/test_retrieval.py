@@ -58,9 +58,7 @@ async def test_retrieve_is_model_safe_and_reranks_contextual_content(monkeypatch
             )
         ]
 
-    async def rerank(
-        query: str, documents: list[str], **_kwargs: Any
-    ) -> list[tuple[int, float]]:
+    async def rerank(query: str, documents: list[str], **_kwargs: Any) -> list[tuple[int, float]]:
         calls["rerank"] = (query, documents)
         return [(1, 0.91), (0, 0.63)]
 

@@ -123,9 +123,7 @@ async def retrieve(
             rerank_provider = await get_admin_client().get_provider_by_kind(
                 workspace_id=workspace_id, tenant_id=tenant_id, kind="rerank"
             )
-            ranking = await rerank(
-                query, [c.retrieval_content for c in fused], provider=rerank_provider, top_n=top_k
-            )
+            ranking = await rerank(query, [c.retrieval_content for c in fused], provider=rerank_provider, top_n=top_k)
             if ranking:
                 seen: set[int] = set()
                 reranked: list[_Candidate] = []
