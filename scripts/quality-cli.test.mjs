@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -102,6 +103,11 @@ function typescriptFixture(t) {
   ]) {
     copyFileSync(join(source, path), join(f.root, path));
   }
+  cpSync(join(source, "patches"), join(f.root, "patches"), { recursive: true });
+  writeFileSync(
+    join(f.root, "pnpm-workspace.yaml"),
+    `${readFileSync(join(f.root, "pnpm-workspace.yaml"), "utf8")}\nallowUnusedPatches: true\n`,
+  );
   for (const path of ["apps/frontend/apps/example/src", "packages", "scripts"]) {
     mkdirSync(join(f.root, path), { recursive: true });
   }
