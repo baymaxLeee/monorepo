@@ -6,12 +6,8 @@ import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
 import { isToolOutcome, type ToolOutcome } from "../core/outcome.js";
+import { createSubagentSessionRunner, DEFAULT_SUBAGENT_INSTRUCTIONS } from "./subagent-session.js";
 import { createSubagentsManifest } from "./subagents.js";
-
-const subagentConfig = {
-  modelName: "research-model",
-  maxOutputTokens: 4_096,
-};
 
 const tools = {
   web_search: tool({
@@ -25,6 +21,20 @@ const tools = {
     execute: async () => ({ content: "source" }),
   }),
 } satisfies ToolSet;
+
+function createManifest(model: MockLanguageModelV4) {
+  return createSubagentsManifest({
+    runner: createSubagentSessionRunner({
+      modelName: "research-model",
+      model,
+      instructions: DEFAULT_SUBAGENT_INSTRUCTIONS,
+      tools,
+      toolsContext: {},
+      contextLimits: { contextWindow: 32_000, maxOutputTokens: 4_096 },
+      maxOutputTokens: 4_096,
+    }),
+  });
+}
 
 const options: ToolExecutionOptions<{ runId: string }> = {
   toolCallId: "parent-tool-call",
@@ -81,7 +91,7 @@ void test("subagents stream isolated progress and return only compressed reports
   const model = new MockLanguageModelV4({
     doStream: textStream("Evidence-backed report with https://example.com/source"),
   });
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model });
+  const manifest = createManifest(model);
 
   const outputs = await collectExecution(manifest);
 
@@ -109,8 +119,43 @@ void test("subagents stream isolated progress and return only compressed reports
   });
 });
 
+void test("subagents never copy a child tool transcript into the parent result", async () => {
+  const privateTrace = "PRIVATE_CHILD_TOOL_TRACE";
+  const manifest = createSubagentsManifest({
+    runner: {
+      modelName: "research-model",
+      async run({ onSnapshot }) {
+        const message = {
+          id: "child-message",
+          role: "assistant" as const,
+          parts: [
+            {
+              type: "dynamic-tool" as const,
+              toolName: "web_fetch",
+              toolCallId: "child-fetch",
+              state: "output-available" as const,
+              input: { url: "https://example.com/private" },
+              output: { content: privateTrace },
+            },
+            { type: "text" as const, text: "Safe final report" },
+          ],
+        };
+        onSnapshot(message);
+        return { message, steps: 2, toolCalls: 1, usage: {} };
+      },
+    },
+  });
+
+  const outputs = await collectExecution(manifest);
+  const completed = outputs.at(-1);
+  assert.ok(completed?.status === "completed");
+  assert.doesNotMatch(JSON.stringify(completed), new RegExp(privateTrace));
+  const modelOutput = await manifest.tool?.toModelOutput?.({ output: completed } as never);
+  assert.deepEqual(modelOutput, { type: "text", value: "## evidence\n\nSafe final report" });
+});
+
 void test("subagents are optional context isolation, not a mandatory research router", () => {
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model: new MockLanguageModelV4() });
+  const manifest = createManifest(new MockLanguageModelV4());
   assert.ok(manifest.tool && "description" in manifest.tool);
   const description = manifest.tool.description;
   assert.equal(typeof description, "string");
@@ -124,7 +169,7 @@ void test("subagents are optional context isolation, not a mandatory research ro
 });
 
 void test("subagents accept one to three uniquely identified tasks", async () => {
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model: new MockLanguageModelV4() });
+  const manifest = createManifest(new MockLanguageModelV4());
   assert.ok(manifest.tool && "inputSchema" in manifest.tool);
   const schema = asSchema(manifest.tool.inputSchema);
   const valid = await schema.validate?.({ tasks: [{ id: "one", task: "Research one topic." }] });
@@ -158,7 +203,7 @@ void test("subagents run two independent delegated tasks concurrently and return
       return textStream(serialized.includes("market") ? "Market report" : "Technology report");
     },
   });
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model });
+  const manifest = createManifest(model);
 
   const outputs = await collectExecution(manifest, {
     tasks: [
@@ -188,7 +233,7 @@ void test("subagents preserve successful sibling reports when one task fails", a
       return textStream("Technology report");
     },
   });
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model });
+  const manifest = createManifest(model);
 
   const outputs = await collectExecution(manifest, {
     tasks: [
@@ -230,7 +275,7 @@ void test("subagents retain streamed progress and the underlying provider error 
       }),
     },
   });
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model });
+  const manifest = createManifest(model);
 
   const outputs = await collectExecution(manifest);
   const completed = outputs.at(-1);
@@ -271,7 +316,7 @@ void test("subagents bound cumulative child progress instead of publishing every
       }),
     },
   });
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model });
+  const manifest = createManifest(model);
 
   const outputs = await collectExecution(manifest);
   const running = outputs.filter((output) => output.status === "running");
@@ -283,10 +328,9 @@ void test("subagents bound cumulative child progress instead of publishing every
   );
   const completed = outputs.at(-1);
   assert.ok(completed?.status === "completed");
-  assert.equal(
-    (completed.data as { subagents: Array<{ report: string }> }).subagents[0].report.length,
-    200 * delta.length,
-  );
+  const report = (completed.data as { subagents: Array<{ report: string }> }).subagents[0].report;
+  assert.ok(report.length < 20_000);
+  assert.match(report, /report truncated at parent boundary/);
 });
 
 void test("subagents propagate cancellation through every child agent", async () => {
@@ -296,7 +340,7 @@ void test("subagents propagate cancellation through every child agent", async ()
       return textStream("unreachable");
     },
   });
-  const manifest = createSubagentsManifest({ ...subagentConfig, tools, model });
+  const manifest = createManifest(model);
   const signal = AbortSignal.abort(new DOMException("Stopped", "AbortError"));
 
   await assert.rejects(() => collectExecution(manifest, undefined, signal), { name: "AbortError" });

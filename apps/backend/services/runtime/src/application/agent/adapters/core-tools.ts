@@ -40,8 +40,7 @@ export function createRuntimePortableToolModel(
   return {
     name: provider.model,
     model: binding.model,
-    maxOutputTokens: provider.maxOutputTokens,
-    continuation: binding.continuation,
+    contextLimits: provider,
     contextSchema: subagentToolContextSchema,
     observer: runtimeSubagentObserver(),
   };

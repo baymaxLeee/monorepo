@@ -510,7 +510,7 @@ export class DesktopSessionManager {
       model: {
         name: config.model,
         model,
-        maxOutputTokens: config.maxOutputTokens,
+        contextLimits: config,
       },
       webSearch: (input, options) => this.options.webSearch(input, options.abortSignal),
       uiAgent: thread.clientCapabilities?.uiAgent === "ui-sdk",

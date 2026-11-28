@@ -1,7 +1,8 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { FlexibleSchema } from "ai";
 
-import type { StoredModelContinuation } from "../../turn/model-capabilities.js";
+import type { ModelContextLimits } from "../../context/budget.js";
+import { createSubagentSessionRunner, DEFAULT_SUBAGENT_INSTRUCTIONS } from "../delegation/subagent-session.js";
 import { createSubagentsManifest, type SubagentObserver } from "../delegation/subagents.js";
 import { createPlanningToolManifests } from "../interaction/plan.js";
 import { createUIAgentToolManifests } from "../interaction/ui-agent.js";
@@ -21,8 +22,7 @@ import type { AgentToolManifest } from "./types.js";
 export interface PortableToolModel<CONTEXT extends Record<string, unknown>> {
   name: string;
   model: LanguageModelV4;
-  maxOutputTokens?: number;
-  continuation?: StoredModelContinuation;
+  contextLimits: ModelContextLimits;
   contextSchema?: FlexibleSchema<CONTEXT>;
   observer?: SubagentObserver<CONTEXT>;
 }
@@ -52,6 +52,18 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
   if (!researchTools.web_search || !researchTools.web_fetch) {
     throw new Error("portable research tools are unavailable");
   }
+  const subagentRunner = createSubagentSessionRunner({
+    modelName: model.name,
+    model: model.model,
+    instructions: DEFAULT_SUBAGENT_INSTRUCTIONS,
+    contextLimits: model.contextLimits,
+    maxOutputTokens: model.contextLimits.maxOutputTokens,
+    tools: {
+      web_search: researchTools.web_search,
+      web_fetch: researchTools.web_fetch,
+    },
+    toolsContext: {},
+  });
 
   return {
     manifests: [
@@ -61,14 +73,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
       ...createPlanningToolManifests(),
       ...(uiAgent ? createUIAgentToolManifests() : []),
       createSubagentsManifest({
-        modelName: model.name,
-        model: model.model,
-        maxOutputTokens: model.maxOutputTokens,
-        continuation: model.continuation,
-        tools: {
-          web_search: researchTools.web_search,
-          web_fetch: researchTools.web_fetch,
-        },
+        runner: subagentRunner,
         ...(model.contextSchema ? { contextSchema: model.contextSchema } : {}),
         ...(model.observer ? { observer: model.observer } : {}),
       }),
